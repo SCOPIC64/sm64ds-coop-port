@@ -118,7 +118,18 @@ struct SignPost : dBgActor_c {
        and 0x020bae2c are still C translation units defining extern "C" free
        functions under the mangled names, exactly as include/dActor_c.h describes;
        neither defines SignPost::~SignPost. */
-    virtual ~SignPost() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~SignPost() {}   /* no slot */
+#else
+    virtual ~SignPost() {}   /* D1 and D0 */
+#endif
 
     /* Slot 31, dBgActor_c's own new virtual (include/dBgActor_c.h). This class
        overrides it: _ZTV8SignPost (ov002 0x02109af8) carries 0x020bb3b8 at

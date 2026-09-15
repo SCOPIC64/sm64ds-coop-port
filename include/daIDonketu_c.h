@@ -68,7 +68,18 @@ struct daIDonketu_c : daOts_c {
        -- plus a third D2 with no ROM home. Defined here it emits the retail D1/D0
        pair in ROM order and no D2. Unlike daOts_c's and dEnemyBase_c's, this body is
        inlined by nobody: the class has no descendants. */
-    virtual ~daIDonketu_c() {}          /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daIDonketu_c() {}   /* no slot */
+#else
+    virtual ~daIDonketu_c() {}   /* D1 and D0 */
+#endif
 
     /* THE KEY FUNCTION IS Behavior -- the first DECLARED non-inline virtual, not
        the first slot. It and InitResources override daOts_c's pure

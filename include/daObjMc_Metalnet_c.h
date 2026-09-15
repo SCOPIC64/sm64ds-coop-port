@@ -38,7 +38,18 @@ struct daObjMc_Metalnet_c : dBgActor_c {
        and a homeless D2, and objisolate rejects the whole translation unit.
        Defined in the class body it emits D1 then D0 and no D2. Safe here
        because the class is a leaf: nothing derives from it. */
-    virtual ~daObjMc_Metalnet_c() {}        /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjMc_Metalnet_c() {}   /* no slot */
+#else
+    virtual ~daObjMc_Metalnet_c() {}   /* D1 and D0 */
+#endif
 
     virtual s32   InitResources();          /* slot  0 */
     virtual s32   CleanupResources();       /* slot  3 */

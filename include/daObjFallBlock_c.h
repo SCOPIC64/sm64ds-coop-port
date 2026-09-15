@@ -128,7 +128,18 @@ struct daObjFallBlock_c : dBgActor_c {
        file and config/tu_manifest.d/ov098/daObjFallBlock_c.json. Do not "fix"
        the ordering by moving this body out of line: it trades four descendants'
        bytes for one TU's. */
-    virtual ~daObjFallBlock_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjFallBlock_c() {}   /* no slot */
+#else
+    virtual ~daObjFallBlock_c() {}   /* D1 and D0 */
+#endif
 
     /* Slot 31, dBgActor_c's own new virtual (include/dBgActor_c.h). This class
        overrides it; it adds no slot and no field, so the size assert below is

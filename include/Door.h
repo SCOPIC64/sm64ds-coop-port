@@ -143,7 +143,18 @@ struct Door : dActor_c {
        function (see DERIVATION above): _ZN4DoorD1Ev.c / _ZN4DoorD0Ev.c define
        it as extern "C" free functions, never as a real `Door::~Door()`, so
        nothing here changes which TU the vtable is emitted from. --- */
-    virtual ~Door();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~Door();   /* no slot */
+#else
+    virtual ~Door();   /* D1 and D0 */
+#endif
 
     /* --- overrides of inherited fBase_c slots dActor_c left untouched (see
        include/dActor_c.h: "Slots 0, 3, 6, 9, 12 ... still point at the

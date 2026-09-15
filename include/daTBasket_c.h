@@ -60,7 +60,18 @@ struct daTBasket_c : dEnemyBase_c {
      * Overrides of fBase_c virtuals, so each takes the base's slot regardless of
      * the order declared here; the ROM's _ZTV11daTBasket_c @ 0x0211e930 puts
      * ov063 code in exactly these five and inherits every other entry. */
-    virtual ~daTBasket_c();          /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daTBasket_c();   /* no slot */
+#else
+    virtual ~daTBasket_c();   /* D1 and D0 */
+#endif
     virtual s32 InitResources();     /* slot  0 -- ov063:0x0211c35c */
     virtual s32 CleanupResources();  /* slot  3 -- ov063:0x0211ae1c */
     virtual s32 Behavior();          /* slot  6 -- ov063:0x0211b888 */

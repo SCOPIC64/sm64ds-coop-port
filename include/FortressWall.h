@@ -47,7 +47,18 @@ struct FortressWall : dBgActor_c {
     u16 mBreakSoundState;             /* 0x322 */
 
     /* --- vtable --- */
-    virtual ~FortressWall();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~FortressWall();   /* no slot */
+#else
+    virtual ~FortressWall();   /* D1 and D0 */
+#endif
 
     int Behavior();
     int CleanupResources();

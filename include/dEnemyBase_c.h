@@ -87,7 +87,18 @@ struct dEnemyBase_c : dActor_c {
        reasoning as the note on Model(); see include/Model.h. */
     dEnemyBase_c();
 
-    virtual ~dEnemyBase_c();                   /* slots 0 (D1), 1 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dEnemyBase_c();   /* no slot */
+#else
+    virtual ~dEnemyBase_c();   /* D1 and D0 */
+#endif
 
     /* dEnemyBase_c's own copy of dActor_c's inline operator delete, and it MUST STAY even
        though dEnemyBase_c now derives from dActor_c. mwcc inlines the operator only when it

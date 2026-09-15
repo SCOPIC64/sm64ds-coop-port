@@ -54,7 +54,18 @@ struct RotatingUpDownPlatform : dBgActor_c {
     u8  pad_357;
 
     /* --- vtable --- */
-    virtual ~RotatingUpDownPlatform();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~RotatingUpDownPlatform();   /* no slot */
+#else
+    virtual ~RotatingUpDownPlatform();   /* D1 and D0 */
+#endif
 
     /* Overrides of fBase_c slots 0, 3, 6 and 9.  Virtualness is inherited;
        leaving the keyword off keeps the destructor as this class's first

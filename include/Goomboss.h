@@ -83,7 +83,18 @@ struct Goomboss : dEnemyBase_c {
        building one actor is a spawn-info variant, not a second class. */
     u8  pad_60b[0x5];       /* 0x60b, to the ROM's 0x610 */
 
-    virtual ~Goomboss();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~Goomboss();   /* no slot */
+#else
+    virtual ~Goomboss();   /* D1 and D0 */
+#endif
 
     virtual s32 Behavior();
     virtual s32 CleanupResources();

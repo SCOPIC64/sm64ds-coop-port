@@ -35,7 +35,18 @@ struct KoopaFlag : dActor_c {
     u8  pad_16f[0x5];
     /* Inline is load-bearing: the forcing translation units materialize the
      * ROM's D1 and D0 without introducing a separately enrolled D2. */
-    virtual ~KoopaFlag() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~KoopaFlag() {}   /* no slot */
+#else
+    virtual ~KoopaFlag() {}   /* D1 and D0 */
+#endif
 
     /* Overrides of fBase_c's resource/behavior/render slots. */
     virtual int InitResources();

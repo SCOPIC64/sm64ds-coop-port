@@ -50,7 +50,18 @@ struct daObjBC_Switch_c : dBgActor_c {
      * Safe to do here only because this class is a leaf: no _ZTI in the ROM
      * names it as a base, so no other TU's codegen moves with it.
      * src/game/actors/d_a_obj_bc_switch.cpp carries the leaf proof. */
-    virtual ~daObjBC_Switch_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjBC_Switch_c() {}   /* no slot */
+#else
+    virtual ~daObjBC_Switch_c() {}   /* D1 and D0 */
+#endif
 
     s32 Behavior();
     int CleanupResources();

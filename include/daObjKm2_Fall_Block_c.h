@@ -50,7 +50,18 @@ struct daObjKm2_Fall_Block_c : daObjFallBlock_c {
        home. Defined here it emits the retail D1/D0 pair in ROM order and no
        D2. Unlike daObjFallBlock_c's and dBgActor_c's, this body is inlined by
        nobody: the class has no descendants. */
-    virtual ~daObjKm2_Fall_Block_c() {}     /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjKm2_Fall_Block_c() {}   /* no slot */
+#else
+    virtual ~daObjKm2_Fall_Block_c() {}   /* D1 and D0 */
+#endif
 
     /* THE KEY FUNCTION IS CleanupResources -- the first DECLARED non-inline
        virtual, not the first slot. Both of these override daObjFallBlock_c's

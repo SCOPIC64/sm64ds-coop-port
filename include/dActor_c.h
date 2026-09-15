@@ -119,7 +119,18 @@ struct dActor_c : dBase_c {
 
     /* --- vtable. Declared first, see the header comment. Overrides slots
            16 (D1) and 17 (D0); position here does not affect that. --- */
-    virtual ~dActor_c();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dActor_c();   /* no slot */
+#else
+    virtual ~dActor_c();   /* D1 and D0 */
+#endif
 
     /* C1 and C2 each compile the same real constructor definition in separate
        one-function sources. The rich spawn-seeding body still needs its exact

@@ -27,7 +27,18 @@ struct SlidingBox : dBgActor_c {
     u8 mState;                          /* 0x4f4 */
     u8 pad_4f5[0x3];
 
-    virtual ~SlidingBox();              /* slots 16, 17 */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~SlidingBox();   /* no slot */
+#else
+    virtual ~SlidingBox();   /* D1 and D0 */
+#endif
 
     virtual s32 InitResources();        /* slot  0 */
     virtual s32 CleanupResources();     /* slot  3 */

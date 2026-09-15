@@ -30,7 +30,18 @@ struct daObjBk_Ukisima_c : daObjKaitendai_c {
        two are emitted; with the body out of line mwcc emits D0 ahead of D1
        and the ROM has D1 first (rombuild refuses the object outright). An
        inline body also drops the D2 variant the cartridge never carried. */
-    virtual ~daObjBk_Ukisima_c() {}     /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjBk_Ukisima_c() {}   /* no slot */
+#else
+    virtual ~daObjBk_Ukisima_c() {}   /* D1 and D0 */
+#endif
 
     int CleanupResources();            /* slot  3 */
     int InitResources();               /* slot  0 */

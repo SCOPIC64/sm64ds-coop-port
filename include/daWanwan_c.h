@@ -67,7 +67,18 @@ struct daWanwan_c : dEnemyBase_c {
        Inline, mwccarm emits D1 then D0 and no D2 -- the cartridge's own order.
        The body is empty either way: the 0xb4 bytes of D1 are the compiler's own
        teardown of the four arrays and three member subobjects. */
-    virtual ~daWanwan_c() {}   /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daWanwan_c() {}   /* no slot */
+#else
+    virtual ~daWanwan_c() {}   /* D1 and D0 */
+#endif
 
 
     int Behavior();

@@ -19,7 +19,18 @@ struct daObjFm_Battan_c : dBgActor_c {
     /* InitResources is deliberately the first out-of-line virtual/key
      * function. mwccarm then owns this class's RTTI/vtable and emits the
      * retail D1/D0 pair from this inline destructor, with no retained D2. */
-    virtual ~daObjFm_Battan_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjFm_Battan_c() {}   /* no slot */
+#else
+    virtual ~daObjFm_Battan_c() {}   /* D1 and D0 */
+#endif
     virtual int InitResources();
     virtual int CleanupResources();
     virtual int Behavior();

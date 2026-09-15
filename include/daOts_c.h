@@ -108,7 +108,18 @@ struct daOts_c : dEnemyBase_c {
        does not have. Being inline also leaves this class without a key function, so
        merely including this header does not emit _ZTV7daOts_c. Same reasoning, same
        wording, as include/dBgActor_c.h. */
-    virtual ~daOts_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daOts_c() {}   /* no slot */
+#else
+    virtual ~daOts_c() {}   /* D1 and D0 */
+#endif
 
     /* The three slots this class owns outright, each named by the diff above rather
        than by any one child's source. InitResources and Behavior are the pure-virtual

@@ -19,7 +19,18 @@ struct daBar_c : dActor_c {
     /* InitResources is the first out-of-line virtual/key function. Together
      * with this inline destructor, mwccarm naturally emits retail D1 then D0,
      * the RTTI/vtable group, and no retained D2. */
-    virtual ~daBar_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daBar_c() {}   /* no slot */
+#else
+    virtual ~daBar_c() {}   /* D1 and D0 */
+#endif
     virtual s32 InitResources();
     virtual s32 CleanupResources();
     virtual s32 Behavior();

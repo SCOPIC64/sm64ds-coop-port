@@ -45,7 +45,18 @@ struct daTrsTrap_c : dActor_c {
      * Overrides of fBase_c virtuals, so each takes the base's slot whatever the
      * order here; the destructor stays first-declared because it is the ABI key
      * function and picks the TU that emits _ZTV11daTrsTrap_c. */
-    virtual ~daTrsTrap_c();          /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daTrsTrap_c();   /* no slot */
+#else
+    virtual ~daTrsTrap_c();   /* D1 and D0 */
+#endif
     virtual s32 InitResources();     /* slot  0 -- ov063:0x0211cf00 */
     virtual s32 CleanupResources();  /* slot  3 -- ov063:0x0211cdec */
     virtual s32 Behavior();          /* slot  6 -- ov063:0x0211ce74 */

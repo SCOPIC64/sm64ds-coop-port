@@ -88,7 +88,18 @@ struct daObjDorifu_c : dBgActor_c {
        _ZN13daObjDorifu_cD1Ev (which does exist out of line at ov002 0x020b4af8).
        An out-of-line declaration here would
        make each descendant emit a `bl` the ROM does not have. */
-    virtual ~daObjDorifu_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjDorifu_c() {}   /* no slot */
+#else
+    virtual ~daObjDorifu_c() {}   /* D1 and D0 */
+#endif
 
     /* The base is abstract in the cartridge: these two inherited slots are
        null in _ZTV13daObjDorifu_c. Each concrete descendant supplies the

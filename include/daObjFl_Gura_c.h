@@ -51,7 +51,18 @@ struct daObjFl_Gura_c : daObjGuragura_c {
 
     /* Declared last and inline so class instantiation emits the retail D1/D0
        pair in cartridge order without a separate leaf D2 body. */
-    virtual ~daObjFl_Gura_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjFl_Gura_c() {}   /* no slot */
+#else
+    virtual ~daObjFl_Gura_c() {}   /* D1 and D0 */
+#endif
 };
 
 inline void *daObjFl_Gura_c::operator new(size_t size)

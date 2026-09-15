@@ -57,7 +57,18 @@ struct daSetSE_c : dActor_c {
        for, because this class's one member is a u32. (~dActor_c is not empty --
        it stores two more vptrs and destroys its own fLiNdBa_c member at 0x50 --
        but none of that belongs to this class or to this TU.) */
-    virtual ~daSetSE_c() {}         /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daSetSE_c() {}   /* no slot */
+#else
+    virtual ~daSetSE_c() {}   /* D1 and D0 */
+#endif
 
     /* All five are overrides of fBase_c/dActor_c, not new members. The slot
        numbers are measured: _ZTV9daSetSE_c and _ZTV8dActor_c are 31 words each

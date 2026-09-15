@@ -25,7 +25,18 @@ struct daObjBSwdoor_c : daObjSwdoor_c {
     u8 pad_322[2];
 
     /* Inline empty dtor: mwccarm emits D1 then D0, no D2. */
-    virtual ~daObjBSwdoor_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjBSwdoor_c() {}   /* no slot */
+#else
+    virtual ~daObjBSwdoor_c() {}   /* D1 and D0 */
+#endif
     virtual s32 Behavior();           /* slot 6 */
     virtual s32 CleanupResources();   /* slot 3 */
     virtual s32 InitResources();      /* slot 0 */

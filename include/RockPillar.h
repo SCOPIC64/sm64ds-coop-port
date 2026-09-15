@@ -19,7 +19,18 @@
 struct RockPillar : dBgActor_c {
     u8  pad_320[0x8];
 
-    virtual ~RockPillar();            /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~RockPillar();   /* no slot */
+#else
+    virtual ~RockPillar();   /* D1 and D0 */
+#endif
 
     virtual s32   InitResources();         /* slot  0 */
     virtual s32   CleanupResources();      /* slot  3 */

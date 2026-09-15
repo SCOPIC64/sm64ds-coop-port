@@ -59,7 +59,18 @@ struct dScEntry_c : dScene_c {
     u8  unk_287;                   /* 0x287 */
 
     /* Declared first: the destructor is the class's key function. */
-    virtual ~dScEntry_c();                              /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dScEntry_c();   /* no slot */
+#else
+    virtual ~dScEntry_c();   /* D1 and D0 */
+#endif
 
     /* --- overrides, in _ZTV8dScene_c/_ZTV7fBase_c order. --- */
     virtual s32  InitResources();                       /* slot  0 */

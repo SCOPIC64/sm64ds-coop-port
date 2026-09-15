@@ -56,7 +56,18 @@ struct UnchainedChomp : dEnemyBase_c {
     Vector3s            mUnk_768[6];        /* 0x768 */
     u8  pad_78c[0x18];
 
-    virtual ~UnchainedChomp();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~UnchainedChomp();   /* no slot */
+#else
+    virtual ~UnchainedChomp();   /* D1 and D0 */
+#endif
 
     virtual s32   OnAimedAtWithEgg();      /* slot 29 */
 
