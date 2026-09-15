@@ -32,17 +32,39 @@ THE THREE TRAPS, and what this does about each.
 
 1. 103 OVERLAYS LOAD AT 22 DISTINCT BASE ADDRESSES, and 52 of them share
    0x021111A0, so an address alone does not name a function. The tracer writes
-   one FINGERPRINT record per overlay base per frame holding the first four
-   words actually sitting there. This compares those against the head of every
-   overlay body in extracted/overlays/ and so knows which overlay is resident.
-   Four all-zero words mean nothing is loaded there and the base is skipped. A
-   base whose contents match no overlay of ours is recorded as unknown and
-   skipped, never guessed at.
+   one FINGERPRINT record per probed address per frame holding the four words
+   actually sitting there. This compares those against the overlay bodies in
+   extracted/overlays/ and so knows which overlay is resident. Four all-zero
+   words mean nothing is loaded there. A base whose contents match no overlay
+   of ours is recorded as unknown and skipped, never guessed at.
+
+   FOUR WORDS AT THE BASE ARE NOT ENOUGH AT 0x021111A0, and this is the part
+   the original design did not say. Of the 52 overlays that load there, 33 fall
+   into four groups whose first sixteen bytes are byte-identical, and a further
+   9 begin with sixteen zero bytes, which is exactly what an EMPTY base looks
+   like. A capture that only probes the bases can therefore mislabel 9 real
+   overlays as "nothing loaded" and cannot separate 33 more.
+
+   The fix costs nothing and needs no emulator change, because romtrace's
+   --fingerprint takes arbitrary addresses: probe 0x02111340 as well, which is
+   base + 0x1A0, and all 52 come apart with no zero collisions. `--print-probes`
+   prints the full --fingerprint list to use, worked out from the bodies on
+   disk. Any probe address that falls inside a candidate overlay's own span is
+   used to narrow it, so extra probes need no special handling here.
+
+   The only overlays that stay indistinguishable are the fourteen 32-byte
+   all-zero stubs (ov061, ov067, ov068, ov069, ov076, ov082, ov083, ov086,
+   ov087, ov088, ov093, ov097, ov099, ov101). An overlay whose whole content is
+   zero has nothing to fingerprint and cannot be told from an empty base by any
+   probe at all. They hold no code, so nothing is ever resolved against them
+   and the tie costs the listing nothing.
 
    RESOLUTION GRANULARITY IS ONE FRAME. An overlay swapped in and out inside a
    single frame is missed, and calls into it in that frame resolve against
    whichever overlay the fingerprint caught. This is stated, not hidden, and the
-   summary counts how often a base was ambiguous or unknown.
+   summary counts how often a base was ambiguous or unknown. Where a base stays
+   ambiguous, every candidate is consulted and a name is only reported if they
+   all agree on it.
 
 2. ITCM FUNCTIONS LIVE AT 0x01FF8000, BELOW THE ARM9 BASE. Every division in
    the game goes through the ITCM aeabi helpers, so a resolver that only knows
@@ -255,12 +277,10 @@ def load_overlays(repo):
         p = os.path.join(bodies, "overlay_{:04d}.bin".format(o["id"]))
         if not os.path.isfile(p):
             missing.append(o["id"])
-            o["head"] = None
+            o["body"] = None
         else:
             with open(p, "rb") as f:
-                head = f.read(16)
-            o["head"] = (struct.unpack("<4I", head)
-                         if len(head) == 16 else None)
+                o["body"] = f.read()
         o["table"] = load_table(
             os.path.join(repo, "config", "arm9", "overlays",
                          "ov{:03d}".format(o["id"]), "symbols.txt"),
@@ -274,6 +294,75 @@ def load_overlays(repo):
     for o in rows:
         by_base[o["base"]].append(o)
     return rows, by_base
+
+
+ZERO4 = (0, 0, 0, 0)
+
+
+def words_at(o, addr):
+    """The four words of overlay o's body that would sit at addr, or None."""
+    off = addr - o["base"]
+    if off < 0 or off + 16 > o["code"] or off + 16 > len(o["body"]):
+        return None
+    return struct.unpack("<4I", o["body"][off:off + 16])
+
+
+def recommend_probes(overlays, by_base):
+    """(addresses, notes): the --fingerprint list a capture should use.
+
+    Every base, plus one extra address per base where the four words at the
+    base do not separate the overlays that load there. The extra is the lowest
+    16-byte-aligned offset inside every candidate's own code at which all of
+    them differ and none of them is all-zero, so it distinguishes them from
+    each other AND from an empty base.
+
+    An overlay whose entire body is zero cannot be separated from an empty base
+    by any probe, and is reported as such rather than worked around.
+    """
+    addrs = []
+    notes = []
+    for base in sorted(by_base):
+        addrs.append(base)
+        cands = by_base[base]
+        stubs = [o for o in cands
+                 if o["body"] is not None and not any(o["body"])]
+        real = [o for o in cands if o not in stubs]
+        if stubs:
+            notes.append(
+                "0x{:08x}: ov{} {} all zero bytes, so {} indistinguishable "
+                "from an empty base by any probe. {} no code."
+                .format(base,
+                        ", ov".join("{:03d}".format(o["id"]) for o in stubs),
+                        "is" if len(stubs) == 1 else "are",
+                        "it is" if len(stubs) == 1 else "they are",
+                        "It holds" if len(stubs) == 1 else "They hold"))
+        if len(real) < 2:
+            continue
+        heads = [words_at(o, base) for o in real]
+        if len(set(heads)) == len(real) and ZERO4 not in heads:
+            continue
+        limit = min(o["code"] for o in real)
+        pick = None
+        for off in range(0, limit - 15, 16):
+            seen = [words_at(o, base + off) for o in real]
+            if None in seen:
+                break
+            if len(set(seen)) == len(real) and ZERO4 not in seen:
+                pick = off
+                break
+        if pick is None:
+            notes.append(
+                "0x{:08x}: no single extra probe separates the {} overlays "
+                "here within their shared 0x{:x} bytes. Residency at this base "
+                "stays ambiguous and a name is only reported where the "
+                "candidates agree.".format(base, len(real), limit))
+        else:
+            addrs.append(base + pick)
+            notes.append(
+                "0x{:08x}: the four words at the base do NOT separate the {} "
+                "overlays here; 0x{:08x} (base + 0x{:x}) does."
+                .format(base, len(real), base + pick, pick))
+    return addrs, notes
 
 
 # ------------------------------------------------------------------ resolver
@@ -294,50 +383,116 @@ class Resolver(object):
                      "without it would silently lose them.")
         self.overlays, self.by_base = load_overlays(repo)
 
-        self.resident = ()          # ids, set per frame from FINGERPRINTs
+        self.by_id = {o["id"]: o for o in self.overlays}
+
+        # (definite ids, ambiguous id groups). Empty until a FINGERPRINT
+        # record arrives, so a trace with none resolves no overlay at all
+        # rather than carrying residency over from nowhere.
+        self.resident = ((), ())
         self._chain_cache = {}
         self.fp_empty = collections.Counter()
         self.fp_unknown = collections.Counter()
-        self.fp_ambiguous = collections.Counter()
+        self.fp_covered = collections.Counter()     # base -> covering overlay
+        self.fp_ambiguous = {}                      # base -> {ids: frames}
+        self.fp_zero_or_overlay = {}                # base -> {ids: frames}
         self.residency_frames = collections.Counter()   # id -> frames resident
+        self.probed_bases = set()
+        self.saw_fingerprints = False
+        self.ambig_calls = 0
 
     # -- overlay residency ------------------------------------------------
 
-    def set_residency(self, fingerprints, frame):
-        """fingerprints: {base: (w0,w1,w2,w3)} as read this frame."""
-        ids = []
-        for base, words in sorted(fingerprints.items()):
-            cands = self.by_base.get(base)
-            if not cands:
-                self.fp_unknown[base] += 1
+    def set_residency(self, fps):
+        """fps: {address: (w0,w1,w2,w3)} as read this frame.
+
+        A probe address is used against every overlay whose own span contains
+        it, so the base probes and any extra discriminating probes are handled
+        by the same rule and no probe needs to be declared in advance.
+        """
+        self.saw_fingerprints = True
+        definite = []
+        ambiguous = []
+        unknown = []
+        for base in sorted(self.by_base):
+            if base not in fps:
                 continue
-            if words == (0, 0, 0, 0):
+            self.probed_bases.add(base)
+            cands = self.by_base[base]
+            hits = []
+            for o in cands:
+                ok = True
+                for addr, words in fps.items():
+                    have = words_at(o, addr)
+                    if have is None:
+                        continue        # this probe is outside o's own code
+                    if have != words:
+                        ok = False
+                        break
+                if ok:
+                    hits.append(o)
+            # "Nothing loaded" is every probe inside this base reading zero.
+            empty_possible = all(
+                words == ZERO4 for addr, words in fps.items()
+                if base <= addr < base + max(o["code"] for o in cands))
+
+            if hits and empty_possible:
+                # The overlays that are all zeros where we looked. Cannot be
+                # told from an empty base, so this does not guess: it records
+                # the tie and treats the base as empty.
+                key = tuple(o["id"] for o in hits)
+                self.fp_zero_or_overlay.setdefault(base, collections.Counter())
+                self.fp_zero_or_overlay[base][key] += 1
                 self.fp_empty[base] += 1
-                continue
-            hits = [o for o in cands if o["head"] == words]
-            if not hits:
-                # Loaded, but it is not one of ours. Say so, do not guess.
+            elif len(hits) == 1:
+                definite.append(hits[0]["id"])
+            elif len(hits) > 1:
+                key = tuple(o["id"] for o in hits)
+                self.fp_ambiguous.setdefault(base, collections.Counter())
+                self.fp_ambiguous[base][key] += 1
+                ambiguous.append(key)
+            elif empty_possible:
+                self.fp_empty[base] += 1
+            else:
+                unknown.append(base)
+
+        # A base can read as unknown simply because a LARGER overlay resident
+        # at a lower base is lying across it. Check that before calling it
+        # unknown, or the summary carries a warning that is really just two
+        # overlays overlapping.
+        for base in unknown:
+            words = fps[base]
+            cover = None
+            for i in definite:
+                have = words_at(self.by_id[i], base)
+                if have is not None and have == words:
+                    cover = i
+                    break
+            if cover is not None:
+                self.fp_covered[(base, cover)] += 1
+            else:
                 self.fp_unknown[base] += 1
-                continue
-            if len(hits) > 1:
-                self.fp_ambiguous[base] += 1
-            for o in hits:
-                ids.append(o["id"])
-        self.resident = tuple(sorted(set(ids)))
-        for i in self.resident:
+
+        self.resident = (tuple(sorted(set(definite))),
+                         tuple(sorted(set(ambiguous))))
+        for i in self.resident[0]:
             self.residency_frames[i] += 1
 
     def _chain(self):
         key = self.resident
         c = self._chain_cache.get(key)
         if c is None:
-            c = [self.itcm, self.arm9]
-            for i in key:
-                o = self.overlays[i] if (
-                    i < len(self.overlays) and self.overlays[i]["id"] == i
-                ) else next(x for x in self.overlays if x["id"] == i)
-                if o["table"] is not None:
-                    c.append(o["table"])
+            sure = [self.itcm, self.arm9]
+            for i in key[0]:
+                t = self.by_id[i]["table"]
+                if t is not None:
+                    sure.append(t)
+            maybe = []
+            for group in key[1]:
+                os_ = [self.by_id[i] for i in group]
+                span = (os_[0]["base"], max(o["code"] for o in os_))
+                maybe.append((span, [o["table"] for o in os_
+                                     if o["table"] is not None]))
+            c = (sure, maybe)
             self._chain_cache[key] = c
         return c
 
@@ -345,12 +500,29 @@ class Resolver(object):
 
     def resolve(self, addr):
         """(name, offset, region). region is '???' when nothing owns it."""
-        for t in self._chain():
+        sure, maybe = self._chain()
+        for t in sure:
             if addr < t.lo or addr >= t.hi:
                 continue
             hit = t.lookup(addr)
             if hit:
                 return hit[0], hit[1], t.region
+        for (base, span), tables in maybe:
+            if not (base <= addr < base + span):
+                continue
+            answers = set()
+            for t in tables:
+                hit = t.lookup(addr) if t.lo <= addr < t.hi else None
+                if hit:
+                    answers.add(hit)
+            if len(answers) == 1:
+                name, off = answers.pop()
+                return name, off, "ov?"
+            if answers:
+                # Two resident candidates for this base name this address
+                # differently. Refusing is the whole point.
+                self.ambig_calls += 1
+                return "ambiguous_{:08x}".format(addr), 0, "???"
         return "unk_{:08x}".format(addr), 0, "???"
 
 
@@ -379,6 +551,132 @@ def read_records(path):
     return struct.unpack("<{}I".format(size // 4), blob)
 
 
+def selftest(res, trace_path):
+    """Break a known-good trace four ways and require each break to show.
+
+    A CHECK THAT HAS ONLY EVER PASSED PROVES NOTHING. A resolver that names
+    nothing looks exactly like one that names everything if the only thing read
+    is the exit code, and a fingerprint scheme that is quietly doing no work
+    looks exactly like one that is doing it perfectly as long as the overlay
+    happens to be the first table consulted. Each case below is a mutation of a
+    real capture whose correct answer is known in advance.
+
+    Returns the number of cases that did NOT behave as required.
+    """
+    blob = open(trace_path, "rb").read()
+    fails = []
+
+    class Args(object):
+        strict = True
+
+    def run(mutated, strict=True):
+        a = Args()
+        a.strict = strict
+        r = Resolver.__new__(Resolver)
+        r.__dict__.update(res.__dict__)
+        r.resident = ((), ())
+        r._chain_cache = {}
+        r.fp_empty = collections.Counter()
+        r.fp_unknown = collections.Counter()
+        r.fp_covered = collections.Counter()
+        r.fp_ambiguous = {}
+        r.fp_zero_or_overlay = {}
+        r.residency_frames = collections.Counter()
+        r.probed_bases = set()
+        r.saw_fingerprints = False
+        r.ambig_calls = 0
+        words = struct.unpack("<{}I".format(len(mutated) // 4), mutated)
+        frames, unresolved, tag_bad, n = walk(words, r, a)
+        return r, frames, unresolved, tag_bad, n
+
+    print("=== selftest on {} ===".format(trace_path))
+
+    # Baseline. Everything below is measured against this.
+    _r, _f, unres0, tagbad0, n0 = run(blob)
+    bad0 = sum(unres0.values())
+    print("  baseline            : {} calls, {} unresolved".format(n0, bad0))
+    if bad0 or tagbad0 or not n0:
+        fails.append("the baseline capture is not clean, so nothing below "
+                     "means anything")
+
+    # 1. A file that is not a whole number of records must be REFUSED, not
+    #    silently truncated to the last whole one.
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        p = os.path.join(td, "short.bin")
+        with open(p, "wb") as f:
+            f.write(blob[:-8])
+        rc = os.system('"{}" "{}" "{}" --out-dir "{}" >{} 2>&1'.format(
+            sys.executable, os.path.abspath(__file__), p,
+            os.path.join(td, "o"), os.devnull))
+        ok = rc != 0
+        print("  misaligned file     : {}".format(
+            "REFUSED, correct" if ok else "ACCEPTED, WRONG"))
+        if not ok:
+            fails.append("a file that is not a multiple of 32 bytes was read")
+
+    # 2. A record with a tag that is not CALL, FRAME or FINGERPRINT must stop
+    #    the run under --strict.
+    mut = bytearray(blob)
+    struct.pack_into("<I", mut, 0, 0xDEADBEEF)
+    try:
+        run(bytes(mut), strict=True)
+        print("  bad tag, strict     : ACCEPTED, WRONG")
+        fails.append("an unknown tag did not stop a --strict run")
+    except SystemExit:
+        print("  bad tag, strict     : REFUSED, correct")
+
+    # 3. A call target pointed somewhere no symbol lives must come back
+    #    unresolved, not attached to the nearest name below it.
+    mut = bytearray(blob)
+    hit = None
+    for off in range(0, len(mut), RECORD_BYTES):
+        if struct.unpack_from("<I", mut, off)[0] == TAG_CALL:
+            hit = off
+            break
+    if hit is None:
+        fails.append("no CALL record to corrupt")
+    else:
+        struct.pack_into("<I", mut, hit + 8, 0x02FF0000)
+        _r, _f, unres, _t, _n = run(bytes(mut))
+        ok = unres.get(0x02FF0000) == 1
+        print("  target into nowhere : {}".format(
+            "unresolved, correct" if ok else "NAMED ANYWAY, WRONG"))
+        if not ok:
+            fails.append("a call target in unmapped space was given a name")
+
+    # 4. THE ONE THAT MATTERS. Corrupt every overlay fingerprint. Residency
+    #    then cannot be decided, so every call into overlay space must become
+    #    unresolved. If the number does NOT move, the fingerprints were never
+    #    doing the work and the overlay names were coming from somewhere else.
+    mut = bytearray(blob)
+    nfp = 0
+    for off in range(0, len(mut), RECORD_BYTES):
+        if struct.unpack_from("<I", mut, off)[0] == TAG_FINGERPRINT:
+            struct.pack_into("<I", mut, off + 8, 0xA5A5A5A5)
+            nfp += 1
+    if not nfp:
+        print("  wrecked fingerprints: SKIPPED, this capture has none")
+    else:
+        _r, _f, unres, _t, n = run(bytes(mut))
+        bad = sum(unres.values())
+        ok = bad > bad0
+        print("  wrecked fingerprints: {} unresolved, was {} -> {}".format(
+            bad, bad0,
+            "the overlay names really do come from them"
+            if ok else "NOTHING CHANGED, WRONG"))
+        if not ok:
+            fails.append("wrecking every fingerprint changed nothing, so "
+                         "overlay residency is not being decided by them")
+
+    print("=== selftest: {} ===".format(
+        "all cases behaved as required" if not fails
+        else "{} FAILURES".format(len(fails))))
+    for m in fails:
+        print("  FAIL: {}".format(m))
+    return len(fails)
+
+
 def walk(words, res, args):
     """[(frame_no, [call, ...])], plus counters. A call is a tuple:
     (depth, caller, caller_off, callee, region, thumb_caller, thumb_callee,
@@ -402,8 +700,8 @@ def walk(words, res, args):
         tag = r[0]
 
         if tag == TAG_FRAME:
-            if fps and cur is not None:
-                res.set_residency(fps, cur[0])
+            if fps:
+                res.set_residency(fps)
             fps = {}
             cur = open_frame(r[1])
             stack = []
@@ -426,7 +724,7 @@ def walk(words, res, args):
         if cur is None:
             cur = open_frame(0)
         if fps:
-            res.set_residency(fps, cur[0])
+            res.set_residency(fps)
             fps = {}
 
         frm, to = r[1], r[2]
@@ -449,8 +747,8 @@ def walk(words, res, args):
                        frm & 1, to & 1, r[3], r[4], r[5], r[6]))
         ncalls += 1
 
-    if fps and cur is not None:
-        res.set_residency(fps, cur[0])
+    if fps:
+        res.set_residency(fps)
 
     return frames, unresolved, tag_bad, ncalls
 
@@ -553,28 +851,62 @@ def write_summary(frames, res, unresolved, tag_bad, path, trace_path, size):
         f.write("An overlay swapped in and out inside a single frame is "
                 "MISSED. This is\nresolved at one-frame granularity and cannot "
                 "be finer than the trace is.\n\n")
+        if not res.saw_fingerprints:
+            f.write("  THIS TRACE CARRIES NO FINGERPRINT RECORDS AT ALL.\n"
+                    "  Overlay residency is undecidable without them, so every "
+                    "call into\n  overlay space is unresolved and the NAMED "
+                    "figure above is a floor,\n  not a measurement of this "
+                    "resolver. Re-capture with romtrace's\n  --fingerprint; "
+                    "`romtrace_resolve.py --print-probes` prints the exact\n"
+                    "  argument to pass.\n\n")
         if res.residency_frames:
             for i, n in sorted(res.residency_frames.items()):
-                o = next(x for x in res.overlays if x["id"] == i)
+                o = res.by_id[i]
                 f.write("  ov{:03d}  base 0x{:08x}  size 0x{:x}  resident in "
                         "{} frames\n".format(i, o["base"], o["code"], n))
         else:
             f.write("  none\n")
         if res.fp_empty:
-            f.write("\n  bases holding nothing (four zero words), skipped:\n")
+            f.write("\n  bases holding nothing (every probe read zero), "
+                    "skipped:\n")
             for base, n in sorted(res.fp_empty.items()):
                 f.write("    0x{:08x}  {} frames\n".format(base, n))
+        if res.fp_zero_or_overlay:
+            f.write("\n  bases read as empty that could ALSO be an overlay "
+                    "which is zero\n  everywhere the probes looked. Treated as "
+                    "empty, not guessed at.\n  Add a discriminating probe "
+                    "(--print-probes) to settle these:\n")
+            for base, groups in sorted(res.fp_zero_or_overlay.items()):
+                for ids, n in sorted(groups.items()):
+                    f.write("    0x{:08x}  {} frames  could be ov{}\n".format(
+                        base, n,
+                        ", ov".join("{:03d}".format(i) for i in ids)))
+        if res.fp_covered:
+            f.write("\n  bases lying UNDER a larger overlay resident at a "
+                    "lower base. Not a\n  problem and not a missing overlay: "
+                    "the words read there belong to\n  the covering overlay's "
+                    "own body.\n")
+            for (base, cover), n in sorted(res.fp_covered.items()):
+                f.write("    0x{:08x}  {} frames  covered by ov{:03d}\n"
+                        .format(base, n, cover))
         if res.fp_unknown:
             f.write("\n  bases holding something that is NOT one of our "
-                    "overlays, skipped\n  rather than guessed at:\n")
+                    "overlays and is not\n  covered by a resident one, skipped "
+                    "rather than guessed at:\n")
             for base, n in sorted(res.fp_unknown.items()):
                 f.write("    0x{:08x}  {} frames\n".format(base, n))
         if res.fp_ambiguous:
-            f.write("\n  bases where SEVERAL overlays share the same first "
-                    "four words, so\n  residency could not be narrowed to one. "
-                    "All of them were consulted:\n")
-            for base, n in sorted(res.fp_ambiguous.items()):
-                f.write("    0x{:08x}  {} frames\n".format(base, n))
+            f.write("\n  bases where SEVERAL overlays match every probe, so "
+                    "residency could\n  not be narrowed to one. All candidates "
+                    "were consulted and a name is\n  reported only where they "
+                    "agree; {} calls disagreed and are counted\n  unresolved. "
+                    "Add a discriminating probe (--print-probes).\n"
+                    .format(res.ambig_calls))
+            for base, groups in sorted(res.fp_ambiguous.items()):
+                for ids, n in sorted(groups.items()):
+                    f.write("    0x{:08x}  {} frames  one of ov{}\n".format(
+                        base, n,
+                        ", ov".join("{:03d}".format(i) for i in ids)))
 
         if tag_bad:
             f.write("\n--- records with an unknown tag ---\n")
@@ -601,8 +933,18 @@ def main():
     ap = argparse.ArgumentParser(
         description="resolve an instrumented-melonDS cartridge call trace "
                     "against the decomp's own symbol tables")
-    ap.add_argument("trace", help="the .bin romtrace.exe wrote")
-    ap.add_argument("--out-dir", required=True)
+    ap.add_argument("trace", nargs="?", help="the .bin romtrace.exe wrote")
+    ap.add_argument("--out-dir")
+    ap.add_argument("--selftest", action="store_true",
+                    help="break the given trace four ways and require each "
+                         "break to show, then exit. Run this before believing "
+                         "a percentage.")
+    ap.add_argument("--print-probes", action="store_true",
+                    help="print the --fingerprint argument a capture should "
+                         "use, worked out from the overlay bodies on disk, and "
+                         "exit. Every base, plus an extra address wherever the "
+                         "words at the base do not separate the overlays that "
+                         "load there.")
     ap.add_argument("--root", default=REPO,
                     help="repo root holding config/ and extracted/")
     ap.add_argument("--max-lines", type=int, default=400000,
@@ -624,6 +966,24 @@ def main():
     a = ap.parse_args()
 
     res = Resolver(a.root)
+
+    if a.print_probes:
+        addrs, notes = recommend_probes(res.overlays, res.by_base)
+        print("--fingerprint " + ",".join("0x{:08x}".format(x)
+                                          for x in sorted(addrs)))
+        print("")
+        for n in notes:
+            print("  " + n)
+        return 0
+
+    if a.selftest:
+        if not a.trace:
+            ap.error("--selftest needs a known-good trace to break")
+        return 1 if selftest(res, a.trace) else 0
+
+    if not a.trace or not a.out_dir:
+        ap.error("a trace and --out-dir are required unless --print-probes")
+
     words = read_records(a.trace)
     frames, unresolved, tag_bad, ncalls = walk(words, res, a)
 
@@ -645,6 +1005,17 @@ def main():
     if tag_bad:
         print("romtrace_resolve: {} records carried an unknown tag"
               .format(sum(tag_bad.values())))
+    if not res.saw_fingerprints:
+        print("romtrace_resolve: THIS TRACE HAS NO FINGERPRINT RECORDS. "
+              "Overlay residency\n  cannot be decided, so every call into "
+              "overlay space is unresolved and the\n  percentage above says "
+              "nothing about this resolver. Re-capture with\n  romtrace's "
+              "--fingerprint; --print-probes prints the argument to pass.")
+    if res.ambig_calls:
+        print("romtrace_resolve: {} calls landed at a base where two resident "
+              "candidates\n  disagreed about the name, and are counted "
+              "unresolved rather than guessed."
+              .format(res.ambig_calls))
 
     if a.require_named is not None and pct < a.require_named:
         print("romtrace_resolve: FAIL, {:.4f}% named is below the {:.4f}% "
