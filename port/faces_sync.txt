@@ -1623,7 +1623,7 @@ __ZN8dScene_c12BeforeRenderEv                                            ?Before
 __ZN8dScene_c13AfterBehaviorEj                                           ?AfterBehavior@dScene_c@@UAEXI@Z                                 0x0202e3c8 R
 __ZN8dScene_c14BeforeBehaviorEv                                          ?BeforeBehavior@dScene_c@@UAEHXZ                                 0x0202e3d4 R
 __ZN8dScene_c19BeforeInitResourcesEv                                     ?BeforeInitResources@dScene_c@@UAE_NXZ                           0x0202e638 R
-__ZN8dScene_c19ResetFadersAndSoundEv                                     ?ResetFadersAndSound@dScene_c@@QAEHXZ                            0x0202e66c R
+__ZN8dScene_c19ResetFadersAndSoundEv                                     ?ResetFadersAndSound@dScene_c@@QAE_NXZ                            0x0202e66c R
 __ZN8dScene_c21AfterCleanupResourcesEj                                   ?AfterCleanupResources@dScene_c@@UAEXI@Z                         0x0202e5d0 R
 __ZN8dScene_c22BeforeCleanupResourcesEv                                  ?BeforeCleanupResources@dScene_c@@UAEHXZ                         0x0202e5f0 R
 __ZN8dScene_cD1Ev                                                        ??1dScene_c@@UAE@XZ                                              0x0202e140 R

@@ -284,7 +284,7 @@ extern "C" void hal_fill_stage_vtable(void)
 // port/slice_w8a.txt's line for that TU stays dropped.
 extern "C" {
 /* slot 1's real destination */
-int  _ZN8dScene_c19ResetFadersAndSoundEv(void *self);
+bool _ZN8dScene_c19ResetFadersAndSoundEv(void *self);
 /* slots 4, 5, 7, 10 -- Scene halves with declared arguments, all four already
    in the image before this seat existed */
 int  _ZN8dScene_c22BeforeCleanupResourcesEv(void *self);
@@ -515,7 +515,13 @@ static int __fastcall st_render(void *, void *)   { return 1; }
    one call site, rather than hidden in a wrong-arity extern.  Related:
    sm64ds-port-fastcall-face-arity, the face that DROPS `this`. */
 extern "C" void _ZN5Stage19BeforeInitResourcesEv(void);
-typedef int (*Seat2StageBeforeInit)(void *);
+/* `bool`, the face's real return type, NOT `int`. Stage::BeforeInitResources
+   is slot 1 and returns bool, so the answer is in AL and the rest of EAX is
+   whatever the callee left there. Reading it as `int` is the same defect this
+   file warns about one slot at a time, and it is the one that skipped the boot
+   (run link100, lane CRASH1). Declared bool, the compiler reads AL and widens
+   it, so st_binit returns exactly 0 or 1. */
+typedef bool (*Seat2StageBeforeInit)(void *);
 
 static int  __fastcall st_binit(void *s, void *)
 { return ((Seat2StageBeforeInit)&_ZN5Stage19BeforeInitResourcesEv)(s); }

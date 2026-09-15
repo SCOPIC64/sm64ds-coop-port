@@ -90,7 +90,7 @@ extern void **data_020a4bb8;                     /* hal/actor_vtables.cpp     */
 int   _ZN10dScEntry_c13InitResourcesEv(char *c);              /* slot  0  InitResources    */
 void  _ZN10dScEntry_c19BeforeInitResourcesEv(void);                 /* slot  1 veneer (unused by
                                                     the thunk; see vs_reset) */
-int   _ZN8dScene_c19ResetFadersAndSoundEv(void *self);
+bool  _ZN8dScene_c19ResetFadersAndSoundEv(void *self);
 int   _ZN10dScEntry_c16CleanupResourcesEv(signed char r0);       /* slot  3  CleanupResources */
 int   _ZN10dScEntry_c8BehaviorEv(void *c);              /* slot  6  Behavior         */
 int   _ZN10dScEntry_c6RenderEv(void *c);              /* slot  9  Render           */
