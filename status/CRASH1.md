@@ -51,3 +51,11 @@
   => taking the brief's step 3: ONE rebuild of port/tests/walk_window.cpp ALONE (Release flags
   kept -- /Od would break ~50 ov007 tail-jump forwarder rows per tools/tailjump_guard.py), with
   a stderr dump of g_stage, its vptr, +0x0e/0f/10 and _ZTV5Stage[0..2]. BUILD RUNNING NOW.
+- 22:05 EDT - DIAGNOSTIC RUN 1 (tmp/crash1probe/C/run.log:45-47):
+    [crash1] g_stage=3003A6B0 vptr=010FBE80 alive+0x0e=0 +0x0f=0 +0x10=0
+    [crash1] &_ZTV5Stage=010FBE80 s0=006B36E0 s1=006B3560 s2=0069CBA0
+    [crash1] port_stage_a_boot returned 00000000
+  vptr == &_ZTV5Stage EXACTLY (address point +0 confirmed at runtime, vptr theory dead),
+  alive byte 0 so the FIRST-ENTRY func_020433b8 path is taken, table seated. Adding one
+  more line: call port_stage_boot_body DIRECTLY when the boot returns null, to separate
+  "the Process skipped slot 0" from "the body itself returns null".
