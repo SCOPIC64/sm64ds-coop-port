@@ -2307,10 +2307,39 @@ int _ZN11ShadowModel12InitCylinderEv(void *self)
     return ((ShadowModel *)self)->data != 0;
 }
 
-void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(void *self, void *bmd,
-                                                       void *btp)
-{ ((TextureSequence *)self)->TextureSequence::Prepare(*(BMD_File *)bmd,
-                                                      *(BTP_File *)btp); }
+/* PORT_HOST_ABI CORRECTION (run link100, lane CRASH3). TextureSequence::Prepare
+   is STATIC, and include/TextureSequence.h carries the cartridge evidence for it:
+   the ROM body is a 0xc long-call veneer into func_02046d50, which reads only r0
+   and r1, never touches r2, and reads r1 at exactly BTP_File's own field offsets.
+   Two words and no this -- that IS the ROM's call surface.
+
+   The three-parameter face this replaces was written against the stale belief
+   that Prepare was a non-static method (the same belief is still spelled out in
+   port/tools/hostgen.py's REG_RIDE_ARG comment and in the two retired host
+   copies). Because the callee is in fact static, MSVC compiled
+   `((TextureSequence *)self)->Prepare(*bmd, *btp)` by evaluating self, DISCARDING
+   it, and pushing only the 2nd and 3rd parameters. Read out of the shipped
+   artifact at 004106e0:
+
+       push ebp / mov ebp,esp
+       push dword ptr [ebp+0x10]      <- 3rd parameter
+       push dword ptr [ebp+0x0c]      <- 2nd parameter
+       call ?Prepare@TextureSequence@@SAXAAUBMD_File@@AAUBTP_File@@@Z
+       add esp,8 / pop ebp / ret
+
+   [ebp+8] is never read, and the callee's own mangling ("SAX") says static. So
+   the face shifted every argument down by one. All 17 call sites in the image
+   pass the BMD as their FIRST argument, so func_02046d50 was handed the BTP file
+   where it wanted the BMD; func_020471ac then read [BTP+0x14] as a texture count
+   and [BTP+0x18] as a texture array, walked into the BTP's own bytes, and handed
+   a run of characters to cstd::strcmp as a pointer.
+
+   Two parameters is the ROM's shape and is right for every caller at this cdecl
+   ABI: the fourteen ROM-arity sites pass exactly these two words, and the three
+   sites the REG_RIDE_ARG row patched pass (bmd, btp, btp), whose first two words
+   are the same two -- the caller cleans up its own extra push. */
+void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(void *bmd, void *btp)
+{ TextureSequence::Prepare(*(BMD_File *)bmd, *(BTP_File *)btp); }
 void *_ZN15TextureSequence8LoadFileER13SharedFilePtr(void *fp)
 { return TextureSequence::LoadFile(*(SharedFilePtr *)fp); }
 
