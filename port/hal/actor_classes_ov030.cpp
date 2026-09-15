@@ -248,8 +248,8 @@ extern unsigned char g_profile_MONKEY_THIEF[];
         code addresses, so all three spans are excluded from port/ov030_syms.txt
         and live here (the ov015/ov016/ov022/ov045/ov080/ov072 rule). ---- */
 int _ZTV13daObjHmBskt_c[32];    /* vtspan: _ZTV13daObjHmBskt_c */
-int _ZTV15daObjHmMaruta_c[32];  /* vtspan: data_ov030_02115a48 */
-int _ZTV13RollingLogTtm[31];    /* vtspan: data_ov030_02115bfc, really _ZTV7daMky_c */
+int _ZTV13RollingLogTtm[32];    /* vtspan: data_ov030_02115a48, config name for it */
+int _ZTV7daMky_c[31];           /* vtspan: data_ov030_02115bfc, config name for it */
 }
 
 /* ONE STORAGE, TWO NAMES, for 0x02115a48. src/d_a_obj_hm_maruta.c stores that
@@ -262,29 +262,67 @@ int _ZTV13RollingLogTtm[31];    /* vtspan: data_ov030_02115bfc, really _ZTV7daMk
    rescanned and expanded again, so renaming VT1 straight to
    _ZTV15daObjHmMaruta_c would have collapsed BOTH stores onto the same array
    and lost the ov080 intermediate the ROM writes first.
-   _ZTV13RollingLogTtm is config's own name for 0x02115a48 -- mis-attributed (that
-   table is RollingLogTtm's, see this file's header) but the right ADDRESS, so
-   the alias documents the config defect rather than inventing a name.
+   _ZTV13RollingLogTtm is config's own name for 0x02115a48 and it is CORRECT,
+   not mis-attributed: the typeinfo at 0x02115a48-4 leads to the string
+   "15daObjHmMaruta_c", and maruta is the log, so RollingLogTtm and
+   daObjHmMaruta_c are one class under two names. The array now carries that
+   config name outright, so VT1 resolves to it with no join at all.
    The LHS is deliberately UNDEFINED anywhere in the link, which is what
    /alternatename needs and what port/tools/alternatename_guard.py checks: it is
    excluded from port/ov030_syms.txt with the rest of that vtable span, and no
    host TU defines it. This is the _ZTV10dBgActor_c / _ZTV10dBgActor_c shape at
    hal/actor_classes.cpp:591, one storage reached under both spellings. */
-/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEFEATED: the left hand side is a real definition in this link now (actor_classes_ov030.cpp.obj), so the directive is inert and alternatename_guard fails on it. */
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEFEATED: the left hand side is a real definition in this link now (actor_classes_ov030.cpp.obj), so the directive is inert and alternatename_guard fails on it.
+   STILL RETIRED after ALIAS5, and now also backwards: the live row is the other
+   way round, at the end of this section. */
 // #pragma comment(linker, "/alternatename:__ZTV13RollingLogTtm=__ZTV15daObjHmMaruta_c")
 
-/* ONE STORAGE, TWO NAMES, for 0x02115bfc as well. config gives that address
-   BOTH _ZTV13RollingLogTtm and _ZTV7daMky_c (symbols.txt lines 143 and 144),
-   and src uses whichever its own TU happened to be recovered under:
-   daMky_c_classInit_MONKEY_STAR.c and daMky_c_classInit_MONKEY_THIEF.c spell _ZTV13RollingLogTtm, while
-   src/actors/daMky_c.cpp spells _ZTV7daMky_c. The host array carries the
-   first name (decl_common.h:524 declares it), so this alias points the second
-   at the same storage. Measured, not predicted: the FIRST link of this seat
-   failed with exactly this unresolved external and no other spelling.
-   _ZTV7daMky_c is the name that is actually RIGHT about the class -- see this
-   file's header -- and it is the one this lane could not use as the array's own
-   name, because src/ reaches the table under the other one from two TUs. */
-#pragma comment(linker, "/alternatename:__ZTV7daMky_c=__ZTV13RollingLogTtm")
+/* The block that used to stand here read "ONE STORAGE, TWO NAMES, for
+   0x02115bfc as well" and rested on two claims that do not hold. Both were
+   re-checked against the tree rather than taken from the note:
+     - "config gives that address BOTH _ZTV13RollingLogTtm and _ZTV7daMky_c
+       (symbols.txt lines 143 and 144)". Line 143 is _ZTV7daMky_c at 0x02115bfc;
+       line 144 is data_ov030_02115c80, a bss row. _ZTV13RollingLogTtm is on
+       line 115 at a DIFFERENT address, 0x02115a48.
+     - "daMky_c_classInit_MONKEY_STAR.c and ..._MONKEY_THIEF.c spell
+       _ZTV13RollingLogTtm". They do not: src/d_a_mky_monkey_star.c:22 and
+       src/d_a_mky_monkey_thief.c:22 both store _ZTV7daMky_c, agreeing with the
+       cartridge, and the only file in src/ that spells _ZTV13RollingLogTtm is
+       src/d_a_obj_hm_maruta.c, the rolling log. */
+/* THE TWO TABLES, read out of config rather than derived one name at a time.
+   config/arm9/overlays/ov030/symbols.txt:
+
+       0x02115a48   _ZTV13RollingLogTtm  (line 115)
+       0x02115bfc   _ZTV7daMky_c         (line 143)
+
+   ONE name each, at TWO addresses. The note that used to stand here said both
+   names were on 0x02115bfc at lines 143 and 144; line 144 is
+   data_ov030_02115c80, a bss row, and there is no second _ZTV at that address.
+   The cartridge agrees three more ways. The typeinfo word at 0x02115a48-4 leads
+   to the string "15daObjHmMaruta_c" (maruta is the log) and the one at
+   0x02115bfc-4 to "7daMky_c" (the monkey). The factories disagree:
+   daObjHmMaruta_c_classInit (0x0211164c) allocates 0x344 and stamps 0x02115a48,
+   while daMky_c_classInit_MONKEY_STAR (0x021145e0) and _MONKEY_THIEF
+   (0x02114638) each allocate 0x3cc and stamp 0x02115bfc, then build a ModelAnim
+   at +0xd4, a ShadowModel at +0x138, a dCcAc_c at +0x160, a dBgCh_Actr at +0x194
+   and a PathPtr at +0x398 that the 0x344 class never builds. And the two tables
+   differ in ten of their thirty-one slots.
+
+   So the join __ZTV7daMky_c=__ZTV13RollingLogTtm was false, and its effect was
+   that src/d_a_obj_hm_maruta.c, which stamps _ZTV13RollingLogTtm, spawned every
+   rolling log holding the MONKEY's methods -- including a Render that reads a
+   ModelAnim at +0xd4 the log's own constructor never builds -- while the array
+   this file fills with the log's methods was installed on nothing at all. Both
+   arrays now carry config's own name for the address they hold, so no join is
+   needed and none is written.
+
+   _ZTV15daObjHmMaruta_c is the port's other spelling for the SAME class as
+   _ZTV13RollingLogTtm (the RTTI string at 0x02115a48 is "15daObjHmMaruta_c");
+   config carries no _ZTV under that spelling, only the _ZTS name string, so the
+   row below is a true statement of identity and not an address join. Its LHS is
+   undefined in the link, which is what /alternatename needs and what
+   port/tools/alternatename_guard.py checks. */
+#pragma comment(linker, "/alternatename:__ZTV15daObjHmMaruta_c=__ZTV13RollingLogTtm")
 
 /* FIVE C-LINKAGE FLIPS. Five mounted data symbols are declared WITHOUT
    extern "C" by a //cpp TU in this slice, so MSVC mangles the reference while
@@ -583,7 +621,7 @@ static int __fastcall log_d0(void *s, void *)
 
 extern "C" void hal_fill_rollinglogttm_vtable(void)
 {
-    void **vt = (void **)_ZTV15daObjHmMaruta_c;
+    void **vt = (void **)_ZTV13RollingLogTtm;
     ov30_fill_shared(vt);
     vt[0]  = (void *)log_init;
     vt[3]  = (void *)log_clean;
@@ -662,7 +700,7 @@ extern "C" void hal_fill_ukiki_vtable(void)
        them: func_ov030_021141a8 installs a cell and TAIL-JUMPS straight into
        the enter half, and InitResources reaches it on the first frame. */
     port_ukiki_states_seat();
-    void **vt = (void **)_ZTV13RollingLogTtm;
+    void **vt = (void **)_ZTV7daMky_c;
     ov30_fill_shared(vt);
     vt[0]  = (void *)mky_init;
     vt[3]  = (void *)mky_clean;

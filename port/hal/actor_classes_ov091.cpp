@@ -47,7 +47,7 @@
  * through to its name string gives "13daLinelift2_c" for 0x02134ec0 and
  * "10daHyuhyu_c" for 0x021353ac.
  *   * _ZN6FwooshD0Ev spells _ZTV10daHyuhyu_c while _ZN6FwooshD1Ev and
- *     daHyuhyu_c_classInit spell _ZTV5Stump: ONE table under two names, so it gets an
+ *     daHyuhyu_c_classInit spell _ZTV6Fwoosh: ONE table under two names, so it gets an
  *     /alternatename. The LHS is defined nowhere else in this link -- checked,
  *     and port/tools/alternatename_guard.py re-checks it post-link.
  *   * BOTH RotatingUpDownPlatform destructors spell _ZTV13daLinelift2_c and
@@ -66,8 +66,16 @@
  * g_profile_PILE (0x02135298) has +4 halfword 27 and names factory
  * 0x02133938, whose pool literal is 0x021352bc, RTTI "11daObjPile_c" -- actor
  * 27's own table, which the gate-32 mount excludes and the registry fills.
- * The config symbol _ZTV5Stump sits at 0x021353ac with RTTI "10daHyuhyu_c" and
- * is FWOOSH's. So the seven _ZN5Stump* bodies in src/ are FWOOSH's methods.
+ * WHERE THAT DERIVATION STOPPED SHORT, and it is the twelfth defect's root
+ * cause exactly: it proved an address for the PILE and then assumed the name
+ * _ZTV5Stump must be the leftover one, without reading config's own row for it.
+ * config/arm9/overlays/ov091/symbols.txt:157 puts _ZTV5Stump on 0x021352bc --
+ * the PILE's table, the very one this note had just identified -- and puts
+ * _ZTV6Fwoosh (167) and _ZTV10daHyuhyu_c (168) on 0x021353ac. So _ZTV5Stump is
+ * actor 27's name after all, the _ZN5Stump* bodies in src/ are the PILE's
+ * methods (config names 0x021352bc slot 0 _ZN5Stump13InitResourcesEv), and
+ * hal/actor_classes_bob_enemy.cpp is right to build _ZTV11daObjPile_c out of
+ * them. This file's array is FWOOSH's and now says so.
  *
  * IDS 29 AND 30 ARE NOT A BUG. Both daObjRotateUpdownLift_c_classInit_UPDOWN_LIFT (0x02131bdc)
  * and daObjRotateUpdownLift_c_classInit_HS_UPDOWN_LIFT (0x02131ba4) install
@@ -173,7 +181,7 @@ void hal_fill_platform_vtable(void);              /* the dBgActor_c base table *
 /* ---- the two host vtable arrays. Both spans are gaps in the gate-32 mount,
         so nothing else defines them and a factory gets host addresses. ---- */
 void *_ZTV22RotatingUpDownPlatform[32];  /* ov091 0x02134ec0, == _ZTV13daLinelift2_c */
-void *_ZTV5Stump[31];                    /* ov091 0x021353ac, == _ZTV10daHyuhyu_c */
+void *_ZTV6Fwoosh[31];                   /* ov091 0x021353ac, == _ZTV10daHyuhyu_c */
 
 /* ---- ARROW_PATH_LIFT (157) + SQUARE_METAL_NET_LIFT (144) ----------------- */
 int _ZN22RotatingUpDownPlatform13InitResourcesEv(void *self);    /* face: below */
@@ -552,7 +560,7 @@ static int __fastcall fwo_aimed(void *s, void *)
 extern "C" void hal_fill_fwoosh_vtable(void)
 {
     port_ov091_states_seat();
-    void **vt = _ZTV5Stump;
+    void **vt = _ZTV6Fwoosh;
     ov91_fill_shared(vt);
     vt[0]  = (void *)fwo_init;
     vt[3]  = (void *)fwo_clean;
@@ -597,7 +605,25 @@ int _ZN6Fwoosh16CleanupResourcesEv(void *self)
  * inert and the guard would fail the build. The destructors reference the real
  * array, which hal_fill_platform_vtable() above has filled. */
 #pragma comment(linker, "/alternatename:__ZTV13daLinelift2_c=__ZTV22RotatingUpDownPlatform")
-#pragma comment(linker, "/alternatename:__ZTV10daHyuhyu_c=__ZTV5Stump")
+/* 0x021353ac's OTHER config name. config/arm9/overlays/ov091/symbols.txt puts
+   _ZTV6Fwoosh (line 167) and _ZTV10daHyuhyu_c (line 168) on that one address,
+   adjacent rows: a genuine two-name table, and the array above now carries the
+   first of those names outright. What used to stand here joined
+   __ZTV10daHyuhyu_c to __ZTV5Stump, and _ZTV5Stump is line 157 at 0x021352bc --
+   a DIFFERENT table and a different class, the stump, hosted as
+   _ZTV11daObjPile_c[32] in hal/actor_classes_bob_enemy.cpp. The cartridge
+   settles it three more ways: the typeinfo at 0x021353ac-4 leads to the string
+   "10daHyuhyu_c" and the one at 0x021352bc-4 to "11daObjPile_c";
+   daHyuhyu_c_classInit (0x021344a0) allocates 0x378, stamps 0x021353ac and then
+   builds a dCcAc_c at +0x110, a dBgCh_Actr at +0x144 and a ModelAnim at +0x300,
+   while daObjPile_c_classInit (0x02133938) allocates 0x330 and stamps
+   0x021352bc and builds none of them; and the two tables differ in twelve of
+   their thirty-one slots. The join's effect was that src/d_a_obj_pile.c, which
+   stamps _ZTV5Stump, spawned every stump holding FWOOSH's methods -- whose
+   Render reads a ModelAnim at +0x300 that an 0x330-byte stump does not even
+   have room for -- while the stump's own filled array was installed on nothing
+   at all. */
+#pragma comment(linker, "/alternatename:__ZTV10daHyuhyu_c=__ZTV6Fwoosh")
 
 /* ============================================================================
  * SIXTEEN LINKAGE ALIASES, ALL MEASURED OFF THE FIRST LINK, NONE PREDICTED.

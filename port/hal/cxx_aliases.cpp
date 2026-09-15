@@ -3567,15 +3567,21 @@ DSSTATE_END
    symbol as the span it stands for ("vtspan: _ZTV12MetalNetLift"). */
 #pragma comment(linker, "/alternatename:__ZTV12MetalNetLift=__ZTV17daObjFl_Amilift_c")
 
-/* ov064 0x0211c334. Other ROM name _ZTV18daWater_Hakidasi_c, aliased onto
-   _ZTV17BowserPuzzlePiece[31] at hal/actor_classes_bowserpuzzle.cpp:181,
-   whose comment carries the address. */
-#pragma comment(linker, "/alternatename:__ZTV9JetStream=__ZTV17BowserPuzzlePiece")
+/* ov064 0x0211c334 is hosted under its own config name, _ZTV9JetStream[31] in
+   hal/actor_classes_bowserpuzzle.cpp, and its other ROM name
+   _ZTV18daWater_Hakidasi_c is aliased onto it there. No row is needed here.
+   The row that used to stand here joined __ZTV9JetStream to
+   __ZTV17BowserPuzzlePiece, which config puts on 0x0211c25c: a different table
+   and a different class. See that file's alias block for the cartridge
+   evidence. */
 
-/* ov091 0x021353ac, 31 words. Other ROM name _ZTV10daHyuhyu_c, aliased onto
-   _ZTV5Stump[31] at hal/actor_classes_ov091.cpp:598; that array's own
-   comment carries the address. */
-#pragma comment(linker, "/alternatename:__ZTV6Fwoosh=__ZTV5Stump")
+/* ov091 0x021353ac is hosted under its own config name, _ZTV6Fwoosh[31] in
+   hal/actor_classes_ov091.cpp, and its other ROM name _ZTV10daHyuhyu_c is
+   aliased onto it there. No row is needed here. The row that used to stand here
+   joined __ZTV6Fwoosh to __ZTV5Stump, which config puts on 0x021352bc: the
+   stump, a different class, hosted as _ZTV11daObjPile_c[32] in
+   hal/actor_classes_bob_enemy.cpp. See ov091.cpp for the cartridge
+   evidence. */
 
 /* ov075 0x0211d304. The address's other config name is the mount symbol
    data_ov075_0211d304, which port/ov075_syms.txt publishes and

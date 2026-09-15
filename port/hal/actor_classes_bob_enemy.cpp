@@ -666,7 +666,10 @@ extern "C" void hal_fill_chain_chomp_fence_vtable(void)
 //   g_profile_PILE   ov091 0x02135298, +4 halfword 27, factory daObjPile_c_classInit
 //   daObjPile_c_classInit       ov091 0x02133938, and its literal pool installs
 //                     0x021352bc, whose RTTI reads daObjPile_c
-//   _ZTV5Stump        ov091 0x021353ac, RTTI daHyuhyu_c -- and that table is
+//   _ZTV5Stump        ov091 0x021352bc per config:157 -- THIS array. (The note
+//                     that used to stand here put it on 0x021353ac, RTTI
+//                     daHyuhyu_c; that address is _ZTV6Fwoosh / _ZTV10daHyuhyu_c
+//                     at config:167 and :168, and that table is
 //                     FWOOSH's, installed by daHyuhyu_c_classInit for actor 231
 //
 // So the six _ZN5Stump* bodies in src/ implement FWOOSH, actor 27's own are
@@ -701,6 +704,20 @@ DSSTATE_END
 }
 /* daObjPile_c_classInit spells the table by the address config left unnamed. */
 #pragma comment(linker, "/alternatename:_data_ov091_021352bc=__ZTV11daObjPile_c")
+
+/* CONFIG DID NOT LEAVE 0x021352bc UNNAMED: symbols.txt:157 calls it _ZTV5Stump,
+   and src/d_a_obj_pile.c:13 stamps exactly that name. Until now _ZTV5Stump was
+   the label on a DIFFERENT array -- hal/actor_classes_ov091.cpp's 0x021353ac,
+   Fwoosh's table -- so every stump spawned holding Fwoosh's methods while this
+   array, filled with the stump's own, was installed on nothing at all. The
+   cartridge settles which is which: daObjPile_c_classInit (0x02133938)
+   allocates 0x330 and stamps 0x021352bc, whose typeinfo names "11daObjPile_c"
+   and whose slot 0 config calls _ZN5Stump13InitResourcesEv; daHyuhyu_c_classInit
+   (0x021344a0) allocates 0x378 and stamps 0x021353ac, whose typeinfo names
+   "10daHyuhyu_c". _ZTV11daObjPile_c is the port's own spelling (config carries
+   no _ZTV under it, only the RTTI string), so this row states an identity
+   rather than joining two addresses. */
+#pragma comment(linker, "/alternatename:__ZTV5Stump=__ZTV11daObjPile_c")
 
 static int __fastcall pile_init(void *s, void *)
 { return _ZN5Stump13InitResourcesEv((char *)s); }

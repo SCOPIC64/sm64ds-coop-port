@@ -13,8 +13,9 @@
 //
 // ---- BOTH TABLES ARE THE PLAIN 31-SLOT ACTOR SHAPE ------------------------
 //
-// _ZTV16daObjFl_Puzzle_c (ov064 0x0211c25c) and _ZTV17BowserPuzzlePiece
-// (0x0211c334) are each the standard 31-slot Actor table read straight off their
+// _ZTV16daObjFl_Puzzle_c (ov064 0x0211c25c, also named _ZTV17BowserPuzzlePiece)
+// and _ZTV9JetStream (0x0211c334, also named _ZTV18daWater_Hakidasi_c) are each
+// the standard 31-slot Actor table read straight off their
 // reloc spans: slot 1 = Actor::BeforeInitResources (arm9 0x02011268), slots 18..29
 // the Actor interaction tail, slot 30 = OnAimedAtWithEggReturnVec (0x020100dc).
 // Both carry the vtable signature (+4 relocates to 0x02011268) and are HOST arrays
@@ -39,8 +40,8 @@
 // ran the 828-byte InitResources, indexed adc8[0xffff & 0xf] into the pack gap
 // and faulted on the null SFP.)
 //
-// _ZTV17BowserPuzzlePiece (0x0211c334) is installed only mid-teardown by the
-// D-tors that bear its name; it is filled too, belt and braces.
+// _ZTV9JetStream (0x0211c334) is installed at spawn by daWater_Hakidasi_c's own
+// factory and mid-teardown by the D-tors that bear its name; it is filled here.
 //
 // ---- THE D-TORS STAY IN THE SLICE -----------------------------------------
 //
@@ -48,9 +49,11 @@
 // _ZTV10dBgActor_c (Platform's base table, already host-filled by
 // hal_fill_platform_vtable), both harmless host writes to a dying object -- the
 // FallBlockWf reading. _ZTV16daObjFl_Puzzle_c is aliased below to the real
-// Manager host array. The Piece D1/D0 (.c) spell _ZTV17BowserPuzzlePiece /
-// _ZTV18daWater_Hakidasi_c, which are the SAME address (0x0211c334) and both the
-// real Piece table -- no launder, no placeholder, so they need no host thunk. All
+// Manager host array. The other class's D1/D0 (.c) spell _ZTV9JetStream /
+// _ZTV18daWater_Hakidasi_c, which ARE the same address (0x0211c334) and both the
+// real JetStream table -- no launder, no placeholder, so they need no host thunk.
+// _ZTV17BowserPuzzlePiece is NOT that address: it is 0x0211c25c, the other table
+// in this file, and the alias block below is where that is settled. All
 // four run their member teardowns (Manager: MovingMeshCollider +0x124, Model +0xd4,
 // Actor::D2; Piece: WithMeshClsn +0x144, MovingCylinderClsn +0x110, the Enemy base
 // D2 _ZN12dEnemyBase_cD2Ev) with faces already in the build.
@@ -164,23 +167,44 @@ int *daObjFl_Coin_c_classInit(void);  /* .c factory, installs c1d8 itself */
    that put both at 31 came from hal/actor_classes_wf.cpp's header and is
    corrected there. */
 int _ZTV16daObjFl_Puzzle_c[32];
-/* 31 and correct: the Piece's table ends at slot 30, and the code word one
-   past it (func_ov064_02119ea0) is a pointer-to-member pair with its own dsd
-   symbol, not a slot. */
-int _ZTV17BowserPuzzlePiece[31];
+/* ov064 0x0211c334, JETSTREAM's table, 31 words: it ends at slot 30, and the
+   code word one past it (func_ov064_02119ea0) is a pointer-to-member pair with
+   its own dsd symbol, not a slot. THE NAME ON THIS ARRAY USED TO BE
+   _ZTV17BowserPuzzlePiece, which config puts on 0x0211c25c, the OTHER table in
+   this file. The contents were always JetStream's; only the label was wrong. */
+int _ZTV9JetStream[31];
 }
 
 /* The Manager D-tors spell VT0 as _ZTV16daObjFl_Puzzle_c (the class's RTTI name);
    point it at the host Manager array -- the daChoropu_c / daDonketu_c precedent.
-   _ZTV10dBgActor_c (VT1) and _ZTV18daWater_Hakidasi_c (the Piece's D0 alias, same
-   address as _ZTV17BowserPuzzlePiece) are already defined elsewhere in the build. */
+   _ZTV10dBgActor_c (VT1) and _ZTV18daWater_Hakidasi_c (JetStream's other ROM
+   name, 0x0211c334) are already defined elsewhere in the build. */
 
-/* The Piece D0 (src, .c) spells the Piece table by its OTHER RTTI name,
-   _ZTV18daWater_Hakidasi_c -- the same ROM address (0x0211c334) as
-   _ZTV17BowserPuzzlePiece, an aliased symbol pair the dsd export carries twice.
-   Nothing else defines it (only daWater_Hakidasi_c_classInit, unhosted, and this D0 spell it),
-   so alias it onto the host Piece array -- the daObjFl_Puzzle_c reading. */
-#pragma comment(linker, "/alternatename:__ZTV18daWater_Hakidasi_c=__ZTV17BowserPuzzlePiece")
+/* THE TWO REAL ALIAS PAIRS IN ov064, read out of config rather than derived
+   one name at a time. config/arm9/overlays/ov064/symbols.txt:
+
+       0x0211c25c   _ZTV17BowserPuzzlePiece (266)   _ZTV16daObjFl_Puzzle_c (267)
+       0x0211c334   _ZTV9JetStream          (273)   _ZTV18daWater_Hakidasi_c (274)
+
+   Two addresses, two names each: two classes, not one. The cartridge agrees
+   three more ways. The typeinfo word at 0x0211c25c-4 leads to the string
+   "16daObjFl_Puzzle_c" and the one at 0x0211c334-4 to "18daWater_Hakidasi_c".
+   The factories disagree: daObjFl_Puzzle_c_classInit (0x02119300) allocates
+   0x33c and stamps 0x0211c25c, while daWater_Hakidasi_c_classInit (0x02119a18)
+   allocates 0x378 and stamps 0x0211c334, then builds a dCcAc_c at +0x110 and a
+   dBgCh_Actr at +0x144 that the 0x33c class never builds. And the two tables
+   differ in exactly the seven slots a subclass overrides (0, 3, 6, 9, 12, 16, 17).
+
+   What used to stand here was the reverse join, __ZTV18daWater_Hakidasi_c=
+   __ZTV17BowserPuzzlePiece, written on the premise that those two names are one
+   address. They are not. That premise proved an address for ONE of the two names
+   and never asked what address the other had, which is the twelfth defect's root
+   cause exactly. Its effect: src/d_a_obj_fl_puzzle.c stamps
+   _ZTV17BowserPuzzlePiece, so all fourteen puzzle pieces spawned holding
+   JETSTREAM's methods, while the array this file fills with the pieces' own
+   methods was installed on nothing at all. */
+#pragma comment(linker, "/alternatename:__ZTV18daWater_Hakidasi_c=__ZTV9JetStream")
+#pragma comment(linker, "/alternatename:__ZTV17BowserPuzzlePiece=__ZTV16daObjFl_Puzzle_c")
 
 /* BowserPuzzleManager::CleanupResources spells the collider SharedFilePtr
    data_ov064_0211c800 as data_ov075_0211c800 -- a dsd overlay mislabel: the
@@ -419,7 +443,7 @@ static int __fastcall pce_d0(void *s, void *)
 
 extern "C" void hal_fill_bowser_puzzle_piece_vtable(void)
 {
-    void **vt = (void **)_ZTV17BowserPuzzlePiece;
+    void **vt = (void **)_ZTV9JetStream;
     bp_fill_shared_0_30(vt);
     vt[0]  = (void *)pce_init;
     vt[3]  = (void *)pce_clean;
@@ -431,8 +455,8 @@ extern "C" void hal_fill_bowser_puzzle_piece_vtable(void)
 }
 
 /* id 78's registry fill: the factory installs _ZTV16daObjFl_Puzzle_c (the
-   828-byte class's real table), so fill that; also fill _ZTV17BowserPuzzlePiece,
-   which the teardown path writes mid-destruction. */
+   828-byte class's real table), so fill that; also fill _ZTV9JetStream
+   (0x0211c334), which this overlay's other class spawns and tears down with. */
 extern "C" void hal_fill_bowser_puzzle_piece_vtable(void);
 extern "C" void hal_fill_bowser_puzzle_pair_vtables(void)
 {
