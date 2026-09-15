@@ -3003,12 +3003,43 @@ static int  __fastcall sc_bclean(void *s, void *)
 { return _ZN8dScene_c22BeforeCleanupResourcesEv(s); }
 static void __fastcall sc_aclean(void *s, void *, unsigned a)
 { _ZN8dScene_c21AfterCleanupResourcesEj(s, a); }
+/* SM64DS_TITLE_TRACE=1: SAY WHY THE SCENE'S TICK GATE CLOSED, once each.
+ *
+ * ActorBase::Process calls slot 7 before slot 6 and slot 10 before slot 9, so a
+ * scene that is on the behaviour list and nevertheless stops running stops in
+ * one of these two returns and nowhere else. Every branch that returns 0 is a
+ * read of a field or a global this frame can print, so the honest report is the
+ * field values at the first refusal rather than a bisect afterwards.
+ *
+ * dScene_c::BeforeBehavior's four ways to say no, in its own order:
+ *   fBase_c's        shouldBeKilled != 0, or pauseFlags & 2
+ *   the fade branch  data_0209f1e0 != 0 with a scene actor and a fade in flight
+ *   the pause branch pauseFlags & 1 while func_020431c4 still returns non-zero
+ * and BeforeRender's two: shouldBeKilled != 0, or pauseFlags & 8. */
+extern "C" unsigned char data_0209f1e0[4];   /* hal/auto_bss.cpp, the fade request */
+extern "C" void *data_0209f1e4;              /* hal/auto_bss.cpp, the fade in flight */
+static void sc_gate_report(const char *which, void *s, int r)
+{
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_TITLE_TRACE") != 0;
+    if (!on || r != 0) return;
+    static int said_beh, said_ren;
+    int *said = which[0] == 'b' ? &said_beh : &said_ren;   /* "beh" / "ren" */
+    if (*said) return;
+    *said = 1;
+    const unsigned char *o = (const unsigned char *)s;
+    std::printf("[title] GATE %s RETURNED 0 for scene %p: kill %u pause 0x%02x"
+                " | fade-request %u fade-in-flight %p | pending %u\n",
+                which, s, o[0xf], o[0x13], (unsigned)data_0209f1e0[0],
+                data_0209f1e4, (unsigned)data_02092664);
+    std::fflush(stdout);
+}
 static int  __fastcall sc_bbeh(void *s, void *)
-{ return _ZN8dScene_c14BeforeBehaviorEv(s); }
+{ int r = _ZN8dScene_c14BeforeBehaviorEv(s); sc_gate_report("beh", s, r); return r; }
 static void __fastcall sc_abeh(void *s, void *, unsigned a)
 { port_scene_after_behavior(s, a); }
 static int  __fastcall sc_bren(void *s, void *)
-{ return _ZN8dScene_c12BeforeRenderEv(s); }
+{ int r = _ZN8dScene_c12BeforeRenderEv(s); sc_gate_report("ren", s, r); return r; }
 static void __fastcall sc_aren(void *s, void *, unsigned a)
 { port_scene_after_render(s, a); }
 static int  __fastcall sc_v34(void *s, void *, unsigned a, unsigned b)
