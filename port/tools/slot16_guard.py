@@ -129,10 +129,19 @@ def main():
         if len(slots) >= MIN_SLOTS and 0x40 in slots:
             site, imm = slots[0x40]
             slot16.append((base, site, imm))
-    # plus the vt-parameter form, which is a slot-16 store by construction
+    # plus the vt-parameter form, which is a slot-16 store by construction.
+    # LAST WRITE WINS: a fill that loops a trap into every slot and then
+    # overrides 16 compiles to two stores at +0x40 in the same function, and
+    # only the later one is the value the table ends up holding.
+    byfn = {}
     for site, dst, imm in abs_stores:
         if dst is None:
-            slot16.append(("(vt parameter)", site, imm))
+            fn, _ = sym(site)
+            prev = byfn.get(fn)
+            if prev is None or site > prev[0]:
+                byfn[fn] = (site, imm)
+    for fn, (site, imm) in byfn.items():
+        slot16.append(("(vt parameter in %s)" % fn, site, imm))
 
     bad, noret, allowed = [], [], []
     for base, site, tgt in slot16:
