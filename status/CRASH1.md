@@ -38,3 +38,16 @@
   [ebx+4] really is _ZTV5Stage[1]. Running ONE quiet arm-A run of the EXISTING artifact
   (no rebuild) with SM64DS_STAGE_SEAT_PROBE=1 + SM64DS_MM_STALE=1 to decide whether the
   boot body ran at all. Taking the slot lock now.
+- 21:45 EDT - Static chain verified END TO END and all of it is HEALTHY:
+  port_stage_a_boot(019070) -> port_stage_lifecycle_boot(2b3bd0) -> func_020433b8(0bda50)
+  -> func_0204335c(1efab0, the Process) -> slot1 st_binit(2b34c0) -> face(1c82c0) ->
+  Stage::BeforeInitResources(2bade0) -> dScene_c::ResetFadersAndSound(1010b0) which RETURNS 1.
+  Seat writes s0=st_init s1=st_binit s2=st_ainit; dScStage_c_classInit stores vptr=_ZTV5Stage+0;
+  g_stage has exactly ONE writer so port_stage_create did not early-return; st_init's targets
+  are the real port_stage_boot_arg_mc/_spawn/_body/_set_result. Runtime says the body never ran
+  ([mm-stale] is stderr+fflush and is absent; [char] spawning Luigi PROVES env delivery and that
+  execution reached the statement right before the boot). Seat-probe silence is NOT evidence:
+  it uses printf and the fault handler only fflushes stderr, so stdout dies buffered.
+  => taking the brief's step 3: ONE rebuild of port/tests/walk_window.cpp ALONE (Release flags
+  kept -- /Od would break ~50 ov007 tail-jump forwarder rows per tools/tailjump_guard.py), with
+  a stderr dump of g_stage, its vptr, +0x0e/0f/10 and _ZTV5Stage[0..2]. BUILD RUNNING NOW.
