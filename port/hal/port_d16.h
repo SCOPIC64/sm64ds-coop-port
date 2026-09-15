@@ -51,9 +51,19 @@
  * describes as "this in ecx, the hidden result pointer the one (callee-popped)
  * stack argument".
  */
+/* Run link100, lane DTORCALL: count the dispatches. Between 9cbd99048 and that
+ * lane there were NONE AT ALL -- the two-arm destructor spelling made
+ * AfterCleanupResources' `this->~fBase_c()` a direct call to fBase_c's own
+ * body, so these wrappers existed and were never entered, and nothing reported
+ * it. The counter is one increment on a teardown path and prints nothing
+ * unless SM64DS_DTORCALL_CENSUS is set. It does not touch this function's
+ * calling convention: the `ret 4` is still the wrapper's own. */
+#include "dtorcall_census.h"
+
 template <auto Face>
 static int __fastcall port_d16_face(void *self, void *dummy, unsigned /*flag*/)
 {
+    port_dtorcall_note(self);
     return (int)(size_t)Face(self, dummy);
 }
 

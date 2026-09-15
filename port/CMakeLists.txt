@@ -7089,6 +7089,88 @@ foreach(_dbgw_rel IN LISTS PORT_DBGW_HOSTABI_SOURCES)
         "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/dBgW_HostAbi.h")
 endforeach()
 
+# Run link100 lane DTORCALL: THE ACTOR TEARDOWN DISPATCH, PUT BACK. Same /FI
+# mechanism as the five blocks above, and for a defect that reported nothing.
+#
+# The cartridge dispatches every actor's own complete-object destructor through
+# ROM vtable slot 16, in one place:
+#
+#   _ZN7fBase_c21AfterCleanupResourcesEj, arm9 0x02043b2c
+#       02043b78  mov r0, r4           ; this
+#       02043b7c  ldr r1, [r0]         ; the object's vtable
+#       02043b80  ldr r1, [r1, #0x40]  ; SLOT 16
+#       02043b84  blx r1               ; DISPATCH
+#       02043b94  bl  #0x203c1e8       ; then Memory::Deallocate
+#
+# and include/fBase_c.h's own banner says so out loud: "vtable+0x40 (which
+# AfterCleanupResources dispatches through) is that D1 destructor". dActor_c
+# and dScene_c override AfterCleanupResources only to delegate straight back to
+# it, and `this->~fBase_c()` on line 37 of that file is the only explicit
+# destructor dispatch in the whole of src/. It is the actor hierarchy's one
+# teardown path.
+#
+# Commit 9cbd99048 gave 341 headers the two-arm destructor spelling that keeps
+# MSVC's slot numbering equal to the ROM's, which is what closed lane VTABLE's
+# forty measured wrong-slot dispatch sites. It also, as a side effect nobody
+# booked, spelled ~fBase_c() NON-VIRTUAL on the host, so that one call stopped
+# being a dispatch and became a direct call to fBase_c's own destructor body:
+#
+#       005ef7d7  mov  ecx, esi
+#       005ef7d9  call 0x4f38b0        ; ??1fBase_c@@QAE@XZ, the BASE body
+#
+# Every actor's own cleanup was skipped from then on. Two independent
+# instruments measured ZERO slot-16 dispatch sites in the whole shipped image
+# (out/INTWALK/d16scan.py, a byte-encoding scan; out/DTORCALL/slot16scan.py, a
+# per-function disassembly of all 24721 map-named functions), against 23 sites
+# at slot 15 and 43 at slot 18 either side of it. Nothing reported it, and the
+# boot got FURTHER, because the call that used to fault was no longer made.
+#
+# THE FIX IS PORT-SIDE AND TOUCHES NO DECOMP FILE. unmatched/
+# FBase_DtorDispatch_HostAbi.h shadows fBase_c for this one translation unit
+# with a VIRTUAL destructor after the sixteen ROM virtuals, so MSVC puts it at
+# slot 16 and compiles the call as a dispatch through vtable+0x40. The two-arm
+# spelling every other translation unit sees is untouched, so ACTORPORT's forty
+# sites cannot move, and this translation unit dispatches no slot above 16.
+#
+# MSVC routes an explicit destructor call through its scalar deleting
+# destructor slot, which is __thiscall with one callee-popped stack argument,
+# the delete flag; the cartridge pushes nothing. That difference is already
+# ruled on and already paid for by hal/port_d16.h, whose PORT_D16 wrapper takes
+# the flag and pops it, and which tools/slot16_guard.py enforces on every
+# slot-16 store in the tree. This block is the dispatcher those wrappers were
+# built for; without it they are never entered.
+#
+# /FI is a FLAG rather than an include-path entry for the reason the blocks
+# above give: CMake emits <INCLUDES> before <FLAGS>, so a /I here would lose to
+# include/ and the shadow would silently not happen. APPEND, so a row that ever
+# gains a second force-include keeps both.
+# THE ROW GOES ON THE GENERATED FILE, NOT ON src/. This translation unit is
+# NOT compiled from src/: it is a GATE9 hostgen symbol (the set() near the top
+# of this file), so tools/hostgen.py rewrites it into
+# build/port/host-src/src/_ZN7fBase_c21AfterCleanupResourcesEj.cpp and THAT is
+# the file every target compiles. A row written against the src/ path, which is
+# what the five blocks above legitimately use for their own non-generated
+# sources, attaches to a file nothing compiles and does NOTHING AT ALL, with no
+# error and no warning. The list(FIND) below is the guard against exactly that:
+# if this symbol ever stops being a hostgen symbol, the configure fails loudly
+# instead of the force-include silently evaporating.
+set(PORT_DTORCALL_HOSTABI_SYM _ZN7fBase_c21AfterCleanupResourcesEj)
+if(NOT EXISTS "${PORT_REPO_ROOT_ABS}/src/${PORT_DTORCALL_HOSTABI_SYM}.cpp")
+    message(FATAL_ERROR "actor-teardown host-ABI row names a source that "
+            "does not exist: src/${PORT_DTORCALL_HOSTABI_SYM}.cpp")
+endif()
+list(FIND GATE9_SYMS "${PORT_DTORCALL_HOSTABI_SYM}" _dtorcall_gate9_idx)
+if(_dtorcall_gate9_idx LESS 0)
+    message(FATAL_ERROR "the actor-teardown host-ABI row expects "
+            "${PORT_DTORCALL_HOSTABI_SYM} to be a hostgen (GATE9) symbol, so that "
+            "the force-include lands on build/port/host-src/. It is not one any "
+            "more, so the row below would attach to a file nothing compiles.")
+endif()
+set_property(SOURCE
+    "${CMAKE_BINARY_DIR}/host-src/src/${PORT_DTORCALL_HOSTABI_SYM}.cpp"
+    APPEND PROPERTY COMPILE_OPTIONS
+    "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/FBase_DtorDispatch_HostAbi.h")
+
 # Run mg5 lane CCN: THE SECOND SEATED MINIGAME CLASS, dScMgCoin_c
 # (Coincentration), actor id 0x17a = scene 378. The ROM's own RTTI at
 # 0x0213bf24 reads "11dScMgCoin_c" and its vtable is data_ov006_0213bf50, both
