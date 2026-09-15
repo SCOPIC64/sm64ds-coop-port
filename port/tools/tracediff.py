@@ -4,9 +4,12 @@
 EITHER SIDE MAY BE THE PORT OR THE CARTRIDGE. The format is detected from the
 file, not declared on the command line:
 
-  PORT       port/hal/fn_trace.cpp, MSVC /Gh. A 24-byte "PTF2" header and then
-             two words a record. Read by port/tools/porttrace.py, resolved
-             through that build's walk_window.map.
+  PORT       port/hal/fn_trace.cpp, MSVC /Gh. A 24-byte "PTF3" header and then
+             three words a record: the callee, the call site, and the caller's
+             stack pointer. The older two-word "PTF2" is still read, and is
+             marked on sight because its caller column was inferred rather than
+             recorded. Read by port/tools/porttrace.py, resolved through that
+             build's walk_window.map.
   CARTRIDGE  the instrumented melonDS of lane ROMTRACE. No header at all, eight
              words a record, the file size a multiple of 32. Read by
              port/tools/romtrace_resolve.py, resolved through config/**/
@@ -26,11 +29,13 @@ of every run so nobody reads a table without them:
      be a tail-called ROM function rather than a defect, and this is the single
      most likely false positive in the whole comparison.
 
-  2. THE PORT RECORDS ONLY THE CALLEE plus the caller's stack pointer, so the
-     caller is reconstructed from nesting. The offset inside the caller and the
-     argument values are NOT recoverable on the port side. Callers are therefore
-     compared WITHOUT their offsets, and arguments are never compared. The
-     cartridge's `f+0x2c -> g` and the port's `f -> g` become the same edge.
+  2. THE PORT DOES NOT RECORD ARGUMENTS and never will: /Gh fires after the
+     arguments are already wherever the calling convention put them, and the
+     port's conventions are not the ARM's. Argument values are therefore never
+     compared. The caller itself IS recorded on both sides now, so edges are
+     real on both, but the cartridge's caller carries an offset into the call
+     site and the port's does not, so offsets are dropped: the cartridge's
+     `f+0x2c -> g` and the port's `f -> g` are the same edge here.
 
   3. THE PORT RUNS HOST FUNCTIONS THE CARTRIDGE NEVER HAD: port/hal,
      port/unmatched, port/ntr and the C runtime. --host collapse (the default)
@@ -52,6 +57,7 @@ tool says so; it does not search for an offset that makes the traces agree.
 import argparse
 import collections
 import os
+import re
 import struct
 import sys
 
@@ -62,7 +68,7 @@ import romtrace_resolve     # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(HERE))
 
-PORT_MAGIC = 0x50544632          # "PTF2"
+PORT_MAGICS = (porttrace.MAGIC2, porttrace.MAGIC3)
 ROM_RECORD_BYTES = 32
 
 # The host functions that mean a hardware register was really written.
@@ -92,6 +98,56 @@ WRITE_SEAMS = ("ntr::io_write", "ntr::gx_write_port", "ntr::gx_write_fifo",
 # name-based rule and it is small.
 IRQ_PREFIXES = ("IRQ::", "DMA")
 
+# An address-shaped name: `func_020c4684`, `func_ov007_020c0b78`. The address it
+# carries is the only thing that identifies it, and the two halves do not always
+# spell the same address the same way.
+ADDR_NAME = re.compile(r"^(?:func|data)_(0[0-9a-fA-F]{7})$")
+SYM_ROW = re.compile(r"^(\S+)\s+kind:function\(([^)]*)\)\s+addr:(0x[0-9a-fA-F]+)")
+
+
+def rom_name_index(repo):
+    """{ROM address: the best name the decomp has for it}.
+
+    ONE ADDRESS CAN CARRY TWO NAMES AND THE TWO HALVES CAN PICK DIFFERENT ONES.
+    The cartridge resolver reads config/**/symbols.txt and prefers a real name
+    over an address-shaped placeholder; the port reads its own link map and gets
+    whatever that build linked. Measured on the title screen: 0x01ffabe4 is
+    `__aeabi_idiv` on the cartridge side and `func_01ffabe4` on the port side,
+    509 calls against 379, and without this it reads as one function each side
+    never enters instead of one function both sides enter.
+
+    ARM9 AND ITCM ONLY, AND NOT THE OVERLAYS. 103 overlays share 22 base
+    addresses, so an overlay address does not name a function: reading every
+    config/**/symbols.txt into one address table renamed ov007 rows after
+    whichever overlay happened to be scanned last and turned 69 one-sided names
+    into 72. An overlay name carries its overlay inside it already and is left
+    exactly as it is.
+    """
+    best = {}
+    for path in (os.path.join(repo, "config", "arm9", "symbols.txt"),
+                 os.path.join(repo, "config", "arm9", "itcm", "symbols.txt")):
+        if not os.path.isfile(path):
+            continue
+        with open(path, errors="replace") as f:
+            for line in f:
+                m = SYM_ROW.match(line)
+                if not m:
+                    continue
+                name, addr = m.group(1), int(m.group(3), 16)
+                cur = best.get(addr)
+                if cur is None or (ADDR_NAME.match(cur)
+                                   and not ADDR_NAME.match(name)):
+                    best[addr] = name
+    return best
+
+
+def dealias(name, index):
+    """An address-shaped name replaced by the decomp's real name for it."""
+    m = ADDR_NAME.match(name)
+    if not m:
+        return name
+    return index.get(int(m.group(1), 16), name)
+
 
 # ------------------------------------------------------------------ loading
 
@@ -106,37 +162,49 @@ def detect_format(path):
         sys.exit("tracediff: {} is {} bytes, too short to be a trace"
                  .format(path, size))
     first = struct.unpack("<I", head)[0]
-    if first == PORT_MAGIC:
+    if first in PORT_MAGICS:
         return "port"
     if size and size % ROM_RECORD_BYTES == 0 and first in (
             romtrace_resolve.TAG_CALL, romtrace_resolve.TAG_FRAME,
             romtrace_resolve.TAG_FINGERPRINT):
         return "rom"
     sys.exit(
-        "tracediff: {} is neither format. A port trace starts with PTF2; a "
-        "cartridge trace is a multiple of {} bytes and starts with tag 1, 2 or "
+        "tracediff: {} is neither format. A port trace starts with PTF2 or "
+        "PTF3; a cartridge trace is a multiple of {} bytes and starts with "
+        "tag 1, 2 or "
         "3. This one is {} bytes and starts {:#010x}. Refusing to guess."
         .format(path, ROM_RECORD_BYTES, size, first))
 
 
-def load_port_side(path, map_path, root, label):
+def load_port_side(path, map_path, root, label, index):
     if not map_path:
         sys.exit("tracediff: {} is a PORT trace, so it needs the "
                  "walk_window.map of the build that wrote it".format(path))
     mapinfo = porttrace.load_map(map_path, root)
     words, hdr = porttrace.read_trace(path)
     frames, unresolved = porttrace.resolve(words, hdr, mapinfo)
-    out = [(fno, [(d, callee, cls) for d, _caller, callee, cls in calls])
+    clsof = dict((dealias(n, index), c)
+                 for n, c in zip(mapinfo[1], mapinfo[2]))
+    out = [(fno, [(dealias(caller, index), dealias(callee, index), cls)
+                  for _d, caller, callee, cls in calls])
            for fno, calls in frames]
+    if not hdr.get("has_caller"):
+        print("NOTE: {} is a PTF2 trace, written before the caller was "
+              "recorded. Its caller column comes from the stack pointer and is "
+              "wrong wherever one function makes two calls with different "
+              "argument counts. Read the per-function table, not the edge "
+              "table, off it.".format(path))
     # Every ROM name this build actually carries. A ROM function the cartridge
     # entered and the port did not means something different depending on
     # whether the port HAS the function at all, and this is what tells the two
     # cases apart.
-    present = set(n for n, c in zip(mapinfo[1], mapinfo[2]) if c == "ROM")
+    present = set(dealias(n, index)
+                  for n, c in zip(mapinfo[1], mapinfo[2]) if c == "ROM")
     return {"label": label, "kind": "port", "frames": out,
             "truncated": bool(hdr["filled"]),
             "unresolved": sum(unresolved.values()),
-            "present": present, "path": path}
+            "present": present, "path": path, "clsof": clsof,
+            "has_caller": bool(hdr.get("has_caller"))}
 
 
 class _StrictArgs(object):
@@ -151,9 +219,12 @@ def load_rom_side(path, repo, label):
     if tag_bad:
         sys.exit("tracediff: {} has {} records with an unknown tag. Not "
                  "reading it.".format(path, sum(tag_bad.values())))
+    # The emulator records the address of the BL, so the caller is read here as
+    # well, and the caller's offset inside it is dropped: the port cannot
+    # recover an offset, so comparing one would only ever disagree.
     out = []
     for fno, calls in frames:
-        rows = [(c[0], c[3], "???" if c[4] == "???" else "ROM") for c in calls]
+        rows = [(c[1], c[3], "???" if c[4] == "???" else "ROM") for c in calls]
         out.append((fno, rows))
     if not res.saw_fingerprints:
         print("NOTE: {} carries NO fingerprint records, so no overlay could be "
@@ -163,13 +234,14 @@ def load_rom_side(path, repo, label):
     return {"label": label, "kind": "rom", "frames": out,
             "truncated": False, "unresolved": sum(unresolved.values()),
             # The cartridge has every ROM function by construction, so the
-            # "is it present at all" question only ever applies to the port.
-            "present": None, "path": path}
+            # "is it present at all" question only ever applies to the port,
+            # and every name on this side is a ROM name.
+            "present": None, "path": path, "clsof": {}, "has_caller": True}
 
 
-def load_side(path, map_path, root, repo, label):
+def load_side(path, map_path, root, repo, label, index):
     kind = detect_format(path)
-    side = (load_port_side(path, map_path, root, label) if kind == "port"
+    side = (load_port_side(path, map_path, root, label, index) if kind == "port"
             else load_rom_side(path, repo, label))
     calls = sum(len(c) for _f, c in side["frames"])
     print("{:<10s} {:<10s} {:>5d} frames  {:>12,d} calls  {}".format(
@@ -203,21 +275,23 @@ def nearest_rom(stack, through_irq=False):
     depend on whether interrupt work is being dropped: the census has to be the
     same number under both policies or it is not a census.
     """
-    for entry in reversed(stack):
-        if entry[2] != "ROM":
+    for name, cls, suppressed in reversed(stack):
+        if cls != "ROM":
             continue
-        if entry[3] is None or (through_irq and entry[3] == "irq"):
-            return entry[1]
+        if suppressed is None or (through_irq and suppressed == "irq"):
+            return name
     return None
 
 
 def shape(side, host_mode, irq_mode):
-    """Walk each frame's (depth, callee, class) rows back into a tree and tally
+    """Walk each frame's (caller, callee, class) rows back into a tree and tally
     it, applying the host and interrupt policies on the way.
 
-    Both halves record nesting the same way -- an entry deeper than the one
-    before it is nested inside it -- so one walk serves both and neither side
-    gets a rule the other does not.
+    BOTH HALVES NOW RECORD THE CALLER, so the tree is rebuilt by unwinding to
+    the named caller and nothing here depends on a stack pointer. The emulator
+    has always had the caller, since it hooks the BL itself; the port gained it
+    when the /Gh hook started recording the call site instead of the caller's
+    esp. One walk serves both and neither side gets a rule the other does not.
     """
     edges = collections.Counter()
     counts = collections.Counter()
@@ -228,11 +302,28 @@ def shape(side, host_mode, irq_mode):
     irq_calls = 0
     unresolved_rows = 0
 
+    clsof = side.get("clsof") or {}
+    romside = side["kind"] == "rom"
+
     for _fno, rows in side["frames"]:
-        stack = []            # [(depth, name, cls, suppressed)]
-        for depth, callee, cls in rows:
-            while stack and stack[-1][0] >= depth:
-                stack.pop()
+        stack = []            # [(name, cls, suppressed)]
+        for caller, callee, cls in rows:
+            # Unwind to the recorded caller. If it is not on the stack it was
+            # already running when the window opened, so it becomes this
+            # branch's root.
+            idx = -1
+            for j in range(len(stack) - 1, -1, -1):
+                if stack[j][0] == caller:
+                    idx = j
+                    break
+            if idx >= 0:
+                del stack[idx + 1:]
+            else:
+                ccls = "ROM" if romside else clsof.get(caller, "HOST")
+                csup = None
+                if ccls != "ROM" and host_mode == "collapse":
+                    csup = "host"
+                stack = [(caller, ccls, csup)]
 
             if cls == "???":
                 unresolved_rows += 1
@@ -270,7 +361,7 @@ def shape(side, host_mode, irq_mode):
                 if cls == "ROM":
                     rom.add(callee)
 
-            stack.append((depth, callee, cls, suppressed))
+            stack.append((callee, cls, suppressed))
 
     return {"edges": edges, "counts": counts, "writes": writes, "rom": rom,
             "dropped_host": dropped_host, "dropped_irq": dropped_irq,
@@ -339,9 +430,11 @@ def main():
                          "software renderer from the hook.")
     a = ap.parse_args()
 
+    index = rom_name_index(a.repo)
+
     print("=== the two traces ===")
-    A = load_side(a.a, a.a_map, a.root, a.repo, "A (ref)")
-    B = load_side(a.b, a.b_map, a.root, a.repo, "B (cand)")
+    A = load_side(a.a, a.a_map, a.root, a.repo, "A (ref)", index)
+    B = load_side(a.b, a.b_map, a.root, a.repo, "B (cand)", index)
 
     fa = [f for f, _c in A["frames"]]
     fb = [f for f, _c in B["frames"]]
@@ -480,9 +573,9 @@ def main():
         print("     function its caller reaches by a tail branch never appears")
         print("     in the cartridge trace, and the port records it anyway.")
         print("     That is the most likely reason for a port-only name.")
-        print("  2. The port's caller comes from the stack pointer, so edges")
-        print("     are compared without the offset inside the caller, and")
-        print("     argument values are never compared at all.")
+        print("  2. Both sides record the caller, so edges are real on both,")
+        print("     but the offset inside the caller is dropped and argument")
+        print("     values are never compared at all.")
         print("  3. --host {}: {:,} host calls removed from the port side."
               .format(a.host, tb["dropped_host"] + ta["dropped_host"]))
         print("  4. --irq {}: {:,} interrupt/DMA calls on {}, {:,} on {}."

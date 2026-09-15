@@ -31,11 +31,33 @@
 // build nothing is recorded until SM64DS_FN_TRACE names an output file, because
 // ntr_fn_trace_on starts at zero and only the frame hook can raise it.
 //
-// THE RECORD. Two 32-bit words, always:
-//   w0 = a return address inside a function      w1 = the caller's esp
-//   w0 = 0xFFFFFFFF (frame marker)               w1 = the frame number
-// esp stands in for call depth exactly as ROMTRACE's ARM-side sp does, so both
-// halves indent the same way and neither needs a return hook.
+// THE RECORD. Three 32-bit words, always:
+//   w0 = a return address inside the CALLEE      (its entry + 5)
+//   w1 = a return address inside the CALLER      (the call site + 5)
+//   w2 = the caller's esp
+// or, for a frame marker, w0 = 0xFFFFFFFF, w1 = the frame number, w2 = 0.
+//
+// WHY THE CALLER IS RECORDED AND NOT INFERRED. The first version of this file
+// wrote two words and left the caller to be reconstructed from esp: an entry at
+// a lower esp is nested inside the one before it. THAT RULE IS WRONG ON x86 AND
+// THE ERROR IS NOT RARE. Arguments are pushed before the call, so the stack
+// pointer at a call site depends on how many arguments THAT call takes, and two
+// sibling calls out of the same function land at different stack pointers.
+// Measured on the port's own title screen: func_0204be40 calls MulVec3Mat4x3 at
+// esp 0x001aefbc and then func_02055388 at esp 0x001aefa8, twenty bytes lower,
+// so the sp rule filed the second call inside the first. The cartridge has both
+// as direct children of func_0204be40, 403 calls each, and every edge below
+// them was mis-parented the same way.
+//
+// The fix costs one instruction. At _penter's entry the callee's own prologue
+// has not run yet, so the word above _penter's return address is still the
+// return address the CALLER's own `call` pushed. Reading it by value instead of
+// taking its address gives the call site itself, which is exactly what the
+// instrumented melonDS records when it hooks BL. The two halves then name the
+// caller the same way and neither is guessing.
+//
+// esp is still recorded as w2. It no longer decides nesting, but it tells a
+// recursive call from a repeated one and it costs nothing to keep.
 
 #include <windows.h>
 #include <stdio.h>
@@ -52,8 +74,15 @@ unsigned int   ntr_fn_trace_head = 0;  // next free WORD index
 unsigned int   ntr_fn_trace_cap  = 0;  // capacity in WORDS
 
 // THE HOOK. Kept to a compare and a branch on the disabled path, and to three
-// pushes and four stores on the enabled one. It must be naked: a compiler-
+// pushes and five stores on the enabled one. It must be naked: a compiler-
 // generated prologue here would itself be instrumented under /Gh.
+//
+// THE CAPACITY TEST IS ON head+3, NOT ON head. The two-word version compared
+// head against cap and then wrote at head and head+1, so a head exactly one
+// word below cap wrote one word past the end of the buffer. Nothing ever
+// noticed because the buffer is a whole number of megabytes and the old record
+// was two words, so head could never stop on an odd word -- but the record is
+// three words now and that alignment argument is gone.
 __declspec(naked) void __cdecl _penter(void)
 {
     __asm {
@@ -63,14 +92,17 @@ __declspec(naked) void __cdecl _penter(void)
         push    ecx
         push    edx
         mov     ecx, dword ptr [ntr_fn_trace_head]
-        cmp     ecx, dword ptr [ntr_fn_trace_cap]
-        jae     SHORT fnt_full
+        lea     eax, [ecx+3]
+        cmp     eax, dword ptr [ntr_fn_trace_cap]
+        ja      SHORT fnt_full
         mov     edx, dword ptr [ntr_fn_trace_buf]
-        mov     eax, dword ptr [esp+12]     // the return address: fn + 5
+        mov     eax, dword ptr [esp+12]     // return into the CALLEE: fn + 5
         mov     dword ptr [edx+ecx*4], eax
-        lea     eax, [esp+16]               // the caller's esp before its call
+        mov     eax, dword ptr [esp+16]     // return into the CALLER: the call site
         mov     dword ptr [edx+ecx*4+4], eax
-        add     ecx, 2
+        lea     eax, [esp+16]               // the caller's esp before its call
+        mov     dword ptr [edx+ecx*4+8], eax
+        add     ecx, 3
         mov     dword ptr [ntr_fn_trace_head], ecx
 fnt_full:
         pop     edx
@@ -146,9 +178,9 @@ void write_out(void)
     // name, or to no name, and the whole trace reads as a build that called
     // nothing this repository knows.
     unsigned int hdr[6];
-    hdr[0] = 0x50544632u;              // "PTF2"
-    hdr[1] = 8;                        // bytes per record
-    hdr[2] = ntr_fn_trace_head / 2u;   // records written
+    hdr[0] = 0x50544633u;              // "PTF3": three words a record
+    hdr[1] = 12;                       // bytes per record
+    hdr[2] = ntr_fn_trace_head / 3u;   // records written
     hdr[3] = (ntr_fn_trace_head >= ntr_fn_trace_cap) ? 1u : 0u;  // buffer filled
     hdr[4] = (unsigned int) (size_t) GetModuleHandleA(0);  // where it really loaded
     hdr[5] = 0;
@@ -176,10 +208,11 @@ extern "C" void ntr_fn_trace_frame(unsigned int frame)
     // The marker is written with the recorder off so the frame hook's own entry
     // does not land between the marker and the first call of the frame.
     ntr_fn_trace_on = 0;
-    if (ntr_fn_trace_head + 2u <= ntr_fn_trace_cap) {
+    if (ntr_fn_trace_head + 3u <= ntr_fn_trace_cap) {
         ntr_fn_trace_buf[ntr_fn_trace_head + 0] = 0xFFFFFFFFu;
         ntr_fn_trace_buf[ntr_fn_trace_head + 1] = frame;
-        ntr_fn_trace_head += 2u;
+        ntr_fn_trace_buf[ntr_fn_trace_head + 2] = 0u;
+        ntr_fn_trace_head += 3u;
     }
     ntr_fn_trace_on = 1;
 }

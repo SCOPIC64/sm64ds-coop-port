@@ -44,7 +44,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import linkage  # noqa: E402  (same directory, deliberately)
 
-MAGIC = 0x50544632          # "PTF2"
+# TWO FORMATS, AND THE OLDER ONE CANNOT NAME A CALLER HONESTLY.
+#   PTF2  two words: the callee's return address and the caller's esp. The
+#         caller had to be reconstructed from that esp, and on x86 that rule is
+#         wrong whenever one function makes two calls that take different
+#         numbers of arguments -- the second lands at a lower stack pointer and
+#         reads as nested inside the first. Still readable here, so the captures
+#         taken before the fix are not lost, but every one of them is marked.
+#   PTF3  three words: the callee's return address, the CALLER'S return address,
+#         and the caller's esp. The caller is recorded, not inferred.
+MAGIC2 = 0x50544632         # "PTF2"
+MAGIC3 = 0x50544633         # "PTF3"
 FRAME_TAG = 0xFFFFFFFF
 
 # The map row: section:offset, name, virtual address, flags, object. Spelled the
@@ -147,30 +157,55 @@ def read_trace(path):
         sys.exit("porttrace: {} is {} bytes, too short to be a trace"
                  .format(path, len(blob)))
     magic, recsize, count, filled, image_base, _ = struct.unpack("<6I", blob[:24])
-    if magic != MAGIC:
-        sys.exit("porttrace: {} does not start with PTF2 (got {:08x}). This "
-                 "reader does not guess at a format it does not know."
-                 .format(path, magic))
-    if recsize != 8:
-        sys.exit("porttrace: record size {} is not 8".format(recsize))
-    body = blob[24:24 + count * 8]
+    if magic == MAGIC3:
+        stride = 3
+    elif magic == MAGIC2:
+        stride = 2
+    else:
+        sys.exit("porttrace: {} starts with {:08x}, which is neither PTF2 nor "
+                 "PTF3. This reader does not guess at a format it does not "
+                 "know.".format(path, magic))
+    if recsize != stride * 4:
+        sys.exit("porttrace: {} declares {} bytes a record and its magic says "
+                 "{}. Refusing to read a header that contradicts itself."
+                 .format(path, recsize, stride * 4))
+    body = blob[24:24 + count * recsize]
     words = struct.unpack("<{}I".format(len(body) // 4), body)
-    return words, dict(count=count, filled=filled, image_base=image_base)
+    return words, dict(count=count, filled=filled, image_base=image_base,
+                       stride=stride, has_caller=(stride == 3))
 
 
 def resolve(words, hdr, mapinfo):
+    """[(frame_no, [(depth, caller, callee, cls)])], plus the unresolved census.
+
+    On a PTF3 trace the caller is READ, and depth is then the depth of that
+    caller in a stack rebuilt by name: a record whose caller is already on the
+    stack unwinds to it, and one whose caller is not gets that caller pushed
+    first. On a PTF2 trace there is no caller to read and the old stack-pointer
+    rule is used instead, with its known error.
+    """
     addrs, names, classes, _objs, preferred = mapinfo
     slide = (hdr["image_base"] - preferred) & 0xFFFFFFFF
+    stride = hdr.get("stride", 2)
+    have_caller = stride == 3
 
     frames = []                      # [(frame_no, [(depth, caller, callee, cls)])]
     cur = None
-    stack = []                       # [(esp, name)]
+    stack = []                       # PTF2: [(esp, name)].  PTF3: [name]
     unresolved = collections.Counter()
 
-    for i in range(0, len(words) - 1, 2):
-        w0, w1 = words[i], words[i + 1]
+    def look(w):
+        va = (w - slide) & 0xFFFFFFFF
+        k = bisect.bisect_right(addrs, va) - 1
+        if k < 0 or va - addrs[k] > 0x20000:
+            unresolved[va] += 1
+            return "???{:08x}".format(va), "???"
+        return names[k], classes[k]
+
+    for i in range(0, len(words) - (stride - 1), stride):
+        w0 = words[i]
         if w0 == FRAME_TAG:
-            cur = (w1, [])
+            cur = (words[i + 1], [])
             frames.append(cur)
             stack = []
             continue
@@ -178,21 +213,29 @@ def resolve(words, hdr, mapinfo):
             cur = (0, [])
             frames.append(cur)
 
-        va = (w0 - slide) & 0xFFFFFFFF
-        k = bisect.bisect_right(addrs, va) - 1
-        if k < 0 or va - addrs[k] > 0x20000:
-            unresolved[va] += 1
-            name, cls = "???{:08x}".format(va), "???"
-        else:
-            name, cls = names[k], classes[k]
+        name, cls = look(w0)
 
-        esp = w1
-        while stack and stack[-1][0] <= esp:
-            stack.pop()
-        caller = stack[-1][1] if stack else "(root)"
-        depth = len(stack)
-        cur[1].append((depth, caller, name, cls))
-        stack.append((esp, name))
+        if have_caller:
+            caller, _ccls = look(words[i + 1])
+            # Unwind to the caller if it is on the stack; otherwise it is a
+            # function that was already running when this window opened, so it
+            # becomes the new root of this branch. Neither case guesses at
+            # nesting from a stack pointer.
+            if caller in stack:
+                del stack[stack.index(caller) + 1:]
+            else:
+                stack = [caller]
+            depth = len(stack)
+            cur[1].append((depth, caller, name, cls))
+            stack.append(name)
+        else:
+            esp = words[i + 1]
+            while stack and stack[-1][0] <= esp:
+                stack.pop()
+            caller = stack[-1][1] if stack else "(root)"
+            depth = len(stack)
+            cur[1].append((depth, caller, name, cls))
+            stack.append((esp, name))
 
     return frames, unresolved
 
