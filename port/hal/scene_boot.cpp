@@ -3003,7 +3003,7 @@ static int  __fastcall sc_bclean(void *s, void *)
 { return _ZN8dScene_c22BeforeCleanupResourcesEv(s); }
 static void __fastcall sc_aclean(void *s, void *, unsigned a)
 { _ZN8dScene_c21AfterCleanupResourcesEj(s, a); }
-/* SM64DS_TITLE_TRACE=1: SAY WHY THE SCENE'S TICK GATE CLOSED, once each.
+/* SM64DS_TITLE_TRACE=1: SAY WHY THE SCENE'S TICK GATE CLOSED, on every edge.
  *
  * ActorBase::Process calls slot 7 before slot 6 and slot 10 before slot 9, so a
  * scene that is on the behaviour list and nevertheless stops running stops in
@@ -3018,26 +3018,63 @@ static void __fastcall sc_aclean(void *s, void *, unsigned a)
  * and BeforeRender's two: shouldBeKilled != 0, or pauseFlags & 8. */
 extern "C" unsigned char data_0209f1e0[4];   /* hal/auto_bss.cpp, the fade request */
 extern "C" void *data_0209f1e4;              /* hal/auto_bss.cpp, the fade in flight */
+/* The frame a gate report names. port_scene_tick writes it once per frame and
+   the two thunks below run inside that frame's actor pass, so a report carries
+   the same frame number the state trace does. It is 0 before the first tick,
+   which is where the bring-up refusal lands. */
+static int sc_gate_frame;
+/* REPORTS THE EDGE, IN BOTH DIRECTIONS, AND THAT CORRECTION IS THE POINT.
+   The first cut of this printed the FIRST refusal only, once per process, and
+   on the title chain the first refusal is at frame 0 during bring-up -- before
+   the scene has been ticked at all. The single report it was allowed to make
+   was therefore always spent on the uninteresting one, and a gate that closes
+   at frame 510 and stays closed looked exactly like a gate that never closed
+   at all. Latching the 0 / non-zero VERDICT and printing on change costs the
+   same compare, cannot be spent early, and leaves the INTERVAL in the log:
+   a gate that closes prints, and the same gate reopening prints too. */
+/* HOW MANY TIMES EACH GATE WAS ASKED, beside how many times it said yes.
+   The edge report cannot tell an open gate from a gate nothing calls: both are
+   silence, and they are opposite findings -- "the scene refused to run" against
+   "nothing asked the scene to run". These two counters separate them, they are
+   two increments on a path that already runs every frame, and unlike the trace
+   they are ALWAYS on, so the census below reports them on every scene run
+   whether or not anybody set SM64DS_TITLE_TRACE. Index 0 is behaviour, 1 is
+   render. */
+static unsigned g_sc_gate_calls[2];
+static unsigned g_sc_gate_open[2];
 static void sc_gate_report(const char *which, void *s, int r)
 {
+    const int idx = (which[0] == 'b') ? 0 : 1;   /* "beh" / "ren" */
+    ++g_sc_gate_calls[idx];
+    if (r != 0) ++g_sc_gate_open[idx];
     static int on = -1;
     if (on < 0) on = std::getenv("SM64DS_TITLE_TRACE") != 0;
-    if (!on || r != 0) return;
-    static int said_beh, said_ren;
-    int *said = which[0] == 'b' ? &said_beh : &said_ren;   /* "beh" / "ren" */
-    if (*said) return;
-    *said = 1;
+    if (!on) return;
+    static int last_beh = -99, last_ren = -99;
+    int *last = which[0] == 'b' ? &last_beh : &last_ren;   /* "beh" / "ren" */
+    const int open = (r != 0);
+    if (open == *last)
+        return;
+    *last = open;
     const unsigned char *o = (const unsigned char *)s;
-    std::printf("[title] GATE %s RETURNED 0 for scene %p: kill %u pause 0x%02x"
+    std::printf("[title] f%-6d GATE %s %s for scene %p: kill %u pause 0x%02x"
                 " | fade-request %u fade-in-flight %p | pending %u\n",
-                which, s, o[0xf], o[0x13], (unsigned)data_0209f1e0[0],
+                sc_gate_frame, which,
+                open ? "OPENED" : "CLOSED (returned 0)", s,
+                o[0xf], o[0x13], (unsigned)data_0209f1e0[0],
                 data_0209f1e4, (unsigned)data_02092664);
     std::fflush(stdout);
 }
 static int  __fastcall sc_bbeh(void *s, void *)
 { int r = _ZN8dScene_c14BeforeBehaviorEv(s); sc_gate_report("beh", s, r); return r; }
+/* AfterBehavior, slot 8, and the INDEPENDENT witness that ActorBase::Process
+   was entered at all. Process calls slot 7, sometimes slot 6, and ALWAYS slot
+   8, so this count is "how many times was this object processed" with no gate
+   in front of it. Without it, "BeforeBehavior asked 510" on a run whose list
+   was walked 600 times has two readings and neither can be ruled out. */
+static unsigned g_sc_after_beh;
 static void __fastcall sc_abeh(void *s, void *, unsigned a)
-{ port_scene_after_behavior(s, a); }
+{ ++g_sc_after_beh; port_scene_after_behavior(s, a); }
 static int  __fastcall sc_bren(void *s, void *)
 { int r = _ZN8dScene_c12BeforeRenderEv(s); sc_gate_report("ren", s, r); return r; }
 static void __fastcall sc_aren(void *s, void *, unsigned a)
@@ -6971,6 +7008,9 @@ extern "C" void port_scene_tick(int frame, int tick_game)
     ntr::Framebuffer &fb = scn_fb;
     const int no_render = scn_no_render;
     const int trace = scn_trace;
+    /* So sc_gate_report can name the frame it refused on. Written before any
+       game work in this frame, read by the two gate thunks inside it. */
+    sc_gate_frame = frame;
     /* settings.json, watched while running: every scene path -- the player's
        windowed session and the harness's headless one -- ticks through here,
        so this one call is the whole of the live re-read for scenes. The walk
@@ -7363,6 +7403,17 @@ extern "C" int port_scene_finish(int frames_run)
                     t ? "ov007" : "ov003",
                     h[0], h[6], h[9], h[3], h[12],
                     sk ? "  [RENDER SLOT NO-OP'd: SM64DS_SCENE_SLOT9=0]" : "");
+        /* AND THE TWO GATES ABOVE THOSE SLOTS. Behaviour runs only when
+           dScene_c::BeforeBehavior says yes, so "behavior 509 out of 700
+           frames" has two readings and this line picks between them: asked
+           equal to the frame count with fewer opens is a scene that REFUSED,
+           and asked equal to the open count but short of the frame count is a
+           scene NOTHING DISPATCHED. */
+        std::printf("[scene] scene gates: BeforeBehavior asked %u opened %u, "
+                    "BeforeRender asked %u opened %u, AfterBehavior (slot 8, "
+                    "always called once Process is entered) %u\n",
+                    g_sc_gate_calls[0], g_sc_gate_open[0],
+                    g_sc_gate_calls[1], g_sc_gate_open[1], g_sc_after_beh);
         /* THE GAME OVER CENSUS, run link100 lane MPG2. Printed on EVERY scene
            run and not only on scene 8, for the reason the scene-request line
            below is printed unconditionally: "the seat is linked and nothing
