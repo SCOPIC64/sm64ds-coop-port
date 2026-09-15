@@ -659,6 +659,14 @@ extern "C" void hal_fill_platform_vtable(void)
             vt[i] = (void *)plat_trap;
         ac_fill_shared(vt);
         vt[12] = (void *)ac_pdes_base;
+        /* Slot 16 KEEPS the trap -- this base table is installed only between
+           two member teardowns and no class's D1 belongs in it -- but the trap
+           still has to carry the destructor slot's calling convention, because
+           ac_trap_report declines and RETURNS rather than aborting. An
+           unwrapped trap here would smash the caller's frame instead of
+           declining, which is the defect hal/port_d16.h describes. Found by
+           port/tools/slot16_guard.py, not by reading. */
+        vt[16] = (void *)PORT_D16(plat_trap);
         vt[31] = (void *)ac_kill;
     }
 }
