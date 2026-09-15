@@ -59,3 +59,10 @@
   alive byte 0 so the FIRST-ENTRY func_020433b8 path is taken, table seated. Adding one
   more line: call port_stage_boot_body DIRECTLY when the boot returns null, to separate
   "the Process skipped slot 0" from "the body itself returns null".
+- 22:30 EDT - MEASURED: [crash1] slot1 direct -> 0, and the body RUNS when called directly
+  ([mm-stale] boot entry printed from the DIRECT port_stage_boot_body call). So the boot is
+  skipped because _ZTV5Stage[1] returns 0. But the disassembled chain st_binit -> face
+  __ZN5Stage19BeforeInitResourcesEv -> ?BeforeInitResources@Stage@@UAE_NXZ ->
+  ?ResetFadersAndSound@dScene_c@@QAEHXZ should return 1 (its gate 004b2f90 is `mov al,1; ret`).
+  Measuring each link BY SYMBOL to find which one diverges. OVER THE 2h BUDGET; continuing,
+  one measurement from the answer.
