@@ -84,6 +84,7 @@ import os
 import re
 import struct
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -187,11 +188,14 @@ class Table(object):
         off = addr - base
         if size and off >= size:
             # Past the end of the last function that starts at or below addr.
-            # Symbol tables are not always complete, so allow a landing inside
-            # a modest gap rather than claiming the address is unknown, but
-            # refuse anything absurd.
-            if off > 0x400:
-                return None
+            # NO SLACK IS ALLOWED HERE. Attaching an address to the nearest
+            # name below it is how a resolver reports a high percentage while
+            # naming things wrongly, and it is not needed: with the slack at
+            # zero all four captures still resolve every call target, so every
+            # name in the listing is an exact hit inside that symbol's own
+            # declared size. A size of 0 is an alias, not a span, and matches
+            # only its own address.
+            return None
         return self.names[k], off
 
 
@@ -396,7 +400,6 @@ class Resolver(object):
         self.fp_ambiguous = {}                      # base -> {ids: frames}
         self.fp_zero_or_overlay = {}                # base -> {ids: frames}
         self.residency_frames = collections.Counter()   # id -> frames resident
-        self.probed_bases = set()
         self.saw_fingerprints = False
         self.ambig_calls = 0
 
@@ -416,7 +419,6 @@ class Resolver(object):
         for base in sorted(self.by_base):
             if base not in fps:
                 continue
-            self.probed_bases.add(base)
             cands = self.by_base[base]
             hits = []
             for o in cands:
@@ -582,7 +584,6 @@ def selftest(res, trace_path):
         r.fp_ambiguous = {}
         r.fp_zero_or_overlay = {}
         r.residency_frames = collections.Counter()
-        r.probed_bases = set()
         r.saw_fingerprints = False
         r.ambig_calls = 0
         words = struct.unpack("<{}I".format(len(mutated) // 4), mutated)
@@ -601,7 +602,6 @@ def selftest(res, trace_path):
 
     # 1. A file that is not a whole number of records must be REFUSED, not
     #    silently truncated to the last whole one.
-    import tempfile
     with tempfile.TemporaryDirectory() as td:
         p = os.path.join(td, "short.bin")
         with open(p, "wb") as f:
