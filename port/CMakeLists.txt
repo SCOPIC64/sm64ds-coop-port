@@ -533,7 +533,54 @@ set(PORT_HOSTGEN_TU
     # IRQ::SetIRQs pokes IME 0x4000208 and IE 0x4000210 through literal casts and
     # needs the MMIO routing, two rewrites.
     src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp
-    src/_ZN3IRQ7SetIRQsEj.cpp)
+    src/_ZN3IRQ7SetIRQsEj.cpp
+    # Run link100, lane CRASH6. THE SIX VPTR STORES THAT ARE MEASURABLY WRONG,
+    # and the first run-time conviction of the defect tools/vptr_addend_guard.py
+    # was written to predict. Its docstring already said what would happen: "the
+    # +8 store puts every dispatch two slots high: ROM slot 0, InitResources,
+    # the first call on the spawn path, enters slot 2 instead", and "Only a run
+    # convicts it, as a wrong function with a wrong arity on the spawn path."
+    # That is exactly what killed the level-1 boot tonight, instruction for
+    # instruction, measured on the shipped artifact under a debugger:
+    #
+    #   daObjWaterfall_c_classInit at 004098dd stores 0x9f6738, which is
+    #   __ZTV16daObjWaterfall_c + 8. The table starts at 0x9f6730, so
+    #   fBase_c::Process, inlined into func_0204335c, read slots 2, 3 and 4
+    #   where it meant slots 0, 1 and 2. It called AfterInitResources instead of
+    #   InitResources, so the mist was never initialised, and the two faces it
+    #   reached have the wrong STACK arity for those call sites: ob2_ainit is
+    #   __fastcall(void*, void*, unsigned) and ends `ret 4` where nothing was
+    #   pushed, ob2_bclean is __fastcall(void*, void*) and ends `ret 0` where
+    #   one word was. Four bytes each in opposite directions, so ESP
+    #   re-balanced and the return address survived. The only casualty was the
+    #   `pop edi` at 005efdd3, which loaded the leftover pushed argument. The
+    #   caller, daObjMcWater_c::InitResources, holds `this` in EDI across that
+    #   call and faulted on its second loop iteration reading [1 + 0xcc].
+    #
+    # WHY THESE SIX AND NOT THE OTHER SIXTEEN. 206 *_classInit functions in this
+    # image install a vptr; 184 store table+0 and 22 store table+8. Sixteen of
+    # the 22 name tables that live in .dsstate, which are ROM MOUNTS: a vtable
+    # mwcc built really does carry offset-to-top and typeinfo in front of its
+    # slots, so +8 is plausibly the ROM's own address point there, and moving it
+    # needs the ROM layout read first. The six below name .data HOST ARRAYS
+    # declared in port/hal (`int _ZTV8daTree_c[31];` and siblings) and filled
+    # from `vt[0]`, checked one at a time, so on those +8 is two slots past the
+    # first virtual and there is nothing in front of it to skip.
+    #
+    # Each one was run through tools/hostgen.py standalone first and diffed
+    # against its raw source: exactly one bias dropped per TU, zero MMIO
+    # rewrites, nothing else changed. Their six rows leave
+    # tools/vptr_addend_baseline.txt in the NEXT commit, not this one, which is
+    # what that file's own header asks for. The order matters: the guard runs
+    # once before configure, against the PREVIOUS build's objects, so retiring
+    # the rows in this commit would refuse the very build that earns the
+    # retirement.
+    src/game/actors/d_a_obj_waterfall.cpp
+    src/game/actors/d_a_set_se.cpp
+    src/game/actors/d_a_tree.cpp
+    src/game/actors/d_a_sound_obj.cpp
+    src/game/actors/d_a_obj_rc_dorifu.cpp
+    src/actors/Scuttlebug.cpp)
 get_filename_component(PORT_HOSTGEN_TU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 set(PORT_HOSTGEN_TU_GEN "")
 foreach(_hgt_rel IN LISTS PORT_HOSTGEN_TU)
@@ -1583,6 +1630,13 @@ set_source_files_properties(
     # bodies), the same shape -- compiles as C++, no face needed (its own
     # symbol is extern "C" inside the file).
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/Scuttlebug.cpp"
+    # and the generated copy, lane CRASH6: this TU is on PORT_HOSTGEN_TU now,
+    # so the raw path alone would set the property on a source nothing
+    # compiles. Both paths are already .cpp so LANGUAGE CXX carries nothing
+    # either way, but the configure check counts spellings over this whole
+    # file, not per call, and a silently-dropped property is the failure this
+    # block exists to prevent.
+    "${CMAKE_BINARY_DIR}/host-src/src/actors/Scuttlebug.cpp"
     # gate 177: two //cpp-marked .c bodies plus one unmarked C++-ism (an empty
     # struct Callback {}), same treatment.
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN5Bully8BehaviorEv.cpp"
@@ -1730,6 +1784,12 @@ set_source_files_properties(
 # from that file and the routing lands here, the R1/R2 remedy exactly.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/Scuttlebug.cpp"
+    # and the generated copy, lane CRASH6: this TU is on PORT_HOSTGEN_TU now.
+    # This one is genuinely load-bearing, not a formality: without it the
+    # reference goes back to _data_ov073_02122f88, which mounting ov073 DEFINES
+    # as ChiefChilly's tenth state record, and Animation::LoadFile is handed a
+    # code address with nothing to say so.
+    "${CMAKE_BINARY_DIR}/host-src/src/actors/Scuttlebug.cpp"
     PROPERTIES COMPILE_DEFINITIONS "data_ov073_02122f88=data_ov071_02122f88")
 # R4, run linkw wave 12 (lane w12): src/game/actors/d_a_obj_emm_log.cpp (id 174's
 # CleanupResources) spells ov052's OWN file table `data_ov056_021124d4` -- ov052
@@ -4239,6 +4299,9 @@ set_source_files_properties(
     # --- reclaimed from host copies by slice_w18a.txt (see that file) ---
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov072_02121cdc.cpp"  # BabyPenguin tick, ov072 +0x35c
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/Scuttlebug.cpp"  # Scuttlebug main, ov071 +0x380
+    # and the generated copy, lane CRASH6: this TU is on PORT_HOSTGEN_TU now,
+    # so the raw path alone would set the option on a source nothing compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/actors/Scuttlebug.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov071_021215c0.cpp"  # MrI main,        ov071 +0x1e4
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov080_021250c8.cpp"  # Bbh tick,        ov080 +0x36c
     # --- inert today: no host copy, no reference, /OPT:REF strips them ---
@@ -11060,11 +11123,17 @@ endforeach()
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_ch_scene.cpp"
     PROPERTIES COMPILE_DEFINITIONS "VT=_ZTV11daChScene_c")
+# and the generated copies, lane CRASH6: these two TUs are on PORT_HOSTGEN_TU
+# now, so the raw path alone would set the define on a source nothing compiles,
+# and VT would go back to cxx_aliases.cpp's global binding to a fifth class's
+# table. The rename is exactly as load-bearing after the substitution as before.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_waterfall.cpp"
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_waterfall.cpp"
     PROPERTIES COMPILE_DEFINITIONS "VT=_ZTV16daObjWaterfall_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_set_se.cpp"
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_set_se.cpp"
     PROPERTIES COMPILE_DEFINITIONS "VT=_ZTV9daSetSE_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN8MugenBgmD0Ev.cpp"
