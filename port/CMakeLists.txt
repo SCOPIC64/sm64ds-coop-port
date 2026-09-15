@@ -15665,6 +15665,27 @@ add_custom_command(TARGET walk_window POST_BUILD
     VERBATIM
     COMMENT "dsstate_guard: hosted DS globals all inside .dsstate")
 
+# A FACE MUST NEVER FORWARD TO ANOTHER FACE. The port reaches the ROM's code
+# through one-line forwarders, and each shape rests on a premise about the other
+# side: the flat-name face assumes the member is a real body, the member face
+# assumes the flat name is. Nothing checked either premise, so two faces written
+# against each other -- in two files, by two people, months apart -- resolve
+# cleanly, duplicate nothing, leave nothing unresolved, pass every static gate,
+# and then call themselves forever. SYNC6 caught the LOUD version of this, where
+# a translation unit came back and the generated forwarder became a second
+# definition and the linker said LNK2005. The silent version has no such signal,
+# and on 2026-09-14 the shipped artifact carried eight of them; the first one to
+# run took the whole process down with a stack overflow on level 28's first
+# frame. This guard reads the map and the image the link just wrote and fails on
+# any cycle of trivial forwarders, which makes the class self-announcing at build
+# time instead of as a crash in front of a player. Lane FACEFIX, run link100.
+add_custom_command(TARGET walk_window POST_BUILD
+    COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/facecycle_guard.py"
+            "$<TARGET_FILE_DIR:walk_window>/walk_window.map"
+            --allow "${CMAKE_CURRENT_SOURCE_DIR}/facecycle_allow.txt"
+    VERBATIM
+    COMMENT "facecycle_guard: no face forwards to another face")
+
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
 add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # run link100 lane BOOT: same slice as walk_window, for the same reason --

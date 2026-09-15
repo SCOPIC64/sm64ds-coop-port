@@ -184,11 +184,23 @@ int ModelBase::SetFile(BMD_File *file, int a, int b)
 
 extern "C" {
 /* MaterialChanger: two of its three are methods (SetFile already defines the
-   C name in its own TU). */
-void _ZN15MaterialChanger7PrepareER8BMD_FileR8BMA_File(void *self, void *bmd,
-                                                       void *bma)
-{ ((MaterialChanger *)self)->MaterialChanger::Prepare(*(BMD_File *)bmd,
-                                                      *(BMA_File *)bma); }
+   C name in its own TU).
+
+   FACEFIX 2026-09-14: PREPARE IS STATIC AND THIS FACE CARRIED CRASH3'S BUG IN A
+   SECOND FILE. include/MaterialChanger.h:53 declares it static and the map
+   agrees (?Prepare@MaterialChanger@@SAXAAUBMD_File@@AAUBMA_File@@@Z at 00548630,
+   SA = static __cdecl). Written with a receiver, `self` was evaluated and
+   DISCARDED, so a three-parameter face forwarded arguments two and three of a
+   call that only ever pushes two words. The emitted body at 0054e940 was
+   push [ebp+0x10] / push [ebp+0xc] / call / add esp,8 and never read [ebp+8],
+   byte for byte what TextureSequence::Prepare did before CRASH3 fixed it, so
+   every caller got Prepare(bma, whatever sat above the arguments) on the Goomba
+   and Goomboss material-animation path. Two parameters is the ROM's shape and is
+   right for every caller at this cdecl ABI; it is also what
+   port/unmatched/Goomboss_InitResources.cpp:99 already declares, so the
+   declaration and the definition agree now as well. */
+void _ZN15MaterialChanger7PrepareER8BMD_FileR8BMA_File(void *bmd, void *bma)
+{ MaterialChanger::Prepare(*(BMD_File *)bmd, *(BMA_File *)bma); }
 void _ZN15MaterialChanger6UpdateER15ModelComponents(void *self, void *model)
 { ((MaterialChanger *)self)->MaterialChanger::Update(*(ModelComponents *)model); }
 }
