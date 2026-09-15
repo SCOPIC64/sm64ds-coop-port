@@ -38,6 +38,8 @@
 // 310, and ACTOR_SPAWN_TABLE[310] (ACTOR_SPAWN_TABLE + 310*4 = 0x02090d3c) points at
 // that record. daChoropu_c_classInit's own vtable-store site (relocs 0x02124a1c ->
 // 0x021280b0) names _ZTV9MontyMole.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -234,7 +236,7 @@ extern "C" void hal_fill_monty_mole_vtable(void)
     vt[13] = (void *)mm_trap13;
     vt[14] = (void *)mm_trap14;
     vt[15] = (void *)mm_heap;
-    vt[16] = (void *)hal_cppd1_MontyMole;
+    vt[16] = (void *)PORT_D16(hal_cppd1_MontyMole);
     vt[17] = (void *)mm_d0;
     /* the Actor tail (18..30): all bind to Actor's own default, except 29 which
        MontyMole overrides with _ZN9MontyMole16OnAimedAtWithEggEv. */

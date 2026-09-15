@@ -64,6 +64,8 @@
 // Actor's own tail from the same host functions the enemies use; slot 12 is
 // ActorBase::OnPendingDestroy for all seven (their vtables' slot 12 is the arm9
 // 0x02043ac0), which the shared fill already installs.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -315,7 +317,7 @@ extern "C" void hal_fill_tower_step_vtable(void)
     vt[3] = (void *)ts_clean;
     vt[6] = (void *)ts_behavior;
     vt[9] = (void *)ts_render;
-    vt[16] = (void *)ts_d1;
+    vt[16] = (void *)PORT_D16(ts_d1);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -380,7 +382,7 @@ extern "C" void hal_fill_rotating_bridge_vtable(void)
     vt[3] = (void *)rb_clean;
     vt[6] = (void *)rb_behavior;
     vt[9] = (void *)rb_render;
-    vt[16] = (void *)rb_d1;
+    vt[16] = (void *)PORT_D16(rb_d1);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -448,7 +450,7 @@ extern "C" void hal_fill_pole_billboard_vtable(void)
     vt[3] = (void *)pb_clean;
     vt[6] = (void *)pb_behavior;
     vt[9] = (void *)pb_render;
-    vt[16] = (void *)pb_d1;
+    vt[16] = (void *)PORT_D16(pb_d1);
     /* THIRTY-ONE and correct: id 42 POLE_BILLBOARD installs the billboard base
        table, which is a plain Actor and not a Platform, so it has no slot 31.
        The only one of the seven that does not grow. */
@@ -504,7 +506,7 @@ extern "C" void hal_fill_knock_down_plank_vtable(void)
     vt[3] = (void *)kp_clean;
     vt[6] = (void *)kp_behavior;
     vt[9] = (void *)kp_render;
-    vt[16] = (void *)kp_d1;
+    vt[16] = (void *)PORT_D16(kp_d1);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -591,7 +593,7 @@ extern "C" void hal_fill_rotating_platform_wf_vtable(void)
     vt[3] = (void *)rp_clean;
     vt[6] = (void *)rp_behavior;
     vt[9] = (void *)rp_render;
-    vt[16] = (void *)rp_d1;
+    vt[16] = (void *)PORT_D16(rp_d1);
     /* 32 slots; slot 31 is Platform::Kill. dsd's bound reads 15 words here. */
     vt[31] = (void *)wf_kill;
 }
@@ -701,7 +703,7 @@ extern "C" void hal_fill_moving_bar_vtable(void)
     vt[3] = (void *)mb_clean;
     vt[6] = (void *)mb_behavior;
     vt[9] = (void *)mb_render;
-    vt[16] = (void *)mb_d1;
+    vt[16] = (void *)PORT_D16(mb_d1);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -793,7 +795,7 @@ extern "C" void hal_fill_fall_block_wf_vtable(void)
     vt[3] = (void *)fb_clean;
     vt[6] = (void *)fb_behavior;
     vt[9] = (void *)fb_render;
-    vt[16] = (void *)fb_d1;
+    vt[16] = (void *)PORT_D16(fb_d1);
     vt[17] = (void *)fb_d0;    /* the ov098 base has a real deleting dtor here */
     vt[27] = (void *)fb_slot27;
     vt[31] = (void *)fb_slot31;

@@ -32,6 +32,8 @@
 // ((addr - 0x02090864) / 4 = 316 / 317) reloc to g_profile_OBJ_RED_FIRE (0x02108ef8)
 // and g_profile_OBJ_BLUE_FIRE (0x02108f14); the registry cross-checks each record's
 // +4 halfword at boot.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -204,7 +206,7 @@ extern "C" void hal_fill_blue_flame_vtable(void)
     vt[13] = (void *)fl_trap13;
     vt[14] = (void *)fl_trap14;
     vt[15] = (void *)fl_heap;
-    vt[16] = (void *)hal_cppd1_BlueFlame;
+    vt[16] = (void *)PORT_D16(hal_cppd1_BlueFlame);
     vt[17] = (void *)fl_d0;
     vt[18] = (void *)fl_yoshi;
     vt[19] = (void *)fl_egg;

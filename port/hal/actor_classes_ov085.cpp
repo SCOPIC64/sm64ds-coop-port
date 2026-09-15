@@ -121,6 +121,8 @@
 // MontyMoleRock shape (an unregistered id declined by the pre-spawn gate, then
 // a ROM-faithful store through the NULL it returns).
 // ===========================================================================
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -352,7 +354,7 @@ extern "C" void hal_fill_wall_sign_vtable(void)
     vt[3]  = (void *)ws_clean;
     vt[6]  = (void *)ws_behavior;
     vt[9]  = (void *)ws_render;
-    vt[16] = (void *)ws_d1;
+    vt[16] = (void *)PORT_D16(ws_d1);
     vt[17] = (void *)ws_d0;
     vt[31] = (void *)ov85_kill;   /* Platform::Kill, inherited */
 }
@@ -389,7 +391,7 @@ extern "C" void hal_fill_toad_vtable(void)
     vt[3]  = (void *)td_clean;
     vt[6]  = (void *)td_behavior;
     vt[9]  = (void *)td_render;
-    vt[16] = (void *)hal_cppd1_Toad;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Toad);
     vt[17] = (void *)td_d0;
     /* no slot 31: a plain Actor, 31 slots total, ends at 30 */
 }
@@ -532,7 +534,7 @@ extern "C" void hal_fill_princess_peach_vtable(void)
     /* her own OnPendingDestroy, not ActorBase's -- the one slot this class
        takes back from ov85_fill_shared */
     vt[12] = (void *)pp_pdes;
-    vt[16] = (void *)hal_cppd1_PrincessPeach;
+    vt[16] = (void *)PORT_D16(hal_cppd1_PrincessPeach);
     vt[17] = (void *)pp_d0;
     /* no slot 31: a plain Actor, 31 slots total, ends at 30 */
 }

@@ -76,6 +76,8 @@
 // port/unmatched/BowserPuzzle_Render.cpp (spelled Model::Render, the dual-filled
 // slot). BowserPuzzlePiece::Render (.c) is `return 1;` -- no draw, safe in the
 // slice.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -337,7 +339,7 @@ extern "C" void hal_fill_bowser_puzzle_manager_vtable(void)
     vt[3]  = (void *)mgr_clean;
     vt[6]  = (void *)mgr_behavior;
     vt[9]  = (void *)mgr_render;
-    vt[16] = (void *)mgr_d1;
+    vt[16] = (void *)PORT_D16(mgr_d1);
     vt[17] = (void *)mgr_d0;
     /* slot 12 keeps bp_pdes_base -- the Manager defaults to ActorBase's own. */
     /* slot 31, the Platform tail; the Manager does not override it */
@@ -384,7 +386,7 @@ extern "C" void hal_fill_bowser_puzzle_shell_vtable(void)
     vt[3]  = (void *)shl_clean;
     vt[6]  = (void *)shl_behavior;
     vt[9]  = (void *)shl_render;
-    vt[16] = (void *)shl_d1;
+    vt[16] = (void *)PORT_D16(shl_d1);
     vt[17] = (void *)shl_d0;
 }
 
@@ -424,7 +426,7 @@ extern "C" void hal_fill_bowser_puzzle_piece_vtable(void)
     vt[6]  = (void *)pce_behavior;
     vt[9]  = (void *)pce_render;
     vt[12] = (void *)pce_pdes;   /* the Piece overrides OnPendingDestroy */
-    vt[16] = (void *)pce_d1;
+    vt[16] = (void *)PORT_D16(pce_d1);
     vt[17] = (void *)pce_d0;
 }
 

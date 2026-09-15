@@ -20,6 +20,8 @@
 // shift shows up twice more below: FIRE_PIRANHA_PLANT runs the
 // FirePiranhaPlantBig table, ROTATING_UP_DOWN_PLATFORM the
 // RotatingUpDownPlatformUtm one).
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -162,7 +164,7 @@ static void l7_fill_shared(void **vt)
     vt[13] = (void *)l7_trap13;
     vt[14] = (void *)l7_trap14;
     vt[15] = (void *)l7_heap;
-    vt[16] = (void *)l7_trap16;
+    vt[16] = (void *)PORT_D16(l7_trap16);
     vt[17] = (void *)l7_trap17;
     vt[18] = (void *)l7_yoshi;
     vt[19] = (void *)l7_turn_egg;
@@ -263,7 +265,7 @@ extern "C" void hal_fill_thwomp_vtable(void)
     vt[3] = (void *)thw_clean;
     vt[6] = (void *)thw_behavior;
     vt[9] = (void *)thw_render;
-    vt[16] = (void *)thw_d1;
+    vt[16] = (void *)PORT_D16(thw_d1);
     vt[17] = (void *)thw_d0;
     vt[27] = (void *)thw_mega;
     vt[29] = (void *)thw_aimed;
@@ -332,7 +334,7 @@ extern "C" void hal_fill_sliding_platform_wf_vtable(void)
     vt[3] = (void *)swf_clean;
     vt[6] = (void *)swf_behavior;
     vt[9] = (void *)swf_render;
-    vt[16] = (void *)swf_d1;
+    vt[16] = (void *)PORT_D16(swf_d1);
     vt[17] = (void *)swf_d0;
     vt[31] = (void *)swf_kill;
 }
@@ -446,7 +448,7 @@ extern "C" void hal_fill_rotating_up_down_platform_vtable(void)
     vt[3] = (void *)rud_clean;
     vt[6] = (void *)rud_behavior;
     vt[9] = (void *)rud_render;
-    vt[16] = (void *)rud_d1;
+    vt[16] = (void *)PORT_D16(rud_d1);
     vt[17] = (void *)rud_d0;
     vt[27] = (void *)rud_mega;
     vt[31] = (void *)rud_kill;
@@ -527,7 +529,7 @@ extern "C" void hal_fill_fire_piranha_plant_vtable(void)
     vt[3] = (void *)fpir_clean;
     vt[6] = (void *)fpir_behavior;
     vt[9] = (void *)fpir_render;
-    vt[16] = (void *)fpir_d1;
+    vt[16] = (void *)PORT_D16(fpir_d1);
     vt[17] = (void *)fpir_d0;
     vt[18] = (void *)fpir_yoshi;
     vt[19] = (void *)fpir_egg;
@@ -613,7 +615,7 @@ extern "C" void hal_fill_piranha_plant_vtable(void)
     vt[6] = (void *)pir_behavior;
     vt[9] = (void *)pir_render;
     vt[12] = (void *)pir_pdes;
-    vt[16] = (void *)pir_d1;
+    vt[16] = (void *)PORT_D16(pir_d1);
     vt[17] = (void *)pir_d0;
     vt[29] = (void *)pir_aimed;
 }

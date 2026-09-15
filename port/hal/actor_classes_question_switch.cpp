@@ -43,6 +43,8 @@
 // _ZTV10dBgActor_c they store mid-chain is the filled host table (the
 // BlueCoinSwitch precedent).
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -255,7 +257,7 @@ extern "C" void hal_fill_question_switch_vtable(void)
     vt[13] = (void *)qs_trap13;
     vt[14] = (void *)qs_trap14;
     vt[15] = (void *)qs_heap;
-    vt[16] = (void *)qs_d1;
+    vt[16] = (void *)PORT_D16(qs_d1);
     vt[17] = (void *)qs_d0;
     vt[18] = (void *)qs_yoshi;
     vt[19] = (void *)qs_egg;

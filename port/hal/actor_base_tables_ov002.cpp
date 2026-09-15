@@ -154,6 +154,8 @@
  * place. The fill keeps external C linkage so a later change that does own
  * level_boot.cpp can call it explicitly and drop the object.
  */
+#include "port_d16.h"
+
 #include <cstdio>
 #include <cstdlib>
 
@@ -493,7 +495,7 @@ extern "C" void hal_seat_ov002_base_tables(void)
         vt[3]  = (void *)ob2_ab_clean;
         vt[6]  = (void *)ob2_ab_beh;
         vt[9]  = (void *)ob2_ab_render;
-        vt[16] = (void *)ob2_cap_d2;
+        vt[16] = (void *)PORT_D16(ob2_cap_d2);
         vt[17] = (void *)ob2_cap_d0;
     }
 
@@ -505,7 +507,7 @@ extern "C" void hal_seat_ov002_base_tables(void)
         vt[3]  = (void *)ob2_fdc_s3;
         vt[6]  = (void *)ob2_fdc_s6;
         vt[9]  = (void *)ob2_fdc_s9;
-        vt[16] = (void *)ob2_fdc_d1;
+        vt[16] = (void *)PORT_D16(ob2_fdc_d1);
         vt[17] = (void *)ob2_fdc_d0;
         vt[31] = (void *)ob2_kill;
     }
@@ -518,7 +520,7 @@ extern "C" void hal_seat_ov002_base_tables(void)
         vt[3]  = (void *)ob2_trap3;
         vt[6]  = (void *)ob2_084_s6;
         vt[9]  = (void *)ob2_084_s9;
-        vt[16] = (void *)ob2_084_d1;
+        vt[16] = (void *)PORT_D16(ob2_084_d1);
         vt[17] = (void *)ob2_084_d0;
         vt[31] = (void *)ob2_kill;
     }
@@ -531,7 +533,7 @@ extern "C" void hal_seat_ov002_base_tables(void)
         vt[3]  = (void *)ob2_trap3;
         vt[6]  = (void *)ob2_12c_s6;
         vt[9]  = (void *)ob2_12c_s9;
-        vt[16] = (void *)ob2_12c_d1;
+        vt[16] = (void *)PORT_D16(ob2_12c_d1);
         vt[17] = (void *)ob2_12c_d0;
         vt[31] = (void *)ob2_kill;
     }
@@ -544,7 +546,7 @@ extern "C" void hal_seat_ov002_base_tables(void)
         vt[3]  = (void *)ob2_6b0_s3;
         vt[6]  = (void *)ob2_6b0_s6;
         vt[9]  = (void *)ob2_6b0_s9;
-        vt[16] = (void *)ob2_6b0_d1;
+        vt[16] = (void *)PORT_D16(ob2_6b0_d1);
         vt[17] = (void *)ob2_6b0_d0;
         vt[25] = (void *)ob2_6b0_s25;
         vt[27] = (void *)ob2_6b0_s27;
@@ -559,7 +561,7 @@ extern "C" void hal_seat_ov002_base_tables(void)
         vt[3]  = (void *)ob2_trap3;
         vt[6]  = (void *)ob2_trap6;
         vt[9]  = (void *)ob2_9e4_s9;
-        vt[16] = (void *)ob2_9e4_d1;
+        vt[16] = (void *)PORT_D16(ob2_9e4_d1);
         vt[17] = (void *)ob2_9e4_d0;
         vt[31] = (void *)ob2_kill;
     }

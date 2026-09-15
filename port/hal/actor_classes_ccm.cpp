@@ -44,6 +44,8 @@
 // three words __sinit_ov019_02112b14 wrote into data_ov019_021135d8 into
 // unk_05c/060/064 and arms a 0x78-frame timer; Behavior waits for the player
 // within 0x180000, plays a sound, counts the timer down and kills the actor.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -239,7 +241,7 @@ extern "C" void hal_fill_ice_slide_manager_vtable(void)
     vt[6]  = (void *)ism_behavior;
     vt[9]  = (void *)ccm_render_base;
     vt[12] = (void *)ccm_pdes;
-    vt[16] = (void *)hal_cppd1_IceSlideManager;
+    vt[16] = (void *)PORT_D16(hal_cppd1_IceSlideManager);
     vt[17] = (void *)ism_d0;
     /* 20..30, Actor's own list, which is what the ROM table holds --
        IceSlideManager overrides none of it. Slot 30 declines: its ROM body
@@ -586,7 +588,7 @@ extern "C" void hal_fill_ice_sheet_vtable(void)
        _ZN7fBase_c16OnPendingDestroyEv. Both Platform-derived fills in this
        TU missed 12; the Actor-derived ones all seat it. */
     vt[12] = (void *)ccm_pdes;
-    vt[16] = (void *)ics_d1;
+    vt[16] = (void *)PORT_D16(ics_d1);
     vt[17] = (void *)ics_d0;
     vt[21] = (void *)ics_pounded;   /* own OnGroundPounded, overrides the shared default */
     vt[27] = (void *)ics_mega;      /* own OnHitByMegaChar, overrides the shared default */
@@ -638,7 +640,7 @@ extern "C" void hal_fill_power_star_create_vtable(void)
     vt[6]  = (void *)psc_behavior;
     vt[9]  = (void *)psc_render_base;
     vt[12] = (void *)ccm_pdes;
-    vt[16] = (void *)psc_d1;
+    vt[16] = (void *)PORT_D16(psc_d1);
     vt[17] = (void *)psc_d0;
     /* 18..30: the shared Actor tail. POWER_STAR_CREATE overrides none of it --
        every one of those words in the ROM table is the arm9 base body -- so it
@@ -697,7 +699,7 @@ extern "C" void hal_fill_one_up_logo_vtable(void)
     vt[6]  = (void *)oul_behavior;
     vt[9]  = (void *)oul_render;
     vt[12] = (void *)ccm_pdes;
-    vt[16] = (void *)hal_cppd1_OneUpLogo;
+    vt[16] = (void *)PORT_D16(hal_cppd1_OneUpLogo);
     vt[17] = (void *)oul_d0;
     /* no slot 31: OneUpLogo is Actor-derived, not Platform-derived -- 31 slots total */
 }
@@ -780,7 +782,7 @@ extern "C" void hal_fill_sound_object_vtable(void)
     vt[6]  = (void *)sob_behavior;
     vt[9]  = (void *)psc_render_base;  /* ActorBase base body, shared with PSC's thunk */
     vt[12] = (void *)ccm_pdes;
-    vt[16] = (void *)sob_d1;
+    vt[16] = (void *)PORT_D16(sob_d1);
     vt[17] = (void *)sob_d0;
     /* no slot 31: a plain Actor, 31 slots total */
 }
@@ -967,7 +969,7 @@ extern "C" void hal_fill_ski_lift_vtable(void)
        port/ov018_syms.txt's gate-191 derivation reads the same slot the same
        way; the table was documented correctly and only the fill missed it. */
     vt[12] = (void *)ccm_pdes;
-    vt[16] = (void *)skl_d1;
+    vt[16] = (void *)PORT_D16(skl_d1);
     vt[17] = (void *)skl_d0;
     vt[27] = (void *)skl_mega;   /* own OnHitByMegaChar, overrides the shared default */
     vt[31] = (void *)skl_kill;   /* Platform's shared Kill body (0x020ee55c), NOT overridden */
@@ -1019,7 +1021,7 @@ extern "C" void hal_fill_mother_penguin_vtable(void)
     vt[6]  = (void *)mpg_behavior;
     vt[9]  = (void *)mpg_render;
     vt[12] = (void *)mpg_pdes;   /* MotherPenguin's own OnPendingDestroy, NOT the shared default */
-    vt[16] = (void *)hal_cppd1_SkiLift;
+    vt[16] = (void *)PORT_D16(hal_cppd1_SkiLift);
     vt[17] = (void *)mpg_d0;
     /* no slot 31: MotherPenguin is Actor-derived, not Platform-derived -- 31 slots total */
 }

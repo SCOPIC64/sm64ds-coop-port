@@ -26,6 +26,8 @@
 // The id was cross-checked: g_profile_CHAIR's +4 halfword is 326, the
 // census id and ACTOR_SPAWN_TABLE[326] target all agree; daChair_c_classInit's
 // own vtable-store site (relocs.txt) names _ZTV12HauntedChair.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -165,7 +167,7 @@ static void bbh_fill_shared(void **vt)
     vt[13] = (void *)bbh_trap13;
     vt[14] = (void *)bbh_trap14;
     vt[15] = (void *)bbh_heap;
-    vt[16] = (void *)bbh_trap16;
+    vt[16] = (void *)PORT_D16(bbh_trap16);
     vt[17] = (void *)bbh_trap17;
     vt[18] = (void *)bbh_yoshi;
     vt[19] = (void *)bbh_turn_egg;
@@ -236,7 +238,7 @@ extern "C" void hal_fill_haunted_chair_vtable(void)
     vt[3] = (void *)hc_clean;
     vt[6] = (void *)hc_behavior;
     vt[9] = (void *)hc_render;
-    vt[16] = (void *)hal_cppd1_HauntedChair;
+    vt[16] = (void *)PORT_D16(hal_cppd1_HauntedChair);
     vt[17] = (void *)hc_d0;
 }
 

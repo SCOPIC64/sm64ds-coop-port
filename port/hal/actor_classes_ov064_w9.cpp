@@ -132,6 +132,8 @@
 // host array -- the ov015/ov016/ov080 rule, since a mounted vtable hands the
 // factory DS code addresses. Its two names (the dsd _ZTV14daObjFl_Gura_c and the
 // RTTI _ZTV14daObjFl_Gura_c) are aliased onto the one array.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -366,7 +368,7 @@ extern "C" void hal_fill_tilting_platform_lll_vtable(void)
     vt[3]  = (void *)w9tp_clean;
     vt[6]  = (void *)w9tp_behavior;
     vt[9]  = (void *)w9tp_render;
-    vt[16] = (void *)w9tp_d1;
+    vt[16] = (void *)PORT_D16(w9tp_d1);
     vt[17] = (void *)w9tp_d0;
     vt[31] = (void *)w9tp_kill;
 }

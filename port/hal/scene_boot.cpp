@@ -132,6 +132,8 @@
 // render bucket inside the host's render frame, phase 1 the scene-tree pass
 // that closes it -- with the level's own passes simply absent because there is
 // no level.
+#include "port_d16.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -3124,7 +3126,7 @@ static void scene_fill_starsel(void)
                                      : (void *)ss_render;
     }
     vt[12] = (void *)ss_pdes;
-    vt[16] = (void *)ss_d2;
+    vt[16] = (void *)PORT_D16(ss_d2);
     vt[17] = (void *)ss_d0;
 }
 
@@ -3204,7 +3206,7 @@ static void scene_fill_gameover(void)
     vt[6]  = (void *)go_beh;
     vt[9]  = (void *)go_render;
     vt[12] = (void *)go_pdes;
-    vt[16] = (void *)go_d2;
+    vt[16] = (void *)PORT_D16(go_d2);
     vt[17] = (void *)go_d0;
 }
 
@@ -3644,7 +3646,7 @@ static void scene_fill_title(void)
                                      : (void *)ti_render;
     }
     vt[12] = (void *)ti_pdes;
-    vt[16] = (void *)ti_d2;
+    vt[16] = (void *)PORT_D16(ti_d2);
     vt[17] = (void *)ti_d0;
 
     void **gc = (void **)data_ov007_021032b0;

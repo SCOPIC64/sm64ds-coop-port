@@ -165,6 +165,8 @@
 // the gate-17 recipe slice_w1l4.txt names for exactly this case. It is a
 // transcription of src/__sinit_ov045_02112280.c, four calls, and the two file
 // ids in it (1635 model, 1636 clsn) are the ROM's own, read from that body.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -437,7 +439,7 @@ extern "C" void hal_fill_fire_sea_elevator_vtable(void)
     vt[3]  = (void *)fse_clean;
     vt[6]  = (void *)fse_behavior;
     vt[9]  = (void *)fse_render;
-    vt[16] = (void *)fse_d1;
+    vt[16] = (void *)PORT_D16(fse_d1);
     vt[17] = (void *)fse_d0;
     vt[31] = (void *)ov45_kill;
 }
@@ -487,7 +489,7 @@ extern "C" void hal_fill_pole_lift_vtable(void)
     vt[3]  = (void *)pl_clean;
     vt[6]  = (void *)pl_behavior;
     vt[9]  = (void *)pl_render;
-    vt[16] = (void *)pl_d1;
+    vt[16] = (void *)PORT_D16(pl_d1);
     vt[17] = (void *)pl_d0;
     vt[31] = (void *)ov45_kill;
 }
@@ -574,7 +576,7 @@ extern "C" void hal_fill_extending_platform_vtable(void)
     vt[6]  = (void *)ep_behavior;
     vt[9]  = (void *)ep_render;
     vt[12] = (void *)ep_pdes;
-    vt[16] = (void *)hal_cppd1_PoleLift;
+    vt[16] = (void *)PORT_D16(hal_cppd1_PoleLift);
     vt[17] = (void *)ep_d0;
     /* 31 slots: this class is an Actor, not a Platform, and its table really
        does end at 30 -- the next dsd symbol is at 0x02112efc. No slot 31. */
@@ -640,7 +642,7 @@ extern "C" void hal_fill_floating_floor_bfs_vtable(void)
     vt[3]  = (void *)ff_clean;
     vt[6]  = (void *)ff_behavior;
     vt[9]  = (void *)ff_render;
-    vt[16] = (void *)ff_d1;
+    vt[16] = (void *)PORT_D16(ff_d1);
     vt[17] = (void *)ff_d0;
     vt[31] = (void *)ov45_kill;
 }
@@ -727,7 +729,7 @@ extern "C" void hal_fill_tilting_platform_bfs_vtable(void)
     vt[3]  = (void *)tp_clean;
     vt[6]  = (void *)tp_behavior;
     vt[9]  = (void *)tp_render;
-    vt[16] = (void *)tp_d1;
+    vt[16] = (void *)PORT_D16(tp_d1);
     vt[17] = (void *)tp_d0;
     vt[31] = (void *)ov45_kill;
 }
@@ -804,7 +806,7 @@ extern "C" void hal_fill_fall_block_bfs_vtable(void)
     vt[3]  = (void *)fb_clean;
     vt[6]  = (void *)fb_behavior;
     vt[9]  = (void *)fb_render;
-    vt[16] = (void *)fb_d1;
+    vt[16] = (void *)PORT_D16(fb_d1);
     vt[17] = (void *)fb_d0;
     vt[27] = (void *)fb_slot27;
     vt[31] = (void *)fb_slot31;

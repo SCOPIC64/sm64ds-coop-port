@@ -110,6 +110,8 @@
 // numbering are served by the same array. Slot 4 and slot 5 both land on
 // Model::Render. Written down because it is the first thing to re-check if
 // either of these two ever renders wrong.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -369,7 +371,7 @@ extern "C" void hal_fill_number_vtable(void)
     vt[3]  = (void *)num_clean;
     vt[6]  = (void *)num_behavior;
     vt[9]  = (void *)num_render;
-    vt[16] = (void *)hal_cppd1_InvisibleSecret;
+    vt[16] = (void *)PORT_D16(hal_cppd1_InvisibleSecret);
     vt[17] = (void *)num_d0;
     /* no slot 31: Actor-derived, not Platform-derived -- 31 slots total */
 }
@@ -382,7 +384,7 @@ extern "C" void hal_fill_wing_feather_vtable(void)
     vt[3]  = (void *)wf_clean;
     vt[6]  = (void *)wf_behavior;
     vt[9]  = (void *)wf_render;
-    vt[16] = (void *)hal_cppd1_WingFeather;
+    vt[16] = (void *)PORT_D16(hal_cppd1_WingFeather);
     vt[17] = (void *)wf_d0;
     /* no slot 31, same reason */
 }

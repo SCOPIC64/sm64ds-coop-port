@@ -94,6 +94,8 @@
 // halfword 0x013c = 316. The record is `ambiguous` in config because ov006
 // spans the same window; the raw ov095 image settles it, and the registry
 // re-checks the +4 halfword at boot.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -270,7 +272,7 @@ extern "C" void hal_fill_flamethrower_vtable(void)
     vt[13] = (void *)ft_trap13;
     vt[14] = (void *)ft_trap14;
     vt[15] = (void *)ft_heap;
-    vt[16] = (void *)ft_d1;
+    vt[16] = (void *)PORT_D16(ft_d1);
     vt[17] = (void *)ft_d0;
     vt[18] = (void *)ft_yoshi;
     vt[19] = (void *)ft_egg;

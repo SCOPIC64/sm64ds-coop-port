@@ -96,6 +96,8 @@
 // Whomp/RotatingFirebar collision -- so they are host copies in
 // port/unmatched/Jrb_Renders.cpp and out of slice_gate188.txt. Unagi's Render is
 // NOT a collision (Model::Render by C name) and stays in the slice.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -361,7 +363,7 @@ extern "C" void hal_fill_unagi_vtable(void)
     vt[6]  = (void *)una_behavior;
     vt[9]  = (void *)una_render;
     vt[12] = (void *)una_pdes;   /* Unagi's own OnPendingDestroy override */
-    vt[16] = (void *)una_d1;
+    vt[16] = (void *)PORT_D16(una_d1);
     vt[17] = (void *)una_d0;
 }
 
@@ -400,7 +402,7 @@ extern "C" void hal_fill_ship_up_vtable(void)
     vt[3]  = (void *)shu_clean;
     vt[6]  = (void *)shu_behavior;
     vt[9]  = (void *)shu_render;
-    vt[16] = (void *)shu_d1;    /* ROM word 16 (raw index; the earlier 14/15 was off-by-2) */
+    vt[16] = (void *)PORT_D16(shu_d1);    /* ROM word 16 (raw index; the earlier 14/15 was off-by-2) */
     vt[17] = (void *)shu_d0;    /* ROM word 17 */
     vt[31] = (void *)shu_kill;
 }
@@ -457,7 +459,7 @@ extern "C" void hal_fill_rock_pillar_vtable(void)
     vt[3]  = (void *)rkp_clean;
     vt[6]  = (void *)rkp_behavior;
     vt[9]  = (void *)rkp_render;
-    vt[16] = (void *)rkp_d1;    /* ROM word 16, the daObjKi_Hasira_c shape */
+    vt[16] = (void *)PORT_D16(rkp_d1);    /* ROM word 16, the daObjKi_Hasira_c shape */
     vt[17] = (void *)rkp_d0;    /* ROM word 17 */
     vt[31] = (void *)rkp_kill;
 }
@@ -501,7 +503,7 @@ extern "C" void hal_fill_sliding_box_vtable(void)
     vt[3]  = (void *)sbx_clean;
     vt[6]  = (void *)sbx_behavior;
     vt[9]  = (void *)sbx_render;
-    vt[16] = (void *)sbx_d1;
+    vt[16] = (void *)PORT_D16(sbx_d1);
     vt[17] = (void *)sbx_d0;
     vt[31] = (void *)sbx_kill;
 }
@@ -563,7 +565,7 @@ extern "C" void hal_fill_float_on_water_jrb_vtable(void)
     vt[3]  = (void *)fow_clean;      /* Platform base Cleanup (_ZN17daObjFloatBoard_c16CleanupResourcesEv) */
     vt[6]  = (void *)fow_behavior;   /* Platform base Behavior (_ZN17daObjFloatBoard_c8BehaviorEv) */
     vt[9]  = (void *)fow_render;     /* Platform base Render, host copy (020b5c24) */
-    vt[16] = (void *)fow_d1;
+    vt[16] = (void *)PORT_D16(fow_d1);
     vt[17] = (void *)fow_d0;
     vt[31] = (void *)fow_kill;
 }

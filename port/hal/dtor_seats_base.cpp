@@ -24,6 +24,8 @@
 // port_stage_a2_seat beside hal_seat_model_family_dtors; walk_window family
 // only (rides the same CMake lists as hal/model_dtor_seat.cpp).
 
+#include "port_d16.h"
+
 extern "C" {
 
 extern int data_02099edc[];      /* _ZTV9ActorBase, hal/actor_vtables.cpp */
@@ -48,10 +50,10 @@ static int __fastcall vw_d0(void *s, void *) { return (int)(size_t)_ZN4ViewD0Ev(
 
 extern "C" void hal_seat_base_actor_dtors(void)
 {
-    data_02099edc[16] = (int)(size_t)ab_d1;
+    data_02099edc[16] = (int)(size_t)PORT_D16(ab_d1);
     data_02099edc[17] = (int)(size_t)ab_d0;
-    data_0208e4b8[16] = (int)(size_t)ad_d1;
+    data_0208e4b8[16] = (int)(size_t)PORT_D16(ad_d1);
     data_0208e4b8[17] = (int)(size_t)ad_d0;
-    _ZTV4View[16]     = (void *)vw_d1;
+    _ZTV4View[16]     = (void *)PORT_D16(vw_d1);
     _ZTV4View[17]     = (void *)vw_d0;
 }

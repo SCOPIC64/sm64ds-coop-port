@@ -92,6 +92,8 @@
 // collision -- so it is a host copy in unmatched/Ov064Gate178_States.cpp and out
 // of the slice. LavaBubble Render (_ZN10LavaBubble6RenderEv) is a bare `return 1`
 // (no model, no shadow) and stays in the slice.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -351,7 +353,7 @@ extern "C" void hal_fill_metal_net_lift_vtable(void)
     vt[3]  = (void *)aml_clean;
     vt[6]  = (void *)aml_behavior;
     vt[9]  = (void *)aml_render;
-    vt[16] = (void *)aml_d1;
+    vt[16] = (void *)PORT_D16(aml_d1);
     vt[17] = (void *)aml_d0;
     vt[31] = (void *)aml_kill;
 }
@@ -387,7 +389,7 @@ extern "C" void hal_fill_lava_bubble_vtable(void)
     vt[6]  = (void *)lb_behavior;
     vt[9]  = (void *)lb_render;
     vt[12] = (void *)lb_pdes;
-    vt[16] = (void *)lb_d1;
+    vt[16] = (void *)PORT_D16(lb_d1);
     vt[17] = (void *)lb_d0;
     vt[18] = (void *)lb_yoshi;   /* LavaBubble's own OnYoshiTryEat override */
 }

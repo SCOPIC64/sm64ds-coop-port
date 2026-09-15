@@ -93,6 +93,8 @@
 // hal/level_boot.cpp's g_level_mounted records: what the pass writes lives in
 // .dsstate, so the guard has to roll back with it.
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -374,7 +376,7 @@ extern "C" void hal_fill_racing_penguin_vtable(void)
     vt[13] = (void *)rp_trap13;
     vt[14] = (void *)rp_trap14;
     vt[15] = (void *)rp_heap;
-    vt[16] = (void *)hal_cppd1_RacingPenguin;
+    vt[16] = (void *)PORT_D16(hal_cppd1_RacingPenguin);
     vt[17] = (void *)rp_d0;
     vt[18] = (void *)rp_yoshi;
     vt[19] = (void *)rp_turn_egg;

@@ -85,6 +85,8 @@
 // in the StateDispatch file satisfies the link and names the hole if a fresh
 // BoB boot ever reaches it -- the Rabbit-0x0212b8dc/Painting-0x021261f4
 // precedent. CHUCKYA never reaches it.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -350,7 +352,7 @@ extern "C" void hal_fill_chuckya_vtable(void)
     vt[6]  = (void *)chk_behavior;
     vt[9]  = (void *)chk_render;
     vt[12] = (void *)chk_pdes;
-    vt[16] = (void *)chk_d1;
+    vt[16] = (void *)PORT_D16(chk_d1);
     vt[17] = (void *)chk_d0;
     vt[29] = (void *)chk_aimed;   /* Chuckya's own OnAimedAtWithEgg override */
 }
@@ -391,7 +393,7 @@ extern "C" void hal_fill_koopa_vtable(void)
     vt[6]  = (void *)kp_behavior;
     vt[9]  = (void *)kp_render;
     vt[12] = (void *)kp_pdes;
-    vt[16] = (void *)kp_d1;
+    vt[16] = (void *)PORT_D16(kp_d1);
     vt[17] = (void *)kp_d0;
     vt[18] = (void *)kp_yoshi;
     vt[19] = (void *)kp_egg;
@@ -557,7 +559,7 @@ extern "C" void hal_fill_klepto_vtable(void)
     vt[6]  = (void *)klp_behavior;
     vt[9]  = (void *)klp_render;
     vt[12] = (void *)klp_pdes;
-    vt[16] = (void *)klp_d1;
+    vt[16] = (void *)PORT_D16(klp_d1);
     vt[17] = (void *)klp_d0;
     /* slots 18/19 stay the shared Actor defaults kc182_fill_shared_0_30 seats:
        the reloc run lands both on the Actor defaults.

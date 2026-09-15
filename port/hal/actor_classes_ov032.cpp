@@ -79,6 +79,8 @@
 // destructors tail into the Enemy base D2 _ZN12dEnemyBase_cD2Ev) and then all
 // THREE ov032 sinits in ROM order -- all of them; no class here is without
 // reach.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -490,7 +492,7 @@ extern "C" void hal_fill_bubba_vtable(void)
     vt[9]  = (void *)bb_render;
     /* AFTER the shared fill, which writes the ActorBase/Actor defaults here. */
     vt[12] = (void *)bb_pdes;
-    vt[16] = (void *)bb_d1;
+    vt[16] = (void *)PORT_D16(bb_d1);
     vt[17] = (void *)bb_d0;
     vt[29] = (void *)bb_aimed;
     /* no slot 31: an Enemy is a plain Actor, 31 slots total, ends at 30. */
@@ -529,7 +531,7 @@ extern "C" void hal_fill_huge_cover_vtable(void)
     vt[3]  = (void *)hc_clean;
     vt[6]  = (void *)hc_behavior;
     vt[9]  = (void *)hc_render;
-    vt[16] = (void *)hc_d1;
+    vt[16] = (void *)PORT_D16(hc_d1);
     vt[17] = (void *)hc_d0;
     vt[31] = (void *)ov32_kill;
 }
@@ -568,7 +570,7 @@ extern "C" void hal_fill_huge_water_vtable(void)
     vt[3]  = (void *)hw_clean;
     vt[6]  = (void *)hw_behavior;
     vt[9]  = (void *)hw_render;
-    vt[16] = (void *)hw_d1;
+    vt[16] = (void *)PORT_D16(hw_d1);
     vt[17] = (void *)hw_d0;
     vt[31] = (void *)ov32_kill;
 }

@@ -50,6 +50,8 @@
 //
 // Neither D-source is listed in slice_intro.txt; nothing else references either
 // symbol (the ROM's D0 inlines the chain rather than calling D1).
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -674,7 +676,7 @@ extern "C" void hal_fill_cutscene_object_vtable(void)
     vt[6] = (void *)co_behavior;
     vt[9] = (void *)co_render;
     vt[12] = (void *)co_pdes;
-    vt[16] = (void *)hal_cppd1_CutsceneObject;
+    vt[16] = (void *)PORT_D16(hal_cppd1_CutsceneObject);
     vt[17] = (void *)co_d0;
 }
 

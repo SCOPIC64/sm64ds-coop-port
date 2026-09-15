@@ -104,6 +104,8 @@
 // (ov70_bringup, one done-guard, all three fills call it). THE HANDOFF stands
 // for both files now: whoever next owns actor_overlays.cpp should move
 // ov45_bringup's and ov70_bringup's bodies into port_actor_overlays_sinits.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -584,7 +586,7 @@ extern "C" void hal_fill_amp_vtable(void)
     vt[6]  = (void *)amp_behavior;
     vt[9]  = (void *)amp_render;
     vt[12] = (void *)amp_pdes;
-    vt[16] = (void *)hal_cppd1_Amp;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Amp);
     vt[17] = (void *)amp_d0;
 }
 
@@ -624,7 +626,7 @@ extern "C" void hal_fill_flame_chomp_vtable(void)
     vt[6]  = (void *)fc_behavior;
     vt[9]  = (void *)fc_render;
     vt[12] = (void *)fc_pdes;
-    vt[16] = (void *)hal_cppd1_FlameChomp;
+    vt[16] = (void *)PORT_D16(hal_cppd1_FlameChomp);
     vt[17] = (void *)fc_d0;
     vt[18] = (void *)fc_yoshi;
 }
@@ -663,7 +665,7 @@ extern "C" void hal_fill_flame_chomp_fire_vtable(void)
     vt[6]  = (void *)fcf_behavior;
     vt[9]  = (void *)fcf_render;
     vt[12] = (void *)fcf_pdes;
-    vt[16] = (void *)hal_cppd1_FlameChompFire;
+    vt[16] = (void *)PORT_D16(hal_cppd1_FlameChompFire);
     vt[17] = (void *)fcf_d0;
     vt[18] = (void *)fcf_yoshi;
 }
@@ -751,7 +753,7 @@ extern "C" void hal_fill_popping_lava_bubbles_vtable(void)
     vt[6]  = (void *)plb_behavior;
     vt[9]  = (void *)plb_render;
     /* 12 stays ov70_pdes = ActorBase::OnPendingDestroy, the ROM's own word */
-    vt[16] = (void *)plb_d1;
+    vt[16] = (void *)PORT_D16(plb_d1);
     vt[17] = (void *)plb_d0;
 }
 
@@ -915,7 +917,7 @@ extern "C" void hal_fill_fly_guy_vtable(void)
     vt[6]  = (void *)fg_behavior;
     vt[9]  = (void *)fg_render;
     vt[12] = (void *)fg_pdes;
-    vt[16] = (void *)fg_d1;
+    vt[16] = (void *)PORT_D16(fg_d1);
     vt[17] = (void *)fg_d0;
     /* the three ov70_fill_shared seats a default into and FlyGuy overrides */
     vt[18] = (void *)fg_yoshi;

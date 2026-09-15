@@ -53,6 +53,8 @@
 // hal_fill_platform_vtable (all four destructors install ov002 0x0210ae38 as
 // the base vptr on the way out) and then BOTH ov033 sinits, which is all of
 // them -- neither class here is without reach.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -324,7 +326,7 @@ extern "C" void hal_fill_tiny_cover_vtable(void)
     vt[3]  = (void *)tc_clean;
     vt[6]  = (void *)tc_behavior;
     vt[9]  = (void *)tc_render;
-    vt[16] = (void *)tc_d1;
+    vt[16] = (void *)PORT_D16(tc_d1);
     vt[17] = (void *)tc_d0;
     /* AFTER the shared fill, which writes Actor's do-nothing here. */
     vt[21] = (void *)tc_pounded;
@@ -367,7 +369,7 @@ extern "C" void hal_fill_tiny_water_vtable(void)
     vt[3]  = (void *)tw_clean;
     vt[6]  = (void *)tw_behavior;
     vt[9]  = (void *)tw_render;
-    vt[16] = (void *)tw_d1;
+    vt[16] = (void *)PORT_D16(tw_d1);
     vt[17] = (void *)tw_d0;
     vt[31] = (void *)ov33_kill;
 }

@@ -81,6 +81,8 @@
  * all: none of the twelve handlers is in its .text range and its slot 12 is
  * the arm9 fBase_c default.
  */
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -448,7 +450,7 @@ extern "C" void hal_fill_pokey_vtable(void)
     vt[6]  = (void *)pky_behavior;
     vt[9]  = (void *)pky_render;
     vt[12] = (void *)pky_pdes;
-    vt[16] = (void *)hal_cppd1_Pokey;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Pokey);
     vt[17] = (void *)pky_d0;
     vt[18] = (void *)pky_yoshi;
     vt[19] = (void *)pky_egg;
@@ -484,7 +486,7 @@ extern "C" void hal_fill_tornado_vtable(void)
     vt[3]  = (void *)tor_clean;
     vt[6]  = (void *)tor_behavior;
     vt[9]  = (void *)tor_render;
-    vt[16] = (void *)hal_cppd1_Tornado;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Tornado);
     vt[17] = (void *)tor_d0;
 }
 

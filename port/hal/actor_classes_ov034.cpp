@@ -87,6 +87,8 @@
 // one DSSTATE-bracketed done-guard. It runs the pack check, the syms patch,
 // hal_fill_enemy_base_vtable (both destructors tail into the Enemy base D2
 // _ZN12dEnemyBase_cD2Ev) and then the overlay's single sinit.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -548,7 +550,7 @@ extern "C" void hal_fill_wiggler_vtable(void)
     vt[3]  = (void *)wg_clean;
     vt[6]  = (void *)wg_behavior;
     vt[9]  = (void *)wg_render;
-    vt[16] = (void *)wg_d1;
+    vt[16] = (void *)PORT_D16(wg_d1);
     vt[17] = (void *)wg_d0;
     /* no slot 31: an Enemy is a plain Actor, 31 slots total, ends at 30. */
 }

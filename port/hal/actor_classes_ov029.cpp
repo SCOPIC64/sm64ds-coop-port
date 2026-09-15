@@ -28,6 +28,8 @@
 // in different TUs (daObjWc_Obj07_c_classInit's _ZTV15daObjWc_Obj07_c is the
 // ov002 base, the RectangleD1 TU's is 0x02114018).
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -284,7 +286,7 @@ extern "C" void hal_fill_float_on_water_platform_wdw_square_vtable(void)
     void *volatile *vt = (void *volatile *)_ZTV14daObjWcObj01_c;
     ov29_fill_shared(vt);
     vt[0]=(void *)sq_init; vt[3]=(void *)sq_clean; vt[6]=(void *)sq_beh;
-    vt[9]=(void *)sq_ren;  vt[16]=(void *)sq_d1;   vt[17]=(void *)sq_d0;
+    vt[9]=(void *)sq_ren;  vt[16]=(void *)PORT_D16(sq_d1);   vt[17]=(void *)sq_d0;
     vt[31]=(void *)ov29_kill;
 }
 
@@ -301,7 +303,7 @@ extern "C" void hal_fill_arrow_lift_vtable(void)
     void *volatile *vt = (void *volatile *)_ZTV15daObjWc_Obj02_c;
     ov29_fill_shared(vt);
     vt[0]=(void *)al_init; vt[3]=(void *)al_clean; vt[6]=(void *)al_beh;
-    vt[9]=(void *)al_ren;  vt[16]=(void *)al_d1;   vt[17]=(void *)al_d0;
+    vt[9]=(void *)al_ren;  vt[16]=(void *)PORT_D16(al_d1);   vt[17]=(void *)al_d0;
     vt[31]=(void *)ov29_kill;
 }
 
@@ -321,7 +323,7 @@ extern "C" void hal_fill_water_diamond_vtable(void)
     void *volatile *vt = (void *volatile *)_ZTV9ArrowLift;
     ov29_fill_shared(vt);
     vt[0]=(void *)wd_init;      vt[3]=(void *)wd_clean; vt[6]=(void *)wd_beh;
-    vt[9]=(void *)wd_ren;  vt[16]=(void *)hal_cppd1_ArrowLift; vt[17]=(void *)wd_d0;
+    vt[9]=(void *)wd_ren;  vt[16]=(void *)PORT_D16(hal_cppd1_ArrowLift); vt[17]=(void *)wd_d0;
     /* no slot 31: a plain Actor, 31 slots, ends at 30 */
 }
 
@@ -358,7 +360,7 @@ extern "C" void hal_fill_cage_lift_vtable(void)
     void *volatile *vt = (void *volatile *)_ZTV15daObjWc_Obj05_c;
     ov29_fill_shared(vt);
     vt[0]=(void *)cl_init; vt[3]=(void *)cl_clean; vt[6]=(void *)cl_beh;
-    vt[9]=(void *)cl_ren;  vt[16]=(void *)cl_d1;   vt[17]=(void *)cl_d0;
+    vt[9]=(void *)cl_ren;  vt[16]=(void *)PORT_D16(cl_d1);   vt[17]=(void *)cl_d0;
     vt[31]=(void *)ov29_kill;
 }
 
@@ -381,7 +383,7 @@ extern "C" void hal_fill_float_on_water_platform_wdw_rectangle_vtable(void)
     void *volatile *vt = (void *volatile *)_ZTV14daObjWcObj06_c;
     ov29_fill_shared(vt);
     vt[0]=(void *)rc_init; vt[3]=(void *)rc_clean; vt[6]=(void *)rc_beh;
-    vt[9]=(void *)rc_ren;  vt[16]=(void *)rc_d1;   vt[17]=(void *)rc_d0;
+    vt[9]=(void *)rc_ren;  vt[16]=(void *)PORT_D16(rc_d1);   vt[17]=(void *)rc_d0;
     vt[31]=(void *)ov29_kill;
 }
 
@@ -399,7 +401,7 @@ extern "C" void hal_fill_rotating_platform_wdw_vtable(void)
     void *volatile *vt = (void *volatile *)_ZTV15daObjWc_Obj07_c;
     ov29_fill_shared(vt);
     vt[0]=(void *)rp_init; vt[3]=(void *)rp_clean; vt[6]=(void *)rp_beh;
-    vt[9]=(void *)rp_ren;  vt[16]=(void *)rp_d1;   vt[17]=(void *)rp_d0;
+    vt[9]=(void *)rp_ren;  vt[16]=(void *)PORT_D16(rp_d1);   vt[17]=(void *)rp_d0;
     vt[31]=(void *)ov29_kill;
 }
 
@@ -416,7 +418,7 @@ extern "C" void hal_fill_switch_activated_plank_vtable(void)
     void *volatile *vt = (void *volatile *)_ZTV20SwitchActivatedPlank;
     ov29_fill_shared(vt);
     vt[0]=(void *)sp_init; vt[3]=(void *)sp_clean; vt[6]=(void *)sp_beh;
-    vt[9]=(void *)sp_ren;  vt[16]=(void *)sp_d1;   vt[17]=(void *)sp_d0;
+    vt[9]=(void *)sp_ren;  vt[16]=(void *)PORT_D16(sp_d1);   vt[17]=(void *)sp_d0;
     vt[31]=(void *)ov29_kill;
 }
 
@@ -433,6 +435,6 @@ extern "C" void hal_fill_wdw_water_vtable(void)
     void *volatile *vt = (void *volatile *)_ZTV19RotatingPlatformWdw;
     ov29_fill_shared(vt);
     vt[0]=(void *)ww_init; vt[3]=(void *)ww_clean; vt[6]=(void *)ww_beh;
-    vt[9]=(void *)ww_ren;  vt[16]=(void *)ww_d1;   vt[17]=(void *)ww_d0;
+    vt[9]=(void *)ww_ren;  vt[16]=(void *)PORT_D16(ww_d1);   vt[17]=(void *)ww_d0;
     vt[31]=(void *)ov29_kill;
 }

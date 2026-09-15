@@ -88,6 +88,8 @@
 // that ran after them would fix the sources and leave every live table holding
 // DS code addresses. Both sinits LINK (unlike ov045's 0x02112280, neither name
 // is contested at a shared window), so nothing here is hand-hosted.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -443,7 +445,7 @@ extern "C" void hal_fill_ccc_arena_vtable(void)
     vt[3]  = (void *)ccc_clean;
     vt[6]  = (void *)ccc_behavior;
     vt[9]  = (void *)ccc_render;
-    vt[16] = (void *)ccc_d1;
+    vt[16] = (void *)PORT_D16(ccc_d1);
     vt[17] = (void *)ccc_d0;
     vt[31] = (void *)ccc_kill;
 }
@@ -521,7 +523,7 @@ extern "C" void hal_fill_chief_chilly_vtable(void)
     vt[6]  = (void *)cc_behavior;
     vt[9]  = (void *)cc_render;
     vt[12] = (void *)cc_pdes;
-    vt[16] = (void *)cc_d1;
+    vt[16] = (void *)PORT_D16(cc_d1);
     vt[17] = (void *)cc_d0;
     vt[29] = (void *)cc_egg;
     /* 31 slots: no slot 31. See this file's header and port/ov073_syms.txt. */

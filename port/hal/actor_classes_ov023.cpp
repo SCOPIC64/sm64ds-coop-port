@@ -65,6 +65,8 @@
 // hal_fill_platform_vtable (the destructors install ov002 0x0210ae38 on the
 // way out and that array is zeroed storage until the fill runs), then ov023's
 // single sinit, which is all of them.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -290,7 +292,7 @@ extern "C" void hal_fill_squasher_vtable(void)
     vt[13] = (void *)ov23_trap13;
     vt[14] = (void *)ov23_trap14;
     vt[15] = (void *)ov23_heap;
-    vt[16] = (void *)sq_d1;
+    vt[16] = (void *)PORT_D16(sq_d1);
     vt[17] = (void *)sq_d0;
     vt[18] = (void *)ov23_yoshi;
     vt[19] = (void *)ov23_turn_egg;

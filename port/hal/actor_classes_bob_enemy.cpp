@@ -31,6 +31,8 @@
 // `this` in r1 while MSVC's __thiscall pushes sret on the stack behind ecx.
 // A thunk cannot bridge that without a shape the port has no caller for:
 // nothing aims a Yoshi egg at anything while the character is Mario.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -188,7 +190,7 @@ void ac31_fill_shared(void **vt)
     vt[13] = (void *)e31_trap13;
     vt[14] = (void *)e31_trap14;
     vt[15] = (void *)e31_heap;
-    vt[16] = (void *)e31_trap16;
+    vt[16] = (void *)PORT_D16(e31_trap16);
     vt[17] = (void *)e31_trap17;
     vt[18] = (void *)e31_yoshi;
     vt[19] = (void *)e31_turn_egg;
@@ -277,7 +279,7 @@ extern "C" void hal_fill_bob_omb_vtable(void)
     vt[3] = (void *)bmb_clean;
     vt[6] = (void *)bmb_behavior;
     vt[9] = (void *)bmb_render;
-    vt[16] = (void *)bmb_d1;
+    vt[16] = (void *)PORT_D16(bmb_d1);
     vt[17] = (void *)bmb_d0;
     vt[18] = (void *)bmb_yoshi;
     vt[19] = (void *)bmb_egg;
@@ -375,7 +377,7 @@ extern "C" void hal_fill_koopa_shell_vtable(void)
     vt[6] = (void *)ksh_behavior;
     vt[9] = (void *)ksh_render;
     vt[12] = (void *)ksh_pdes;
-    vt[16] = (void *)ksh_d1;
+    vt[16] = (void *)PORT_D16(ksh_d1);
     vt[17] = (void *)ksh_d0;
     /* slot 18 (OnYoshiTryEat) IS THE ROM'S OWN WORD NOW (gate 228). It stayed
        on the shared Actor default while _ZN10KoopaShell13OnYoshiTryEatEv was only a
@@ -457,7 +459,7 @@ extern "C" void hal_fill_goomba_vtable(void)
     vt[6] = (void *)gmb_behavior;
     vt[9] = (void *)gmb_render;
     vt[12] = (void *)gmb_pdes;
-    vt[16] = (void *)gmb_d1;
+    vt[16] = (void *)PORT_D16(gmb_d1);
     vt[17] = (void *)gmb_d0;
     vt[18] = (void *)gmb_yoshi;
     vt[19] = (void *)gmb_egg;
@@ -534,7 +536,7 @@ extern "C" void hal_fill_bob_omb_buddy_vtable(void)
     vt[3] = (void *)bbud_clean;
     vt[6] = (void *)bbud_behavior;
     vt[9] = (void *)bbud_render;
-    vt[16] = (void *)hal_cppd1_BobOmbBuddy;
+    vt[16] = (void *)PORT_D16(hal_cppd1_BobOmbBuddy);
     vt[17] = (void *)bbud_d0;
 }
 
@@ -616,7 +618,7 @@ extern "C" void hal_fill_chain_chomp_vtable(void)
     vt[3] = (void *)cc_clean;
     vt[6] = (void *)cc_behavior;
     vt[9] = (void *)cc_render;
-    vt[16] = (void *)cc_d1;
+    vt[16] = (void *)PORT_D16(cc_d1);
     vt[17] = (void *)cc_d0;
 }
 
@@ -646,7 +648,7 @@ extern "C" void hal_fill_chain_chomp_fence_vtable(void)
     vt[3] = (void *)ccf_clean;
     vt[6] = (void *)ccf_behavior;
     vt[9] = (void *)ccf_render;
-    vt[16] = (void *)ccf_d1;
+    vt[16] = (void *)PORT_D16(ccf_d1);
     vt[17] = (void *)ccf_d0;
     /* slot 31, the Platform tail; the fence does not override it. pile_kill is
        the same one-line forward to _ZN10dBgActor_c4KillEv the stump takes. */
@@ -741,7 +743,7 @@ extern "C" void hal_fill_stump_vtable(void)
     vt[3] = (void *)pile_clean;
     vt[6] = (void *)pile_behavior;
     vt[9] = (void *)pile_render;
-    vt[16] = (void *)pile_d1;
+    vt[16] = (void *)PORT_D16(pile_d1);
     vt[17] = (void *)pile_d0;      /* gate 228 */
     vt[21] = (void *)pile_pounded;
     vt[27] = (void *)pile_mega;
@@ -805,7 +807,7 @@ extern "C" void hal_fill_koopa_the_quick_vtable(void)
     vt[3] = (void *)ktq_clean;
     vt[6] = (void *)ktq_behavior;
     vt[9] = (void *)ktq_render;
-    vt[16] = (void *)ktq_d1;
+    vt[16] = (void *)PORT_D16(ktq_d1);
     vt[17] = (void *)ktq_d0;
 }
 
@@ -905,7 +907,7 @@ extern "C" void hal_fill_king_bob_omb_vtable(void)
     vt[6] = (void *)kbo_behavior;
     vt[9] = (void *)kbo_render;
     vt[12] = (void *)kbo_pdes;
-    vt[16] = (void *)kbo_d1;
+    vt[16] = (void *)PORT_D16(kbo_d1);
     vt[17] = (void *)kbo_d0;
     vt[29] = (void *)kbo_aimed;
 }
@@ -969,7 +971,7 @@ extern "C" void hal_fill_koopa_flag_vtable(void)
     vt[3] = (void *)kfl_clean;
     vt[6] = (void *)kfl_behavior;
     vt[9] = (void *)kfl_render;
-    vt[16] = (void *)hal_cppd1_KoopaFlag;
+    vt[16] = (void *)PORT_D16(hal_cppd1_KoopaFlag);
     vt[17] = (void *)kfl_d0;
 }
 

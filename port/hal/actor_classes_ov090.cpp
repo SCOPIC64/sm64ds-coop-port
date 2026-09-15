@@ -77,6 +77,8 @@
  * port_ov090_syms_patch() and the first __sinit_ov090_*. The
  * MrBlizzard/BabyPenguin/Unagi/HootTheOwl/Lakitu order.
  */
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -461,7 +463,7 @@ extern "C" void hal_fill_skeeter_vtable(void)
     vt[6]  = (void *)skt_behavior;
     vt[9]  = (void *)skt_render;
     vt[12] = (void *)skt_pdes;
-    vt[16] = (void *)skt_d1;
+    vt[16] = (void *)PORT_D16(skt_d1);
     vt[17] = (void *)skt_d0;
     vt[18] = (void *)skt_yoshi;
     vt[19] = (void *)skt_egg;
@@ -497,7 +499,7 @@ extern "C" void hal_fill_manta_ray_vtable(void)
     vt[6]  = (void *)mrp_behavior;
     vt[9]  = (void *)mrp_render;
     vt[12] = (void *)mrp_pdes;
-    vt[16] = (void *)mrp_d1;
+    vt[16] = (void *)PORT_D16(mrp_d1);
     vt[17] = (void *)mrp_d0;
 }
 
@@ -531,7 +533,7 @@ extern "C" void hal_fill_cheep_cheep_vtable(void)
     vt[6]  = (void *)chp_behavior;
     vt[9]  = (void *)chp_render;
     vt[12] = (void *)chp_pdes;
-    vt[16] = (void *)chp_d1;
+    vt[16] = (void *)PORT_D16(chp_d1);
     vt[17] = (void *)chp_d0;
 }
 
@@ -565,7 +567,7 @@ extern "C" void hal_fill_shark_vtable(void)
     vt[6]  = (void *)shk_behavior;
     vt[9]  = (void *)shk_render;
     vt[12] = (void *)shk_pdes;
-    vt[16] = (void *)shk_d1;
+    vt[16] = (void *)PORT_D16(shk_d1);
     vt[17] = (void *)shk_d0;
 }
 

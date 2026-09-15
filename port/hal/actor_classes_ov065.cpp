@@ -79,6 +79,8 @@
 // Hazy Maze Cave alone still does not run them.
 // THE HANDOFF: whoever next owns hal/actor_overlays.cpp should move the
 // bring-up body beside the ov013 block and cut the guard here to a call.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -418,7 +420,7 @@ extern "C" void hal_fill_snufit_vtable(void)
     vt[6]  = (void *)sn_behavior;
     vt[9]  = (void *)sn_render;
     vt[12] = (void *)sn_pdes;
-    vt[16] = (void *)sn_d1;
+    vt[16] = (void *)PORT_D16(sn_d1);
     vt[17] = (void *)sn_d0;
     vt[18] = (void *)sn_yoshi;
     vt[19] = (void *)sn_egg;
@@ -486,7 +488,7 @@ extern "C" void hal_fill_swoop_vtable(void)
     vt[6]  = (void *)sw_behavior;
     vt[9]  = (void *)sw_render;
     vt[12] = (void *)sw_pdes;
-    vt[16] = (void *)sw_d1;
+    vt[16] = (void *)PORT_D16(sw_d1);
     vt[17] = (void *)sw_d0;
     vt[18] = (void *)sw_yoshi;
     vt[19] = (void *)sw_egg;
@@ -538,7 +540,7 @@ extern "C" void hal_fill_dorrie_vtable(void)
     vt[3]  = (void *)do_clean;
     vt[6]  = (void *)do_behavior;
     vt[9]  = (void *)do_render;
-    vt[16] = (void *)do_d1;
+    vt[16] = (void *)PORT_D16(do_d1);
     vt[17] = (void *)do_d0;
 }
 
@@ -589,7 +591,7 @@ extern "C" void hal_fill_dorrie_cap_vtable(void)
     vt[3]  = (void *)dc_clean;
     vt[6]  = (void *)dc_behavior;
     vt[9]  = (void *)dc_render;
-    vt[16] = (void *)dc_d1;
+    vt[16] = (void *)PORT_D16(dc_d1);
     vt[17] = (void *)dc_d0;
     vt[18] = (void *)dc_yoshi;
     /* the ROM's own tail: word 31 stays 0, word 32 is the daDossy_c typeinfo
@@ -650,7 +652,7 @@ extern "C" void hal_fill_work_elevator_vtable(void)
     vt[3]  = (void *)we_clean;
     vt[6]  = (void *)we_behavior;
     vt[9]  = (void *)we_render;
-    vt[16] = (void *)we_d1;
+    vt[16] = (void *)PORT_D16(we_d1);
     vt[17] = (void *)we_d0;
     vt[31] = (void *)ov65_kill;
 }
@@ -701,7 +703,7 @@ extern "C" void hal_fill_rolling_rock_vtable(void)
     vt[3]  = (void *)rr_clean;
     vt[6]  = (void *)rr_behavior;
     vt[9]  = (void *)rr_render;
-    vt[16] = (void *)rr_d1;
+    vt[16] = (void *)PORT_D16(rr_d1);
     vt[17] = (void *)rr_d0;
     vt[29] = (void *)rr_aimed;
 }
@@ -757,7 +759,7 @@ extern "C" void hal_fill_shutter_hmc_vtable(void)
     vt[3]  = (void *)sh_clean;
     vt[6]  = (void *)sh_behavior;
     vt[9]  = (void *)sh_render;
-    vt[16] = (void *)sh_d1;
+    vt[16] = (void *)PORT_D16(sh_d1);
     vt[17] = (void *)sh_d0;
     vt[31] = (void *)ov65_kill;
 }
@@ -1202,7 +1204,7 @@ extern "C" void hal_fill_ct_rotate_block_vtable(void)
     vt[3]  = (void *)ctrb_clean;
     vt[6]  = (void *)ctrb_behavior;
     vt[9]  = (void *)ctrb_render;
-    vt[16] = (void *)ctrb_d1;
+    vt[16] = (void *)PORT_D16(ctrb_d1);
     vt[17] = (void *)ctrb_d0;
     vt[31] = (void *)ov65_kill;
 }
@@ -1230,7 +1232,7 @@ extern "C" void hal_fill_ct_mecha03_vtable(void)
     vt[3]  = (void *)m03_clean;
     vt[6]  = (void *)m03_behavior;
     vt[9]  = (void *)m03_render;
-    vt[16] = (void *)m03_d1;
+    vt[16] = (void *)PORT_D16(m03_d1);
     vt[17] = (void *)m03_d0;
     vt[31] = (void *)ov65_kill;
 }
@@ -1258,7 +1260,7 @@ extern "C" void hal_fill_ct_mecha04_vtable(void)
     vt[3]  = (void *)m04_clean;
     vt[6]  = (void *)m04_behavior;
     vt[9]  = (void *)m04_render;
-    vt[16] = (void *)m04_d1;
+    vt[16] = (void *)PORT_D16(m04_d1);
     vt[17] = (void *)m04_d0;
     vt[31] = (void *)ov65_kill;
 }
@@ -1286,7 +1288,7 @@ extern "C" void hal_fill_ct_mecha05_vtable(void)
     vt[3]  = (void *)m05_clean;
     vt[6]  = (void *)m05_behavior;
     vt[9]  = (void *)m05_render;
-    vt[16] = (void *)m05_d1;
+    vt[16] = (void *)PORT_D16(m05_d1);
     vt[17] = (void *)m05_d0;
     vt[31] = (void *)ov65_kill;
 }
@@ -1315,7 +1317,7 @@ extern "C" void hal_fill_ct_kaitendai_vtable(void)
     vt[3]  = (void *)kai_clean;
     vt[6]  = (void *)kai_behavior;
     vt[9]  = (void *)kai_render;
-    vt[16] = (void *)kai_d1;
+    vt[16] = (void *)PORT_D16(kai_d1);
     vt[17] = (void *)kai_d0;
     vt[31] = (void *)ov65_kill;
 }
@@ -1345,7 +1347,7 @@ extern "C" void hal_fill_ct_mecha08_vtable(void)
     vt[3]  = (void *)m08_clean;
     vt[6]  = (void *)m08_behavior;
     vt[9]  = (void *)m08_render;
-    vt[16] = (void *)m08_d1;
+    vt[16] = (void *)PORT_D16(m08_d1);
     vt[17] = (void *)m08_d0;
     vt[31] = (void *)ov65_kill;
 }
@@ -1375,7 +1377,7 @@ extern "C" void hal_fill_ct_mecha09_vtable(void)
     vt[3]  = (void *)m09_clean;
     vt[6]  = (void *)m09_behavior;
     vt[9]  = (void *)m09_render;
-    vt[16] = (void *)m09_d1;
+    vt[16] = (void *)PORT_D16(m09_d1);
     vt[17] = (void *)m09_d0;
     vt[31] = (void *)ov65_kill;
 }

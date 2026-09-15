@@ -66,6 +66,8 @@
 // table that seeds it, in hal/scene_mg_sound.cpp. Nothing here defines it now,
 // so this file no longer needs the dsstate_seg bracket.
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -265,7 +267,7 @@ extern "C" void hal_fill_spindrift_vtable(void)
     vt[3]  = (void *)spd_clean;
     vt[6]  = (void *)spd_behavior;
     vt[9]  = (void *)spd_render;
-    vt[16] = (void *)spd_d1;
+    vt[16] = (void *)PORT_D16(spd_d1);
     vt[17] = (void *)spd_d0;
     vt[18] = (void *)spd_yoshi;      /* own OnYoshiTryEat, overrides the shared default */
     vt[19] = (void *)spd_egg;        /* own OnTurnIntoEgg */
@@ -450,7 +452,7 @@ extern "C" void hal_fill_mr_blizzard_vtable(void)
     vt[6]  = (void *)mb_behavior;
     vt[9]  = (void *)mb_render;
     vt[12] = (void *)mb_pdes;        /* own OnPendingDestroy, NOT the shared default */
-    vt[16] = (void *)mb_d1;
+    vt[16] = (void *)PORT_D16(mb_d1);
     vt[17] = (void *)mb_d0;
     vt[29] = (void *)mb_aimed;       /* own OnAimedAtWithEgg */
     /* no vt[31]: 31 slots, ends at 30 */
@@ -513,7 +515,7 @@ extern "C" void hal_fill_ice_block_vtable(void)
     vt[3]  = (void *)icb_clean;
     vt[6]  = (void *)icb_behavior;
     vt[9]  = (void *)icb_render;
-    vt[16] = (void *)icb_d1;
+    vt[16] = (void *)PORT_D16(icb_d1);
     vt[17] = (void *)icb_d0;
     vt[27] = (void *)icb_mega;       /* own OnHitByMegaChar, overrides the shared default */
     vt[31] = (void *)icb_kill;       /* own Kill */
@@ -681,7 +683,7 @@ extern "C" void hal_fill_snowball_vtable(void)
     vt[6]  = (void *)sb_behavior;
     vt[9]  = (void *)sb_render;
     vt[12] = (void *)sb_pdes;        /* own OnPendingDestroy, NOT the shared default */
-    vt[16] = (void *)sb_d1;
+    vt[16] = (void *)PORT_D16(sb_d1);
     vt[17] = (void *)sb_d0;
 }
 
@@ -854,7 +856,7 @@ extern "C" void hal_fill_moneybag_vtable(void)
     vt[6]  = (void *)mn_behavior;
     vt[9]  = (void *)mn_render;
     vt[12] = (void *)mn_pdes;        /* own OnPendingDestroy, NOT the shared default */
-    vt[16] = (void *)hal_cppd1_Moneybag;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Moneybag);
     vt[17] = (void *)mn_d0;
     vt[18] = (void *)mn_yoshi;       /* own OnYoshiTryEat */
     vt[19] = (void *)mn_egg;         /* own OnTurnIntoEgg */

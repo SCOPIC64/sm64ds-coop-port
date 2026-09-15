@@ -122,6 +122,8 @@
  * Both orders below are read out of each sinit's own store offsets against its
  * own pool, instruction by instruction, not off the pool order alone.
  */
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -515,7 +517,7 @@ extern "C" void hal_fill_rotating_up_down_platform_lift_vtable(void)
     vt[3]  = (void *)lift_clean;
     vt[6]  = (void *)lift_behavior;
     vt[9]  = (void *)lift_render;
-    vt[16] = (void *)lift_d1;
+    vt[16] = (void *)PORT_D16(lift_d1);
     vt[17] = (void *)lift_d0;
     vt[31] = (void *)lift_kill;
 }
@@ -557,7 +559,7 @@ extern "C" void hal_fill_fwoosh_vtable(void)
     vt[6]  = (void *)fwo_behavior;
     vt[9]  = (void *)fwo_render;
     vt[12] = (void *)fwo_pdes;
-    vt[16] = (void *)fwo_d1;
+    vt[16] = (void *)PORT_D16(fwo_d1);
     vt[17] = (void *)fwo_d0;
     vt[18] = (void *)fwo_yoshi;
     vt[19] = (void *)fwo_egg;

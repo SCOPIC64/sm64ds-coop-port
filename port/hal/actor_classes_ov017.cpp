@@ -76,6 +76,8 @@
 // seated id 13 the way this paragraph asked for (a per-symbol ov064 class
 // mount, port/ov064_syms.txt's wave-3 block), so the walk now finds the level's
 // one chest and the gate is a real test again.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -291,7 +293,7 @@ extern "C" void hal_fill_ship_water_vtable(void)
     vt[13] = (void *)ov17_trap13;
     vt[14] = (void *)ov17_trap14;
     vt[15] = (void *)ov17_heap;
-    vt[16] = (void *)sw_d1;
+    vt[16] = (void *)PORT_D16(sw_d1);
     vt[17] = (void *)sw_d0;
     vt[18] = (void *)ov17_yoshi;
     vt[19] = (void *)ov17_turn_egg;

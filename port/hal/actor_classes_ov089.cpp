@@ -59,6 +59,8 @@
 // src and links: Init/Behavior/Cleanup are real C++ methods against Key.h and
 // get C-name faces at the bottom of this file; D1/D0 and the two slot-18/19
 // bodies are .c and are callable directly.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -290,7 +292,7 @@ extern "C" void hal_fill_key_vtable(void)
     vt[3]  = (void *)key_clean;
     vt[6]  = (void *)key_behavior;
     vt[9]  = (void *)key_render;
-    vt[16] = (void *)key_d1;
+    vt[16] = (void *)PORT_D16(key_d1);
     vt[17] = (void *)key_d0;
     vt[18] = (void *)key_yoshi;
     vt[19] = (void *)key_turn_egg;

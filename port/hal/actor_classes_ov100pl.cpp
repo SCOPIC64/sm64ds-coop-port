@@ -134,6 +134,8 @@
 //          _ZTV22RotatingUpDownPlatform at ov091 0x02134ec0, which is a
 //          DIFFERENT table from gate 73's Utm one at 0x02134c5c. See
 //          hal/actor_classes_ov091.cpp.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -439,7 +441,7 @@ static void pl_bringup(void)
     vt[3]  = (void *)pl_base_trap3;
     vt[6]  = (void *)pl_base_trap6;
     vt[9]  = (void *)pl_base_trap9;
-    vt[16] = (void *)plb_d2;
+    vt[16] = (void *)PORT_D16(plb_d2);
     vt[17] = (void *)plb_d0;
 }
 
@@ -475,6 +477,6 @@ extern "C" void hal_fill_path_lift_vtable(void)
     vt[3]  = (void *)pl_clean;
     vt[6]  = (void *)pl_behavior;
     vt[9]  = (void *)pl_render;
-    vt[16] = (void *)pl_d1;
+    vt[16] = (void *)PORT_D16(pl_d1);
     vt[17] = (void *)pl_d0;
 }

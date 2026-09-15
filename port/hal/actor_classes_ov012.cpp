@@ -13,6 +13,8 @@
 // with the shared _ZTV10dBgActor_c teardown placeholder, the ShipUp/
 // RockPillar/SkiLift shape) -- dropped from slice_gate199.txt, byte-locked
 // matched-src proof only.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -269,7 +271,7 @@ extern "C" void hal_fill_switch_pillar_vtable(void)
     vt[3]  = (void *)sp_clean;
     vt[6]  = (void *)sp_behavior;
     vt[9]  = (void *)sp_render;
-    vt[16] = (void *)sp_d1;
+    vt[16] = (void *)PORT_D16(sp_d1);
     vt[17] = (void *)sp_d0;
     vt[21] = (void *)sp_pounded;   /* own OnGroundPounded, overrides the shared default */
 }
@@ -309,7 +311,7 @@ extern "C" void hal_fill_basement_water_vtable(void)
     vt[3]  = (void *)bw_clean;
     vt[6]  = (void *)bw_behavior;
     vt[9]  = (void *)bw_render;
-    vt[16] = (void *)bw_d1;
+    vt[16] = (void *)PORT_D16(bw_d1);
     vt[17] = (void *)bw_d0;
     /* no slot 21 override: BasementWater uses the shared default */
 }

@@ -73,6 +73,8 @@
 // reason that file records: everything the pass writes lives in .dsstate and a
 // restore rolls it back, so the guard has to roll back with it.
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -318,7 +320,7 @@ extern "C" void hal_fill_spindel_vtable(void)
     vt[3]  = (void *)sp_clean;
     vt[6]  = (void *)sp_behavior;
     vt[9]  = (void *)sp_render;
-    vt[16] = (void *)sp_d1;
+    vt[16] = (void *)PORT_D16(sp_d1);
     vt[17] = (void *)sp_d0;
     vt[31] = (void *)ov25e_kill;
 }
@@ -360,7 +362,7 @@ extern "C" void hal_fill_grindel_vtable(void)
     vt[3]  = (void *)gr_clean;
     vt[6]  = (void *)gr_behavior;
     vt[9]  = (void *)gr_render;
-    vt[16] = (void *)gr_d1;
+    vt[16] = (void *)PORT_D16(gr_d1);
     vt[17] = (void *)gr_d0;
     vt[29] = (void *)gr_egg;
     vt[31] = (void *)ov25e_kill;

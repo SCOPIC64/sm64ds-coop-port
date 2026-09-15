@@ -331,6 +331,8 @@
 // redefined. It lives here rather than in cxx_aliases.cpp only because this
 // lane owns this file and not that one; it belongs in cxx_aliases.cpp with the
 // rest of the family whenever a change that owns that file passes through.
+#include "port_d16.h"
+
 #pragma comment(linker, \
     "/alternatename:__ZN3G3X13SetClearColorEtiiib=?SetClearColor@G3X@@SAXGHHH_N@Z")
 
@@ -414,7 +416,7 @@ extern "C" void hal_seat_w2_dtor_heads(void)
     _ZTV8dScene_c[8] = (void *)scene_after_behavior;
     _ZTV8dScene_c[10] = (void *)scene_before_render;
     _ZTV8dScene_c[11] = (void *)scene_after_render;
-    _ZTV8dScene_c[16] = (void *)scene_d1;
+    _ZTV8dScene_c[16] = (void *)PORT_D16(scene_d1);
     _ZTV8dScene_c[17] = (void *)scene_d0;
 }
 

@@ -53,6 +53,8 @@
 // lane-ownership pattern, behind one DSSTATE-bracketed done-guard: the pack
 // check, the syms patch, the overlay's single sinit, then the cell seat.
 // hal_fill_platform_vtable is NOT called -- nothing here is a Platform.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -396,7 +398,7 @@ extern "C" void hal_fill_mirror_luigi_vtable(void)
     vt[6]  = (void *)ml_behavior;
     vt[9]  = (void *)ml_render;
     vt[12] = (void *)ml_pdes;   /* own body, overrides ActorBase's default */
-    vt[16] = (void *)ml_d1;
+    vt[16] = (void *)PORT_D16(ml_d1);
     vt[17] = (void *)ml_d0;
     /* no slot 31: a plain Actor, 31 slots total, ends at 30. */
 }
