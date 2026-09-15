@@ -6677,6 +6677,29 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN20cMgSmartball_dokan_c12SaveSnapshotEv.cpp"
     PROPERTIES LANGUAGE CXX)
 
+# Run link100 lane CRASH2: THE FADER SLOT SHIFT, FIXED AT THE ONE CALL SITE
+# WHERE IT CORRUPTS A FRAME. Same /FI mechanism as the block above, and for the
+# same kind of reason. include/Fader.h declares its destructor first; mwccarm
+# gives that destructor two vtable slots and MSVC gives it one, so a host build
+# of dScene_c::SetFaders dispatches IsAtStart, IsAtEnd, SetToEnd and SetToStart
+# at slots 4, 5, 7 and 8 while every fader table the port seats is ROM-shaped
+# and keeps them at 5, 6, 8 and 9. Landing one slot low on a NO-ARGUMENT slot is
+# only a wrong answer; landing on SetForwardTime, which takes two ints and ends
+# `ret 8`, pops eight bytes of the caller's frame. Measured in the shipped
+# artifact: SetFaders returns into st_binit's tail instead of to its caller,
+# dScene_c::ResetFadersAndSound never reaches its `mov al, 1`, Stage's vtable
+# slot 1 answers 0, the init dispatcher skips slot 0 which is the level boot,
+# and port_stage_a_boot hands port/tests/walk_window.cpp:8335 a null on frame
+# one. unmatched/Fader_HostAbi.h carries the whole reading.
+#
+# /FI is a FLAG rather than an include-path entry for the reason the block above
+# gives: CMake emits <INCLUDES> before <FLAGS>, so a /I here would lose to
+# include/ and the shadow would silently not happen.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN8dScene_c9SetFadersEP15FaderBrightness.cpp"
+    PROPERTIES COMPILE_OPTIONS
+    "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Fader_HostAbi.h")
+
 # Run mg5 lane CCN: THE SECOND SEATED MINIGAME CLASS, dScMgCoin_c
 # (Coincentration), actor id 0x17a = scene 378. The ROM's own RTTI at
 # 0x0213bf24 reads "11dScMgCoin_c" and its vtable is data_ov006_0213bf50, both
