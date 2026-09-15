@@ -255,11 +255,31 @@ __ZN11CrazedCrate16OnPendingDestroyEv                                    ?OnPend
 
 __ZN14CutsceneObject16OnPendingDestroyEv                                 ?OnPendingDestroy@CutsceneObject@@UAEXXZ                         0x020f80a8 R
 
-__ZN10DonutBlock13InitResourcesEv                                        ?InitResources@DonutBlock@@UAEHXZ                                0x02111bb8 F
-__ZN10DonutBlock16CleanupResourcesEv                                     ?CleanupResources@DonutBlock@@UAEHXZ                             0x021119e8 F
+# RETIRED at FACEFIX 2026-09-14: the four matched bodies (src/_ZN10DonutBlock13InitResourcesEv.cpp
+# and siblings) were in NO SLICE, so nothing defined this member and this row's
+# forwarder and hal/actor_classes_ov036.cpp's flat face called each other with no
+# exit (stack overflow at 00415870, CRASH4's fifth defect). The four TUs are in
+# port/slice_ov036cast.txt now, so the ROM's own body owns the member.
+#__ZN10DonutBlock13InitResourcesEv                                        ?InitResources@DonutBlock@@UAEHXZ                                0x02111bb8 F
+# RETIRED at FACEFIX 2026-09-14: the four matched bodies (src/_ZN10DonutBlock13InitResourcesEv.cpp
+# and siblings) were in NO SLICE, so nothing defined this member and this row's
+# forwarder and hal/actor_classes_ov036.cpp's flat face called each other with no
+# exit (stack overflow at 00415870, CRASH4's fifth defect). The four TUs are in
+# port/slice_ov036cast.txt now, so the ROM's own body owns the member.
+#__ZN10DonutBlock16CleanupResourcesEv                                     ?CleanupResources@DonutBlock@@UAEHXZ                             0x021119e8 F
 __ZN10DonutBlock16OnPendingDestroyEv                                     ?OnPendingDestroy@DonutBlock@@UAEXXZ                             0x02111a2c R
-__ZN10DonutBlock6RenderEv                                                ?Render@DonutBlock@@UAEHXZ                                       0x02111a30 F
-__ZN10DonutBlock8BehaviorEv                                              ?Behavior@DonutBlock@@UAEHXZ                                     0x02111a64 F
+# RETIRED at FACEFIX 2026-09-14: the four matched bodies (src/_ZN10DonutBlock13InitResourcesEv.cpp
+# and siblings) were in NO SLICE, so nothing defined this member and this row's
+# forwarder and hal/actor_classes_ov036.cpp's flat face called each other with no
+# exit (stack overflow at 00415870, CRASH4's fifth defect). The four TUs are in
+# port/slice_ov036cast.txt now, so the ROM's own body owns the member.
+#__ZN10DonutBlock6RenderEv                                                ?Render@DonutBlock@@UAEHXZ                                       0x02111a30 F
+# RETIRED at FACEFIX 2026-09-14: the four matched bodies (src/_ZN10DonutBlock13InitResourcesEv.cpp
+# and siblings) were in NO SLICE, so nothing defined this member and this row's
+# forwarder and hal/actor_classes_ov036.cpp's flat face called each other with no
+# exit (stack overflow at 00415870, CRASH4's fifth defect). The four TUs are in
+# port/slice_ov036cast.txt now, so the ROM's own body owns the member.
+#__ZN10DonutBlock8BehaviorEv                                              ?Behavior@DonutBlock@@UAEHXZ                                     0x02111a64 F
 __ZN10DonutBlockD1Ev                                                     ??1DonutBlock@@UAE@XZ                                            0x0211193c R
 
 __ZN4Door13InitResourcesEv                                               ?InitResources@Door@@UAEHXZ                                      0x021455a0 F
@@ -571,7 +591,13 @@ __ZN6Player13InitResourcesEv                                             ?InitRe
 # for real and the generated face was the second one. Measured as an LNK2005
 # row against faces_sync_gen.cpp.obj in build_s2.log.
 #__ZN6Player15IsEnteringLevelEv                                           ?IsEnteringLevel@Player@@QAEHXZ                                  0x020c7e84 F
-__ZN6Player15JumpIntoBooCageER7Vector3                                   ?JumpIntoBooCage@Player@@QAEXAAUVector3@@@Z                      0x020ca2ac R
+# CORRECTED at FACEFIX 2026-09-14: the decorated column named QAEX, the VOID
+# returning caller shadow that port/unmatched/Bbh_MethodFaces.cpp defines as a
+# FACE, not a ROM body, so this row's face and that face called each other with no
+# exit. The real member is include/Player.h:510 `int JumpIntoBooCage(Vector3 &)`,
+# which decorates QAEH; /OPT:REF had dropped it because nothing referenced it.
+# Itanium names carry no return type, so the join could not tell the two apart.
+__ZN6Player15JumpIntoBooCageER7Vector3                                   ?JumpIntoBooCage@Player@@QAEHAAUVector3@@@Z                      0x020ca2ac R
 __ZN6Player15St_Respawn_InitEv                                           ?St_Respawn_Init@Player@@QAEHXZ                                  0x020c4088 R
 __ZN6Player15St_Talk_CleanupEv                                           ?St_Talk_Cleanup@Player@@QAEHXZ                                  0x020c4760 R
 # RETIRED at SYNC6: the class translation unit that owns this body is back in
@@ -3066,8 +3092,18 @@ __ZN14dScMgD3DBase_c9Virtual84Ev                                         ?Virtua
 # with this retirement: the flat ROM name stays defined by that host copy on
 # port/slice_w5c.txt, which the seat does not collide with, so no row returns.
 #__ZN8dActor_c23HorzAngleToCPlayerOrAngEv                                 ?HorzAngleToCPlayerOrAng@dActor_c@@QAEFXZ                        0x0201097c F
-__ZN8SaveData16SetDefaultValuesEP12FileSaveData                          ?SetDefaultValues@SaveData@@QAEXPAUFileSaveData@@@Z              0x02013dc4 F
-__ZN8SaveData18SetDefaultValuesMgEP16MinigameSaveData                    ?SetDefaultValuesMg@SaveData@@QAEXPAUMinigameSaveData@@@Z        0x02013c5c F
+# RETIRED at FACEFIX 2026-09-14: include/SaveData.h:50-51 declares this STATIC and
+# the real body is in the link decorated SA (00436dd0 / 00436e00). The QAE member
+# this row forwards to only ever existed because port/hal/scene_boot.cpp modelled a
+# static as an instance method; that shadow is spelled static now, so the flat face
+# reaches the ROM body directly and this forwarder would only close a loop.
+#__ZN8SaveData16SetDefaultValuesEP12FileSaveData                          ?SetDefaultValues@SaveData@@QAEXPAUFileSaveData@@@Z              0x02013dc4 F
+# RETIRED at FACEFIX 2026-09-14: include/SaveData.h:50-51 declares this STATIC and
+# the real body is in the link decorated SA (00436dd0 / 00436e00). The QAE member
+# this row forwards to only ever existed because port/hal/scene_boot.cpp modelled a
+# static as an instance method; that shadow is spelled static now, so the flat face
+# reaches the ROM body directly and this forwarder would only close a loop.
+#__ZN8SaveData18SetDefaultValuesMgEP16MinigameSaveData                    ?SetDefaultValuesMg@SaveData@@QAEXPAUMinigameSaveData@@@Z        0x02013c5c F
 
 # 4. The two F rows lane DTORS-A asked for. Its 192 inline-in-header forwarders
 #    struck three rows off (__ZN4ToadD0Ev, __ZN8daTree_cD0Ev, __ZN8daTree_cD1Ev)

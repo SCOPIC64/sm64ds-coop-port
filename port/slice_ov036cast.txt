@@ -60,6 +60,21 @@ src/game/actors/d_a_obj_rc_hane.cpp
 # shadow over the plain Model at +0xd4 -- SAFE (dual-filled _ZTV5Model).
 src/game/actors/d_a_obj_rc_guruguru.cpp
 src/_ZN10DonutBlock16OnPendingDestroyEv.cpp
+# FACEFIX 2026-09-14: DONUT_BLOCK's OWN FOUR VIRTUALS WERE IN NO SLICE, and the
+# hole was invisible because two forwarders filled it. Nothing in the link
+# defined ?InitResources/?CleanupResources/?Render/?Behavior@DonutBlock@@UAEHXZ,
+# so the generated ledger forwarder (port/faces_sync.txt, four F rows, now
+# retired) and hal/actor_classes_ov036.cpp's flat faces at lines 881-888 called
+# each other with no exit. The process died of stack exhaustion at 00415870 on
+# the first Render of level 28 (CRASH4's fifth defect, c00000fd with esp on the
+# guard page and thirty-two identical return words). These four are the ROM's
+# own matched bodies against include/DonutBlock.h, the same shape the block's
+# OnPendingDestroy above already takes, and with them in the slice the flat
+# faces forward to real code.
+src/_ZN10DonutBlock13InitResourcesEv.cpp
+src/_ZN10DonutBlock16CleanupResourcesEv.cpp
+src/_ZN10DonutBlock6RenderEv.cpp
+src/_ZN10DonutBlock8BehaviorEv.cpp
 src/func_ov036_02111ca4.cpp
 src/func_ov036_02111cc4.c
 src/d_a_obj_rc_tikuwa.c

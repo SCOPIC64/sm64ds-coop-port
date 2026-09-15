@@ -269,8 +269,20 @@ void Scene::StartSceneFade(unsigned, unsigned, unsigned short) {}
    bodies, carried by slice_gate29.txt over a real SysTracker; the
    MSVC-mangled C++ faces are aliased onto them in hal/cxx_aliases.cpp. */
 
+/* FACEFIX 2026-09-14: THIS FACE USED TO CALL ANOTHER FACE. It spelled the
+   receiver as this file's own RaycastLine shadow, whose DetectClsn is declared
+   at line 64 and defined nowhere here, so hal/faces4_rows.cpp:131 supplied it --
+   and that definition forwards straight back to this flat name. Face calls face,
+   no exit. The REAL matched body is in the link the whole time, decorated
+   ?DetectClsn@dBgCh_Lin@@QAE_NXZ at 004cd200 out of
+   src/_ZN9dBgCh_Lin10DetectClsnEv.cpp.obj: class dBgCh_Lin, __thiscall, BOOL
+   return, no parameters. Spelling the shadow with the ROM's own class name and
+   the ROM's own return type lands on it. faces4_rows' row is left alone on
+   purpose: with this face reaching real code, RaycastLine::DetectClsn becomes an
+   ordinary terminating two-hop forwarder for whatever still spells it that way. */
+struct dBgCh_Lin { bool DetectClsn(); };
 extern "C" int _ZN9dBgCh_Lin10DetectClsnEv(void *self)
-{ return ((RaycastLine *)self)->DetectClsn(); }
+{ return ((dBgCh_Lin *)self)->dBgCh_Lin::DetectClsn() ? 1 : 0; }
 extern "C" int _ZNK10dBgCh_Actr13GetWallResultEv(const void *self)
 { return ((const WithMeshClsn *)self)->GetWallResult(); }
 extern "C" int _ZNK10dBgCh_Actr14GetFloorResultEv(const void *self)
@@ -355,10 +367,24 @@ extern "C" void *_ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii(
 }
 */
 
-/* shadow-defined in their own TUs (struct CylinderClsn / struct Camera) */
+/* FACEFIX 2026-09-14: THIS FACE USED TO CALL ANOTHER FACE, same shape as the
+   dBgCh_Lin row above and with a much wider blast radius. It spelled the
+   receiver as this file's `struct Actor` shadow, so it bound
+   ?UpdatePosWithOnlySpeed@Actor@@QAEXPAUdCc_c@@@Z, which is defined by
+   port/unmatched/KnockDownPlank_Behavior.cpp:94 (reached through the
+   /alternatename in hal/cxx_aliases.cpp:3006) and forwards straight back here.
+   Every flat caller of this name was therefore in an unbounded loop, and there
+   are many: HootTheOwl and Klepto's state dispatch, Bullet, KingBobOmb.
+   The REAL matched body is linked as ?UpdatePosWithOnlySpeed@dActor_c@@-
+   QAEXPAUdCc_c@@@Z at 004cd5d0 out of
+   src/_ZN8dActor_c22UpdatePosWithOnlySpeedEP5dCc_c.cpp.obj. Spelling the shadow
+   with the ROM's own class name lands on it; KnockDownPlank's face stays and
+   becomes an ordinary terminating two-hop forwarder for func_ov015_02111d98's
+   own `struct Actor` spelling. */
+struct dActor_c { void UpdatePosWithOnlySpeed(dCc_c *c); };
 extern "C" void _ZN8dActor_c22UpdatePosWithOnlySpeedEP5dCc_c(void *self,
                                                                   void *cl)
-{ ((Actor *)self)->UpdatePosWithOnlySpeed((dCc_c *)cl); }
+{ ((dActor_c *)self)->dActor_c::UpdatePosWithOnlySpeed((dCc_c *)cl); }
 struct Camera { void SetFlag_3(); };
 extern "C" void _ZN6Camera9SetFlag_3Ev(void *self)
 { ((Camera *)self)->SetFlag_3(); }

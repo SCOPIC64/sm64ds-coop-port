@@ -2772,19 +2772,36 @@ extern "C" void _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3(void *thiz,
 //     top of these faces does not silently win, it defeats the alias, and
 //     port/tools/alternatename_guard.py refuses a defeated pair that is not in
 //     its baseline. That is the signal, and it needs no marker of its own.
+//     CORRECTED BY LANE FACEFIX, 2026-09-14, AND EVERY PARAGRAPH ABOVE FROM
+//     "THE RECEIVER IS THE BUFFER" DOWN IS A STALE MEASUREMENT kept only as
+//     the record of what was believed. Both bodies are STATIC now:
+//     include/SaveData.h:50-51 declares them static, the map decorates them SA
+//     (?SetDefaultValues@SaveData@@SAXPAUFileSaveData@@@Z at 00436dd0, the Mg
+//     sibling at 00436e00), and the shipped bytes open push ebp / mov ebp,esp /
+//     push esi / mov esi,[ebp+8] and let the CALLER clean (add esp,0xc). There
+//     is no mov esi,ecx and no ret 4. The one pointer is the PARAMETER.
+//
+//     WHAT THE STALE SHADOW COST. Declaring these two non-static here made the
+//     qualified call mangle QAE, so it bound to the generated thiscall
+//     forwarder in build/port/host-src/faces_sync_gen.cpp (ledger rows 3069 and
+//     3070, both F), whose body calls this flat name straight back. Face calls
+//     forwarder calls face, no exit and no diagnostic, while the real matched
+//     static sat in the link unreached. Those two ledger rows are retired in
+//     the same change. Spelled static, the qualified call decorates SA and
+//     lands on the ROM's own body.
 struct FileSaveData;
 struct MinigameSaveData;
 struct SaveData {
-    void SetDefaultValues(FileSaveData *fsd);
-    void SetDefaultValuesMg(MinigameSaveData *mg);
+    static void SetDefaultValues(FileSaveData *fsd);
+    static void SetDefaultValuesMg(MinigameSaveData *mg);
 };
 extern "C" void _ZN8SaveData16SetDefaultValuesEP12FileSaveData(void *blk)
 {
-    ((SaveData *)blk)->SaveData::SetDefaultValues((FileSaveData *)blk);
+    SaveData::SetDefaultValues((FileSaveData *)blk);
 }
 extern "C" void _ZN8SaveData18SetDefaultValuesMgEP16MinigameSaveData(void *blk)
 {
-    ((SaveData *)blk)->SaveData::SetDefaultValuesMg((MinigameSaveData *)blk);
+    SaveData::SetDefaultValuesMg((MinigameSaveData *)blk);
 }
 //     THE THIRD OF THE FAMILY STAYS A DIRECTIVE AND THAT IS NOT AN OVERSIGHT.
 //     SaveData::SaveFile decorates SA, not QAE: a STATIC member, which MSVC
