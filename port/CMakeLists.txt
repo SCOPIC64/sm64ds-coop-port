@@ -6869,6 +6869,117 @@ foreach(_qb_rel IN LISTS PORT_QUESTIONBLOCK_HOSTABI_SOURCES)
         "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/QuestionBlock_HostAbi.h")
 endforeach()
 
+# ===========================================================================
+# Run link100 lane CRASH9: THE dBgW VTABLE IS THE ROM'S SHAPE, NOT MSVC'S.
+# ===========================================================================
+#
+# Same /FI mechanism as the four blocks above, but this one fixes a vtable
+# SHAPE rather than a field offset. It moves no field: a virtual adds no data
+# member and the vptr is already there, so sizeof(dBgW) stays 0x20.
+#
+# THE CARTRIDGE'S TABLE HAS THIRTEEN SLOTS. Read out of extracted/arm9_dec.bin
+# at base 0x02004000 (NOT 0x02000000 -- at 0x02000000 those words disassemble
+# as ARM instructions and a tool that assumes it silently reads the wrong
+# function), _ZTV7dBgW_Kc at arm9 0x020993dc, every slot resolving to a named
+# ROM symbol out of config/arm9/symbols.txt:
+#
+#     0 _ZN7dBgW_KcD1Ev        1 _ZN7dBgW_KcD0Ev      2 _ZN7dBgW_Kc9Virtual08Ev
+#     3 GetSurfaceInfo [itcm]  4 GetNormal [itcm]     5 GetTriangleOrigin [itcm]
+#     6 +0x18 _ZN7dBgW_Kc10DetectClsnER9dBgCh_Gnd
+#     7 +0x1c _ZN7dBgW_Kc10DetectClsnER9dBgCh_Lin
+#     8 +0x20 _ZN7dBgW_Kc10DetectClsnER12dBgCh_SphCrr
+#     9 BeforeClsn  10 TransformPos  11 GetAngularVelY  12 GetVelocity
+#
+# _ZTV4dBgW, _ZTV10dBgW_KcMbg and _ZTV14dBgW_KcMbgSclY are the same shape.
+# include/dBgW.h records exactly this map and says "vtable, in ROM order. Do
+# not reorder."
+#
+# MSVC BUILT TWELVE SLOTS AND PUT Lin AT +0x18, for two independent reasons
+# that hal/clsn_vtable.cpp already records in writing:
+#   - it spends ONE slot on the destructor where the ROM's Itanium layout
+#     spends two (D1 then D0), so everything below shifts up one;
+#   - it emits a run of ADJACENT same-name overloads in REVERSE declaration
+#     order, so Gnd/Lin/SphCrr came out SphCrr/Lin/Gnd.
+# Measured in the shipped artifact, ??_7dBgW_Kc@@6B@ at 0072b7c0:
+#     slot 5 +0x14 ?DetectClsn@dBgW_Kc@@UAEHAAUdBgCh_SphCrr@@@Z
+#     slot 6 +0x18 ?DetectClsn@dBgW_Kc@@UAEHAAUdBgCh_Lin@@@Z
+#     slot 7 +0x1c ?DetectClsn@dBgW_Kc@@UAEHAAUdBgCh_Gnd@@@Z
+# and independently by cl /d1reportSingleClassLayoutdBgW_Kc.
+#
+# TWELVE CALL SITES IN THE LINK DISPATCH THESE BY ROM INDEX, through
+# hand-written opaque stand-ins rather than through the real class -- e.g.
+# src/_ZN9dBgCh_Gnd10DetectClsnEv.cpp's
+#     struct ClsnActor { virtual int v0(); ... virtual int v6(void *); };
+#     if (obj->v6(this) != 0)                            /* vtable + 0x18 */
+# with five siblings at +0x18/+0x1c/+0x20 (func_02038ea4, func_0203842c,
+# func_0203859c, func_02038824, func_02038a38) and one at +0x24 for BeforeClsn
+# (func_02038324). So a GROUND raycast was reaching DetectClsn(dBgCh_Lin &).
+# That body reads the object as a dBgCh_Lin, 0x68 bytes against dBgCh_Gnd's
+# 0x50, and _func_020375ec copies a Vector3 into it at +0x54/+0x58/+0x5c.
+# SignPost::InitResources keeps its dBgCh_Gnd at ebp-0x6c and its stack cookie
+# at ebp-0x10, which IS ray+0x5c, so the third store landed on the cookie and
+# Windows killed the process with STATUS_STACK_BUFFER_OVERRUN (0xc0000409)
+# before castle grounds finished spawning its objects. Caught with a hardware
+# write watchpoint on the cookie, not inferred: out/CRASH9/probe1_watch_cookie.log.
+#
+# THE OTHER DIRECTION COSTS NOTHING. The only three REAL C++ virtual calls into
+# a dBgW slot anywhere in src/ or port/ are GetSurfaceInfo, GetNormal and
+# GetVelocity, and they are recompiled against this same declaration, so they
+# move to slots 3, 4 and 12 -- exactly where the cartridge carries them. Every
+# consumer lands right and none is traded against another. There are no real
+# C++ virtual DetectClsn calls at all.
+#
+# PROVED IN AN OBJECT BEFORE A BUILD SLOT WAS SPENT, by dumping the emitted
+# vftable COMDAT's relocations from src/_ZN7dBgW_KcC1Ev.cpp compiled both ways
+# (tmp/crash9/vtprove.cmd; MSVC puts ??_R4 at offset 0, so slot N is at
+# offset 4 + 4N):
+#     WITHOUT  13 entries, slot 5 SphCrr, slot 6 Lin,  slot 7 Gnd
+#     WITH     14 entries, slot 6 Gnd,    slot 7 Lin,  slot 8 SphCrr
+# which is the cartridge's table slot for slot.
+#
+# THE ROW SET is every translation unit that can EMIT one of these four
+# vftables plus every one that DISPATCHES a dBgW virtual. MSVC emits the
+# vftable COMDAT where the vptr is stored, which is the constructor and
+# destructor translation units, so all seventeen of those are listed even
+# though today's map shows only the four C1/C2 objects defining a table: a row
+# that never emits one is inert, and a missing row would let a stale twelve-slot
+# COMDAT win the link silently. The last three are the real-virtual-call sites.
+#
+# APPEND, NEVER SET -- the rule the block above and the DSSTATE FORCE-INCLUDE
+# block at the end of this file both state. COMPILE_OPTIONS is one property and
+# set_source_files_properties REPLACES it.
+set(PORT_DBGW_HOSTABI_SOURCES
+    src/_ZN4dBgWC2Ev.cpp
+    src/_ZN4dBgWD0Ev.cpp
+    src/_ZN4dBgWD1Ev.cpp
+    src/_ZN4dBgWD2Ev.cpp
+    src/_ZN7dBgW_KcC1Ev.cpp
+    src/_ZN7dBgW_KcC2Ev.cpp
+    src/_ZN7dBgW_KcD0Ev.cpp
+    src/_ZN7dBgW_KcD1Ev.cpp
+    src/_ZN7dBgW_KcD2Ev.cpp
+    src/_ZN10dBgW_KcMbgC1Ev.cpp
+    src/_ZN10dBgW_KcMbgC2Ev.cpp
+    src/_ZN10dBgW_KcMbgD0Ev.cpp
+    src/_ZN10dBgW_KcMbgD1Ev.cpp
+    src/_ZN10dBgW_KcMbgD2Ev.cpp
+    src/_ZN14dBgW_KcMbgSclYC1Ev.cpp
+    src/_ZN14dBgW_KcMbgSclYD0Ev.cpp
+    src/_ZN14dBgW_KcMbgSclYD1Ev.cpp
+    src/_ZN7dBgW_Kc10DetectClsnER9dBgCh_Gnd.cpp
+    src/_ZN7dBgW_Kc14GetSurfaceInfoEsR11SurfaceInfo.cpp
+    src/_ZN10dBgW_KcMbg9TransformERK9Matrix4x3s.cpp
+    )
+foreach(_dbgw_rel IN LISTS PORT_DBGW_HOSTABI_SOURCES)
+    if(NOT EXISTS "${PORT_REPO_ROOT_ABS}/${_dbgw_rel}")
+        message(FATAL_ERROR "dBgW host-ABI row names a source that "
+                "does not exist: ${_dbgw_rel}")
+    endif()
+    set_property(SOURCE "${PORT_REPO_ROOT_ABS}/${_dbgw_rel}"
+        APPEND PROPERTY COMPILE_OPTIONS
+        "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/dBgW_HostAbi.h")
+endforeach()
+
 # Run mg5 lane CCN: THE SECOND SEATED MINIGAME CLASS, dScMgCoin_c
 # (Coincentration), actor id 0x17a = scene 378. The ROM's own RTTI at
 # 0x0213bf24 reads "11dScMgCoin_c" and its vtable is data_ov006_0213bf50, both
