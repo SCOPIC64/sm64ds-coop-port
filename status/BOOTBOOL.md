@@ -1,0 +1,6 @@
+# lane BOOTBOOL (status)
+
+[20:42] done: read 4 briefs, branch port/l7-bootbool created off 796bd5dc8 | next: read the four source files + CRASH1 evidence | blocked: -
+[20:44] done: read CRASH1 status + the 4 source files + dScene_c.h; found callers by grep (src, src_tu/scene/Scene.cpp, port/hal x3, port/faces_sync.txt row 1626) | next: BASELINE linkcheck on the 4 rows before any edit | blocked: -
+[20:47] done: BASELINE all green where it matters: linkcheck VERIFIED on all 4 rows (Stage::BeforeInitResources 0x0202ddc8, dScene_c::ResetFadersAndSound 0x0202e66c, dScene_c::BeforeInitResources 0x0202e638, dScEntry_c::BeforeInitResources ov075 0x0211a734); check_src_tu_compiles --id arm9/Scene ok; check_decl_agreement saved to tmp/bb/decl_agreement_before.txt (81 PRE-EXISTING contradictions, none of them these rows) | next: edit include/dScene_c.h + 3 src files + src_tu/scene/Scene.cpp | blocked: -
+[20:50] done: SOURCE FIX IN, BYTE GATE GREEN. include/dScene_c.h ResetFadersAndSound int->bool; definition returns false/true; Stage::BeforeInitResources now `return ResetFadersAndSound();`; dScEntry_c::BeforeInitResources alias decl bool + return; src_tu/scene/Scene.cpp kept in sync (TU compiles, same 12336 bytes). linkcheck VERIFIED 0 diffs 0 blind on all 4 ROM rows | next: commit, then the port side (faces_sync decorated name H->_N, hal int decls) | blocked: -

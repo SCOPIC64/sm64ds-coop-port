@@ -55,7 +55,18 @@ struct dScene_c : dBase_c {
 
     /* --- non-virtual, and takes `this`: BeforeInitResources `bl`s here
            with r0 untouched. --- */
-    int ResetFadersAndSound();
+    /* `bool`, not `int`. The body returns only 0 or 1 (`mov r0,#1` /
+       `moveq r0,#0`), so both spellings emit the same ARM bytes here and at
+       every call site, byte-verified. The reason to prefer `bool` is
+       Stage::BeforeInitResources, whose entire body is a tail call to this one:
+       vtable slot 1 is declared `bool`, and while the two types disagreed the
+       only ROM-faithful spelling over there was a bare call with no `return`,
+       because `return ResetFadersAndSound();` made the compiler insert an
+       int->bool normalisation the ROM does not have. With both sides `bool` the
+       `return` is free. That matters off the cartridge: a host compiler does not
+       promise to pass r0 through a returnless function, so slot 1 was handing
+       the host port garbage. See src/_ZN5Stage19BeforeInitResourcesEv.cpp. */
+    bool ResetFadersAndSound();
 
     /* --- static: every call site in the ROM puts the first declared argument in
            r0, so none of these receives a `this`. --- */

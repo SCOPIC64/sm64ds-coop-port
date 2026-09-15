@@ -399,6 +399,11 @@ void dScene_c::Initialise3dGraphics()
  * dScene_c overrides it, so an unqualified call here would dispatch through the
  * vtable and land straight back in the caller -- infinite recursion. The ROM does
  * `bl 0x02043c78`, a direct call to the base implementation.
+ *
+ * `bool`, not `int`: the body returns only 0 or 1 and both spellings emit the
+ * same bytes, but Stage::BeforeInitResources tail-calls this from a `bool` slot
+ * and needs the types to agree so it can carry a real `return`. See
+ * include/dScene_c.h and src/_ZN5Stage19BeforeInitResourcesEv.cpp.
  */
 
 /* `extern` on every one of these -- a braced `extern "C" { }` is a linkage
@@ -426,15 +431,15 @@ extern void *data_0209f1e4;
 extern void func_02011b7c(void);
 }
 
-int dScene_c::ResetFadersAndSound()
+bool dScene_c::ResetFadersAndSound()
 {
     data_0209f5c0 = this;
     if (!fBase_c::BeforeInitResources())
-        return 0;
+        return false;
     SetFaders(&data_0209f5e8);
     data_0209f1e4 = 0;
     func_02011b7c();
-    return 1;
+    return true;
 }
 
 /* ------------------------------------------------------------------------- */

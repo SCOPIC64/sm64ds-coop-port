@@ -24,13 +24,13 @@ extern u32 data_0209f1e4;
 extern void func_02011b7c(void);
 }
 
-int dScene_c::ResetFadersAndSound()
+bool dScene_c::ResetFadersAndSound()
 {
     data_0209f5c0 = this;
     if (!fBase_c::BeforeInitResources())
-        return 0;
+        return false;
     SetFaders(&data_0209f5e8);
     data_0209f1e4 = 0;
     func_02011b7c();
-    return 1;
+    return true;
 }
