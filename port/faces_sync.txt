@@ -22,6 +22,19 @@
 # A row that stops deriving FAILS THE BUILD rather than silently leaving the
 # link: a face that disappears is a receiver that goes back to garbage.
 #
+# THE RETURN TYPE IS DELIBERATELY NOT ONE OF THE THREE, and reading that as
+# "the return type does not matter here" is what shipped a wrong answer at 191
+# call sites. It is not part of the BINDING because MSVC decorates the return
+# type, so a decorated name that joins at all already agrees about it. It IS
+# part of the FACE: a bool member is returned in AL alone, and a reverse face
+# that forwards the raw EAX hands three bytes of junk to every caller that
+# spells the flat name int -- which the link cannot see, because an extern "C"
+# symbol carries no return type. facegen now WIDENS a reverse face over
+# bool/char/short to int with an explicit conversion, refuses to emit one that
+# is not widened, and prints the whole widened set on every run. See THE RETURN
+# WIDTH RULE in port/tools/facegen.py. Forward rows are excluded there and must
+# stay excluded: they declare a flat callee they do not define.
+#
 # THE TOOL WILL NOT GENERATE A NAME THAT IS NOT IN THIS FILE. The ledger is the
 # whole request in --sync mode, so a face reaches the binary only by being a
 # reviewed, checked-in row here first.

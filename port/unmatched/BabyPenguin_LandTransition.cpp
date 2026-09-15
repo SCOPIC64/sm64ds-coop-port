@@ -18,7 +18,12 @@ class dActor_c;
 extern "C" {
 void func_ov072_02121d50(dActor_c *a, int i);
 int func_0201267c(int id, void *p);
-bool _ZN8dActor_c17DetectRaycastClsnER7Vector3S1_b(dActor_c *thiz, Vector3 &a, Vector3 &b, bool c);
+/* int, not bool: port/faces_sync.txt:1127 marks this flat name R, so it is a
+   GENERATED reverse face and THE RETURN WIDTH RULE widens it to int. The other
+   port declaration of the same symbol (unmatched/MrI_StateMains.cpp:162) already
+   says int; this one contradicted it. The result is discarded at the one call
+   below, so the spelling was never load-bearing, only wrong. */
+int _ZN8dActor_c17DetectRaycastClsnER7Vector3S1_b(dActor_c *thiz, Vector3 &a, Vector3 &b, bool c);
 void _ZN9Animation7AdvanceEv(void *anim);
 void _ZN5dCc_c5ClearEv(void *clsn);
 
