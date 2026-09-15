@@ -28,6 +28,24 @@ if errorlevel 1 exit /b 1
 rem Fail before configure if a NEW guessed vtable body got seated past the baseline.
 python "%~dp0tools\guardcache.py" --replay inferred_stub_guard.py
 if errorlevel 1 exit /b 1
+rem Fail before configure if a /alternatename joins two vtable names config
+rem gives DIFFERENT addresses. An alternatename asserts two names are one
+rem object; two addresses say they are two classes, and whichever fill runs
+rem last then owns both. That is the twelfth defect, which killed the castle
+rem grounds the first time a door was drawn, and the same guard then found
+rem five more across three unrelated pairs (ov064, ov030, ov091) that lane
+rem ALIAS5 settled from the cartridge and fixed. It cost weeks to find by
+rem running the game and costs a third of a second to find here, BEFORE
+rem configure, because it needs no build and no map: only port/ source and
+rem config/arm9/**/symbols.txt.
+rem NOT THROUGH guardcache, for vptr_addend_guard and dtor_store_guard's
+rem reason: this is a dispatch question, a remembered verdict is not worth
+rem the chance of a stale one, and it is too cheap to be worth caching.
+rem It re-drives its own twelve fixtures on every run before it looks at the
+rem tree and refuses the build if any comes back wrong, so weakening a rule
+rem breaks the build instead of silently disarming the check.
+python "%~dp0tools\vtalias_guard.py" "%~dp0.."
+if errorlevel 1 exit /b 1
 rem Fail before configure if a vtable pointer is stored TWO SLOTS HIGH. mwcc's
 rem own vtable symbol denotes the object start and the Itanium address point is
 rem two words past it, so a key-function TU writes its vptr as `&_ZTV<X>[2]`;
