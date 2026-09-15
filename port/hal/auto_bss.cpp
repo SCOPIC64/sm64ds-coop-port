@@ -52,7 +52,16 @@ int data_0209fd08[8];
 int data_0209fd0c[8];
 int data_0209fd10[8];
 int data_0209fd14[8];
-int data_0209fd20[8];
+/* SIZED BY ROM SPAN, run link100 lane BSSFIX. The width column of the same
+   60-character text buffer as data_0209fd5c below: func_02031b84 writes one
+   byte per character at data_0209fd20[data_0209fcd8] and advances that counter
+   with NO bound, and func_02031e00 resets the counter beside data_0209fd1c.
+   config/arm9/symbols.txt puts the next symbol (data_0209fd5c) 0x3c on, so the
+   ROM object is 60 bytes, one width per character -- and the generous int[8]
+   default held 32 of the 60, so character 33 onward wrote past it. This is the
+   same pair as data_0209d710 / data_0209d74c seventy lines below, which was
+   fixed in 8f09d891e; this copy of the buffer was missed. */
+int data_0209fd20[0x3c / 4];    /* ROM span 0x3c -- one width byte per character */
 int data_020a0f40[8];
 int data_020a0f70[8];
 /* data_020a6148 MOVED to the link100 GLOBALS block at the foot of
@@ -112,7 +121,24 @@ int data_0209fcd8[8];
 int data_0209fcdc[8];
 int data_0209fce8[8];
 int data_0209fd1c[8];
-int data_0209fd5c[8];
+/* SIZED BY ROM SPAN, run link100 lane BSSFIX. The VS / wireless text buffer,
+   and byte-for-byte the data_0209d74c fault below repeating on its sibling:
+   src/func_02031e00.c:37 and src/func_02033464.c:51 both open it with
+   MultiStore_Int(<val>, &data_0209fd5c, 0xf00), and MultiStore_Int's len is a
+   BYTE count (hal/heap_globals.cpp), so both clear 3840 bytes. The int[8]
+   default gave them 32, so every call wiped 3808 bytes of whatever the linker
+   put next -- the same shape that took out hal_wipes[0]'s vptr and faulted
+   HUD::Behavior the first time Mario talked.
+   THE SIZE IS 0xf00, NOT the 0x4e8 delta to the next symbol. config/arm9 splits
+   this one ROM object in two: data_0209fd5c, then data_020a0244 at +0x4e8, then
+   data_020a0c5c -- and 0x0209fd5c + 0xf00 IS 0x020a0c5c exactly, so the fill
+   lands on a symbol boundary and 0xf00 is the measured object, not a guess. It
+   stays inside .bss (0x0209b000..0x020aa420). data_020a0244 is hosted nowhere
+   and referenced nowhere, so this double-hosts nothing; checked, because that is
+   the trap next door.
+   tools/arm9_globals_guard.py now fails the build on this class instead of
+   asking a reader to remember to re-audit. */
+int data_0209fd5c[0xf00 / 4];   /* ROM span 0xf00 -- the VS text buffer */
 int data_0209b454[8];
 int data_0209b490[8];
 int data_0209b494[8];
