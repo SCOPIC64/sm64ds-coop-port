@@ -19802,3 +19802,216 @@ foreach(_hgt_rel IN LISTS PORT_HOSTGEN_TU)
     message(STATUS "HOSTGEN TU: ${_hgt_rel} substituted in "
                    "${PORT_HOSTGEN_TU_HITS_${_hgt_rel}} slice row(s)")
 endforeach()
+
+# ===========================================================================
+# TAIL-PADDING HOST ABI (run link100, lane OVERRIDE24)
+# ===========================================================================
+#
+# THE DEFECT. The Itanium ABI that mwccarm implements lets a derived class put
+# its own fields in its base class's TAIL PADDING: it starts them at the base's
+# DATA size. MSVC will not, and starts them at sizeof(base). dBgActor_c has a
+# data size of 0x31e and a sizeof of 0x320, so every class below it starts its
+# own fields two bytes high on the host, and alignment turns that into two or
+# four bytes on every field the class owns. include/dBgActor_c.h states the rule
+# itself under unk_31d and names daObjRc_Guruguru_c::mAngVelY as a class that
+# relies on it. FaderColor has the same shape at 0x0e/0x10, and include/dWipe_c.h
+# says in as many words that 0x0e/0x0f reuse FaderColor tail padding.
+#
+# CRASH8 found this on QuestionBlock, where the ROM own C factory constructed a
+# ModelAnim at +0x320 and the C++ TUs reached it at +0x324, so the first question
+# block the level loader spawned faulted on a null vtable pointer. TAILPAD and
+# TAILPAD2 then closed 58 classes at source with a guarded filler. The 24 classes
+# these rows serve cannot be closed that way: their first own field IS the field
+# that lives in the tail padding, so there is no filler to delete.
+#
+# THE FIX is unmatched/dBgActor_c_TailPad_HostAbi.h and its FaderColor twin,
+# which cap the base alignment so its sizeof equals its data size. Both headers
+# carry the full reading. Measured per class with MSVC own
+# /d1reportAllClassLayout: all 24 come back with every own field on the offset
+# its header records and a total size equal to the header _size_must_be_ value.
+#
+# THE ROW LIST IS MEASURED, NOT COUNTED. out/TAILPAD2/remaining.tsv own_tus
+# column is an undercount for all 24 (daObjWanwanShutter_c 1 against 5 real,
+# Stump 18 against 25, dWipe_c 10 against 18): it counts the class own TUs and
+# not the sibling TUs that also compute its offsets. Every C++ compile edge in
+# build.ninja that names one of the 24 was compiled BOTH WAYS and kept only if
+# the wrapper actually moves one of the 24 in it. That is CRASH8 eight-of-ten
+# trap: a list built from the census column would have been green and wrong.
+#
+# FOUR TUs ARE DELIBERATELY NOT HERE, each with its reason:
+#   build/port/host-src/faces_sync_gen.cpp REFUSES the header (it spells its own
+#     method-only stubs for Model, dActor_c, dBgActor_c, fBase_c and FaderColor
+#     instead of including them). It declares every one of the 24 at size 4 with
+#     zero data members, so it computes no offsets and needs nothing.
+#   hal/actor_classes_bob_world.cpp, hal/actor_classes_ov060.cpp and
+#     hal/fwd_forwarders.cpp each carry a class the wrapper would move OFF the
+#     cartridge layout (a subclass that adds no own fields keeps a sizeof rounded
+#     to four, and capping the alignment would round it to two). Compiled both
+#     ways to assembly, the ONLY differences in all three are the object own
+#     TITLE line and the order of EXTRN declarations. Not one instruction moves,
+#     so leaving them alone costs the 24 nothing and nothing is inconsistent.
+#
+# hal/dtor_forwarders_gen.cpp IS here although it carries fourteen such classes,
+# and that is measured rather than argued: compiled both ways, all 46 changed
+# assembly lines are `lea` member-address computations moving DOWN by four, in
+# twenty destructor forwarders over eight classes. Seven of the eight are classes
+# the wrapper puts back on the cartridge (PoleLift, dPathLiftActor_c,
+# daObjPathLift_c, daObjRcCarpet_c, daObjKsWater_c, daObjMcWater_c,
+# daObjTdWater_c) and the eighth is daObjFm_Battan_c. Not one of the fourteen
+# emits a single layout-dependent instruction there, so its size changing in the
+# report costs nothing, and those twenty forwarders stop destroying a sub-object
+# four bytes past where it lives.
+#
+# APPEND, NEVER SET, the rule the /wd4716 loop and the DSSTATE block above both
+# state: COMPILE_OPTIONS is one property and set_source_files_properties
+# REPLACES it. One row here already carries another force-include,
+# src/game/actors/d_a_obj_fm_battan.cpp on the DSSTATE list, and several are rows
+# in PORT_FALLS_OFF_END_SOURCES.
+#
+# BOTH PATHS for every row, for the reason the DSSTATE block gives: a whole-TU
+# hostgen substitution moves the compile and a per-source property does not
+# follow it. Five of these rows compile from host-src today. A property on a path
+# no target compiles is inert, so naming the generated twin unconditionally costs
+# nothing.
+set(PORT_TAILPAD_DBGACTOR_SOURCES
+    port/hal/actor_classes.cpp
+    port/hal/actor_classes_bob_enemy.cpp
+    port/hal/actor_classes_jrb.cpp
+    port/hal/actor_classes_l7.cpp
+    port/hal/actor_classes_ov023.cpp
+    port/hal/actor_classes_ov027.cpp
+    port/hal/actor_classes_ov035.cpp
+    port/hal/actor_classes_ov091.cpp
+    port/hal/actor_classes_wf_enemy.cpp
+    port/hal/dtor_forwarders_gen.cpp
+    port/hal/except_faces.cpp
+    src/_ZN10BrickBlock8BehaviorEv.cpp
+    src/_ZN10LavaSeesaw13InitResourcesEv.cpp
+    src/_ZN10LavaSeesaw16CleanupResourcesEv.cpp
+    src/_ZN10LavaSeesaw6RenderEv.cpp
+    src/_ZN10LavaSeesaw8BehaviorEv.cpp
+    src/_ZN10LavaSeesawD1Ev.cpp
+    src/_ZN10SlidingIce13InitResourcesEv.cpp
+    src/_ZN10SlidingIce15OnHitByMegaCharER6Player.cpp
+    src/_ZN10SlidingIce16CleanupResourcesEv.cpp
+    src/_ZN10SlidingIce6RenderEv.cpp
+    src/_ZN10SlidingIce8BehaviorEv.cpp
+    src/_ZN10SlidingIceD1Ev.cpp
+    src/_ZN10daKpa2Bg_c13InitResourcesEv.cpp
+    src/_ZN10daKpa2Bg_c16CleanupResourcesEv.cpp
+    src/_ZN10daKpa2Bg_c6RenderEv.cpp
+    src/_ZN10daKpa2Bg_c8BehaviorEv.cpp
+    src/_ZN10daKpa2Bg_cD1Ev.cpp
+    src/_ZN11VolcanoRing13InitResourcesEv.cpp
+    src/_ZN11VolcanoRing16CleanupResourcesEv.cpp
+    src/_ZN11VolcanoRing6RenderEv.cpp
+    src/_ZN11VolcanoRing8BehaviorEv.cpp
+    src/_ZN11VolcanoRingD1Ev.cpp
+    src/_ZN12FortressWall13InitResourcesEv.cpp
+    src/_ZN12FortressWall16CleanupResourcesEv.cpp
+    src/_ZN12FortressWall24OnHitByCannonBlastedCharER8dActor_c.cpp
+    src/_ZN12FortressWall4KillEv.cpp
+    src/_ZN12FortressWall6RenderEv.cpp
+    src/_ZN12FortressWall8BehaviorEv.cpp
+    src/_ZN12FortressWallD1Ev.cpp
+    src/_ZN13BigBrickBlock13InitResourcesEv.cpp
+    src/_ZN13BigBrickBlock15OnGroundPoundedER8dActor_c.cpp
+    src/_ZN13BigBrickBlock15OnHitByMegaCharER6Player.cpp
+    src/_ZN13BigBrickBlock16CleanupResourcesEv.cpp
+    src/_ZN13BigBrickBlock16HasNonzeroAngleXEv.cpp
+    src/_ZN13BigBrickBlock17NotifyLinkedActorEv.cpp
+    src/_ZN13BigBrickBlock4KillEv.cpp
+    src/_ZN13BigBrickBlock6RenderEv.cpp
+    src/_ZN13BigBrickBlock8BehaviorEv.cpp
+    src/_ZN13BigBrickBlock8OnKickedER8dActor_c.cpp
+    src/_ZN13BigBrickBlockD1Ev.cpp
+    src/_ZN13TTC_MovingBar13InitResourcesEv.cpp
+    src/_ZN13TTC_MovingBar16CleanupResourcesEv.cpp
+    src/_ZN13TTC_MovingBar6RenderEv.cpp
+    src/_ZN13TTC_MovingBarD1Ev.cpp
+    src/_ZN16RotatingCogSmall13InitResourcesEv.cpp
+    src/_ZN16RotatingCogSmall16CleanupResourcesEv.cpp
+    src/_ZN16RotatingCogSmall6RenderEv.cpp
+    src/_ZN16RotatingCogSmall8BehaviorEv.cpp
+    src/_ZN16RotatingCogSmallD1Ev.cpp
+    src/_ZN16SpinningPlatform11UpdateModelEv.cpp
+    src/_ZN16SpinningPlatform12UpdateShadowEv.cpp
+    src/_ZN16SpinningPlatform13InitResourcesEv.cpp
+    src/_ZN16SpinningPlatform16CleanupResourcesEv.cpp
+    src/_ZN16SpinningPlatform6RenderEv.cpp
+    src/_ZN16SpinningPlatform8BehaviorEv.cpp
+    src/_ZN16SpinningPlatformD1Ev.cpp
+    src/_ZN17SlidingPlatformWf13InitResourcesEv.cpp
+    src/_ZN17SlidingPlatformWf16CleanupResourcesEv.cpp
+    src/_ZN17SlidingPlatformWf6RenderEv.cpp
+    src/_ZN17SlidingPlatformWf8BehaviorEv.cpp
+    src/_ZN17SlidingPlatformWfD1Ev.cpp
+    src/_ZN5Stump13InitResourcesEv.cpp
+    src/_ZN5Stump15OnGroundPoundedER8dActor_c.cpp
+    src/_ZN5Stump15OnHitByMegaCharER6Player.cpp
+    src/_ZN5Stump16CleanupResourcesEv.cpp
+    src/_ZN5Stump6RenderEv.cpp
+    src/_ZN5Stump8BehaviorEv.cpp
+    src/_ZN5StumpD1Ev.cpp
+    src/_ZN6ShipUp13InitResourcesEv.cpp
+    src/_ZN6ShipUp16CleanupResourcesEv.cpp
+    src/_ZN6ShipUp6RenderEv.cpp
+    src/_ZN6ShipUp8BehaviorEv.cpp
+    src/_ZN6ShipUpD1Ev.cpp
+    src/_ZN9SeesawBob13InitResourcesEv.cpp
+    src/_ZN9SeesawBob15OnGroundPoundedER8dActor_c.cpp
+    src/_ZN9SeesawBob16CleanupResourcesEv.cpp
+    src/_ZN9SeesawBob6RenderEv.cpp
+    src/_ZN9SeesawBob8BehaviorEv.cpp
+    src/_ZN9SeesawBobD1Ev.cpp
+    src/actors/daObjCtMecha03_c.cpp
+    src/actors/daObjFl_London_c.cpp
+    src/game/actors/d_a_obj_bk_rotebar.cpp
+    src/game/actors/d_a_obj_c0_switch.cpp
+    src/game/actors/d_a_obj_emm_log.cpp
+    src/game/actors/d_a_obj_fm_battan.cpp
+    src/game/actors/d_a_obj_km1_ukishima.cpp
+    src/game/actors/d_a_obj_rc_buranko.cpp
+    src/game/actors/d_a_obj_rc_guruguru.cpp
+    src/game/actors/d_a_obj_wanwan_shutter.cpp
+    )
+set(PORT_TAILPAD_FADERCOLOR_SOURCES
+    src/_ZN7dWipe_c10SetToStartEv.cpp
+    src/_ZN7dWipe_c11AdvanceFadeEv.cpp
+    src/_ZN7dWipe_c14SetForwardTimeEj.cpp
+    src/_ZN7dWipe_c20IsBetweenStartAndEndEv.cpp
+    src/_ZN7dWipe_c7IsAtEndEv.cpp
+    src/_ZN7dWipe_c8SetToEndEv.cpp
+    src/_ZN7dWipe_c9IsAtStartEv.cpp
+    src/_ZN7dWipe_cD1Ev.cpp
+    )
+if(MSVC)
+    foreach(_tp_row IN ITEMS
+            "dBgActor_c_TailPad_HostAbi.h;PORT_TAILPAD_DBGACTOR_SOURCES"
+            "FaderColor_TailPad_HostAbi.h;PORT_TAILPAD_FADERCOLOR_SOURCES")
+        list(GET _tp_row 0 _tp_hdr)
+        list(GET _tp_row 1 _tp_list)
+        if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/${_tp_hdr}")
+            message(FATAL_ERROR "tail-padding host-ABI header is missing: "
+                    "unmatched/${_tp_hdr}")
+        endif()
+        foreach(_tp_rel IN LISTS ${_tp_list})
+            if(NOT EXISTS "${PORT_REPO_ROOT_ABS}/${_tp_rel}")
+                message(FATAL_ERROR "tail-padding host-ABI row names a source "
+                        "that does not exist: ${_tp_rel}")
+            endif()
+            set(_tp_paths "${PORT_REPO_ROOT_ABS}/${_tp_rel}")
+            if(DEFINED PORT_HOSTGEN_TU_ROW_${_tp_rel})
+                list(APPEND _tp_paths
+                     "${PORT_REPO_ROOT_ABS}/${PORT_HOSTGEN_TU_ROW_${_tp_rel}}")
+            endif()
+            string(REGEX REPLACE "[.](c|cpp)$" ".cpp" _tp_gen "${_tp_rel}")
+            list(APPEND _tp_paths "${CMAKE_BINARY_DIR}/host-src/${_tp_gen}")
+            list(REMOVE_DUPLICATES _tp_paths)
+            foreach(_tp_one IN LISTS _tp_paths)
+                set_property(SOURCE "${_tp_one}" APPEND PROPERTY COMPILE_OPTIONS
+                    "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/${_tp_hdr}")
+            endforeach()
+        endforeach()
+    endforeach()
+endif()
