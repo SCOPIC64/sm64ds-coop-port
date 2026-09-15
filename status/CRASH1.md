@@ -66,3 +66,38 @@
   ?ResetFadersAndSound@dScene_c@@QAEHXZ should return 1 (its gate 004b2f90 is `mov al,1; ret`).
   Measuring each link BY SYMBOL to find which one diverges. OVER THE 2h BUDGET; continuing,
   one measurement from the answer.
+
+## CRASH1 CONCLUSIONS (final)
+
+FAULTING LINE  port/tests/walk_window.cpp:8335
+    void *lvl = port_stage_a_boot(g_mc, boot_spawns);      // 8334
+    level_bmd = *(unsigned short *)((char *)lvl + 8);      // 8335  <-- FAULT
+  +0x272156 = _main+0xdb6 = `movzx eax, word ptr [eax+8]` right after
+  `call _port_stage_a_boot`; fault regs eax=00000000. Unchecked return, no null guard.
+
+THE NULL  port_stage_a_boot's return = the g_boot_result stash (level_boot.cpp:3113),
+  never filled because _ZTV5Stage SLOT 0 (st_init -> port_stage_boot_body) is never
+  dispatched. The built fBase_c::Process (func_0204335c, RVA 1efab0) calls SLOT 1 first
+  and, when it returns 0, jumps to 1efb0a which runs slot 2 and returns WITHOUT slot 0.
+  Measured: [crash1] slot1 direct -> 0. Body is HEALTHY (runs when called directly).
+  NOT the vptr: runtime vptr == &_ZTV5Stage exactly (010FBE80), alive+0x0e=0, table seated.
+
+ATTRIBUTION  70e533d3d (2026-08-15, run link60 lane L4, port-only, NOT on origin/main)
+  made the boot conditional on slot 1 for the first time. SEAT2's b302c87fe (2026-09-12)
+  changed which body slot 1 runs, but is EXONERATED BY TEST: reverting that one hop
+  (st_binit -> _ZN8dScene_c19ResetFadersAndSoundEv direct) rebuilt + re-ran arm A and the
+  fault is UNCHANGED. Not this campaign's rows, not the main->port sync.
+
+OPEN QUESTION FOR THE NEXT LANE  dScene_c::ResetFadersAndSound measurably returns 0, so
+  `if (!fBase_c::BeforeInitResources()) return 0;` takes the false branch -- but that gate
+  is ICF-folded to `b0 01 c3` = mov al,1; ret at 004B2F90, verified in the FILE and read
+  back from LIVE process memory. Static vs runtime disagree; that is the whole remaining
+  bug. Leads: (1) the 13-symbol ICF fold at 004B2F90 (six CRT fns + VIntact + OnHeapCreated)
+  -- try one link with /OPT:NOICF; (2) Stage::BeforeInitResources has NO return statement
+  (src/_ZN5Stage19BeforeInitResourcesEv.cpp documents it as deliberate for ARM byte-
+  exactness; UB on MSVC) and its own comment names the clean fix (declare
+  dScene_c::ResetFadersAndSound bool). Both are src/, so NOT applied here.
+
+TREE  artifact restored byte-identical (sha256 bd69278...b4d55), sources reverted+touched,
+  git clean apart from the pre-existing untracked port/build-port-k0.cmd. 6 quiet arm-A
+  runs under the slot lock. Budget 2h, used ~4h (step-2 stayed static too long).
