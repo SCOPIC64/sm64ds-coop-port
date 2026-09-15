@@ -559,13 +559,23 @@ set(PORT_HOSTGEN_TU
     #
     # WHY THESE SIX AND NOT THE OTHER SIXTEEN. 206 *_classInit functions in this
     # image install a vptr; 184 store table+0 and 22 store table+8. Sixteen of
-    # the 22 name tables that live in .dsstate, which are ROM MOUNTS: a vtable
-    # mwcc built really does carry offset-to-top and typeinfo in front of its
-    # slots, so +8 is plausibly the ROM's own address point there, and moving it
-    # needs the ROM layout read first. The six below name .data HOST ARRAYS
-    # declared in port/hal (`int _ZTV8daTree_c[31];` and siblings) and filled
-    # from `vt[0]`, checked one at a time, so on those +8 is two slots past the
-    # first virtual and there is nothing in front of it to skip.
+    # the 22 name tables that live in .dsstate, which CRASH6 read as ROM MOUNTS:
+    # a vtable mwcc built really does carry offset-to-top and typeinfo in front
+    # of its slots, so +8 looked plausibly like the ROM's own address point
+    # there, and moving it needed the ROM layout read first. The six below name
+    # .data HOST ARRAYS declared in port/hal (`int _ZTV8daTree_c[31];` and
+    # siblings) and filled from `vt[0]`, checked one at a time, so on those +8
+    # is two slots past the first virtual and there is nothing in front of it
+    # to skip.
+    #
+    # CORRECTION, run link100 lane VPTR16, read out of the cartridge: THE
+    # SIXTEEN ARE THE SAME DEFECT, not a different question, and the .dsstate
+    # reading above was wrong in both halves. They are not ROM mounts (they are
+    # host arrays declared in port/hal that land in .dsstate only because they
+    # sit inside a DSSTATE_BEGIN/END bracket, which exists so the save state
+    # captures them), and +8 is not the ROM's address point either (the ROM's
+    # Itanium header sits BEFORE the symbol the config names, not after it).
+    # The measurement and the sixteen rows are in the VPTR16 block below.
     #
     # Each one was run through tools/hostgen.py standalone first and diffed
     # against its raw source: exactly one bias dropped per TU, zero MMIO
@@ -580,7 +590,106 @@ set(PORT_HOSTGEN_TU
     src/game/actors/d_a_tree.cpp
     src/game/actors/d_a_sound_obj.cpp
     src/game/actors/d_a_obj_rc_dorifu.cpp
-    src/actors/Scuttlebug.cpp)
+    src/actors/Scuttlebug.cpp
+    # Run link100, lane VPTR16. THE SIXTEEN CRASH6 LEFT OPEN, SETTLED FROM THE
+    # CARTRIDGE, AND THE CARTRIDGE CONDEMNS ALL SIXTEEN. Not one of them was
+    # right, and the reason CRASH6 could not tell is that its discriminator does
+    # not discriminate.
+    #
+    # WHAT WAS READ. For each of the sixteen the vtable symbol's DS address
+    # comes from config/arm9/overlays/ovNNN/symbols.txt and the bytes come from
+    # extracted/overlays/overlay_00NN.bin at the base address in
+    # extracted/dsd/arm9_overlays/overlays.yaml -- never the dsd copies, which
+    # are shifted, and never arm9_dec.bin, which loads at 0x02004000 rather than
+    # the RAM base. Every one of the sixteen reads the same way:
+    #
+    #     symbol - 8   00000000                          offset-to-top
+    #     symbol - 4   -> _ZTI<Class>                     typeinfo pointer
+    #     symbol + 0   -> <Class>::InitResources          virtual slot 0
+    #     symbol + 4   -> dActor_c::BeforeInitResources   virtual slot 1
+    #     symbol + 8   -> dActor_c::AfterInitResources    virtual slot 2
+    #
+    # THE ITANIUM HEADER IS IN FRONT OF THE SYMBOL, NOT BEHIND IT, so the symbol
+    # the config names IS the address point and `&_ZTV<X>[2]` is two slots past
+    # it. The front triplet is bit for bit the one CRASH6 measured on
+    # daObjWaterfall_c and convicted at run time, and the two faces a shifted
+    # read lands on are the same ob2_ainit (@12, `ret 4`) and ob2_bclean (@8,
+    # `ret 0`) whose opposite four-byte errors hide the slide.
+    #
+    # THE BASE IS NOT WRONG, WHICH IS THE ONE WAY THIS MEASUREMENT COULD LIE
+    # (tools/evidence_rom.py:66; lane CRASH2 lost time to it, because at a wrong
+    # base everything decodes as plausible ARM). 48 EXACT SYMBOL HITS say the
+    # base is right: sixteen typeinfo pointers that resolve to
+    # _ZTI<that exact class>, sixteen slot-1 words that resolve to
+    # dActor_c::BeforeInitResources, sixteen slot-2 words to
+    # dActor_c::AfterInitResources. A wrong load address does not produce that.
+    #
+    # THIRD CHECK, AND IT IS THE ONE THAT TIES THE ROM TO THIS TREE. Counted
+    # FROM THE SYMBOL, slot 16 and slot 17 land exactly on <Class>::D1 and
+    # <Class>::D0 (checked on seven, 14 exact symbol hits). That is the index
+    # port/hal already seats the destructor pair at, and the index lane TAIL's
+    # tools/tail_slots.py measurement off config/arm9/overlays/ov002/relocs.txt
+    # already assumed when it wrote
+    # `0x021091d4 +0x40 -> 0x020b6664 D1  +0x44 -> 0x020b660c D0`
+    # into hal/actor_classes_ov036.cpp. Two parts of this tree were already
+    # treating the symbol as the address point.
+    #
+    # THE MSVC DESTRUCTOR FOLD IS RULED OUT FOR THIS SET, not merely unused.
+    # memory sm64ds-port-msvc-dtor-slot-shift is the obvious suspect for an
+    # eight-byte difference at the head of a table, because mwccarm gives a
+    # virtual destructor two entries and MSVC folds them to one. It cannot be
+    # the answer here: these are dActor_c-derived classes whose destructor pair
+    # is at slots 16 and 17, so nothing at the front of the table can shift.
+    #
+    # AND THE .dsstate PREMISE ITSELF WAS FALSE. All sixteen tables are HOST
+    # ARRAYS declared in port/hal/actor_classes_*.cpp (`void *_ZTV7daBar_c[31];`
+    # and siblings, 31/32/33 wide) inside a DSSTATE_BEGIN/END bracket. That
+    # bracket is why they land in .dsstate -- the save state has to capture them
+    # -- and it is not evidence of a cartridge mount. Not one of the sixteen has
+    # a live /alternatename onto a data_ovNNN_ symbol; the single such pragma in
+    # the tree, daBar_c -> _data_ov002_02108480, is commented out. Every filler
+    # was read: thirteen assign `vt[0]` the class's own init face directly and
+    # three (Kaitendai, Kuruma, Kurumajiku) go through a tabs[] loop that also
+    # starts at vt[0], and whose own comment already records that "the ROM parks
+    # ZERO in slots 0 and 3 on both tables", which is exactly what sits at
+    # symbol+0 and symbol+12 for those three.
+    #
+    # Each TU was run through tools/hostgen.py standalone and diffed against its
+    # raw source before this row was written: one bias dropped per TU, zero MMIO
+    # rewrites, nothing else changed. daObjLava_c reports two because its file
+    # header quotes the spelling in prose and the rewrite reaches the comment as
+    # well; the generated comment then reads oddly and the generated code is
+    # right. The sixteen baseline rows retire in the NEXT commit, not this one,
+    # for the ordering reason CRASH6 wrote down above.
+    #
+    # WHAT IS LEFT AFTER THIS ROW, TAKEN FROM THE GUARD ITSELF RATHER THAN FROM
+    # A SOURCE SWEEP, because a sweep of src/ undercounts what is already
+    # substituted and misses a store spelled through a macro. After the build
+    # this row earns, vptr_addend_guard reports ELEVEN nonzero relocations over
+    # NINE distinct rows, and all nine were settled out of the cartridge the
+    # same way and read the same way: dScMgMemory2_c, dScMgBSC_c, dScMgCard_c,
+    # dMgCardObj_c, dMgDilarCardObj_c, dScMgMCarlo_c, dScMgMCarlo2_c,
+    # dScMgMemory_c, dScMgTrampoline_c. All nine live in ov006 and all nine have
+    # the Itanium header in front of the symbol. So the residue is ONE coherent
+    # follow-up, the ov006 minigame scene family, and it is outside this lane's
+    # brief rather than undecided. There is no surviving case anywhere in this
+    # tree where +8 is correct.
+    src/game/actors/d_a_bar.cpp
+    src/game/actors/d_a_cam_tag.cpp
+    src/game/actors/d_a_obj_km1_dorifu.cpp
+    src/game/actors/d_a_obj_km2_fall_block.cpp
+    src/game/actors/d_a_obj_km2_gura.cpp
+    src/game/actors/d_a_obj_km3_dorifu.cpp
+    src/game/actors/d_a_obj_km3_kaitendai.cpp
+    src/game/actors/d_a_obj_km3_kuruma.cpp
+    src/game/actors/d_a_obj_km3_kurumajiku.cpp
+    src/game/actors/d_a_obj_rc_carpet.cpp
+    src/game/actors/d_a_obj_wc_obj01.cpp
+    src/game/actors/d_a_obj_wc_obj06.cpp
+    src/game/actors/d_a_obj_wc_obj07.cpp
+    src/game/actors/d_a_s_cre.cpp
+    src/game/actors/d_a_warpkun.cpp
+    src/actors/daObjLava_c.cpp)
 get_filename_component(PORT_HOSTGEN_TU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 set(PORT_HOSTGEN_TU_GEN "")
 foreach(_hgt_rel IN LISTS PORT_HOSTGEN_TU)
@@ -13848,38 +13957,74 @@ endforeach()
 # writes, in the ROM's own order.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kurumajiku.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kurumajiku.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV21daObjKm3_Kurumajiku_c=_ZTV21daObjKm3_Kurumajiku_c;_ZTV10dBgActor_c=_ZTV17daObjKurumajiku_c;VT2=_ZTV10dBgActor_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kurumajiku.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kurumajiku.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "VT0=_ZTV21daObjKm3_Kurumajiku_c;VT1=_ZTV17daObjKurumajiku_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kurumajiku.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kurumajiku.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV21daObjKm3_Kurumajiku_c=_ZTV17daObjKurumajiku_c;VT1=_ZTV21daObjKm3_Kurumajiku_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kaitendai.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kaitendai.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV20daObjKm3_Kaitendai_c=_ZTV20daObjKm3_Kaitendai_c;_ZTV10dBgActor_c=_ZTV16daObjKaitendai_c;VT2=_ZTV10dBgActor_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kaitendai.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kaitendai.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV20daObjKm3_Kaitendai_c=_ZTV20daObjKm3_Kaitendai_c;_ZTV10dBgActor_c=_ZTV16daObjKaitendai_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kaitendai.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kaitendai.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV20daObjKm3_Kaitendai_c=_ZTV16daObjKaitendai_c;VT1=_ZTV20daObjKm3_Kaitendai_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kuruma.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kuruma.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV17daObjKm3_Kuruma_c=_ZTV17daObjKm3_Kuruma_c;_ZTV10dBgActor_c=_ZTV13daObjKuruma_c;VT2=_ZTV10dBgActor_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kuruma.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kuruma.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "VT0=_ZTV17daObjKm3_Kuruma_c;VT1=_ZTV13daObjKuruma_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kuruma.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kuruma.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV17daObjKm3_Kuruma_c=_ZTV13daObjKuruma_c;VT1=_ZTV17daObjKm3_Kuruma_c")
 # FOUR WRONG-NAMES AT THE SHARED WINDOW (T6), all in one sinit. STAIRS_BS's file
@@ -15028,14 +15173,26 @@ endforeach()
 # Spawns -- live store is the own table:
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj01.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj01.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c;VT1=_ZTV14daObjWcObj01_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj06.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj06.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV14daObjWcObj06_c=_ZTV14daObjWcObj06_c;VT1=_ZTV14daObjWcObj06_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj07.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj07.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV15daObjWc_Obj07_c=_ZTV15daObjWc_Obj07_c;VT1=_ZTV15daObjWc_Obj07_c")
 # (ArrowLift/WaterDiamond/CageLift/SwitchActivatedPlank/WDW_Water spawns store
@@ -15044,6 +15201,10 @@ set_source_files_properties(
 # Destructors -- live (last) store is _ZTV10dBgActor_c; dead stores to the own array:
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj01.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj01.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c;_ZTV10dBgActor_c=_ZTV14daObjWcObj01_c;VT2=_ZTV10dBgActor_c")
 # GATE 229 CORRECTION (lane SEAT3). This row predates any seat of the TU, so it
@@ -15053,6 +15214,10 @@ set_source_files_properties(
 # fixed from config/arm9/overlays/ov029/relocs.txt inside the body's own span.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj01.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj01.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "VT0=_ZTV14daObjWcObj01_c;VT1=_ZTV17daObjFloatBoard_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
 set_source_files_properties(
@@ -15074,6 +15239,10 @@ set_source_files_properties(
     "VT0=_ZTV15daObjWc_Obj05_c;VT1=_ZTV10dBgActor_c;G0=data_020a0eac")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj06.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj06.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV14daObjWcObj06_c=_ZTV14daObjWcObj06_c;_ZTV10dBgActor_c=_ZTV14daObjWcObj06_c;VT2=_ZTV10dBgActor_c")
 # GATE 229 CORRECTION (lane SEAT3), the same two defects as the 021111f0 row
@@ -15081,6 +15250,10 @@ set_source_files_properties(
 # the class's own table, and G0 was missing.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj06.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj06.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "VT0=_ZTV14daObjWcObj06_c;VT1=_ZTV17daObjFloatBoard_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
 set_source_files_properties(
@@ -15093,10 +15266,18 @@ set_source_files_properties(
     "_ZTV15daObjWc_Obj02_c=_ZTV15daObjWc_Obj02_c;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj07.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj07.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV15daObjWc_Obj07_c=_ZTV15daObjWc_Obj07_c;_ZTV10dBgActor_c=_ZTV15daObjWc_Obj07_c;VT2=_ZTV10dBgActor_c")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj07.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj07.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV15daObjWc_Obj07_c=_ZTV15daObjWc_Obj07_c;_ZTV10dBgActor_c=_ZTV15daObjWc_Obj07_c;VT2=_ZTV10dBgActor_c")
 set_source_files_properties(
@@ -15142,7 +15323,15 @@ set_source_files_properties(
 # invalid C): compile them as C++.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj01.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj01.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj06.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj06.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN8dActor_c17GetWaterHeightWDWEv.cpp"
     PROPERTIES LANGUAGE CXX)
 
@@ -16715,6 +16904,10 @@ endforeach()
 #         under the config name, so VT binds to that name directly.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/daObjLava_c.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/actors/daObjLava_c.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "VT=_ZTV11daObjLava_c;HEAP=data_020a0eac")
 set_source_files_properties(
@@ -16767,6 +16960,10 @@ set_source_files_properties(
     "VT0=_ZTV12daObjAbuku_c;G0=data_020a0eac")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_warpkun.cpp"
+    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
+    # now, so the raw path alone would set this for a source nothing
+    # compiles.
+    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_warpkun.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "VT0=_ZTV11daWarpkun_c;G0=data_020a0eac")
 set_source_files_properties(
