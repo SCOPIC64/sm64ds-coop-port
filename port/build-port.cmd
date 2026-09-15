@@ -205,6 +205,20 @@ rem stop looking. It re-drives its own seventeen fixtures on every run before
 rem it reads the tree, so weakening a rule breaks the build instead of quietly
 rem disarming the check, and it stands down BY NAME when a configure has a
 rem deliberate pre-fix A/B arm switched on.
+rem BRING build.ninja UP TO DATE FIRST, and only build.ninja. The block above
+rem deliberately skips the cmake call on an already-configured tree and lets
+rem build.ninja's own RERUN_CMAKE edge reconfigure on demand -- which happens
+rem INSIDE the ninja run below. A guard placed here without this line reads the
+rem PREVIOUS configure's build.ninja, so a source that stopped being routed
+rem since the last build compiles plain once and only refuses on the build
+rem after. Measured: deleting one row from SAMECLASS_GX_TU and running this
+rem script compiled func_ov080_0212677c.c raw with the guard reporting clean.
+rem Naming the build.ninja target runs that one edge and nothing else: on a
+rem tree with nothing changed it is a no-op, and when a slice list or this
+rem file's configure inputs moved it is the same reconfigure the run below
+rem would have done anyway, just early enough to be worth checking.
+ninja -C "%~dp0..\build\port" build.ninja
+if errorlevel 1 exit /b 1
 python "%~dp0tools\gxport_guard.py" --build-dir "%~dp0..\build\port"
 if errorlevel 1 exit /b 1
 ninja -C "%~dp0..\build\port"
