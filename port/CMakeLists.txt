@@ -852,11 +852,89 @@ set(PORT_HOSTGEN_TU
 # now. The four boot-setup TUs run on every scene including level 1, which is
 # why they are switched separately from the other seven.
 #
+# ---- run link100 lane SAMECLASS2: THE SET RE-MEASURED, AND THREE CORRECTIONS
+#
+# The eleven rows above were banked without a verdict. This lane re-derived the
+# set from the commit's own diff, re-ran every count, and A/B'd the two arms on
+# three builds (build/port, build/port-plain with both switches ON, and two
+# tracing builds). THE ROUTING IS RIGHT IN ALL ELEVEN CASES and none of it is
+# backed out. Three of the claims above are wrong and are corrected here rather
+# than edited away, because the wrong claim is the useful record.
+#
+# 1. THE REWRITE COUNTS RE-MEASURE EXACTLY. 20, 5, 19, 5, 14, 19, 34, 9, 23, 9
+#    and 1 in this block's own order, the same multiset the paragraph above
+#    lists. Every generated copy was lined up against its byte-matched source
+#    and differs by NOTHING but an MMIO rewrite of the same width at the same
+#    address, with no plain deref left behind. The two documented leftovers
+#    (an unused pointer bind in func_ov075_0211a948's shape) are the binding
+#    statements hostgen deliberately keeps.
+#
+# 2. func_ov007_020c19cc IS NOT ON A LIVE PATH TODAY. The paragraph above calls
+#    it "the only one of the eleven on a path the port reaches today" and says
+#    it can show a picture. It cannot, and that is why the banking lane saw no
+#    pixel change and could not make the ribbon appear. It is THE DOODLE: its
+#    three callers all come from the draw hub func_ov007_020b91b4, which the
+#    render dispatcher func_ov007_020bcf90 reaches only in outer states 1..4,
+#    the draw screen. MEASURED with the /Gh function-entry trace (lane
+#    TRACEPORT's tools, frames 60..70 and 150..158 of scene 1, with and without
+#    a 200-frame scripted stylus drag over the whole bottom screen):
+#    func_ov007_020bcf90 is entered 20 times and the stylus driver
+#    func_ov007_020c1db0 twice, while func_ov007_020b0358, func_ov007_020b91b4,
+#    func_ov007_020b8fd4 and func_ov007_020c19cc itself are entered ZERO times.
+#    The headless title never leaves the attract screen, so the draw screen is
+#    not reachable from here. Routing it is still right; it is INERT today.
+#
+# 3. ov080 IS NOT dScEntry_c DUPLICATED AND IT IS NOT ON A SCENE. The paragraph
+#    above reads the ov080 trio as "the same two routines again in ov080".
+#    The register lists match because the Nitro G3 material-setup shape is the
+#    same, but ov080 is an ACTOR overlay (port/ov080_syms.txt: the castle
+#    interior's PAINTING, daPicGate_c actor 307, plus MontyMole, MontyMoleRock
+#    and CrazedCrate). func_ov080_02125fd0 and func_ov080_0212677c are two of
+#    the PAINTING's twelve state slots, seated in hal/actor_overlays.cpp's
+#    g_painting_states, and func_ov080_02125460 is the material setter both of
+#    them call. So they are on a live ACTOR's render path on level 2, not on an
+#    unreachable scene -- which makes routing them worth more than the note
+#    above claims, not less. They are inert today only because level 2 faults
+#    during boot (c0000005 after the six "[paint] init" lines), IDENTICALLY on
+#    both arms and equally on level 5, so it is a pre-existing level fault and
+#    nothing to do with this change. Level 1 boots clean and its framebuffer is
+#    byte-identical between the arms at 200 and 420 frames.
+#
+# WHAT THE FOUR BOOT TUs ARE ACTUALLY WORTH, which the block above left as a
+# prediction. They are LIVE and the census proves it. SM64DS_PPU_AUDIT over 300
+# frames of scene 1, this arm against SAMECLASS_GX_PLAIN=ON + SAMECLASS_BOOT_
+# PLAIN=ON, differs on the boot frame and only there: PORT_WRITES 404 -> 617,
+# MTX_MODE 29 -> 44, MTX_IDENTITY 8 -> 23, MTX_POP 8 -> 13, MTX_STORE 7 -> 9,
+# SWAP_BUFFERS 2 -> 4, VIEWPORT 4 -> 6, and POLYGON_ATTR / TEXIMAGE_PARAM /
+# PLTT_BASE / END_VTXS each +3. Every command in that list is a register one of
+# the four boot TUs writes and none of the other seven writes any of them, and
+# the trace says none of the seven is entered at all, so the whole delta is the
+# boot group's. It costs nothing visible: VIEWPORT_X/Y/W/H, POLYGONS,
+# SWAP_PARAM, PROJ_FP, PROJ_IDENTITY and POS_IDENTITY are identical on both
+# arms, the title's last frame is byte-identical, and so is level 1's. The
+# ROM's own GX reset now reaches the engine and lands on the state
+# ntr::gx_reset had already produced.
+#
+# NOTHING ELSE OF THIS SHAPE IS LEFT. All 71 sources in the tree that name a
+# geometry command port were cross-referenced against the configured
+# build.ninja: 65 compile through hostgen, 4 are not compiled by any target at
+# all (func_01ffde98, func_0200f4b4, func_0201a054, func_ov007_020caeac -- two
+# of which DO store to command ports and will need routing the day a slice
+# takes them), and the remaining 2 are src/func_02055464.c and
+# src/func_02055490.c, which only READ GXSTAT's stack-level field and store
+# nothing. Those two are already served correctly: ntr::gxstat_publish keeps
+# the mapped window live for exactly those readers, by name, in ntr/gx.cpp.
+# tools/gxport_guard.py now asks this question on every build so the next one
+# refuses at configure time instead of waiting for somebody to read a literal
+# pool.
+#
 # TWO KILL SWITCHES, not one, because the two groups carry different risk and a
 # lane that has to back one out should not lose the other. Both print on every
 # configure in both directions, for the reason run mg15's SQRT lane wrote down:
 # a CMake option() CACHES, and an A/B switch that only announces one arm
-# silently keeps the wrong one.
+# silently keeps the wrong one. Lane SAMECLASS2 used both, together, to build
+# the pre-fix arm every measurement above is against, and gxport_guard.py reads
+# them out of CMakeCache.txt and stands down by name when either is on.
 option(SAMECLASS_GX_PLAIN
        "run link100 SAMECLASS: build the seven scene-local geometry-port TUs PLAIN (pre-fix arm)"
        OFF)
