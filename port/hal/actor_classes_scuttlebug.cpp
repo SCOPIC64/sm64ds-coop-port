@@ -45,6 +45,8 @@
 // 255, and ACTOR_SPAWN_TABLE[255] (ACTOR_SPAWN_TABLE + 255*4 = 0x02090c60) points at
 // that record. daSpd_c_classInit's own vtable-store site (Spawn.c: p[0] =
 // _ZTV10Scuttlebug) names the table.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -285,7 +287,7 @@ extern "C" void hal_fill_scuttlebug_vtable(void)
     vt[13] = (void *)sb_trap13;
     vt[14] = (void *)sb_trap14;
     vt[15] = (void *)sb_heap;
-    vt[16] = (void *)hal_cppd1_Scuttlebug;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Scuttlebug);
     vt[17] = (void *)sb_d0;
     /* the Enemy tail (18..30): 18/19/29 are Scuttlebug's own overrides, the
        rest bind Actor/ActorBase's default half, 30 traps (SRET). */

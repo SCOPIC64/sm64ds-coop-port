@@ -35,6 +35,8 @@
 // before __sinit_ov095_0213722c copies them into the runtime table. The other
 // five methods (Init/Cleanup/Render + both dtors) are matched src,
 // slice_gate173.txt.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -247,7 +249,7 @@ extern "C" void hal_fill_up_down_lift_hmc_vtable(void)
     vt[13] = (void *)udl_trap13;
     vt[14] = (void *)udl_trap14;
     vt[15] = (void *)udl_heap;
-    vt[16] = (void *)udl_d1;
+    vt[16] = (void *)PORT_D16(udl_d1);
     vt[17] = (void *)udl_d0;
     /* the Platform tail (18..31): every ROM slot is a base body, and every one
        that is linked is bound so normal play (a Yoshi lick, a ground pound, a

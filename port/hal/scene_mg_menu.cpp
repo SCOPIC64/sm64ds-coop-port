@@ -100,6 +100,8 @@
  * complete; neither is a behaviour floor the way Render's is.
  */
 
+#include "port_d16.h"
+
 #include <cstdio>
 #include <cstdlib>
 
@@ -267,7 +269,7 @@ extern "C" void port_scene_fill_mgm(void)
                                      : (void *)mgm_render;
     }
     vt[12] = (void *)mgm_pdes;
-    vt[16] = (void *)mgm_d2;
+    vt[16] = (void *)PORT_D16(mgm_d2);
     vt[17] = (void *)mgm_d0;
 
     /* THE ACCOUNTING. port_scene_fill_rom returns how many slots it left

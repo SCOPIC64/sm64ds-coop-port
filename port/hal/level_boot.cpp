@@ -68,6 +68,8 @@
 // only ever holds one. On the host each is its own array with its own
 // port_ovNNN_at(), so several can be mounted at once and the table below
 // picks the one the boot walks.
+#include "port_d16.h"
+
 #include <cstdio>
 #include "vs_width.h"   /* run vs16: the port's player width */
 #include <cstdlib>
@@ -4245,7 +4247,7 @@ extern "C" void hal_fill_player_vtable(void)
     vt[4] = (void *)ps_bclean;
     vt[5] = (void *)ps_aclean;
     vt[12] = (void *)ps_pdes;
-    vt[16] = (void *)ps_d1;
+    vt[16] = (void *)PORT_D16(ps_d1);
     vt[17] = (void *)ps_d0;
     /* 18..29, the ROM's own contents. 17 (D0) is seated by gate 224; this used
        to read "keeps the trap on purpose, per the note above" and no such note

@@ -70,6 +70,8 @@
 // as the base vptr on the way out, and that array has to be filled before the
 // first teardown, not merely defined) and then ov056's single sinit, which
 // constructs the two SharedFilePtrs InitResources loads from.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -294,7 +296,7 @@ extern "C" void hal_fill_big_moving_ice_block_vtable(void)
     vt[13] = (void *)ov56_trap13;
     vt[14] = (void *)ov56_trap14;
     vt[15] = (void *)ov56_heap;
-    vt[16] = (void *)ice_d1;
+    vt[16] = (void *)PORT_D16(ice_d1);
     vt[17] = (void *)ice_d0;
     vt[18] = (void *)ov56_yoshi;
     vt[19] = (void *)ov56_turn_egg;

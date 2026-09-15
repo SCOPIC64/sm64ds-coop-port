@@ -100,6 +100,8 @@
 // a different address and a different symbol, and that TU is in no slice. No
 // /alternatename anywhere in port/ has this name as its LHS.
 // ===========================================================================
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -309,7 +311,7 @@ extern "C" void hal_fill_slide_decoration_vtable(void)
     vt[13] = (void *)hsb_trap13;    /* ActorBase::Virtual34(u32,u32), not linked */
     vt[14] = (void *)hsb_trap14;    /* ActorBase::Virtual38(u32,u32), not linked */
     vt[15] = (void *)hsb_heap;      /* ActorBase::OnHeapCreated */
-    vt[16] = (void *)hal_cppd1_SlideDecorationSilverStar;        /* D1, hosted; see the header */
+    vt[16] = (void *)PORT_D16(hal_cppd1_SlideDecorationSilverStar);        /* D1, hosted; see the header */
     vt[17] = (void *)hsb_d0;        /* D0, the matched .c TU */
     vt[18] = (void *)hsb_yoshi;     /* Actor::OnYoshiTryEat */
     vt[19] = (void *)hsb_egg;       /* Actor::OnTurnIntoEgg(Player&) */

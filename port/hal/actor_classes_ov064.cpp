@@ -59,6 +59,8 @@
 // is in ov002_syms.txt, so the spawn lands on a live class. BigBully::Init-
 // Resources spawns 0xd7 = 215 = BULLY (three of them, when its param nibble is 1)
 // and null-checks; BULLY is this gate's own class, so that path is hosted too.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -353,7 +355,7 @@ extern "C" void hal_fill_bully_vtable(void)
     vt[3]  = (void *)bly_clean;
     vt[6]  = (void *)bly_behavior;
     vt[9]  = (void *)bly_render;
-    vt[16] = (void *)bly_d1;
+    vt[16] = (void *)PORT_D16(bly_d1);
     vt[17] = (void *)bly_d0;
     vt[29] = (void *)bly_aimed;
     vt[31] = (void *)bly_v31;
@@ -402,7 +404,7 @@ extern "C" void hal_fill_big_bully_vtable(void)
     vt[3]  = (void *)bly_clean;
     vt[6]  = (void *)bbly_behavior;
     vt[9]  = (void *)bbly_render;
-    vt[16] = (void *)bbly_d1;
+    vt[16] = (void *)PORT_D16(bbly_d1);
     vt[17] = (void *)bbly_d0;
     vt[29] = (void *)bly_aimed;
     vt[31] = (void *)bbly_v31;
@@ -459,7 +461,7 @@ extern "C" void hal_fill_rotating_firebar_vtable(void)
     vt[3]  = (void *)fb_clean;
     vt[6]  = (void *)fb_behavior;
     vt[9]  = (void *)fb_render;
-    vt[16] = (void *)fb_d1;
+    vt[16] = (void *)PORT_D16(fb_d1);
     vt[17] = (void *)fb_d0;
     vt[29] = (void *)fb_aimed;
     vt[31] = (void *)fb_kill;

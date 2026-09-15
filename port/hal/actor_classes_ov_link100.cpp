@@ -140,6 +140,8 @@
 // neither is a Platform and neither has a Kill. Slots 13/14 are
 // ActorBase::Virtual34/Virtual38 -- two u32 arguments each, bodies not in this
 // link -- and are TRAPPED by name, the ccm/ov064/jrb/bbh/ov072 convention.
+#include "port_d16.h"
+
 #include <cstdio>
 #include <cstdlib>
 
@@ -360,7 +362,7 @@ extern "C" void hal_fill_change_room_vtable(void)
     vt[6]  = (void *)chroom_behavior;  /* 0x020b0868 */
     vt[9]  = (void *)chroom_render;    /* 0x020b0860 */
     vt[12] = (void *)chroom_pdes;      /* 0x020b085c */
-    vt[16] = (void *)chroom_d1;        /* 0x020b07f8 */
+    vt[16] = (void *)PORT_D16(chroom_d1);        /* 0x020b07f8 */
     vt[17] = (void *)chroom_d0;        /* 0x020b081c */
 }
 
@@ -410,6 +412,6 @@ extern "C" void hal_fill_cloud_vtable(void)
     vt[6]  = (void *)cloud_behavior;  /* 0x021112a0 */
     vt[9]  = (void *)cloud_render;    /* 0x02111278 */
     vt[12] = (void *)cloud_pdes;      /* arm9 0x02043ac0, ActorBase's own */
-    vt[16] = (void *)cloud_d1;        /* 0x021111a0 */
+    vt[16] = (void *)PORT_D16(cloud_d1);        /* 0x021111a0 */
     vt[17] = (void *)cloud_d0;        /* 0x021111d0 */
 }

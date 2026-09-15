@@ -38,6 +38,8 @@
 // actor_classes_ov002_w15.cpp did for the same reason. port_ov22_bringup IS
 // extern and IS done-guarded, so it is called rather than duplicated.
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -258,7 +260,7 @@ extern "C" void hal_fill_fall_block_lll_vtable(void)
     vt[13] = (void *)fb83_trap13;
     vt[14] = (void *)fb83_trap14;
     vt[15] = (void *)fb83_heap;
-    vt[16] = (void *)fb83_d1;
+    vt[16] = (void *)PORT_D16(fb83_d1);
     vt[17] = (void *)fb83_d0;
     vt[18] = (void *)fb83_yoshi;
     vt[19] = (void *)fb83_turn_egg;

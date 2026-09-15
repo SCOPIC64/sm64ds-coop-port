@@ -64,6 +64,8 @@
 // link -- neither name is contested at a shared window -- so unlike ov045
 // nothing here is hand-hosted, and there are no state tables to seat: neither
 // class has a pointer-to-member dispatcher.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -305,7 +307,7 @@ extern "C" void hal_fill_bobbing_log_emm_vtable(void)
     vt[3]  = (void *)log_clean;
     vt[6]  = (void *)log_behavior;
     vt[9]  = (void *)log_render;
-    vt[16] = (void *)log_d1;
+    vt[16] = (void *)PORT_D16(log_d1);
     vt[17] = (void *)log_d0;
     vt[31] = (void *)ov52_kill;
 }
@@ -353,7 +355,7 @@ extern "C" void hal_fill_square_path_lift_vtable(void)
     vt[3]  = (void *)spl_clean;
     vt[6]  = (void *)spl_behavior;
     vt[9]  = (void *)spl_render;
-    vt[16] = (void *)spl_d1;
+    vt[16] = (void *)PORT_D16(spl_d1);
     vt[17] = (void *)spl_d0;
     vt[31] = (void *)ov52_kill;
 }

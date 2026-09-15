@@ -125,6 +125,8 @@
 // ActorBase-side SRET whose hidden return pointer no thunk shape here models.
 // Every other slot in every one of the five tables is seated.
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -518,7 +520,7 @@ extern "C" void hal_fill_ov026_polelift_vtable(void)
     vt[3]  = (void *)pl_clean;
     vt[6]  = (void *)pl_behavior;
     vt[9]  = (void *)pl_render;
-    vt[16] = (void *)pl_d1;
+    vt[16] = (void *)PORT_D16(pl_d1);
     vt[17] = (void *)pl_d0;
     /* no slot 31: plain Actor, 31 slots total, ends here */
 }
@@ -549,7 +551,7 @@ extern "C" void hal_fill_ov026_bowser_shutter_vtable(void)
     vt[3]  = (void *)ks_clean;
     vt[6]  = (void *)ks_behavior;
     vt[9]  = (void *)ks_render;
-    vt[16] = (void *)ks_d1;
+    vt[16] = (void *)PORT_D16(ks_d1);
     vt[17] = (void *)ks_d0;
     vt[31] = (void *)ov26_kill;      /* Platform::Kill */
 }
@@ -583,7 +585,7 @@ extern "C" void hal_fill_ov026_submarine_vtable(void)
     vt[3]  = (void *)sb_clean;
     vt[6]  = (void *)sb_behavior;    /* ActorBase::Behavior, the ROM's own word */
     vt[9]  = (void *)sb_render;
-    vt[16] = (void *)sb_d1;
+    vt[16] = (void *)PORT_D16(sb_d1);
     vt[17] = (void *)sb_d0;
     vt[31] = (void *)ov26_kill;      /* Platform::Kill */
 }
@@ -619,7 +621,7 @@ extern "C" void hal_fill_ov026_whirlpool_vtable(void)
     vt[6]  = (void *)wp_behavior;
     vt[9]  = (void *)wp_render;
     vt[12] = (void *)wp_pdes;        /* own, empty; overrides the shared default */
-    vt[16] = (void *)wp_d1;
+    vt[16] = (void *)PORT_D16(wp_d1);
     vt[17] = (void *)wp_d0;
     /* no slot 31: Enemy-derived, the virtual list ends at Actor's 30 */
 }
@@ -654,7 +656,7 @@ extern "C" void hal_fill_ov026_water_suction_vtable(void)
     vt[6]  = (void *)ws_behavior;
     vt[9]  = (void *)ws_render;
     vt[12] = (void *)ws_pdes;
-    vt[16] = (void *)ws_d1;
+    vt[16] = (void *)PORT_D16(ws_d1);
     vt[17] = (void *)ws_d0;
     /* no slot 31: Enemy-derived, the virtual list ends at Actor's 30 */
 }

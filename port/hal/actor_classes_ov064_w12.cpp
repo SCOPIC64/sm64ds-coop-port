@@ -79,6 +79,8 @@
 // dispatchers' host copies are the ov073/ov060 recipe, the other five records
 // are matched, and __sinit_ov064_0211b59c builds the table -- so the whole cost
 // of that class is one verified host copy of 540 bytes of ARM.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -270,7 +272,7 @@ extern "C" void hal_fill_clam_vtable(void)
     vt[13] = (void *)ov64w12_trap13;
     vt[14] = (void *)ov64w12_trap14;
     vt[15] = (void *)cl_heap;
-    vt[16] = (void *)hal_cppd1_Clam;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Clam);
     vt[17] = (void *)cl_d0;
     vt[18] = (void *)cl_yoshi;
     vt[19] = (void *)cl_turn_egg;

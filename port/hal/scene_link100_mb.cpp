@@ -99,6 +99,8 @@
  * functions and not one of their src/ TUs names data_02092110.
  */
 
+#include "port_d16.h"
+
 #include <cstdio>
 #include <cstdlib>
 
@@ -195,7 +197,7 @@ extern "C" void port_scene_fill_mb(void)
     vt[6]  = (void *)mb_beh;
     vt[9]  = (void *)mb_render;
     vt[12] = (void *)mb_pdes;
-    vt[16] = (void *)mb_d2;
+    vt[16] = (void *)PORT_D16(mb_d2);
     vt[17] = (void *)mb_d0;
 
     /* Seven: the six this class overrides (0/3/6/9/16/17) plus slot 12,

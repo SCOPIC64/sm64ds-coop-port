@@ -79,6 +79,8 @@
 // two u32 arguments each and bodies not linked into the port at all; 30 is
 // Actor::OnAimedAtWithEggReturnVec, an SRET method no __fastcall thunk shape
 // here models.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -253,7 +255,7 @@ extern "C" void hal_fill_mega_mushroom_tag_vtable(void)
     vt[13] = (void *)kt_trap13;
     vt[14] = (void *)kt_trap14;
     vt[15] = (void *)kt_heap;
-    vt[16] = (void *)hal_cppd1_MegaMushroomCreateTag;
+    vt[16] = (void *)PORT_D16(hal_cppd1_MegaMushroomCreateTag);
     vt[17] = (void *)kt_d0;
     vt[18] = (void *)kt_yoshi;
     vt[19] = (void *)kt_turn_egg;

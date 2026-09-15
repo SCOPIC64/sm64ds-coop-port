@@ -219,6 +219,8 @@
 //   __sinit_ov022_02112f78   82's              (0x02114620 / 0x02114618)
 // The other six build file pointers for the five blocked classes and
 // VolcanoFire's PMF seat, and stay out for the same reason their classes do.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -490,7 +492,7 @@ extern "C" void hal_fill_volcano_ring_vtable(void)
     vt[3]  = (void *)vr_clean;
     vt[6]  = (void *)vr_behavior;
     vt[9]  = (void *)vr_render;
-    vt[16] = (void *)vr_d1;
+    vt[16] = (void *)PORT_D16(vr_d1);
     vt[17] = (void *)vr_d0;
     vt[31] = (void *)ov22_kill;
 }
@@ -540,7 +542,7 @@ extern "C" void hal_fill_float_on_lava_platform_vtable(void)
     vt[3]  = (void *)fl_clean;
     vt[6]  = (void *)fl_behavior;
     vt[9]  = (void *)fl_render;
-    vt[16] = (void *)fl_d1;
+    vt[16] = (void *)PORT_D16(fl_d1);
     vt[17] = (void *)fl_d0;
     vt[31] = (void *)ov22_kill;
 }
@@ -633,7 +635,7 @@ extern "C" void hal_fill_floating_floor_lll_vtable(void)
     vt[3]  = (void *)ff_clean;
     vt[6]  = (void *)ff_behavior;
     vt[9]  = (void *)ff_render;
-    vt[16] = (void *)ff_d1;
+    vt[16] = (void *)PORT_D16(ff_d1);
     vt[17] = (void *)ff_d0;
     vt[31] = (void *)ov22_kill;
 }
@@ -707,7 +709,7 @@ extern "C" void hal_fill_lava_plank_vtable(void)
     vt[3]  = (void *)lp_clean;
     vt[6]  = (void *)lp_behavior;
     vt[9]  = (void *)lp_render;
-    vt[16] = (void *)lp_d1;
+    vt[16] = (void *)PORT_D16(lp_d1);
     vt[17] = (void *)lp_d0;
     vt[31] = (void *)ov22_kill;
 }

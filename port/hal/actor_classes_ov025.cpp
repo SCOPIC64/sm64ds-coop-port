@@ -73,6 +73,8 @@
 // PyramidTag/PyramidTop, which this lane does not register, and running a
 // sinit for a class with no reach is the gate-6 mistake -- so they stay
 // unrun, the ov019 rule.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -363,7 +365,7 @@ extern "C" void hal_fill_pyramid_step_vtable(void)
     vt[3]  = (void *)ps_clean;
     vt[6]  = (void *)ps_behavior;
     vt[9]  = (void *)ps_render;
-    vt[16] = (void *)ps_d1;
+    vt[16] = (void *)PORT_D16(ps_d1);
     vt[17] = (void *)ps_d0;
     vt[31] = (void *)ov25_kill;
 }
@@ -404,7 +406,7 @@ extern "C" void hal_fill_pyramid_lift_vtable(void)
     vt[3]  = (void *)pl_clean;
     vt[6]  = (void *)pl_behavior;
     vt[9]  = (void *)pl_render;
-    vt[16] = (void *)pl_d1;
+    vt[16] = (void *)PORT_D16(pl_d1);
     vt[17] = (void *)pl_d0;
     vt[31] = (void *)ov25_kill;
 }

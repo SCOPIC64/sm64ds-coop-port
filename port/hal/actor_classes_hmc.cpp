@@ -20,6 +20,8 @@
 // Slot 21 (OnGroundPounded, _ZN5Crate15OnGroundPoundedER8dActor_c) takes only `this` and
 // dispatches slot 31 (Kill) virtually, which is why 31 is bound rather than
 // trapped: the first ground-pound of a crate reaches it.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -195,7 +197,7 @@ extern "C" void hal_fill_crate_vtable(void)
     vt[13] = (void *)hmc_trap13;
     vt[14] = (void *)hmc_trap14;
     vt[15] = (void *)hmc_heap;
-    vt[16] = (void *)crate_d1;
+    vt[16] = (void *)PORT_D16(crate_d1);
     vt[17] = (void *)crate_d0;
     vt[18] = (void *)crate_yoshi;
     vt[19] = (void *)crate_egg;

@@ -26,6 +26,8 @@
 //   slot 18 OnYoshiTryEat  020e8ee8  _ZN9PowerStar13OnYoshiTryEatEv (matched)
 //   slot 19 (egg)          020e8edc  _ZN9PowerStar13OnTurnIntoEggER6Player (matched)
 // every other slot is an Actor/ActorBase base method, the ac31/we31 shared set.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -342,7 +344,7 @@ extern "C" void hal_fill_power_star_vtable(void)
     vt[3] = (void *)ps_clean;
     vt[6] = (void *)ps_behavior;
     vt[9] = (void *)ps_render;
-    vt[16] = (void *)ps_d1;
+    vt[16] = (void *)PORT_D16(ps_d1);
     vt[17] = (void *)ps_d0;
     vt[18] = (void *)ps_yoshi;
     vt[19] = (void *)ps_s19;
@@ -466,7 +468,7 @@ extern "C" void hal_fill_actor_base_vtable(void)
     vt[13] = (void *)star_trap13;
     vt[14] = (void *)star_trap14;
     vt[15] = (void *)star_heap;    /* ActorBase::OnHeapCreated */
-    vt[16] = (void *)star_d1;      /* Actor::~Actor (D1) */
+    vt[16] = (void *)PORT_D16(star_d1);      /* Actor::~Actor (D1) */
     vt[17] = (void *)star_d0;      /* Actor::~Actor (D0) */
     vt[18] = (void *)ac_yoshi;     /* Actor::OnYoshiTryEat default */
     vt[19] = (void *)ac_egg;       /* Actor::OnTurnIntoEgg default */

@@ -27,6 +27,8 @@
 // Renders ride FROM SRC: plain-Model slot-5 bare-call shadows over +0xd4.
 // _ZTV5Model[5] is dual-filled (hal/cxxname_bridge.cpp), the Tree/ov072/l7
 // precedent -- NOT the ModelAnim slot-5 collision.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -273,7 +275,7 @@ extern "C" void hal_fill_clock_pendulum_vtable(void)
     vt[3]  = (void *)cp_clean;
     vt[6]  = (void *)cp_behavior;
     vt[9]  = (void *)cp_render;
-    vt[16] = (void *)cp_d1;
+    vt[16] = (void *)PORT_D16(cp_d1);
     vt[17] = (void *)cp_d0;
 }
 
@@ -309,7 +311,7 @@ extern "C" void hal_fill_clock_hand_vtable(void)
     vt[3]  = (void *)ch_clean;
     vt[6]  = (void *)ch_behavior;
     vt[9]  = (void *)ch_render;
-    vt[16] = (void *)hal_cppd1_ClockPaintingHandShort;
+    vt[16] = (void *)PORT_D16(hal_cppd1_ClockPaintingHandShort);
     vt[17] = (void *)ch_d0;
 }
 

@@ -170,6 +170,8 @@
 // and slot 32 gets the same THREE-PARAMETER thunk shape that lane measured:
 // the dispatch site pushes the colliding Actor and the callee pops it, so a
 // two-parameter thunk would emit a bare `ret` and desync the caller.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -498,7 +500,7 @@ static void ov36_base_bringup(void)
            names -- see the -D block for slice_gate216 in port/CMakeLists.txt.
            The two daObjDorifu_c bodies spell both tables by their real names
            and need no rename at all. */
-        vt[16] = (void *)(k == 0 ? ov36_kaitendai_d1 : ov36_dorifu_d1);
+        vt[16] = (void *)(k == 0 ? PORT_D16(ov36_kaitendai_d1) : PORT_D16(ov36_dorifu_d1));
         vt[17] = (void *)(k == 0 ? ov36_kaitendai_d0 : ov36_dorifu_d0);
         vt[31] = (void *)ov36_kill;    /* both are Platform-derived */
     }
@@ -549,7 +551,7 @@ extern "C" void hal_fill_swinging_platform_vtable(void)
     vt[3]  = (void *)swp_clean;
     vt[6]  = (void *)swp_behavior;
     vt[9]  = (void *)swp_render;
-    vt[16] = (void *)swp_d1;
+    vt[16] = (void *)PORT_D16(swp_d1);
     vt[17] = (void *)swp_d0;
     vt[31] = (void *)ov36_kill;
 }
@@ -593,7 +595,7 @@ extern "C" void hal_fill_rotating_platform_rr_vtable(void)
     vt[3]  = (void *)rpr_clean;
     vt[6]  = (void *)rpr_behavior;
     vt[9]  = (void *)rpr_render;
-    vt[16] = (void *)rpr_d1;
+    vt[16] = (void *)PORT_D16(rpr_d1);
     vt[17] = (void *)rpr_d0;
     vt[31] = (void *)ov36_kill;
 }
@@ -649,7 +651,7 @@ extern "C" void hal_fill_ship_wing_vtable(void)
     vt[3]  = (void *)sw_clean;
     vt[6]  = (void *)sw_behavior;
     vt[9]  = (void *)sw_render;
-    vt[16] = (void *)hal_cppd1_RotatingPlatformRr;
+    vt[16] = (void *)PORT_D16(hal_cppd1_RotatingPlatformRr);
     vt[17] = (void *)sw_d0;
     /* no slot 31: a plain Actor, 31 slots total, ends at 30 */
 }
@@ -696,7 +698,7 @@ extern "C" void hal_fill_donut_block_vtable(void)
     vt[6]  = (void *)db_behavior;
     vt[9]  = (void *)db_render;
     vt[12] = (void *)db_pdes;   /* own, overrides the shared ActorBase default */
-    vt[16] = (void *)db_d1;
+    vt[16] = (void *)PORT_D16(db_d1);
     vt[17] = (void *)db_d0;
     vt[31] = (void *)ov36_kill;
 }
@@ -738,7 +740,7 @@ extern "C" void hal_fill_armed_rotating_platform_vtable(void)
     vt[3]  = (void *)arp_clean;
     vt[6]  = (void *)arp_behavior;
     vt[9]  = (void *)arp_render;
-    vt[16] = (void *)arp_d1;
+    vt[16] = (void *)PORT_D16(arp_d1);
     vt[17] = (void *)arp_d0;
     vt[31] = (void *)ov36_kill;
 }
@@ -786,7 +788,7 @@ extern "C" void hal_fill_tricky_triangles_vtable(void)
     vt[3]  = (void *)tt_clean;
     vt[6]  = (void *)tt_behavior;
     vt[9]  = (void *)tt_render;
-    vt[16] = (void *)tt_d1;
+    vt[16] = (void *)PORT_D16(tt_d1);
     vt[17] = (void *)tt_d0;
     vt[31] = (void *)ov36_kill;
 }
@@ -856,7 +858,7 @@ extern "C" void hal_fill_flying_carpet_vtable(void)
     vt[3]  = (void *)fc_clean;
     vt[6]  = (void *)fc_behavior;
     vt[9]  = (void *)fc_render;
-    vt[16] = (void *)fc_d1;
+    vt[16] = (void *)PORT_D16(fc_d1);
     vt[17] = (void *)fc_d0;
     vt[31] = (void *)ov36_kill;
     vt[32] = (void *)ov36_after_clsn;   /* the INHERITED extra virtual */

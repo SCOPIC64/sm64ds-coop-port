@@ -77,6 +77,8 @@
 // derivation in its banner: equal size against the ROM bytes, every
 // divergence a register rename or scheduling swap. When the decomp matches
 // any of them, the src TU replaces the copy via slice_w5a.txt.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -375,7 +377,7 @@ extern "C" void hal_fill_boo_vtable(void)
     vt[6]  = (void *)boo_behavior;
     vt[9]  = (void *)boo_render;
     vt[12] = (void *)boo_pdes;
-    vt[16] = (void *)boo_d1;
+    vt[16] = (void *)PORT_D16(boo_d1);
     vt[17] = (void *)boo_d0;
     vt[18] = (void *)boo_yoshi;
     vt[29] = (void *)boo_egg;
@@ -430,7 +432,7 @@ extern "C" void hal_fill_big_boo_icon_vtable(void)
     vt[3]  = (void *)bbi_clean;
     vt[6]  = (void *)bbi_behavior;
     vt[9]  = (void *)bbi_render;
-    vt[16] = (void *)bbi_d1;
+    vt[16] = (void *)PORT_D16(bbi_d1);
     vt[17] = (void *)bbi_d0;
 }
 
@@ -478,7 +480,7 @@ extern "C" void hal_fill_boo_cage_vtable(void)
     vt[3]  = (void *)bc_clean;
     vt[6]  = (void *)bc_behavior;
     vt[9]  = (void *)bc_render;
-    vt[16] = (void *)bc_d1;
+    vt[16] = (void *)PORT_D16(bc_d1);
     vt[17] = (void *)bc_d0;
 }
 
@@ -544,7 +546,7 @@ extern "C" void hal_fill_mansion_steps_vtable(void)
     vt[6]  = (void *)ms_behavior;
     vt[9]  = (void *)ms_render;
     vt[12] = (void *)ms_pdes;
-    vt[16] = (void *)ms_d1;
+    vt[16] = (void *)PORT_D16(ms_d1);
     vt[17] = (void *)ms_d0;
 }
 
@@ -620,7 +622,7 @@ extern "C" void hal_fill_fall_block_bbh_vtable(void)
     vt[3]  = (void *)fbb_clean;
     vt[6]  = (void *)fbb_behavior;
     vt[9]  = (void *)fbb_render;
-    vt[16] = (void *)fbb_d1;
+    vt[16] = (void *)PORT_D16(fbb_d1);
     vt[17] = (void *)fbb_d0;
     vt[27] = (void *)fbb_slot27;
     vt[31] = (void *)fbb_slot31;
@@ -690,7 +692,7 @@ extern "C" void hal_fill_mad_piano_vtable(void)
     vt[3]  = (void *)mp_clean;
     vt[6]  = (void *)mp_behavior;
     vt[9]  = (void *)mp_render;
-    vt[16] = (void *)mp_d1;
+    vt[16] = (void *)PORT_D16(mp_d1);
     vt[17] = (void *)mp_d0;
     vt[31] = (void *)ov63_kill;
 }
@@ -884,7 +886,7 @@ extern "C" void hal_fill_book_shot_vtable(void)
     vt[3]  = (void *)bk_clean;
     vt[6]  = (void *)bk_behavior;
     vt[9]  = (void *)bk_render;
-    vt[16] = (void *)bk_d1;
+    vt[16] = (void *)PORT_D16(bk_d1);
     vt[17] = (void *)bk_d0;
     vt[18] = (void *)bk_yoshi;
     vt[29] = (void *)bk_egg;
@@ -911,7 +913,7 @@ extern "C" void hal_fill_book_shot_spawner_vtable(void)
     vt[3]  = (void *)bks_clean;
     vt[6]  = (void *)bks_behavior;
     vt[9]  = (void *)bks_render;
-    vt[16] = (void *)hal_cppd1_BookShotSpawner;
+    vt[16] = (void *)PORT_D16(hal_cppd1_BookShotSpawner);
     vt[17] = (void *)bks_d0;
 }
 
@@ -1000,7 +1002,7 @@ extern "C" void hal_fill_crazed_crate_vtable(void)
     vt[6]  = (void *)cc_behavior;
     vt[9]  = (void *)cc_render;
     vt[12] = (void *)cc_pdes;
-    vt[16] = (void *)hal_cppd1_CrazedCrate;
+    vt[16] = (void *)PORT_D16(hal_cppd1_CrazedCrate);
     vt[17] = (void *)cc_d0;
     vt[18] = (void *)cc_yoshi;
     vt[19] = (void *)cc_turn_egg;
@@ -1070,7 +1072,7 @@ extern "C" void hal_fill_coffin_vtable(void)
     vt[3]  = (void *)cf_clean;
     vt[6]  = (void *)cf_behavior;
     vt[9]  = (void *)cf_render;
-    vt[16] = (void *)cf_d1;
+    vt[16] = (void *)PORT_D16(cf_d1);
     vt[17] = (void *)cf_d0;
     vt[31] = (void *)ov63_kill;
     /* the 20-byte-entry state-table re-seat (Bbh_PmfDispatch.c addendum 2) */

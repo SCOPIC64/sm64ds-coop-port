@@ -37,6 +37,8 @@
 // whose comment has named the Platform D0 pair as that alias's reader since
 // before this seat existed).
 
+#include "port_d16.h"
+
 extern "C" {
 
 extern void *_ZTV10dBgActor_c[32];   /* storage: hal/actor_classes.cpp */
@@ -63,7 +65,7 @@ extern "C" void hal_seat_platform_dtors(void)
     hal_fill_platform_vtable();
     void **tabs[2] = { _ZTV10dBgActor_c, _ZTV10dBgActor_c };
     for (int k = 0; k < 2; ++k) {
-        tabs[k][16] = (void *)plat_d1;
+        tabs[k][16] = (void *)PORT_D16(plat_d1);
         tabs[k][17] = (void *)plat_d0;
     }
 }

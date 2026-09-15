@@ -47,6 +47,8 @@
 // them; the ov060 table is hosted as an array here (the ov060 mount excludes
 // its vtables, port/ov060_syms.txt's rule). Each class's D0 spells its table
 // by the RTTI name, aliased onto the seated storage.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -264,7 +266,7 @@ extern "C" void hal_fill_fireball_vtable(void)
     vt[3]  = (void *)rs_clean_base;   /* ROM slot 3: ActorBase::CleanupResources */
     vt[6]  = (void *)fb_behavior;
     vt[9]  = (void *)fb_render;
-    vt[16] = (void *)fb_d1;
+    vt[16] = (void *)PORT_D16(fb_d1);
     vt[17] = (void *)fb_d0;
     vt[18] = (void *)fb_yoshi;
 }
@@ -344,7 +346,7 @@ extern "C" void hal_fill_bowser_shockwaves_vtable(void)
     vt[3]  = (void *)bsw_clean;
     vt[6]  = (void *)bsw_behavior;
     vt[9]  = (void *)bsw_render;
-    vt[16] = (void *)bsw_d1;
+    vt[16] = (void *)PORT_D16(bsw_d1);
     vt[17] = (void *)bsw_d0;
 }
 
@@ -411,7 +413,7 @@ extern "C" void hal_fill_bubble_vtable(void)
     vt[3]  = (void *)rs_clean_base;    /* ROM slot 3: ActorBase::CleanupResources */
     vt[6]  = (void *)bub_behavior;
     vt[9]  = (void *)rs_render_base;   /* ROM slot 9: ActorBase::Render */
-    vt[16] = (void *)bub_d1;
+    vt[16] = (void *)PORT_D16(bub_d1);
     vt[17] = (void *)bub_d0;
 }
 
@@ -488,7 +490,7 @@ extern "C" void hal_fill_yoshi_egg_vtable(void)
     vt[3]  = (void *)ye_clean;
     vt[6]  = (void *)ye_behavior;
     vt[9]  = (void *)ye_render;
-    vt[16] = (void *)ye_d1;
+    vt[16] = (void *)PORT_D16(ye_d1);
     vt[17] = (void *)ye_d0;
 }
 

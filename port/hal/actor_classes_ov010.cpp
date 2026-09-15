@@ -74,6 +74,8 @@
 // with Model::LoadFile into ModelBase::SetFile while both destructors call
 // _ZN5ModelD1Ev on +0x320, so it is a plain Model and hal/cxxname_bridge.cpp's
 // dual-filled _ZTV5Model[5] is Model::Render.
+#include "port_d16.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -363,7 +365,7 @@ extern "C" void hal_fill_ov010_trap36_vtable(void)
     vt[13] = (void *)ov10_trap13;
     vt[14] = (void *)ov10_trap14;
     vt[15] = (void *)ov10_heap;
-    vt[16] = (void *)t36_d1;
+    vt[16] = (void *)PORT_D16(t36_d1);
     vt[17] = (void *)t36_d0;
     vt[18] = (void *)ov10_yoshi;
     vt[19] = (void *)ov10_turn_egg;

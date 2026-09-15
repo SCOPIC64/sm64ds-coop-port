@@ -65,6 +65,8 @@
 // wave 18 landed the list and the CMake row and no caller. The twelve
 // cross-overlay blocks that mount exists for were still holding whatever the
 // emitter left them.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -402,7 +404,7 @@ extern "C" void hal_fill_rotating_cog_vtable(void)
     vt[3]  = (void *)rcs_clean;
     vt[6]  = (void *)rcs_behavior;
     vt[9]  = (void *)rcs_render;
-    vt[16] = (void *)rcs_d1;
+    vt[16] = (void *)PORT_D16(rcs_d1);
     vt[17] = (void *)rcs_d0;
     vt[31] = (void *)ov35_kill;
 }
@@ -446,7 +448,7 @@ extern "C" void hal_fill_spinning_platform_vtable(void)
     vt[3]  = (void *)sp_clean;
     vt[6]  = (void *)sp_behavior;
     vt[9]  = (void *)sp_render;
-    vt[16] = (void *)sp_d1;
+    vt[16] = (void *)PORT_D16(sp_d1);
     vt[17] = (void *)sp_d0;
     vt[31] = (void *)ov35_kill;
 }

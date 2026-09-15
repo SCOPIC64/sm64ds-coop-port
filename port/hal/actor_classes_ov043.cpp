@@ -27,6 +27,8 @@
 // spelling is an /alternatename onto this one array. 0x021122b8 is excluded
 // from the mount (the ov015/ov016/ov022/ov045/ov080 rule) -- mounting it would
 // hand the factory DS code addresses.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -288,7 +290,7 @@ extern "C" void hal_fill_diamond_lift_vtable(void)
     vt[13] = (void *)o43_trap13;
     vt[14] = (void *)o43_trap14;
     vt[15] = (void *)o43_heap;
-    vt[16] = (void *)dl_d1;
+    vt[16] = (void *)PORT_D16(dl_d1);
     vt[17] = (void *)dl_d0;
     vt[18] = (void *)o43_yoshi;
     vt[19] = (void *)o43_turn_egg;
@@ -487,7 +489,7 @@ extern "C" void hal_fill_rickshaw_bdw_vtable(void)
     vt[3]  = (void *)rbdw_clean;
     vt[6]  = (void *)rbdw_behavior;
     vt[9]  = (void *)rbdw_render;
-    vt[16] = (void *)rbdw_d1;
+    vt[16] = (void *)PORT_D16(rbdw_d1);
     vt[17] = (void *)rbdw_d0;
     vt[31] = (void *)o43_kill;
 }
@@ -516,7 +518,7 @@ extern "C" void hal_fill_rickshaw_platform_bdw_vtable(void)
     vt[3]  = (void *)rpbdw_clean;
     vt[6]  = (void *)rpbdw_behavior;
     vt[9]  = (void *)rpbdw_render;
-    vt[16] = (void *)rpbdw_d1;
+    vt[16] = (void *)PORT_D16(rpbdw_d1);
     vt[17] = (void *)rpbdw_d0;
     vt[31] = (void *)o43_kill;
 }
@@ -545,7 +547,7 @@ extern "C" void hal_fill_stairs_bdw_vtable(void)
     vt[3]  = (void *)sbdw_clean;
     vt[6]  = (void *)sbdw_behavior;
     vt[9]  = (void *)sbdw_render;
-    vt[16] = (void *)sbdw_d1;
+    vt[16] = (void *)PORT_D16(sbdw_d1);
     vt[17] = (void *)sbdw_d0;
     vt[31] = (void *)o43_kill;
 }

@@ -199,6 +199,8 @@
 // port/tools/abicheck_extslot_baseline.txt rest on these arities being read
 // rather than guessed.
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -542,7 +544,7 @@ static void ov27_bully_base_bringup(void)
     /* 16/17: an intermediate installed only between two member teardowns never
        reaches its own destructors either -- so they carry the ROM's own pair
        (see the block above this function) rather than the trap. */
-    vt[16] = (void *)ov27_bully_base_d1;
+    vt[16] = (void *)PORT_D16(ov27_bully_base_d1);
     vt[17] = (void *)ov27_bully_base_d0;
     /* 31..36 are Enemy/Bully's own virtuals. The derived table overwrites all
        six one instruction later in the constructor and the two destructors
@@ -589,7 +591,7 @@ extern "C" void hal_fill_sliding_ice_vtable(void)
     vt[3]  = (void *)si_clean;
     vt[6]  = (void *)si_behavior;
     vt[9]  = (void *)si_render;
-    vt[16] = (void *)si_d1;
+    vt[16] = (void *)PORT_D16(si_d1);
     vt[17] = (void *)si_d0;
     vt[27] = (void *)si_mega;
     vt[31] = (void *)ov27_kill;
@@ -643,7 +645,7 @@ extern "C" void hal_fill_chill_bully_vtable(void)
     vt[3]  = (void *)cb_clean;
     vt[6]  = (void *)cb_behavior;
     vt[9]  = (void *)cb_render;
-    vt[16] = (void *)cb_d1;
+    vt[16] = (void *)PORT_D16(cb_d1);
     vt[17] = (void *)cb_d0;
     vt[29] = (void *)cb_aimed;
     vt[31] = (void *)cb_v31;
@@ -689,7 +691,7 @@ extern "C" void hal_fill_da_pg_dfdr_vtable(void)
     vt[6]  = (void *)pd_behavior;
     vt[9]  = (void *)pd_render;
     vt[12] = (void *)pd_pdes;
-    vt[16] = (void *)pd_d1;
+    vt[16] = (void *)PORT_D16(pd_d1);
     vt[17] = (void *)pd_d0;
     vt[31] = (void *)ov27_kill;
     /* the constructor's copy of the four member-pointer pairs, checked once.
@@ -731,6 +733,6 @@ extern "C" void hal_fill_snowman_breath_vtable(void)
     vt[6]  = (void *)sb_behavior;
     vt[9]  = (void *)sb_render;
     vt[12] = (void *)sb_pdes;
-    vt[16] = (void *)sb_d1;
+    vt[16] = (void *)PORT_D16(sb_d1);
     vt[17] = (void *)sb_d0;
 }

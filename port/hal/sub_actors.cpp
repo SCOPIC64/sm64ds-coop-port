@@ -58,6 +58,8 @@
 // (`p[0] = _ZTV7dBase_c; p[0] = _ZTV8dMeter_c;` -- the ROM's own two stores,
 // which is what the decomp recovered). Nothing dispatches through the base
 // one, so it is storage and no more.
+#include "port_d16.h"
+
 #include <cstdio>
 #include <cstdlib>
 
@@ -956,7 +958,7 @@ extern "C" void hal_fill_hud_vtable(void)
     vt[6] = (void *)hud_behavior;
     vt[9] = (void *)hud_render;
     vt[12] = (void *)hud_pdes;
-    vt[16] = (void *)hud_d1;
+    vt[16] = (void *)PORT_D16(hud_d1);
     vt[17] = (void *)hud_d0;
     /* the base table is never dispatched through, but a null slot in it would
        be indistinguishable from a bug if one ever were */
@@ -994,7 +996,7 @@ extern "C" void hal_fill_minimap_vtable(void)
     vt[6] = (void *)map_behavior;
     vt[9] = (void *)map_render;
     vt[12] = (void *)map_pdes;
-    vt[16] = (void *)map_d1;
+    vt[16] = (void *)PORT_D16(map_d1);
     vt[17] = (void *)map_d0;
 }
 

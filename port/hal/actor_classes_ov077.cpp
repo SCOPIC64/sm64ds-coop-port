@@ -59,6 +59,8 @@
  * hal/actor_overlays.cpp calls it between port_ov077_syms_patch() and the
  * first __sinit_ov077_*. The MrBlizzard/BabyPenguin/Unagi/HootTheOwl order.
  */
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -456,7 +458,7 @@ extern "C" void hal_fill_lakitu_vtable(void)
     vt[6]  = (void *)lak_behavior;
     vt[9]  = (void *)lak_render;
     vt[12] = (void *)lak_pdes;
-    vt[16] = (void *)hal_cppd1_Lakitu;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Lakitu);
     vt[17] = (void *)lak_d0;
     vt[18] = (void *)lak_yoshi;
     vt[19] = (void *)lak_egg;
@@ -498,7 +500,7 @@ extern "C" void hal_fill_spiny_vtable(void)
     vt[6]  = (void *)spn_behavior;
     vt[9]  = (void *)spn_render;
     vt[12] = (void *)spn_pdes;
-    vt[16] = (void *)hal_cppd1_Spiny;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Spiny);
     vt[17] = (void *)spn_d0;
     vt[18] = (void *)spn_yoshi;
     vt[19] = (void *)spn_egg;
@@ -536,7 +538,7 @@ extern "C" void hal_fill_heave_ho_vtable(void)
     vt[6]  = (void *)hho_behavior;
     vt[9]  = (void *)hho_render;
     vt[12] = (void *)hho_pdes;
-    vt[16] = (void *)hho_d1;
+    vt[16] = (void *)PORT_D16(hho_d1);
     vt[17] = (void *)hho_d0;
 }
 

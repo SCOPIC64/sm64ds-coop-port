@@ -57,6 +57,8 @@
  * port_ov092_syms_patch() and __sinit_ov092_021320cc(). The MrBlizzard/
  * BabyPenguin/Unagi/HootTheOwl/ov077 order.
  */
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -445,7 +447,7 @@ extern "C" void hal_fill_tox_box_vtable(void)
     vt[13] = (void *)ov92_trap13;
     vt[14] = (void *)ov92_trap14;
     vt[15] = (void *)ov92_heap;
-    vt[16] = (void *)tb_d1;
+    vt[16] = (void *)PORT_D16(tb_d1);
     vt[17] = (void *)tb_d0;
     vt[18] = (void *)ov92_yoshi;
     vt[19] = (void *)ov92_turn_egg;

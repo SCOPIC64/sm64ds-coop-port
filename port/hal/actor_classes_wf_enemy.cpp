@@ -41,6 +41,8 @@
 // returns a Vector3 by value, an ABI a thunk cannot bridge, and nothing aims a
 // Yoshi egg at anything as Mario. FortressWall is a Platform whose slot 30 is
 // the arm9 base body, filled by the shared pass.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -174,7 +176,7 @@ static void we31_fill_shared(void **vt)
     vt[13] = (void *)we_trap13;
     vt[14] = (void *)we_trap14;
     vt[15] = (void *)we_heap;
-    vt[16] = (void *)we_trap16;
+    vt[16] = (void *)PORT_D16(we_trap16);
     vt[17] = (void *)we_trap17;
     vt[18] = (void *)we_yoshi;
     vt[19] = (void *)we_trap19;
@@ -259,7 +261,7 @@ static void hal_fill_whomp_vtable(void)
     vt[3] = (void *)whomp_clean;
     vt[6] = (void *)whomp_behavior;
     vt[9] = (void *)whomp_render;
-    vt[16] = (void *)whomp_d1;
+    vt[16] = (void *)PORT_D16(whomp_d1);
     vt[17] = (void *)whomp_d0;
     vt[27] = (void *)whomp_mega;
     vt[29] = (void *)whomp_aimed;
@@ -326,7 +328,7 @@ static void hal_fill_bullet_bill_vtable(void)
     vt[3] = (void *)klr_clean;
     vt[6] = (void *)klr_behavior;
     vt[9] = (void *)klr_render;
-    vt[16] = (void *)klr_d1;
+    vt[16] = (void *)PORT_D16(klr_d1);
     vt[17] = (void *)klr_d0;
     vt[29] = (void *)klr_aimed;
 }
@@ -393,7 +395,7 @@ static void hal_fill_bill_blaster_vtable(void)
     vt[3] = (void *)blz_clean;
     vt[6] = (void *)blz_behavior;
     vt[9] = (void *)blz_render;
-    vt[16] = (void *)blz_d1;
+    vt[16] = (void *)PORT_D16(blz_d1);
     vt[17] = (void *)blz_d0;
     vt[27] = (void *)blz_mega;
     vt[31] = (void *)blz_kill;
@@ -448,7 +450,7 @@ static void hal_fill_fortress_wall_vtable(void)
     vt[3] = (void *)fw_clean;
     vt[6] = (void *)fw_behavior;
     vt[9] = (void *)fw_render;
-    vt[16] = (void *)fw_d1;
+    vt[16] = (void *)PORT_D16(fw_d1);
     vt[17] = (void *)fw_d0;
     /* slot 26 is FortressWall's own OnHitByCannonBlastedChar */
     vt[26] = (void *)fw_cannon;

@@ -26,6 +26,8 @@
 // PUSH_BLOCK's 3-state PMF machine dispatches through data_ov002_021097bc;
 // the installer/tick host copies and the dest seat live in
 // port/unmatched/PushBlock_StateDispatch.cpp (called from the fill below).
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -255,7 +257,7 @@ extern "C" void hal_fill_pushblock_vtable(void)
     vt[3]  = (void *)pb_clean;
     vt[6]  = (void *)pb_behavior;
     vt[9]  = (void *)pb_render;
-    vt[16] = (void *)hal_cppd1_PushBlock;
+    vt[16] = (void *)PORT_D16(hal_cppd1_PushBlock);
     vt[17] = (void *)pb_d0;
     vt[18] = (void *)pb_yoshi;   /* own override: return 5, Yoshi cannot eat it */
 }
@@ -298,7 +300,7 @@ extern "C" void hal_fill_mugen_bgm_vtable(void)
     vt[6]  = (void *)mb_behavior;
     vt[9]  = (void *)mb_render;
     vt[12] = (void *)mb_pdes;
-    vt[16] = (void *)hal_cppd1_MugenBgm;
+    vt[16] = (void *)PORT_D16(hal_cppd1_MugenBgm);
     vt[17] = (void *)mb_d0;
 }
 

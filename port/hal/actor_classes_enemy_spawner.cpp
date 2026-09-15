@@ -42,6 +42,8 @@
 // ac_d1_actor_only shape). Slot 17, the deleting destructor, IS a matched flat
 // C body on the slice and both are enrolled.
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -265,7 +267,7 @@ extern "C" void hal_fill_enemy_switch_tag_vtable(void)
     vt[0]  = (void *)est_init;
     vt[3]  = (void *)est_clean;
     vt[6]  = (void *)est_behavior;
-    vt[16] = (void *)hal_cppd1_EnemySwitchTag;
+    vt[16] = (void *)PORT_D16(hal_cppd1_EnemySwitchTag);
     vt[17] = (void *)est_d0;
 }
 
@@ -276,6 +278,6 @@ extern "C" void hal_fill_enemy_spawner_vtable(void)
     vt[0]  = (void *)esp_init;
     vt[3]  = (void *)esp_clean;
     vt[6]  = (void *)esp_behavior;
-    vt[16] = (void *)hal_cppd1_EnemySpawner;
+    vt[16] = (void *)PORT_D16(hal_cppd1_EnemySpawner);
     vt[17] = (void *)esp_d0;
 }

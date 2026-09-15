@@ -135,6 +135,8 @@
 // guard lives in .dsstate so a save-state restore re-runs the pass exactly
 // when its results were rolled away.
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -378,7 +380,7 @@ extern "C" void hal_fill_rotating_platform_lll_vtable(void)
     vt[3]  = (void *)rp_clean;
     vt[6]  = (void *)rp_behavior;
     vt[9]  = (void *)rp_render;
-    vt[16] = (void *)rp_d1;
+    vt[16] = (void *)PORT_D16(rp_d1);
     vt[17] = (void *)rp_d0;
     vt[31] = (void *)ov22e_kill;
 }
@@ -447,7 +449,7 @@ extern "C" void hal_fill_lava_bridge_vtable(void)
     vt[3]  = (void *)lb_clean;
     vt[6]  = (void *)lb_behavior;
     vt[9]  = (void *)lb_render;
-    vt[16] = (void *)lb_d1;
+    vt[16] = (void *)PORT_D16(lb_d1);
     vt[17] = (void *)lb_d0;
     vt[31] = (void *)ov22e_kill;
 }
@@ -509,7 +511,7 @@ extern "C" void hal_fill_lava_seesaw_vtable(void)
     vt[3]  = (void *)ls_clean;
     vt[6]  = (void *)ls_behavior;
     vt[9]  = (void *)ls_render;
-    vt[16] = (void *)ls_d1;
+    vt[16] = (void *)PORT_D16(ls_d1);
     vt[17] = (void *)ls_d0;
     vt[31] = (void *)ov22e_kill;
 }
@@ -565,7 +567,7 @@ extern "C" void hal_fill_rolling_log_lll_vtable(void)
     vt[3]  = (void *)rl_clean;
     vt[6]  = (void *)rl_behavior;
     vt[9]  = (void *)rl_render;
-    vt[16] = (void *)rl_d1;
+    vt[16] = (void *)PORT_D16(rl_d1);
     vt[17] = (void *)rl_d0;
     vt[27] = (void *)rl_mega;
     vt[31] = (void *)ov22e_kill;
@@ -636,7 +638,7 @@ extern "C" void hal_fill_volcano_fire_vtable(void)
     vt[3]  = (void *)vf_clean;
     vt[6]  = (void *)vf_behavior;
     vt[9]  = (void *)vf_render;
-    vt[16] = (void *)hal_cppd1_RollingLogLll;
+    vt[16] = (void *)PORT_D16(hal_cppd1_RollingLogLll);
     vt[17] = (void *)vf_d0;
     /* ov22e_fill_shared wrote slot 30; this table has no slot 31 and the fill
        never touches one. */

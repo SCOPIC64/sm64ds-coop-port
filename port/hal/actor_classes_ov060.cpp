@@ -60,6 +60,8 @@
 // image), so the name is aliased onto the one-symbol per-symbol ov046 mount
 // (port/ov046_syms.txt). CLPS records carry no pointers; the copy cannot
 // diverge from the whole-image mount the loaders walk.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -491,7 +493,7 @@ extern "C" void hal_fill_bowser_fire_sea_arena_vtable(void)
     vt[3]  = (void *)arena_clean;
     vt[6]  = (void *)arena_behavior;
     vt[9]  = (void *)arena_render;
-    vt[16] = (void *)arena_d1;
+    vt[16] = (void *)PORT_D16(arena_d1);
     vt[17] = (void *)arena_d0;
     vt[31] = (void *)ov60_kill;
 }
@@ -553,7 +555,7 @@ extern "C" void hal_fill_spike_bomb_vtable(void)
     vt[3]  = (void *)spikebomb_clean;
     vt[6]  = (void *)spikebomb_behavior;
     vt[9]  = (void *)spikebomb_render;
-    vt[16] = (void *)hal_cppd1_BowserSkyPlatform;
+    vt[16] = (void *)PORT_D16(hal_cppd1_BowserSkyPlatform);
     vt[17] = (void *)spikebomb_d0;
 }
 
@@ -650,7 +652,7 @@ extern "C" void hal_fill_bowser_vtable(void)
     vt[6]  = (void *)bowser_behavior;
     vt[9]  = (void *)bowser_render;
     vt[12] = (void *)bowser_pdes;   /* after the shared fill, which writes 12 */
-    vt[16] = (void *)hal_cppd1_Bowser;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Bowser);
     vt[17] = (void *)bowser_d0;
 }
 
@@ -675,7 +677,7 @@ extern "C" void hal_fill_bowser_tail_vtable(void)
     vt[3]  = (void *)btail_clean;
     vt[6]  = (void *)btail_behavior;
     vt[9]  = (void *)btail_render;
-    vt[16] = (void *)hal_cppd1_BowserTail;
+    vt[16] = (void *)PORT_D16(hal_cppd1_BowserTail);
     vt[17] = (void *)btail_d0;
 }
 
@@ -700,7 +702,7 @@ extern "C" void hal_fill_bowser_fire_vtable(void)
     vt[3]  = (void *)bfire_clean;
     vt[6]  = (void *)bfire_behavior;
     vt[9]  = (void *)bfire_render;
-    vt[16] = (void *)bfire_d1;
+    vt[16] = (void *)PORT_D16(bfire_d1);
     vt[17] = (void *)bfire_d0;
 }
 
@@ -747,7 +749,7 @@ extern "C" void hal_fill_bowser_sky_platform_vtable(void)
     vt[3]  = (void *)skyplat_clean;
     vt[6]  = (void *)skyplat_behavior;
     vt[9]  = (void *)skyplat_render;
-    vt[16] = (void *)skyplat_d1;
+    vt[16] = (void *)PORT_D16(skyplat_d1);
     vt[17] = (void *)skyplat_d0;
     vt[31] = (void *)ov60_kill;
 }

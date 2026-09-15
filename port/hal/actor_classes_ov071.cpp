@@ -132,6 +132,8 @@
 // (src/_ZN3MrI13InitResourcesEv.cpp, "constant / value (div=6)", logic verified
 // correct vs ROM by whoever banked it). It is real behaviour, not a stub, so it
 // rides the slice; it is the one body in the closure that is not byte-matched.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -414,7 +416,7 @@ extern "C" void hal_fill_mri_vtable(void)
     vt[6]  = (void *)mri_behavior;
     vt[9]  = (void *)mri_render;
     vt[12] = (void *)mri_pdes;
-    vt[16] = (void *)hal_cppd1_MrI;
+    vt[16] = (void *)PORT_D16(hal_cppd1_MrI);
     vt[17] = (void *)mri_d0;
     vt[18] = (void *)mri_yoshi;   /* Actor's default; MrI has no override */
     MRI_SHARED_TAIL(vt)
@@ -428,7 +430,7 @@ extern "C" void hal_fill_mri_projectile_vtable(void)
     vt[6]  = (void *)mrp_behavior;
     vt[9]  = (void *)mrp_render;
     vt[12] = (void *)mrp_pdes;
-    vt[16] = (void *)hal_cppd1_MrI_Projectile;
+    vt[16] = (void *)PORT_D16(hal_cppd1_MrI_Projectile);
     vt[17] = (void *)mrp_d0;
     vt[18] = (void *)mrp_yoshi;   /* its OWN, _ZN8daEyBm_c13OnYoshiTryEatEv, returns 4 */
     MRI_SHARED_TAIL(vt)

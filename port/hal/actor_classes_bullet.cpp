@@ -30,6 +30,8 @@
 // through a slot-5 local shadow; model_host.cpp seats the Model vtable MSVC-slot-
 // ordered, so Render stays a faced .cpp method here (the FlameChomp treatment),
 // not a host copy.
+#include "port_d16.h"
+
 #include <cstdio>
 
 extern "C" {
@@ -92,7 +94,7 @@ extern "C" void hal_fill_bullet_vtable(void)
     vt[6]  = (void *)bl_behavior;
     vt[9]  = (void *)bl_render;
     vt[12] = (void *)bl_pdes;
-    vt[16] = (void *)bl_d1;
+    vt[16] = (void *)PORT_D16(bl_d1);
     vt[17] = (void *)bl_d0;
     /* slots 13/14/18/19/29/30 stay the shared defaults ac31_fill_shared seats:
        the reloc run lands them on the Enemy/Actor base bodies, none an ov002

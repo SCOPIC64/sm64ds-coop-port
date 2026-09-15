@@ -4,6 +4,8 @@
 //
 // Nothing here is behaviour. Camera::InitResources, Behavior and Render are
 // the matched src files; this is the seam they need to reach the host.
+#include "port_d16.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -132,7 +134,7 @@ extern "C" void hal_fill_camera_vtable(void)
     _ZTV6Camera[13] = (void *)cs_trap13;
     _ZTV6Camera[14] = (void *)cs_trap14;
     _ZTV6Camera[15] = (void *)cs_heap;
-    _ZTV6Camera[16] = (void *)cs_d1;
+    _ZTV6Camera[16] = (void *)PORT_D16(cs_d1);
     _ZTV6Camera[17] = (void *)cs_d0;
 }
 

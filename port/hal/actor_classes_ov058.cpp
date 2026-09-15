@@ -43,6 +43,8 @@
 // ov058 address, and dsd names the vtable once on the table its own factory
 // installs. After ov017's three live races, ov023's three, ov033's four and
 // ov035's two, this is the overlay that needed no per-source -D.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -247,7 +249,7 @@ extern "C" void hal_fill_rec_room_cupboard_vtable(void)
     vt[13] = (void *)ov58_trap13;
     vt[14] = (void *)ov58_trap14;
     vt[15] = (void *)ov58_heap;
-    vt[16] = (void *)rc_d1;
+    vt[16] = (void *)PORT_D16(rc_d1);
     vt[17] = (void *)rc_d0;
     vt[18] = (void *)ov58_yoshi;
     vt[19] = (void *)ov58_turn_egg;

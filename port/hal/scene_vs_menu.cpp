@@ -61,6 +61,8 @@
  * here, so headless proofs and the menu drive the same seam.
  */
 
+#include "port_d16.h"
+
 #include <cstdio>
 #include <intrin.h>   /* lane R3H: _AddressOfReturnAddress, the seam probe */
 #include "vs_width.h"   /* run vs16: the port's player width */
@@ -988,7 +990,7 @@ extern "C" void port_scene_fill_vs(void)
     vt[6]  = (void *)vs_beh;
     vt[9]  = (void *)vs_render;
     vt[12] = (void *)vs_pdes;
-    vt[16] = (void *)vs_d2;
+    vt[16] = (void *)PORT_D16(vs_d2);
     vt[17] = (void *)vs_d0;
     if (left != 8)
         std::fprintf(stderr, "  [vs] VTABLE SHAPE: port_scene_fill_rom left "

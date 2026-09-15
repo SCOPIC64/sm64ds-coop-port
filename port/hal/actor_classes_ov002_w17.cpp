@@ -24,6 +24,8 @@
 // +0xf0 and the scaled bounds at +0x114..0x11c (func_ov002_020bc488 writes
 // both).
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -221,7 +223,7 @@ extern "C" void hal_fill_seaweed_vtable(void)
     vt[13] = (void *)wk_trap13;
     vt[14] = (void *)wk_trap14;
     vt[15] = (void *)wk_heap;
-    vt[16] = (void *)wk_d1;
+    vt[16] = (void *)PORT_D16(wk_d1);
     vt[17] = (void *)wk_d0;
     vt[18] = (void *)wk_yoshi;
     vt[19] = (void *)wk_turn_egg;

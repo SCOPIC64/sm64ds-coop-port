@@ -138,6 +138,8 @@
 //  - What the eleven states MEAN. They are seated by address, in the sinit's
 //    own field order, and the run reports which ones were entered.
 // ============================================================================
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -550,7 +552,7 @@ extern "C" void hal_fill_ukikicage_vtable(void)
     vt[6]  = (void *)cage_behavior;
     vt[9]  = (void *)cage_render;
     vt[12] = (void *)ov30_pdes_default;  /* ROM takes ActorBase's 0x02043ac0 */
-    vt[16] = (void *)cage_d1;
+    vt[16] = (void *)PORT_D16(cage_d1);
     vt[17] = (void *)cage_d0;
     vt[31] = (void *)ov30_kill;          /* Platform::Kill, the 32nd slot */
 }
@@ -588,7 +590,7 @@ extern "C" void hal_fill_rollinglogttm_vtable(void)
     vt[6]  = (void *)log_behavior;
     vt[9]  = (void *)log_render;         /* ov080 override */
     vt[12] = (void *)ov30_pdes_default;  /* ROM takes ActorBase's 0x02043ac0 */
-    vt[16] = (void *)log_d1;
+    vt[16] = (void *)PORT_D16(log_d1);
     vt[17] = (void *)log_d0;
     vt[27] = (void *)log_mega;           /* ov080 override, NOT Actor's default */
     vt[31] = (void *)ov30_kill;          /* Platform::Kill, the 32nd slot */
@@ -667,7 +669,7 @@ extern "C" void hal_fill_ukiki_vtable(void)
     vt[6]  = (void *)mky_behavior;
     vt[9]  = (void *)mky_render;
     vt[12] = (void *)mky_pdes;   /* own body, overrides ActorBase's default */
-    vt[16] = (void *)hal_cppd1_RollingLogTtm;
+    vt[16] = (void *)PORT_D16(hal_cppd1_RollingLogTtm);
     vt[17] = (void *)mky_d0;
     vt[18] = (void *)mky_yoshi;  /* own OnYoshiTryEat, overrides the shared default */
     vt[19] = (void *)mky_egg;    /* own OnTurnIntoEgg, overrides the shared default */

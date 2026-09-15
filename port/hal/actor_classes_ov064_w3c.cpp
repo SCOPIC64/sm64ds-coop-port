@@ -86,6 +86,8 @@
 // gate-199/200/202, ov045 ExtendingPlatform and Clam case. tc_d1 is that
 // chain, transcribed from the ROM at 0x0211a200 and cross-checked against its
 // sibling D0, which spells the identical chain plus Memory::Deallocate.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -390,7 +392,7 @@ extern "C" void hal_fill_water_ring_vtable(void)
     vt[6]  = (void *)wr_behavior;
     vt[9]  = (void *)wr_render;
     vt[12] = (void *)wr_pdes;      /* WaterRing overrides OnPendingDestroy */
-    vt[16] = (void *)wr_d1;
+    vt[16] = (void *)PORT_D16(wr_d1);
     vt[17] = (void *)wr_d0;
     /* 31 slots: an Enemy/Actor, not a Platform. No slot 31. */
 }
@@ -404,7 +406,7 @@ extern "C" void hal_fill_treasure_chest_vtable(void)
     vt[3]  = (void *)tc_clean;
     vt[6]  = (void *)tc_behavior;
     vt[9]  = (void *)tc_render;
-    vt[16] = (void *)hal_cppd1_TreasureChest;
+    vt[16] = (void *)PORT_D16(hal_cppd1_TreasureChest);
     vt[17] = (void *)tc_d0;
     /* slot 12 keeps w3c_pdes_base -- the chest defaults to ActorBase's own. */
     /* 31 slots: an Actor, not a Platform. No slot 31. */

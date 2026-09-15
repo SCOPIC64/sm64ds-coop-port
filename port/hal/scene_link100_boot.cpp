@@ -105,6 +105,8 @@
  * config/arm9/relocs.txt) and NOT ONE of their src/ TUs names data_02092110.
  */
 
+#include "port_d16.h"
+
 #include <cstdio>
 #include <cstdlib>
 
@@ -352,7 +354,7 @@ extern "C" void port_scene_fill_boot(void)
     vt[6]  = (void *)bt_beh;
     vt[9]  = (void *)bt_render;
     vt[12] = (void *)bt_pdes;
-    vt[16] = (void *)bt_d2;
+    vt[16] = (void *)PORT_D16(bt_d2);
     vt[17] = (void *)bt_d0;
 
     /* THE ACCOUNTING, and it is the transcription's only proof. Six is the

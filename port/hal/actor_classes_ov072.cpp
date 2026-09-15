@@ -143,6 +143,8 @@
 // before 191, MOOT now that 191 hosts the mother. Documented here even
 // though BABY_PENGUIN is unregistered this gate, since the fill and the
 // PMF work are complete and this finding stands on its own.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -345,7 +347,7 @@ extern "C" void hal_fill_snowman_vtable(void)
     vt[6]  = (void *)snm_behavior;
     vt[9]  = (void *)snm_render;
     vt[12] = (void *)snm_pdes;
-    vt[16] = (void *)snm_d1;
+    vt[16] = (void *)PORT_D16(snm_d1);
     vt[17] = (void *)snm_d0;
     /* no slot 31: a plain Actor, 31 slots total, ends here */
 }
@@ -493,7 +495,7 @@ extern "C" void hal_fill_baby_penguin_vtable(void)
     vt[6]  = (void *)bp_behavior;
     vt[9]  = (void *)bp_render;
     vt[12] = (void *)bp_pdes;
-    vt[16] = (void *)hal_cppd1_BabyPenguin;
+    vt[16] = (void *)PORT_D16(hal_cppd1_BabyPenguin);
     vt[17] = (void *)bp_d0;
     vt[18] = (void *)bp_yoshi;   /* own OnYoshiTryEat, overrides the shared default */
     vt[19] = (void *)bp_egg;     /* own OnTurnIntoEgg, overrides the shared default */
@@ -751,7 +753,7 @@ extern "C" void hal_fill_snowman_body_vtable(void)
     vt[6]  = (void *)smb_behavior;
     vt[9]  = (void *)smb_render;
     vt[12] = (void *)smb_pdes;
-    vt[16] = (void *)hal_cppd1_SnowmanBody;
+    vt[16] = (void *)PORT_D16(hal_cppd1_SnowmanBody);
     vt[17] = (void *)smb_d0;
     /* no own 18/19 and no slot 31: a plain Actor, 31 slots, ends here */
 }
@@ -788,7 +790,7 @@ extern "C" void hal_fill_snowman_head_vtable(void)
     vt[6]  = (void *)smh_behavior;
     vt[9]  = (void *)smh_render;
     vt[12] = (void *)smh_pdes;
-    vt[16] = (void *)hal_cppd1_SnowmanHead;
+    vt[16] = (void *)PORT_D16(hal_cppd1_SnowmanHead);
     vt[17] = (void *)smh_d0;
     /* no own 18/19 and no slot 31: a plain Actor, 31 slots, ends here */
 }

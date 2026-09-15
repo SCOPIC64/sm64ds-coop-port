@@ -140,6 +140,8 @@
 // does add are on OTHER overlays' consumers, not on ov074's own TUs; both are
 // in port/CMakeLists.txt beside the slice, and both are itemised in
 // port/slice_ov074.txt sections 4a and 4b.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -725,7 +727,7 @@ extern "C" void hal_fill_goomboss_vtable(void)
     vt[13] = (void *)ov74_trap13;
     vt[14] = (void *)ov74_trap14;
     vt[15] = (void *)ov74_heap;
-    vt[16] = (void *)gb_d1;
+    vt[16] = (void *)PORT_D16(gb_d1);
     vt[17] = (void *)gb_d0;
     vt[18] = (void *)ov74_yoshi;
     vt[19] = (void *)ov74_turn_egg;

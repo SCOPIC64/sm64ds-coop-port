@@ -42,6 +42,8 @@
 // g_profile_CHORO_ROCK (ov080 0x02128008, in the per-symbol mount at the
 // real 0x1c stride) +0 word = daChoro_Rock_c_classInit 0x02124998, +4 halfword =
 // 0x0137 = 311, and daChoro_Rock_c_classInit's own vtable-store names 0x0212802c.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -232,7 +234,7 @@ extern "C" void hal_fill_monty_mole_rock_vtable(void)
     vt[13] = (void *)mr_trap13;
     vt[14] = (void *)mr_trap14;
     vt[15] = (void *)mr_heap;
-    vt[16] = (void *)mr_d1;
+    vt[16] = (void *)PORT_D16(mr_d1);
     vt[17] = (void *)mr_d0;
     /* the Actor tail (18..30). The rock overrides none of it -- slot 29 is
        Actor's own OnAimedAtWithEgg, where the mole substitutes

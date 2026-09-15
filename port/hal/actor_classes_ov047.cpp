@@ -67,6 +67,8 @@
 // hal_fill_platform_vtable (all eight destructors install ov002 0x0210ae38 as
 // the base vptr on the way out), the two ov002 intermediate bases this lane
 // hosts, and then all FOUR ov047 sinits in ROM order.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -364,7 +366,7 @@ static void ov47_base_bringup(void)
         vt[3]  = (void *)ov47_base_trap3;
         vt[6]  = (void *)ov47_base_trap6;
         vt[9]  = (void *)ov47_base_trap9;
-        vt[16] = (void *)(k == 0 ? ov47_320_d1 : ov47_b78_d1);
+        vt[16] = (void *)(k == 0 ? PORT_D16(ov47_320_d1) : PORT_D16(ov47_b78_d1));
         vt[17] = (void *)(k == 0 ? ov47_320_d0 : ov47_b78_d0);
         vt[31] = (void *)ov47_kill;    /* both are Platform-derived */
     }
@@ -420,7 +422,7 @@ extern "C" void hal_fill_rickshaw_bs_vtable(void)
     vt[3]  = (void *)rb_clean;
     vt[6]  = (void *)rb_behavior;
     vt[9]  = (void *)rb_render;
-    vt[16] = (void *)rb_d1;
+    vt[16] = (void *)PORT_D16(rb_d1);
     vt[17] = (void *)rb_d0;
     vt[31] = (void *)ov47_kill;
 }
@@ -457,7 +459,7 @@ extern "C" void hal_fill_rotating_platform_bs_vtable(void)
     vt[3]  = (void *)rp_clean;
     vt[6]  = (void *)rp_behavior;
     vt[9]  = (void *)rp_render;
-    vt[16] = (void *)rp_d1;
+    vt[16] = (void *)PORT_D16(rp_d1);
     vt[17] = (void *)rp_d0;
     vt[31] = (void *)ov47_kill;
 }
@@ -494,7 +496,7 @@ extern "C" void hal_fill_rickshaw_platform_bs_vtable(void)
     vt[3]  = (void *)rk_clean;
     vt[6]  = (void *)rk_behavior;
     vt[9]  = (void *)rk_render;
-    vt[16] = (void *)rk_d1;
+    vt[16] = (void *)PORT_D16(rk_d1);
     vt[17] = (void *)rk_d0;
     vt[31] = (void *)ov47_kill;
 }
@@ -534,7 +536,7 @@ extern "C" void hal_fill_stairs_bs_vtable(void)
     vt[3]  = (void *)sb_clean;
     vt[6]  = (void *)sb_behavior;
     vt[9]  = (void *)sb_render;
-    vt[16] = (void *)sb_d1;
+    vt[16] = (void *)PORT_D16(sb_d1);
     vt[17] = (void *)sb_d0;
     vt[31] = (void *)ov47_kill;
 }

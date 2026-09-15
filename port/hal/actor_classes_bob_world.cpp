@@ -74,6 +74,8 @@
 // are left BUILT -- slice, vtable fill, faces -- so the next attempt starts
 // with the link closed and only the seat to write. Until then they have no
 // registry row, so the spawn gate names them as skipped instead of dying.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -491,7 +493,7 @@ extern "C" void hal_fill_coin_vtable(void)
     vt[6] = (void *)coin_behavior;
     vt[9] = (void *)coin_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)hal_cppd1_Coin;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Coin);
     /* 17 IS THE ROM'S OWN WORD NOW (gate 204). Nothing dispatches the deleting
        form -- the destroy path is the D1 dispatch plus an explicit Deallocate
        by AfterCleanupResources -- so this is not a behaviour change; it is the
@@ -756,7 +758,7 @@ extern "C" void hal_fill_mega_mushroom_block_tag_vtable(void)
     vt[6] = (void *)mmbt_behavior;
     vt[9] = (void *)mmbt_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)hal_cppd1_BrickBlock;
+    vt[16] = (void *)PORT_D16(hal_cppd1_BrickBlock);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -817,7 +819,7 @@ extern "C" void hal_fill_cannon_hatch_vtable(void)
     vt[6] = (void *)ch_behavior;
     vt[9] = (void *)ch_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)ch_d1;
+    vt[16] = (void *)PORT_D16(ch_d1);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -892,7 +894,7 @@ extern "C" void hal_fill_shutter_bob_vtable(void)
     vt[6] = (void *)shb_behavior;
     vt[9] = (void *)shb_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)shb_d1;
+    vt[16] = (void *)PORT_D16(shb_d1);
     vt[17] = (void *)shb_d0;
     /* The Platform tail. ShutterBob overrides NOTHING in 20..31: the ROM table
        carries Actor's own bodies at 20..30 and Platform::Kill at 31, so the
@@ -975,7 +977,7 @@ extern "C" void hal_fill_seesaw_bob_vtable(void)
     vt[6] = (void *)ssb_behavior;
     vt[9] = (void *)ssb_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)ssb_d1;
+    vt[16] = (void *)PORT_D16(ssb_d1);
     vt[17] = (void *)ssb_d0;
     /* The Platform tail. SeesawBob overrides exactly one of it -- slot 21,
        OnGroundPounded (ov095 0x021357d8, the rider's weight tilting the
@@ -1128,7 +1130,7 @@ extern "C" void hal_fill_cap_vtable(void)
     vt[6] = (void *)cap_behavior;
     vt[9] = (void *)cap_render;
     vt[12] = (void *)cap_pdes;
-    vt[16] = (void *)cap_d1;
+    vt[16] = (void *)PORT_D16(cap_d1);
     /* 17: the ROM's own word, gate 204. Ends in _ZN12dEnemyBase_cD2Ev rather
        than Actor::D2 -- the cap is an Enemy subclass and that is Enemy's D2. */
     vt[17] = (void *)cap_d0;
@@ -1183,7 +1185,7 @@ extern "C" void hal_fill_healing_heart_vtable(void)
     vt[6] = (void *)hh_behavior;
     vt[9] = (void *)hh_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)hal_cppd1_Seaweed;
+    vt[16] = (void *)PORT_D16(hal_cppd1_Seaweed);
     /* 17: the ROM's own word, gate 204. hh_d1 above is this same body minus
        the closing Deallocate, which is the D1/D0 split every class here has. */
     vt[17] = (void *)hh_d0;
@@ -1261,7 +1263,7 @@ extern "C" void hal_fill_exclamation_switch_vtable(void)
     vt[6] = (void *)xs_behavior;
     vt[9] = (void *)xs_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)xs_d1;
+    vt[16] = (void *)PORT_D16(xs_d1);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -1350,7 +1352,7 @@ extern "C" void hal_fill_invisible_secret_vtable(void)
     vt[6] = (void *)is_behavior;
     vt[9] = (void *)is_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)is_d1;
+    vt[16] = (void *)PORT_D16(is_d1);
     vt[17] = (void *)is_d0;      /* gate 228 */
 }
 
@@ -1416,7 +1418,7 @@ extern "C" void hal_fill_invisible_pole_vtable(void)
     vt[6] = (void *)ip_behavior;
     vt[9] = (void *)ip_render;
     vt[12] = (void *)ip_pdes;
-    vt[16] = (void *)ip_d1;
+    vt[16] = (void *)PORT_D16(ip_d1);
     vt[17] = (void *)ip_d0;
 }
 
@@ -1499,7 +1501,7 @@ extern "C" void hal_fill_camera_tag_vtable(void)
     vt[6] = (void *)ct_behavior;
     vt[9] = (void *)ct_render;
     vt[12] = (void *)ct_pdes;
-    vt[16] = (void *)hal_cppd1_InvisiblePole;
+    vt[16] = (void *)PORT_D16(hal_cppd1_InvisiblePole);
     vt[17] = (void *)ct_d0;
 }
 
@@ -1593,7 +1595,7 @@ extern "C" void hal_fill_arrow_sign_vtable(void)
     vt[6] = (void *)as_behavior;
     vt[9] = (void *)as_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)as_d1;
+    vt[16] = (void *)PORT_D16(as_d1);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -1693,7 +1695,7 @@ extern "C" void hal_fill_water_bomb_vtable(void)
     vt[6] = (void *)wb_behavior;
     vt[9] = (void *)wb_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)wb_d1;
+    vt[16] = (void *)PORT_D16(wb_d1);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -1744,7 +1746,7 @@ extern "C" void hal_fill_rolling_iron_ball_vtable(void)
     vt[6] = (void *)rib_behavior;
     vt[9] = (void *)rib_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)rib_d1;
+    vt[16] = (void *)PORT_D16(rib_d1);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -1817,7 +1819,7 @@ extern "C" void hal_fill_warp_pipe_vtable(void)
     vt[6] = (void *)wp_behavior;
     vt[9] = (void *)wp_render;
     vt[12] = (void *)bw_pdes_base;
-    vt[16] = (void *)wp_d1;
+    vt[16] = (void *)PORT_D16(wp_d1);
     /* Slot 17, the ROM's own deleting destructor (DTOR-PAIRS seat): the
        matched flat-C body behind the ecx->arg adapter, the
        lk2_platform_dtor_seat.cpp shape. Nothing on a mounted level
@@ -1899,7 +1901,7 @@ extern "C" void hal_fill_warp_vtable(void)
     vt[6] = (void *)warp_behavior;
     vt[9] = (void *)warp_render;
     vt[12] = (void *)warp_pdes;
-    vt[16] = (void *)warp_d1;
+    vt[16] = (void *)PORT_D16(warp_d1);
     vt[17] = (void *)warp_d0;    /* gate 228 */
 }
 

@@ -21,6 +21,8 @@
 // this port. Every other shared slot is address-identical to ov081's own
 // Enemy shared half (cross-checked target for target against Spindrift's
 // own vtable).
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -218,7 +220,7 @@ extern "C" void hal_fill_hoot_the_owl_vtable(void)
     vt[6]  = (void *)hoot_behavior;
     vt[9]  = (void *)hoot_render;
     vt[12] = (void *)hoot_pdes;
-    vt[16] = (void *)hoot_d1;
+    vt[16] = (void *)PORT_D16(hoot_d1);
     vt[17] = (void *)hoot_d0;
     /* no slot 31: a 31-slot Enemy, no own Kill, ends here */
 }

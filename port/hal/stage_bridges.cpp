@@ -17,6 +17,8 @@
 // (src/d_s_stage.cpp, arm9 0x0202e088) and this is the seam it needs: the
 // vtable array its last vptr store names, the spawn context the ActorBase
 // constructor reads, and one honest stub for the particle constructor.
+#include "port_d16.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -836,7 +838,7 @@ extern "C" void hal_seat_stage_lifecycle(void)
     _ZTV5Stage[13] = (void *)st_v34;
     _ZTV5Stage[14] = (void *)st_v38;
     _ZTV5Stage[15] = (void *)st_heap;
-    _ZTV5Stage[16] = (void *)st_d2;
+    _ZTV5Stage[16] = (void *)PORT_D16(st_d2);
     _ZTV5Stage[17] = (void *)st_d0;
     /* 18 and 19 stay trapped -- they are past the ROM's eighteen-word table,
        host storage only, and a dispatch there is a bug worth aborting on. */

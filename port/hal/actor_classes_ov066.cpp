@@ -137,6 +137,8 @@
 //  - That Eyerok is REACHABLE in normal play from level 17's walk. See the
 //    lane's report: registration and a forced spawn are what is proved.
 // ============================================================================
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -704,7 +706,7 @@ extern "C" void hal_fill_eyerok_vtable(void)
     vt[13] = (void *)ov66_trap13;    /* ActorBase::Virtual34(u32,u32), not linked */
     vt[14] = (void *)ov66_trap14;    /* ActorBase::Virtual38(u32,u32), not linked */
     vt[15] = (void *)ov66_heap;      /* ActorBase::OnHeapCreated */
-    vt[16] = (void *)ov66_d1;        /* D1 */
+    vt[16] = (void *)PORT_D16(ov66_d1);        /* D1 */
     vt[17] = (void *)ov66_d0;        /* D0 */
     vt[18] = (void *)ov66_yoshi;     /* Actor::OnYoshiTryEat */
     vt[19] = (void *)ov66_egg;       /* Actor::OnTurnIntoEgg(Player&) */

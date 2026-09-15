@@ -35,6 +35,8 @@
 // destructor _ZN8PaintingD0Ev, which stores the vtable, runs Actor::~Actor
 // and deallocates) -- kept live because the ROM's teardown does call it,
 // unlike the world-file classes whose slot 17 traps.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -290,6 +292,6 @@ extern "C" void hal_fill_painting_vtable(void)
     vt[6] = (void *)pt_behavior;
     vt[9] = (void *)pt_render;
     vt[12] = (void *)pt_pdes;
-    vt[16] = (void *)pt_d1;
+    vt[16] = (void *)PORT_D16(pt_d1);
     vt[17] = (void *)pt_d0;
 }

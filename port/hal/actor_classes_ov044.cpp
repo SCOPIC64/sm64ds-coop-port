@@ -95,6 +95,8 @@
 // ov045/ov060 shape). Whoever next owns actor_overlays.cpp should move the body
 // beside the ov013/ov045/ov060 blocks and cut the guard here to a call.
 
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -321,7 +323,7 @@ extern "C" void hal_fill_orange_ball_billboard_vtable(void)
     vt[13] = (void *)obb_trap13;     /* ActorBase::Virtual34, the wf/ov45 trap */
     vt[14] = (void *)obb_trap14;     /* ActorBase::Virtual38, likewise */
     vt[15] = (void *)obb_heap;
-    vt[16] = (void *)hal_cppd1_OrangeBallBillboard;
+    vt[16] = (void *)PORT_D16(hal_cppd1_OrangeBallBillboard);
     vt[17] = (void *)obb_d0;
     vt[18] = (void *)obb_yoshi;
     vt[19] = (void *)obb_turn_egg;

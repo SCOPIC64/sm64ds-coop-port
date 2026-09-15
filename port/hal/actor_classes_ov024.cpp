@@ -61,6 +61,8 @@
 // 0x0210ae38 as the base vptr on the way out, and that array is plain zeroed
 // storage until the fill runs) and then ov024's ONE sinit, which is all of
 // them -- there is no class here without reach.
+#include "port_d16.h"
+
 #include <cstdio>
 
 /* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
@@ -317,7 +319,7 @@ extern "C" void hal_fill_pyramid_top_vtable(void)
     vt[3]  = (void *)pt_top_clean;
     vt[6]  = (void *)pt_top_behavior;
     vt[9]  = (void *)pt_top_render;
-    vt[16] = (void *)pt_top_d1;
+    vt[16] = (void *)PORT_D16(pt_top_d1);
     vt[17] = (void *)pt_top_d0;
     vt[31] = (void *)ov24_kill;
 }
@@ -362,7 +364,7 @@ extern "C" void hal_fill_pyramid_tag_vtable(void)
     vt[3]  = (void *)pt_tag_clean;
     vt[6]  = (void *)pt_tag_behavior;
     vt[9]  = (void *)pt_tag_render;
-    vt[16] = (void *)hal_cppd1_PyramidTag;
+    vt[16] = (void *)PORT_D16(hal_cppd1_PyramidTag);
     vt[17] = (void *)pt_tag_d0;
     /* NO slot 31: this table is 31 slots and the array is 31 long. Writing one
        would run past its own storage. */
