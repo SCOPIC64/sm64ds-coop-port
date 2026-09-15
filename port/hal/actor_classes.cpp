@@ -2220,11 +2220,35 @@ extern "C" void hal_fill_unchained_chomp_vtable(void)
 // GATE 22: ov100's DOOR
 // ============================================================================
 //
-// _ZTV8daDoor_c, ov100 0x02148188 -- the table config left as
-// _ZTV4Door while handing `_ZTV4Door` to the STAR door, whose RTTI
-// reads daStarGate_c. So the whole _ZN4Door* method family in src/ implements
-// the star door and the real door's are the unnamed func_ov100_* block; the
-// port compiles the files the vtable points at and renames nothing.
+// _ZTV4Door, ov100 0x02148188, RTTI 8daDoor_c -- the PLAIN door's table, and
+// config names it correctly.
+//
+// AN EARLIER READING OF THIS GATE WAS WRONG AND COST THE PORT A LEVEL (lane
+// CRASH12). It said config had swapped the two doors' names and that config's
+// `_ZTV4Door` was really the star door's table, so this array was hosted under
+// the name _ZTV8daDoor_c and the name _ZTV4Door was given to gate 40's array
+// instead. src/d_a_door.c stores _ZTV4Door into every plain door, so every
+// plain door in the castle grounds came up wearing the STAR door's methods and
+// died the first time one was drawn. The cartridge settles it, three ways:
+//
+//   1. TWO TABLES, TWO ADDRESSES. config lists _ZTV4Door at 0x02148188 and
+//      _ZTV12daStarGate_c at 0x021483cc. Its own convention for a genuine
+//      alias is one address listed twice (_ZTV9Butterfly/_ZTV9daBtfly_c both
+//      0x02147e9c; _ZTV4Fish/_ZTV8daFish_c both 0x021484bc). These two are not
+//      that.
+//   2. THE FACTORIES DISAGREE. daDoor_c_classInit (0x0214589c) allocates 0x148
+//      bytes, stores the literal 0x02148188, and constructs a ModelAnim at
+//      +0xd4. daStarGate_c_classInit (0x021461d4) allocates 0x118 bytes, stores
+//      the literal 0x021483cc, and constructs a CommonModel at +0xd4. Read out
+//      of extracted/overlays/overlay_0100.bin at base 0x02140d80.
+//   3. THE SLOTS DISAGREE in exactly the seven a subclass overrides -- 0, 3, 6,
+//      9, 12, 16, 17 -- and agree in the other twenty-four, which is why the
+//      mistake survived until a door was finally rendered. 0x02148188 carries
+//      the _ZN4Door* family, 0x021483cc the _ZN12daStarGate_c* family, and all
+//      fourteen addresses match config's own symbol rows.
+//
+// So the _ZN4Door* method family implements the PLAIN door, this array is it,
+// and gate 40 hosts the star door's table under its own name.
 //
 // The three castle doors come out of LoadDoorObjects rather than the standard
 // or simple loader, which is why they carry no record in the object tables
@@ -2242,8 +2266,15 @@ int _ZN4Door16CleanupResourcesEv(void *self);      /* CleanupResources */
 int _ZN4Door8BehaviorEv(void *self);      /* Behavior -- host copy */
 int _ZN4Door6RenderEv(void *self);      /* Render   -- host copy */
 void _ZN4Door16OnPendingDestroyEv(void);           /* OnPendingDestroy */
-void *_ZTV8daDoor_c[31];   /* vtspan: _ZTV4Door */
+void *_ZTV4Door[31];   /* ov100 0x02148188, RTTI 8daDoor_c */
 }
+/* PORT_HOST_ABI: two names of ONE ROM table, and THIS one is a true alias,
+   read off the cartridge rather than off a comment. overlay_0100.bin at base
+   0x02140d80: the word at 0x02148184, the table's typeinfo slot, relocates to
+   0x02148158, whose word[1] points at the Itanium name string at 0x0214814c,
+   whose bytes spell "8daDoor_c". config calls that same address 0x02148188
+   _ZTV4Door. One address, two spellings, one host array. */
+#pragma comment(linker, "/alternatename:__ZTV8daDoor_c=__ZTV4Door")
 
 static int __fastcall dr_init(void *s, void *)
 { return _ZN4Door13InitResourcesEv(s); }
@@ -2256,7 +2287,7 @@ static int __fastcall dr_render(void *s, void *)
   return _ZN4Door6RenderEv(s); }
 static int __fastcall dr_pdes(void *, void *)
 { _ZN4Door16OnPendingDestroyEv(); return 0; }
-/* slot 16, the ROM's own D1: stores _ZTV8daDoor_c, destroys the ModelAnim at
+/* slot 16, the ROM's own D1: stores this table, destroys the ModelAnim at
    +0xd4, then Actor's D2. Matched src on slice_gate216.txt. */
 extern "C" int *_ZN4DoorD1Ev(int *t);   /* ov100 0x021443f4 */
 static int __fastcall dr_d1(void *s, void *)
@@ -2268,7 +2299,7 @@ static int __fastcall dr_d1(void *s, void *)
    Actor::~Actor, Memory::Deallocate(this, gameHeapPtr). Its src spells the two
    loads with the shared header's VT0 and a bare G0, and port/CMakeLists.txt
    binds them per-TU out of this body's own literal pool (0x02144460 ->
-   0x02148188, which is the table this file hosts as _ZTV8daDoor_c, and
+   0x02148188, which is the table this gate hosts as _ZTV4Door, and
    0x02144464 -> 0x020a0eac). No arguments beyond the receiver, so the
    two-parameter shape, the same as dr_d1. */
 extern "C" int *_ZN4DoorD0Ev(int *t);   /* ov100 0x02144424 */
@@ -2277,7 +2308,7 @@ static int __fastcall dr_d0(void *s, void *)
 
 extern "C" void hal_fill_door_vtable(void)
 {
-    void **vt = _ZTV8daDoor_c;
+    void **vt = _ZTV4Door;
     ac_fill_shared(vt);
     vt[0] = (void *)dr_init;
     vt[3] = (void *)dr_clean;
@@ -2293,8 +2324,8 @@ extern "C" void hal_fill_door_vtable(void)
        ruled the body REAL DECOMP against the ROM.
        SLOT 16 CARRIES THE ROM'S OWN WORD NOW (run link100 lane TAIL).
        port/tools/tail_slots.py --module ov100 --vtable 0x02148188 --width 31
-       reads slot 16 -> 0x021443f4, and that body spells _ZTV8daDoor_c by the
-       same name this file's host array carries, so it takes no rename. It is
+       reads slot 16 -> 0x021443f4, and that body spells the table by a name
+       this file's host array answers to, so it takes no rename. It is
        the shared ac_d1_door chain with the class's own member type: the ROM
        destroys a ModelAnim at +0xd4, not a CommonModel. Not dispatched either
        way, by the same reading that keeps 17 trapping. */
@@ -2303,19 +2334,19 @@ extern "C" void hal_fill_door_vtable(void)
 }
 
 // ============================================================================
-// GATE 40: ov100's STAR_DOOR (actor 354) -- the config's _ZN4Door* family
+// GATE 40: ov100's STAR_DOOR (actor 354) -- the _ZN12daStarGate_c* family
 // ============================================================================
 //
-// _ZTV4Door / _ZTV12daStarGate_c, ov100 0x021483cc. Gate 22 found that config
-// swapped the two doors' names: the vtable config left as _ZTV4Door
-// (RTTI 8daDoor_c) is the REAL door gate 22 hosts, and config's `_ZTV4Door`
-// is a SECOND table (RTTI 12daStarGate_c) with the whole _ZN4Door* method
-// family. So this fills the star door, whose Spawn installs _ZTV4Door and
-// whose own D0 spells the same table _ZTV12daStarGate_c -- the RABBIT's
-// dual-name case, so both spellings resolve to one host array.
+// _ZTV12daStarGate_c, ov100 0x021483cc, RTTI 12daStarGate_c. A SEPARATE table
+// from the plain door's 0x02148188, not a second name for it: see the three
+// cartridge readings written out at gate 22. This array carried the name
+// _ZTV4Door until lane CRASH12, which is what put the star door's methods on
+// every plain door; the name belongs to gate 22 and has been given back.
 //
-// Its member is a CommonModel at 0xd4, the real door's layout, so slot 16
-// reuses ac_d1_door (member D2 then Actor's D2). D0 is plain C in src.
+// The class's own factory installs this table: daStarGate_c_classInit
+// (ov100 0x021461d4) allocates 0x118 bytes, stores the literal 0x021483cc and
+// constructs a CommonModel at +0xd4. Its member is that CommonModel, so slot 16
+// is the class's own D1 (ov100 0x021458d4). D0 is plain C in src.
 // Nothing here is a host copy: both InitResources' and Behavior's
 // pointer-to-member sites are formed over COMPLETE local classes and both are
 // guarded off on a fresh boot (the callback table _ZN12daStarGate_c7ST_WAITE is
@@ -2327,18 +2358,19 @@ int _ZN12daStarGate_c6RenderEv(int self);                /* C in src */
 int _ZN12daStarGate_c16CleanupResourcesEv(void);         /* C in src */
 void _ZN12daStarGate_c16OnPendingDestroyEv(void);        /* C in src */
 int *_ZN12daStarGate_cD0Ev(int *self);                   /* C in src */
-void *_ZTV4Door[31];
+void *_ZTV12daStarGate_c[31];   /* ov100 0x021483cc, RTTI 12daStarGate_c */
 }
-/* PORT_HOST_ABI: two names of ONE ROM table, read off the ROM rather than
-   off a comment (lane ALIASCHK). ov100 0x021483cc carries its own RTTI
-   record: the word at 0x021483c8 relocates to the typeinfo at 0x02148374,
-   whose word[1] points at the Itanium name string at 0x02148380 =
-   "12daStarGate_c", so 12daStarGate_c is the ROM's own RTTI spelling of
-   that class. The ROM bodies whose literal pools load it are
-   daStarGate_c_classInit, _ZN12daStarGate_cD0Ev, _ZN12daStarGate_cD1Ev. Read out of
-   extracted/overlays/overlay_0100.bin; the LHS is not a config symbol
-   anywhere, so the alias cannot be defeated by a later slice. */
-#pragma comment(linker, "/alternatename:__ZTV12daStarGate_c=__ZTV4Door")
+/* THE ALIAS THAT USED TO SIT HERE IS GONE (lane CRASH12). It read
+     #pragma comment(linker, "/alternatename:__ZTV12daStarGate_c=__ZTV4Door")
+   and it was the defect. The RTTI reading it rested on is correct and is kept
+   above: 0x021483c8 relocates to the typeinfo at 0x02148374, whose word[1]
+   points at the name string at 0x02148380 = "12daStarGate_c". What the reading
+   never checked is that _ZTV4Door is a DIFFERENT ADDRESS, 0x02148188, whose own
+   typeinfo at 0x02148158 names 8daDoor_c. Proving a name for one table is not
+   proving two tables are one; the alias has to be an address match, and this
+   one never was. The array is now declared under its own name, so
+   src/d_a_door.c's store of _ZTV4Door reaches gate 22's table instead of this
+   one. */
 
 static int __fastcall sd_init(void *s, void *)
 { return _ZN12daStarGate_c13InitResourcesEv(s); }
@@ -2356,16 +2388,18 @@ static int __fastcall sd_d0(void *s, void *)
 
 extern "C" void hal_fill_star_door_vtable(void)
 {
-    void **vt = _ZTV4Door;
+    void **vt = _ZTV12daStarGate_c;
     ac_fill_shared(vt);
     vt[0] = (void *)sd_init;
     vt[3] = (void *)sd_clean;
     vt[6] = (void *)sd_behavior;
     vt[9] = (void *)sd_render;
     vt[12] = (void *)sd_pdes;
-    /* slot 16: the member chain is the real door's (CommonModel at 0xd4), so
-       ac_d1_door serves it. slot 17 is the class's own C D0. */
-    vt[16] = (void *)PORT_D16(hal_cppd1_Door);   /* lane DTOR-FACES-CPP: the ROM word 16 of _ZTV4Door */
+    /* slot 16 is the class's OWN D1, ov100 0x021458d4, the ROM word at
+       0x021483cc + 0x40. It held hal_cppd1_Door until lane CRASH12: that face
+       destroys a ModelAnim at +0xd4, which is the PLAIN door's member, and the
+       star door's is a CommonModel. slot 17 is the class's own C D0. */
+    vt[16] = (void *)PORT_D16(hal_cppd1_daStarGate_c);
     vt[17] = (void *)sd_d0;
 }
 

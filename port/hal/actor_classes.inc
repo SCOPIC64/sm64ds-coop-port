@@ -285,17 +285,19 @@ extern unsigned char g_profile_WANWAN2[];        /* ov100 0x02148020 */
 void *daWanwan2_c_classInit(void);
 void hal_fill_unchained_chomp_vtable(void);
 /* ---- gate 22: ov100's DOOR ----
-   The last class the castle grounds names. Its vtable is the one config left
-   as _ZTV4Door while giving `_ZTV4Door` to the star door; the ROM's
-   RTTI settles it, see slice_gate22.txt. */
+   The last class the castle grounds names. Its vtable is _ZTV4Door, ov100
+   0x02148188, RTTI 8daDoor_c, exactly as config names it, and the _ZN4Door*
+   family is its own. See the gate-22 block in hal/actor_classes.cpp for the
+   three cartridge readings lane CRASH12 used to settle it. */
 extern unsigned char g_profile_DOOR[];                  /* ov100 0x02148164 */
 void *daDoor_c_classInit(void);                                 /* ov100 0x0214589c */
 void hal_fill_door_vtable(void);
 /* ---- gate 40: ov100's STAR_DOOR (354) ----
-   NOT the DOOR above. Config swapped the two doors' names: the _ZN4Door*
-   family is really the STAR door (RTTI daStarGate_c), so it has its own six
-   methods and its own vtable fill (hal_fill_star_door_vtable), distinct from
-   the real door's hal_fill_door_vtable. Its SpawnInfo is already mounted by
+   NOT the DOOR above, and not a second name for it either. Its table is
+   _ZTV12daStarGate_c, ov100 0x021483cc, a different address from the plain
+   door's 0x02148188 with a different RTTI name, so it has its own six methods
+   and its own vtable fill (hal_fill_star_door_vtable), distinct from the plain
+   door's hal_fill_door_vtable. Its SpawnInfo is already mounted by
    ov100_syms.txt at 0x021483a8; the record's +4 halfword reads 354. See the
    head of slice_gate40.txt and the gate-40 section of hal/actor_classes.cpp. */
 extern unsigned char g_profile_STAR_GATE[];              /* ov100 0x021483a8 */

@@ -158,6 +158,12 @@ CPPD1(daChScene_c)
 CPPD1(daObjWaterfall_c)
 CPPD1(daSetSE_c)
 CPPD1(Door)
+/* daStarGate_c: ov100 0x021458d4, the ROM word 16 of _ZTV12daStarGate_c
+   (0x021483cc). Added by lane CRASH12 once the two door tables were separated.
+   Gate 40's slot 16 used to hold hal_cppd1_Door, which destroys a ModelAnim at
+   +0xd4; the star door's member there is a CommonModel, and the ROM gives that
+   table its own D1. */
+CPPD1(daStarGate_c)
 
 /* group 3: ov060 / ov070 / ov071 / ov072, the enemy overlays */
 CPPD1(BowserTail)

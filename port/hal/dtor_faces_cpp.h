@@ -21,6 +21,7 @@ int __fastcall hal_cppd1_VirtualDoor(void *self, void *edx);
 int __fastcall hal_cppd1_PoppingLavaBubbles(void *self, void *edx);
 int __fastcall hal_cppd1_AmbientSoundEffects(void *self, void *edx);
 int __fastcall hal_cppd1_Door(void *self, void *edx);
+int __fastcall hal_cppd1_daStarGate_c(void *self, void *edx);
 int __fastcall hal_cppd1_BowserTail(void *self, void *edx);
 int __fastcall hal_cppd1_Bowser(void *self, void *edx);
 int __fastcall hal_cppd1_BowserSkyPlatform(void *self, void *edx);
