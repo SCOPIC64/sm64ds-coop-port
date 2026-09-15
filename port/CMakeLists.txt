@@ -6837,19 +6837,37 @@ set_source_files_properties(
 # /FI is a FLAG rather than an include-path entry for the reason the blocks
 # above give: CMake emits <INCLUDES> before <FLAGS>, so a /I here would lose to
 # include/ and the shadow would silently not happen.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13QuestionBlock13InitResourcesEv.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13QuestionBlock8BehaviorEv.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13QuestionBlock16CleanupResourcesEv.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13QuestionBlock6RenderEv.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13QuestionBlockD1Ev.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13QuestionBlock15OnGroundPoundedER8dActor_c.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13QuestionBlock15OnHitByMegaCharER6Player.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13QuestionBlock8OnKickedER8dActor_c.cpp"
-    PROPERTIES COMPILE_OPTIONS
-    "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/QuestionBlock_HostAbi.h")
+#
+# APPEND, NEVER SET, the rule the DSSTATE FORCE-INCLUDE block at the end of
+# this file already states: COMPILE_OPTIONS is one property and
+# set_source_files_properties REPLACES it. Two of these ten,
+# QuestionBlock::OnAttacked1 and QuestionBlock::OnHitFromUnderneath, are rows in
+# PORT_FALLS_OFF_END_SOURCES and take /wd4716 from the loop at the end of this
+# file. Measured the hard way: with a plain SET here the first build came back
+# with the shadow on eight of the ten, green, and those two TUs still carrying
+# the wrong member offsets. The loop at the end now preserves what it finds as
+# well, so the two blocks no longer depend on each other's order.
+set(PORT_QUESTIONBLOCK_HOSTABI_SOURCES
+    src/_ZN13QuestionBlock13InitResourcesEv.cpp
+    src/_ZN13QuestionBlock8BehaviorEv.cpp
+    src/_ZN13QuestionBlock16CleanupResourcesEv.cpp
+    src/_ZN13QuestionBlock6RenderEv.cpp
+    src/_ZN13QuestionBlockD1Ev.cpp
+    src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp
+    src/_ZN13QuestionBlock15OnGroundPoundedER8dActor_c.cpp
+    src/_ZN13QuestionBlock15OnHitByMegaCharER6Player.cpp
+    src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
+    src/_ZN13QuestionBlock8OnKickedER8dActor_c.cpp
+    )
+foreach(_qb_rel IN LISTS PORT_QUESTIONBLOCK_HOSTABI_SOURCES)
+    if(NOT EXISTS "${PORT_REPO_ROOT_ABS}/${_qb_rel}")
+        message(FATAL_ERROR "QuestionBlock host-ABI row names a source that "
+                "does not exist: ${_qb_rel}")
+    endif()
+    set_property(SOURCE "${PORT_REPO_ROOT_ABS}/${_qb_rel}"
+        APPEND PROPERTY COMPILE_OPTIONS
+        "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/QuestionBlock_HostAbi.h")
+endforeach()
 
 # Run mg5 lane CCN: THE SECOND SEATED MINIGAME CLASS, dScMgCoin_c
 # (Coincentration), actor id 0x17a = scene 378. The ROM's own RTTI at
@@ -19104,8 +19122,25 @@ foreach(_foe_rel IN LISTS PORT_FALLS_OFF_END_SOURCES)
         list(APPEND _foe_paths
              "${PORT_REPO_ROOT_ABS}/${PORT_HOSTGEN_TU_ROW_${_foe_rel}}")
     endif()
-    set_source_files_properties(${_foe_paths}
-        PROPERTIES COMPILE_OPTIONS "/wd4716")
+    # AND IT MUST NOT WIPE AN OPTION ANOTHER BLOCK ALREADY PUT ON THE SOURCE.
+    # COMPILE_OPTIONS is one property and set_source_files_properties REPLACES
+    # it, and this loop is the LAST word in the file, so a /FI set higher up
+    # silently stopped applying. Measured, run link100 lane CRASH8: the
+    # QuestionBlock host-ABI shadow went on all ten of that class's TUs and came
+    # back on eight, because OnAttacked1 and OnHitFromUnderneath are rows in the
+    # list above and this loop overwrote them with /wd4716 alone. Nothing
+    # reported it -- the build was green and the two TUs simply kept the wrong
+    # member offsets. So read what is there and append.
+    foreach(_foe_path IN LISTS _foe_paths)
+        get_source_file_property(_foe_prev "${_foe_path}" COMPILE_OPTIONS)
+        if(_foe_prev)
+            set_source_files_properties("${_foe_path}"
+                PROPERTIES COMPILE_OPTIONS "${_foe_prev};/wd4716")
+        else()
+            set_source_files_properties("${_foe_path}"
+                PROPERTIES COMPILE_OPTIONS "/wd4716")
+        endif()
+    endforeach()
 endforeach()
 
 # ===========================================================================
