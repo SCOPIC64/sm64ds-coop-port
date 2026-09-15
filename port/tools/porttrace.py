@@ -141,6 +141,42 @@ def load_map(path, root):
             if old is None or (old[1] != "ROM" and cls == "ROM"):
                 rows[va] = (name, cls, m.group(4))
 
+    # ONE ROM NAME, TWO ADDRESSES: THE RECEIVER-DELIVERY FACES.
+    #
+    # port/hal writes __cdecl wrappers that carry the flat Itanium name and call
+    # the matched TU's real __thiscall member, because an ov007 caller spelling
+    # the flat name would otherwise deliver `this` through the wrong register.
+    # port/hal/scene_boot.cpp's ModelComponents::Render face is the documented
+    # one and port/hal/faces_sync_gen.cpp generates more. Both symbols
+    # canonicalise to the same ROM name, so without this the wrapper and the
+    # function it wraps are one row: the count doubles and the trace grows a
+    # self-edge that looks like recursion in a function that has none. Measured
+    # on the title screen, ModelComponents::Render read as 20 entries with 10 of
+    # them calling itself, where the truth is 10 real entries behind 10 wrapper
+    # entries, against the cartridge's 20.
+    #
+    # The real row is the one whose object file IS the symbol's own matched TU.
+    # Anything else wearing the same ROM name is a face: it is host scaffolding
+    # the cartridge never had, so it is named as one and classed HOST, which is
+    # exactly what --host collapse is for.
+    byname = {}
+    for va, (name, cls, obj) in rows.items():
+        if cls == "ROM":
+            byname.setdefault(name, []).append(va)
+    for name, vas in byname.items():
+        if len(vas) < 2:
+            continue
+        real = [va for va in vas
+                if os.path.splitext(os.path.splitext(
+                    rows[va][2].split(":", 1)[-1])[0])[0] in matched_stems]
+        # With no real row, or more than one, nothing here can tell them apart
+        # and guessing would be worse than leaving the fold visible.
+        if len(real) != 1:
+            continue
+        for va in vas:
+            if va not in real:
+                rows[va] = (rows[va][0] + " [face]", "HOST", rows[va][2])
+
     addrs = sorted(rows)
     return (addrs,
             [rows[a][0] for a in addrs],
