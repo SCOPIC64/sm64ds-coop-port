@@ -1574,15 +1574,70 @@ static int l2_ea6c_dispatch(void *s, unsigned rom_byte)
    survives a derived class that is not in the image today.
 
    THE DAY EITHER TU IS SLICED IN, THESE TWO BECOME PLAIN FORWARDS and this
-   paragraph comes out. Whoever does that owns both lines. */
-static int __fastcall l2_ea6c_s0c(void *s, void *, int, int)
+   paragraph comes out. Whoever does that owns both lines.
+
+   THE SHAPE IS __cdecl AND IT IS NOT SHAPE B (run link100 lane CRASH13, and it
+   is the title screen's crash). The paragraph above these two used to say they
+   were the two that clean eight, on the reading that __fastcall(self, edx, a, b)
+   is the host spelling of __thiscall(self, a, b). That reading of section 9c was
+   made when the one dispatch site was a host transcription. The site in the link
+   TODAY is the matched src/_ZN8dScene_c14BeforeBehaviorEv.cpp, and that TU
+   reaches the installed fader through a FILE-LOCAL `struct FaderVTable` of PLAIN
+   FUNCTION POINTERS, not through a class with virtuals; its own header comment
+   says so, and says why (the ROM's dScene_c was built against a two-argument
+   prototype). A plain function pointer is __cdecl under MSVC. Read out of this
+   lane's own walk_window.exe at ?BeforeBehavior@dScene_c@@UAEHXZ+0x12e:
+
+       005005de  a1641d7b01   mov  eax, [_data_0209f5bc]   the fader object
+       005005e3  6a00         push 0
+       005005e5  6a1e         push 0x1e
+       005005e7  50           push eax      THE RECEIVER, as a stack argument
+       005005e8  8b08         mov  ecx, [eax]     ecx = the VTABLE, a scratch
+       005005ea  8b410c       mov  eax, [ecx+0x0c]
+       005005ed  ffd0         call eax
+       005005ef  83c40c       add  esp, 0x0c      THE CALLER CLEANS TWELVE
+
+   and the identical shape at +0x55 for slot +0x10. So ecx does NOT hold `this`
+   at either site; it holds the table. A __fastcall veneer therefore ran with
+   `s` = data_0208ea6c, and its first statement, the speed store at s+8, wrote
+   -0x1000 STRAIGHT OVER ITS OWN AdvanceFade SLOT. The title screen then died one
+   frame later inside func_02018efc, which dispatches exactly that slot off the
+   installed fader: eip = 0xfffff000, which is -0x1000. The dispatch inside the
+   veneer had already jumped into l2_ea6c_s00's code bytes before that, because
+   *(void ***)data_0208ea6c is slot 0 read as a vptr; the actor quarantine ate
+   that fault and let the frame carry on to the fatal one.
+
+   THE RECEIVER CHECK IS NOT DECORATION. Section 9c's enumeration says one site,
+   and one site is what the disassembly above shows, but the whole defect here
+   was a shape claim nobody re-measured after the TU behind it changed. So these
+   two verify what they were handed, the way slot +0x08 does, and refuse loudly
+   instead of writing through it. The check tolerates a nonsense `s` rather than
+   dereferencing it, because a shape-B caller would hand these two `frames`
+   (0x1e) as the receiver and a fault there would report nothing. */
+static int l2_ea6c_receiver_ok(void *s)
 {
+    const std::size_t v = (std::size_t)s;
+    if (v < 0x10000 || (v & 3) != 0)
+        return 0;
+    return *(void **)s == (void *)data_0208ea6c;
+}
+
+static int __cdecl l2_ea6c_s0c(void *s, int, int)
+{
+    if (!l2_ea6c_receiver_ok(s)) {
+        l2_trap("data_0208ea6c vtable slot");
+        return 0;
+    }
     l2_ea6c_note(3);
     *(int *)((char *)s + 8) = -0x1000;
     return l2_ea6c_dispatch(s, 0x14);
 }
-static int __fastcall l2_ea6c_s10(void *s, void *, int, int)
+static int __cdecl l2_ea6c_s10(void *s, int, int)
 {
+    if (!l2_ea6c_receiver_ok(s)) {
+        l2_trap("data_0208ea6c vtable slot");
+        return 0;
+    }
     l2_ea6c_note(4);
     *(int *)((char *)s + 8) = 0x1000;
     return l2_ea6c_dispatch(s, 0x18);
