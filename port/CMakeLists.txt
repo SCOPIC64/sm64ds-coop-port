@@ -145,6 +145,64 @@ if(PORT_TEST_HOOKS)
         "fault-injection hook and are TEST ONLY. Do not ship them.")
 endif()
 
+# ===========================================================================
+# THE PORT-SIDE CALL TRACE (run link100, lane TRACEPORT)
+# ===========================================================================
+#
+# Lane ROMTRACE built an instrumented melonDS that writes down every function
+# call the REAL cartridge's ARM9 makes and resolves the addresses to this
+# repository's own names: 27,571 of 27,571 named on the title screen. This
+# option is the other half. With it on, MSVC emits "call _penter" as the FIRST
+# instruction of every function it compiles, port/hal/fn_trace.cpp answers that
+# call, and port/tools/porttrace.py turns the result into the same named listing
+# the cartridge half produces, so port/tools/tracediff.py can line the two up
+# and name the first function they disagree about.
+#
+# WHY IT NEEDS NO OTHER SOURCE EDIT. /Gh is the compiler's own hook. No
+# translation unit is rewritten, no call site is wrapped and no header changes,
+# so a traced build cannot perturb what it is measuring by construction. The one
+# call to ntr_fn_trace_frame in hal/rom_frame.cpp is the only exception and it
+# exists for one reason -- both halves must agree where a frame ends. It sits in
+# port_rom_frame_phase6 because every path that renders a frame comes through
+# there exactly once, which is the property the frame cross-check in that same
+# file already depends on, and it compiles to nothing at all unless
+# PORT_FN_TRACE is defined.
+#
+# WHAT IT COSTS, MEASURED ON THIS BOX (cl 19.44 x86, /O2 /Oy-, C:/tmp/ghtest):
+# 20,000,000 real non-inlined calls took 0.0204 s untraced and 0.0364 s traced,
+# which is 0.8 nanoseconds a hook. The cartridge makes about 1,800 calls a frame
+# on the menu page, so the hook is on the order of a millisecond per second of
+# game. Inlining is NOT inhibited, so the hook fires once per real call and not
+# once per source-level call.
+#
+# AND WHAT IT DOES NOT COST: TAIL JUMPS SURVIVE. A one-call forwarder still
+# compiles to "call _penter / push ebp / mov ebp,esp / pop ebp / jmp target",
+# checked on the disassembly before this option was written, so the roughly fifty
+# ov007 rows that are correct only because MSVC turns a forwarder into a jmp --
+# the ones port/tools/tailjump_guard.py exists to protect -- carry their
+# arguments through a traced build exactly as they do in a shipped one. The one
+# thing a traced build DOES disturb is that guard's own scan, which reads an E8
+# rel32 in a frame's map span: every frame now opens with an E8 to _penter. Run
+# the guards on the PLAIN build, which is the one that ships.
+#
+# OFF BY DEFAULT AND A CACHE VARIABLE, so a tree configured for tracing STAYS a
+# tracing tree; configure a fresh build directory, or pass -DPORT_FN_TRACE=OFF,
+# for anything that ships. The warning is there so a traced binary is
+# identifiable from the build log and not only from the source.
+option(PORT_FN_TRACE
+       "compile the /Gh function-entry call trace (TRACING BUILDS ONLY)"
+       OFF)
+set(PORT_FN_TRACE_SRC "")
+if(PORT_FN_TRACE)
+    add_compile_options(/Gh)
+    add_compile_definitions(PORT_FN_TRACE=1)
+    set(PORT_FN_TRACE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hal/fn_trace.cpp")
+    message(WARNING
+        "PORT_FN_TRACE=ON: every function in these binaries calls _penter on "
+        "entry. They are TRACING BUILDS ONLY. Do not ship them, and do not read "
+        "tailjump_guard's verdict off them.")
+endif()
+
 # THE CONFIGURE-TIME INPUTS, REGISTERED (run link100, lane CMAKEDEPS).
 #
 # WHY THIS BLOCK EXISTS.  build-port.cmd used to run `cmake -S ... -B ...`
@@ -1175,6 +1233,17 @@ target_include_directories(ntr_hires PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_definitions(ntr_hires PUBLIC NTR_HIRES)
 if(MSVC)
     target_compile_options(ntr_hires PRIVATE /wd4311 /wd4312)
+endif()
+
+# _penter's definition, when PORT_FN_TRACE is on. It goes in the three ntr
+# libraries rather than in each executable because every executable in this
+# build links exactly one of them, and every object in a traced build refers to
+# _penter, so the archive member is always pulled in. Empty otherwise: a normal
+# build does not compile this file.
+if(PORT_FN_TRACE)
+    foreach(_fnt_lib ntr ntr_wide_rt ntr_hires)
+        target_sources(${_fnt_lib} PRIVATE "${PORT_FN_TRACE_SRC}")
+    endforeach()
 endif()
 
 # Gate 3b: SharedFilePtr over the host card seam; assets come from the
