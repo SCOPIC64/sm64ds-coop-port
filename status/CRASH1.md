@@ -21,3 +21,14 @@
   fBase_c::Process(self, data_02099ebc, data_02099ec4, data_02099e94), three mwcc
   pointer-to-member PAIRS. ALL THREE ARE ZERO IN THE SHIPPED IMAGE (.dsstate is fully
   initialized data; dumped at VA 017ab388/398/3a8 = 00000000 x4 each).
+- 20:48 EDT - CHAIN PROVEN BY DISASSEMBLY (no build). The built func_0204335c (RVA 1efab0)
+  is the port's fBase_c::Process and it dispatches through the OBJECT'S OWN VPTR at fixed
+  indexes: ebx=*(void**)self; call [ebx+4] (slot 1); if eax==0 -> jmp 1efb0a which calls
+  [ebx+8] (slot 2) and RETURNS WITHOUT EVER CALLING [ebx+0] (slot 0 = st_init = the boot).
+  So the boot is skipped whenever slot 1 returns 0.
+  Slot 1 as seated = st_binit -> face __ZN5Stage19BeforeInitResourcesEv (005c82c0,
+  faces_sync_gen.cpp.obj) -> jmp ?BeforeInitResources@Stage@@UAE_NXZ (006bade0) ->
+  jmp ?ResetFadersAndSound@dScene_c@@QAEHXZ (005010b0), which returns 1 (its gate 004b2f90
+  is fBase_c::BeforeInitResources, ICF-folded with 12 CRT names, body `mov al,1; ret`).
+  So the SEATED slot 1 is healthy. Next suspect: the vptr address point (+0 vs +8), i.e.
+  whether [ebx+4] is really _ZTV5Stage[1].
