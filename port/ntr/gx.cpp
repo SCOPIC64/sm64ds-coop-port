@@ -281,7 +281,12 @@ struct StarGeo {
     /* every DISTINCT position matrix the frame used, with its vertex count:
        one row per drawn object, which is what separates the sky from the
        star without having to guess which vertex belongs to which. */
-    struct Row { float a, b, c, tx, ty, tz; int n; };
+    /* MODESEL: the object's own DS-PIXEL rectangle, so a row can be read
+       straight against the ROM's own element box. Filled with the same
+       divide and viewport mapping to_screen uses, halved because the
+       raster runs at 2x. Debug census only; nothing reads it. */
+    struct Row { float a, b, c, tx, ty, tz; int n;
+                 float sx0, sx1, sy0, sy1; };
     Row tab[32]; int ntab = 0;
     unsigned frame = 0;
 };
@@ -347,10 +352,25 @@ GxVertex project(int16_t x, int16_t y, int16_t z) {
                     G.tab[k].ty == P.m[13] && G.tab[k].tz == P.m[14]) break;
             if (k == G.ntab && G.ntab < 32) {
                 G.tab[k] = {P.m[0], P.m[5], P.m[10],
-                            P.m[12], P.m[13], P.m[14], 0};
+                            P.m[12], P.m[13], P.m[14], 0,
+                            1e30f, -1e30f, 1e30f, -1e30f};
                 ++G.ntab;
             }
-            if (k < G.ntab) ++G.tab[k].n;
+            if (k < G.ntab) {
+                ++G.tab[k].n;
+                if (std::fabs(c.w) > 1e-6f) {
+                    const float iw = 1.0f / c.w;
+                    const float sx = ((c.x * iw + 1.0f) * 0.5f * g.vp_w
+                                      + g.vp_x) * 0.5f;
+                    const float sy = ((1.0f - (c.y * iw + 1.0f) * 0.5f)
+                                      * g.vp_h + g.vp_y) * 0.5f;
+                    StarGeo::Row &R = G.tab[k];
+                    if (sx < R.sx0) R.sx0 = sx;
+                    if (sx > R.sx1) R.sx1 = sx;
+                    if (sy < R.sy0) R.sy0 = sy;
+                    if (sy > R.sy1) R.sy1 = sy;
+                }
+            }
         }
         ++G.n;
     }
@@ -1339,11 +1359,15 @@ void gx_reset() {
             for (int k = 0; k < G.ntab; ++k)
                 std::fprintf(stderr,
                     "[stargeoM] f%u obj%d verts=%d scale(%.4f %.4f %.4f)"
-                    " xy/z=%.3f trans(%.3f %.3f %.3f)\n",
+                    " xy/z=%.3f trans(%.3f %.3f %.3f)"
+                    " ds x %.1f..%.1f y %.1f..%.1f (%.1f x %.1f)\n",
                     G.frame, k, G.tab[k].n, G.tab[k].a, G.tab[k].b,
                     G.tab[k].c,
                     G.tab[k].c != 0.0f ? G.tab[k].a / G.tab[k].c : 0.0f,
-                    G.tab[k].tx, G.tab[k].ty, G.tab[k].tz);
+                    G.tab[k].tx, G.tab[k].ty, G.tab[k].tz,
+                    G.tab[k].sx0, G.tab[k].sx1, G.tab[k].sy0,
+                    G.tab[k].sy1, G.tab[k].sx1 - G.tab[k].sx0,
+                    G.tab[k].sy1 - G.tab[k].sy0);
         }
         ++G.frame; G.n = 0; G.snapped = 0; G.ntab = 0;
     }
