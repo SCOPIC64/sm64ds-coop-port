@@ -6700,6 +6700,39 @@ set_source_files_properties(
     PROPERTIES COMPILE_OPTIONS
     "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Fader_HostAbi.h")
 
+# Run link100 lane CRASH4: THE SPAWN RIDE-THROUGH, PUT BACK. Same /FI mechanism
+# as the two blocks above.
+#
+# dBase_c::Spawn and func_02042ffc each name two of the four arguments they are
+# handed, because on ARM the other two sit in r2/r3 and ride through untouched
+# into func_02043098. Under MSVC a body that names two forwards two, so
+# func_02043098 reads its third and fourth arguments off the caller's frame.
+# Measured in the shipped artifact: it is entered with param1 = 0x001af0ac,
+# dBase_c::Spawn's own saved ebp, and flags = 0x004bb957, dActor_c::Spawn's
+# return address. Every actor the level boot spawns is then built with a stack
+# address in fBase_c::mParam at +8; Player::InitResources unpacks it as
+# n8 = (0x001af0ac >> 8) & 0xff = 240, func_ov002_020c7dd0 reads
+# data_ov002_020ff240[240] past the end of a 20-byte table, mStateStep becomes
+# 0x70, and Player::St_LevelEnter_Init indexes a 20-word animation table with
+# 112 and hands Player::SetAnim a pointer where an id belongs.
+#
+# unmatched/ActorDerived_Spawn.cpp has carried the four-argument host copies
+# since gate 14, and the gate-14 filter further down excludes the one-function
+# decomp file so that they own the symbol. Commit 5116945a1 DELETED that file
+# into src/actors/ActorDerived.cpp, a real C++ TU, whose definition carries the
+# MSVC-decorated name every C++ caller binds to, while the host copy kept only
+# the Itanium spelling that the C-spelled callers reach. Nothing unresolved,
+# nothing duplicated, and the fix silently stopped applying: the fold-defect
+# shape in5/PORTW9C_COMMON.md names. The header renames the static member for
+# this one TU so the four-argument definition in unmatched/ActorDerived_Spawn.cpp
+# can own the decorated name. The filter's own line is left as it is rather than
+# repointed, because the file it names is gone and the exclusion has nothing
+# left to say.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/ActorDerived.cpp"
+    PROPERTIES COMPILE_OPTIONS
+    "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/dBase_c_SpawnHostAbi.h")
+
 # Run mg5 lane CCN: THE SECOND SEATED MINIGAME CLASS, dScMgCoin_c
 # (Coincentration), actor id 0x17a = scene 378. The ROM's own RTTI at
 # 0x0213bf24 reads "11dScMgCoin_c" and its vtable is data_ov006_0213bf50, both
