@@ -17183,11 +17183,14 @@ endforeach()
 #         Memory::gameHeapPtr, the same word gate 226 binds as G0.
 #
 #   _ZN4DoorD0Ev  0x02144460 -> 0x02148188   0x02144464 -> 0x020a0eac
-#         The door's D0. config calls the table _ZTV4Door and the
-#         port hosts it as _ZTV8daDoor_c (hal/actor_classes.cpp, gate 22),
-#         because config swapped the two doors' names -- ov100_syms.txt keeps
-#         it out of the mount for that reason, so the host array is the only
-#         object and the binding names it.
+#         The plain door's D0. config calls the table 0x02148188 _ZTV4Door and
+#         the ROM's own RTTI at 0x02148158 calls it 8daDoor_c; both spellings
+#         name that one address, and hal/actor_classes.cpp gate 22 now hosts it
+#         under the config name with the second spelling aliased onto it.
+#         ov100_syms.txt keeps 0x02148188 out of the mount, so the host array is
+#         the only object and the binding names it. (Lane CRASH12 corrected the
+#         old note here, which said config had swapped the two doors' names.
+#         It had not: 0x021483cc is a separate table, the STAR door's.)
 #
 #   _ZN8PaintingD0Ev  0x02125458 -> 0x021282b4   0x0212545c -> 0x020a0eac
 #         The painting's D0. ov080_syms.txt likewise keeps 0x021282b4 out of
@@ -17204,7 +17207,7 @@ set_source_files_properties(
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4DoorD0Ev.cpp"
     PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV8daDoor_c;G0=data_020a0eac")
+    "VT0=_ZTV4Door;G0=data_020a0eac")
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN8PaintingD0Ev.cpp"
     PROPERTIES COMPILE_DEFINITIONS
