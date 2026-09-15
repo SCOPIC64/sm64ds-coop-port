@@ -144,6 +144,86 @@ SAFE_DATA_TYPE = re.compile(r"^(?:[PQ][AB])*(?:[CDEFGHIJKMNX]|_[JKN])[A-D]$")
 
 
 # ---------------------------------------------------------------------------
+# THE RETURN WIDTH RULE (lane RETFIX, from lanes RETCONV and RETCONV2's
+# measurement of the shipped binary).
+#
+# THE DEFECT THIS CLOSES. The address binding's rule 3 below compares the class,
+# the method, the parameter count, the constness and the access/virtualness
+# letter, AND NEVER THE RETURN TYPE. That is fine for the BINDING itself --
+# MSVC puts the return type in the decorated name, so a name that joins at all
+# already agrees about it -- but it left the FACE carrying the target's
+# sub-register return type, and the face is what the flat callers read.
+#
+# A bool member is returned in AL ALONE. Player::IsState is the whole story:
+#
+#     004bb9c0  mov  eax, dword ptr [ecx + 0x370]   ; the CURRENT state pointer
+#               cmp  eax, dword ptr [ebp + 8]
+#               sete al                             ; ONLY AL is written
+#               ret  4
+#
+# and the face compiled from `bool _ZN6Player7IsStateERNS_5StateE(...)` forwards
+# that EAX untouched. The upper three bytes still hold a State pointer, which
+# lives around 0x017b7xxx and is therefore NEVER ZERO, so every caller whose own
+# declaration spells the flat name `int` reads `test eax,eax` as TRUE no matter
+# what the answer was. The flat name is extern "C", so its return type is not in
+# the symbol and the linker cannot see the disagreement: 77 declarations across
+# 54 files, and RETCONV2 hand-read 191 live wrong answers at 194 wide-read call
+# sites, ten of them inside ?Behavior@Player@@UAEHXZ, which runs every frame.
+#
+# WHY WIDENING IS THE ROM-FAITHFUL ANSWER AND NOT A HOST PATCH. The cartridge's
+# own body, recorded at include/Player.h:185, is
+#
+#     ldr r0,[r0,#0x370] / cmp r0,r1 / moveq r0,#1 / movne r0,#0
+#
+# The DS code DEFINES THE WHOLE REGISTER, 0 or 1. The single-byte answer is
+# something the PC rebuild introduced, so a face that widens moves toward the
+# cartridge, not away from it, which is what the port's north star asks for.
+#
+# WHERE THE WIDENING MAY AND MAY NOT GO. Only in a REVERSE face, whose body is
+# the qualified call and which is therefore the one place where AL is known good
+# and the upper bytes are known junk. Normalising anywhere ABOVE that is
+# actively harmful: five callers already run MSVC's neg/sbb/neg idiom over the
+# raw result and hand a tidy 1 downstream, which is how "is Mario diving"
+# answers yes to everything with no trace of where the lie began.
+#
+# A FORWARD face is the mirror and MUST NOT widen: it DEFINES the member and
+# calls the flat ROM body, which is defined elsewhere and writes only the narrow
+# part, so re-declaring that callee wider would invent the same defect pointing
+# the other way (dActor_c::HorzAngleToCPlayer and Player::GetHealth are the two
+# forward rows this ledger has). Structors and D0 faces return void and have
+# nothing to widen.
+#
+# The mapping is plain C integral promotion, so each row keeps its own
+# signedness: bool and unsigned char zero-extend (movzx), signed char and short
+# sign-extend (movsx). check_return_widths() refuses to ship a generated reverse
+# face that still declares a sub-register return type.
+NARROW_RETURNS = {
+    "bool": "int",
+    "char": "int",
+    "signed char": "int",
+    "unsigned char": "int",
+    "short": "int",
+    "unsigned short": "int",
+}
+
+
+def widened_return(r):
+    """The face's OWN return type when the target's is sub-register, else None.
+
+    Reverse faces only; see THE RETURN WIDTH RULE above for why a forward face,
+    a structor and a D0 face are all excluded.
+    """
+    if r.get("d0") or r.get("forward"):
+        return None
+    sig = r.get("sig")
+    if sig is None:
+        return None
+    if r["rec"]["meth"] in ("~", "~delete", "ctor"):
+        return None
+    return NARROW_RETURNS.get(sig["ret"])
+
+
+# ---------------------------------------------------------------------------
 # THE ADDRESS BINDING (lane FACES1, the main -> port sync's last link wall).
 #
 # THE RULE THAT MAKES A FACE HONEST: a face for flat name F binds F to exactly
@@ -166,6 +246,14 @@ SAFE_DATA_TYPE = re.compile(r"^(?:[PQ][AB])*(?:[CDEFGHIJKMNX]|_[JKN])[A-D]$")
 #      definition really says, and its class and method text must equal the
 #      Itanium name's, component for component; its parameter count must equal
 #      the Itanium parameter count; its constness must match.
+#
+# THE RETURN TYPE IS NOT ONE OF THE THREE, and it never needed to be for the
+# BINDING: MSVC decorates the return type, so a decorated name that joins at all
+# already agrees about it. What it DOES decide is the shape of the face, and
+# that is THE RETURN WIDTH RULE above -- a sub-register return is widened in a
+# reverse face so the flat extern "C" name defines the whole register the way
+# the ROM's own body does. Before that rule, Player::IsState answered yes
+# unconditionally at 191 call sites.
 #
 # The structor kinds are keyed APART, because they are different ROM functions:
 #   D1, D2  -> "~"        the complete/base object destructor, no deallocation.
@@ -2222,6 +2310,11 @@ def _face_signature(r):
     # "~delete" is the D0 face: it runs the destructor and then hands the
     # storage back, and like every destructor face it returns nothing.
     ret = "void" if rec["meth"] in ("~", "~delete", "ctor") else sig["ret"]
+    # THE RETURN WIDTH RULE. A reverse face over a sub-register return declares
+    # the widened type, so the prototype, the friend declaration and the
+    # definition below all say the same thing; widened_return() is None for
+    # every other row, so nothing else moves.
+    ret = widened_return(r) or ret
     cparams = [("const void *" if sig["const"] else "void *", "self")]
     for i, pr in enumerate(sig["params"]):
         cparams.append((c_type(*pr), "a%d" % i))
@@ -2359,6 +2452,29 @@ def _render_tree(tree):
     return out
 
 
+FACE_DECL = re.compile(r'^extern "C" ((?:unsigned |signed )?\w+) (_Z\w+)\(')
+
+
+def check_return_widths(text):
+    """Refuse a generated reverse face that still returns a sub-register type.
+
+    THE GATE FOR THE RETURN WIDTH RULE. The rule lives in one branch of one
+    emitter, so the way it silently comes undone is an edit to that branch, and
+    the symptom is invisible: the file still compiles, the link is still clean,
+    the extern "C" symbol is unchanged, and the only difference is three bytes
+    of EAX at 191 call sites. This reads the emitted text back and fails the
+    build instead, which is the same shape as facecycle_guard.py.
+
+    Returns a list of (name, type) that must not have been emitted.
+    """
+    bad = []
+    for line in text.splitlines():
+        m = FACE_DECL.match(line)
+        if m and m.group(1) in NARROW_RETURNS:
+            bad.append((m.group(2), m.group(1)))
+    return bad
+
+
 def emit_sync(rows, out, header_note=""):
     """One generated source for the derived sync faces."""
     lines = [
@@ -2374,6 +2490,16 @@ def emit_sync(rows, out, header_note=""):
         "// body is the QUALIFIED call ((Cls *)self)->Cls::meth(args), so it",
         "// dispatches directly to the member the ROM name names and never",
         "// through a vtable slot back into itself.",
+        "//",
+        "// A REVERSE face over a sub-register return (bool, char, short) is",
+        "// WIDENED to int with an explicit conversion, and says so on its own",
+        "// line. A bool member writes AL alone and leaves the rest of EAX",
+        "// holding whatever was there, the flat name is extern \"C\" so its",
+        "// return type is not in the symbol, and a caller that spells the flat",
+        "// name `int` then reads three bytes of junk as part of the answer.",
+        "// The ROM's own bodies define the whole register, so the conversion",
+        "// is the ROM-faithful shape. See THE RETURN WIDTH RULE in",
+        "// port/tools/facegen.py.",
     ]
     if header_note:
         lines += ["//", "// " + header_note]
@@ -2612,12 +2738,28 @@ def emit_sync(rows, out, header_note=""):
                          % (qual, ", ".join(callargs)))
         else:
             ret = sig["ret"]
-            retkw = "return " if ret != "void" else ""
-            lines.append('extern "C" %s %s(%s)'
-                         % (ret, r["ident"], cparams[0]))
-            lines.append("{ %s(%sself)->%s::%s(%s); }"
-                         % (retkw, cast, qual, sig["meth"],
-                            ", ".join(callargs)))
+            wide = widened_return(r)
+            if wide:
+                # THE RETURN WIDTH RULE. The cast is the whole fix: the target
+                # writes AL (or AX) alone and leaves the rest of EAX holding
+                # whatever was there, and a flat caller that spells this name
+                # `int` reads all four bytes. The conversion makes MSVC emit the
+                # movzx/movsx, so the face defines the WHOLE register the way
+                # the ROM's own body does.
+                lines.append("/* RETURN WIDENED %s -> %s: see THE RETURN WIDTH "
+                             "RULE in port/tools/facegen.py */" % (ret, wide))
+                lines.append('extern "C" %s %s(%s)'
+                             % (wide, r["ident"], cparams[0]))
+                lines.append("{ return (%s)(%sself)->%s::%s(%s); }"
+                             % (wide, cast, qual, sig["meth"],
+                                ", ".join(callargs)))
+            else:
+                retkw = "return " if ret != "void" else ""
+                lines.append('extern "C" %s %s(%s)'
+                             % (ret, r["ident"], cparams[0]))
+                lines.append("{ %s(%sself)->%s::%s(%s); }"
+                             % (retkw, cast, qual, sig["meth"],
+                                ", ".join(callargs)))
         lines.append("")
 
     text = "\n".join(lines) + "\n"
@@ -2796,10 +2938,26 @@ def run_sync(ledger, root, out, defined=None, strict=True):
     rows = [bound[_key(w)] for w in want if _key(w) in bound]
     rows, cyc = refuse_face_cycles(rows)
     refusals += cyc
-    emit_sync(rows, out, "%d faces from %d ledger rows; %d REFUSED"
-              % (len(rows), len(want), len(want) - len(rows)))
+    widened = sorted((r["ident"], r["sig"]["ret"], widened_return(r))
+                     for r in rows if widened_return(r))
+    text = emit_sync(rows, out, "%d faces from %d ledger rows; %d REFUSED; "
+                     "%d RETURN WIDENED"
+                     % (len(rows), len(want), len(want) - len(rows),
+                        len(widened)))
     for flat, why in refusals:
         print("REFUSED %s -- %s" % (flat, why))
+    # THE RETURN WIDTH RULE names its whole set out loud, so the class is
+    # visible in every build log rather than being found one call site at a
+    # time by a player.
+    print("RETURN WIDENED %d reverse faces (see THE RETURN WIDTH RULE):"
+          % len(widened))
+    for ident, was, now in widened:
+        print("    %-58s %s -> %s" % (ident, was, now))
+    bad = check_return_widths(text)
+    if bad:
+        sys.exit("THE RETURN WIDTH RULE was not applied to %d generated "
+                 "reverse face(s), which is a wrong answer the link cannot "
+                 "see: %s" % (len(bad), ", ".join("%s (%s)" % b for b in bad)))
     print("faces %d of %d ledger rows -> %s" % (len(rows), len(want), out))
     if strict and len(rows) != len(want):
         sys.exit("%d ledger rows did not survive the address binding; a "
@@ -3036,6 +3194,40 @@ def selftest():
         got = read_list(plain)
         expect(got == ["?A@B@@QAEXXZ", "_c_name"],
                "read_list on a plain list: %s" % got)
+
+    # THE RETURN WIDTH RULE arm. Three claims, each one a way the rule has
+    # already been got wrong by hand somewhere in this tree:
+    #   1. a REVERSE face over a bool target widens and converts explicitly;
+    #   2. a FORWARD face over the same target does NOT (it declares a callee
+    #      it does not define, and widening that invents the defect mirrored);
+    #   3. check_return_widths() actually refuses the un-widened text, so the
+    #      rule cannot quietly come undone in the one emitter branch it lives
+    #      in.
+    boolsig = {"virtual": False, "access": "public", "ret": "bool",
+               "cls": "Player", "meth": "IsState", "params": [],
+               "const": False, "structor": None}
+    rev = {"flat": "_ZN6Player7IsStateEv", "ident": "_ZN6Player7IsStateEv",
+           "target": "?IsState@Player@@QAE_NXZ", "addr": 0x020e308c,
+           "rec": {"cls": ["Player"], "meth": "IsState", "comps": ["Player"]},
+           "sig": boolsig}
+    fwd = dict(rev, forward=True)
+    expect(widened_return(rev) == "int", "reverse bool face must widen")
+    expect(widened_return(fwd) is None, "forward bool face must NOT widen")
+    with tempfile.TemporaryDirectory() as td:
+        out = pathlib.Path(td) / "g.cpp"
+        text = emit_sync([rev], str(out))
+        expect('extern "C" int _ZN6Player7IsStateEv(void *self)' in text,
+               "widened reverse face declaration: %s"
+               % [l for l in text.splitlines() if "IsState" in l])
+        expect("return (int)((Player *)self)->Player::IsState();" in text,
+               "widened reverse face body: %s"
+               % [l for l in text.splitlines() if "IsState" in l])
+        expect(check_return_widths(text) == [],
+               "the widened file must pass its own gate")
+    unfixed = 'extern "C" bool _ZN6Player7IsStateEv(void *self)\n'
+    expect(check_return_widths(unfixed) ==
+           [("_ZN6Player7IsStateEv", "bool")],
+           "check_return_widths must catch an un-widened reverse face")
     print("selftest %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 

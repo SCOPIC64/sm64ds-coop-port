@@ -2545,3 +2545,60 @@ _ZN19BowserPuzzleManagerD0Ev  REAL_DECOMP  runs/link100/out/ADJ/verify.txt  reco
 # entry retires when main carries the marker; out\SYNC2\decomp_side.md asks for
 # exactly that one-line change.
 func_ov085_0212cd80  REAL_DECOMP  port/l4-merge 0046a2d11 src/func_ov085_0212cd80.c line 8 (verified 2004/b56 byte-match, ov085, strict-reloc)
+
+# ---------------------------------------------------------------------------
+# run link100 (lanes STUBS and STUBGUARD), 2026-09-15.
+#
+# Widening the seating test from one route to four made 55 already-shipping
+# bodies visible to the guard at once (see inferred_stub_debt2.txt for the
+# ones that are NOT on this list). These are the ones that were read against
+# the cartridge instruction by instruction first.
+#
+# STUBGUARD disassembled each from extracted/ at the correct base (overlay
+# images from extracted/overlays/ at the overlays.yaml base, module taken from
+# the symbol index rather than guessed, because ov077/ov079/ov080/ov081 share
+# a load address and a wrong guess still decodes as plausible ARM). Every call
+# target was resolved by NAME in config/arm9/**/symbols.txt, never by address.
+# Full per-body listings: runs/link100/out/STUBGUARD/job2_dump.txt.
+#
+# Verdict on the whole set: 45 read by STUBGUARD, 14 by STUBS, 0 wrong.
+# ---------------------------------------------------------------------------
+_ZN10BulletBill16OnAimedAtWithEggEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov079 0x021266fc 0x8; exact
+_ZN10MrBlizzard16OnAimedAtWithEggEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov081 0x02125eb8 0x8; exact
+_ZN10RockPillar16CleanupResourcesEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov016 0x02112ae4 0x44; exact
+_ZN12MetalNetLift16CleanupResourcesEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov064 0x02117cc4 0x38; exact
+_ZN14ArrowSignRight15OnHitByMegaCharER6Player  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov098 0x02137d80 0x3c; exact
+_ZN5Stump16CleanupResourcesEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov091 0x021336cc 0x44; exact
+_ZN6Thwomp16OnAimedAtWithEggEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov091 0x02132a0c 0x8; exact
+_ZN7Chuckya16OnAimedAtWithEggEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov062 0x02117470 0x8; exact
+_ZN7SkiLift16CleanupResourcesEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov018 0x021112fc 0x44; exact
+_ZN8Painting16CleanupResourcesEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov080 0x02126bfc 0x20; exact
+_ZN8Painting16OnPendingDestroyEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov080 0x02126c1c 0x4; exact
+_ZN9Spindrift16OnAimedAtWithEggEv  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov081 0x021237e4 0x8; exact
+daPkn_c_classInit  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov084 0x02130110 0x64; exact
+daPropeller_Heyho_c_classInit  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov070 0x02120520 0x50; exact
+daSanbo_c_classInit_SANBO  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov096 0x02136d60 0x50; exact
+daWarpkun_c_classInit  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov002 0x020ec534 0x38; exact
+func_ov002_020b2150  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov002 0x020b2150 0x48; exact
+func_ov002_020ba4c0  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov002 0x020ba4c0 0x18; exact
+func_ov006_021225a8  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov006 0x021225a8 0x4; exact
+func_ov060_021169b0  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov060 0x021169b0 0x48; exact
+func_ov071_021214f4  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov071 0x021214f4 0x38; exact
+func_ov085_0212e480  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov085 0x0212e480 0x24; exact
+func_ov098_02138318  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov098 0x02138318 0x2c; exact
+func_ov100_02143aa4  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov100 0x02143aa4 0x3c; exact
+func_ov100_021467d4  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov100 0x021467d4 0x14; exact
+func_ov102_0214cfe4  REAL_DECOMP  link100/STUBGUARD/report.md#job2  read instruction by instruction against ov102 0x0214cfe4 0x3c; exact
+_ZN11BillBlaster15OnHitByMegaCharER6Player  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov079 0x02126ecc 0x38; exact
+_ZN12daBombking_cD1Ev  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov078 0x02123740 0x58; exact
+_ZN13dScMgMemory_cD1Ev  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov006 0x020f3834 0x54; exact
+_ZN14dScMgMemory2_cD1Ev  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov006 0x020f5564 0x54; exact
+_ZN19BowserPuzzleManager13InitResourcesEv  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov064 0x02119284 0x18; exact
+_ZN19FirePiranhaPlantBig16OnAimedAtWithEggEv  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov084 0x0212e998 0x3c; exact
+_ZN5Koopa16OnAimedAtWithEggEv  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov062 0x02119608 0x20; exact
+_ZN5Stump6RenderEv  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov091 0x02133710 0x28; exact
+_ZN5Whomp16OnAimedAtWithEggEv  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov079 0x02123b60 0x6c; exact
+_ZN7SkiLift13InitResourcesEv  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov018 0x021116b4 0x134; exact
+_ZN7SkiLift6RenderEv  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov018 0x02111340 0x28; exact
+_ZN8IceBlock15OnHitByMegaCharER6Player  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov081 0x02127ccc 0x28; exact
+func_ov065_021177e4  REAL_DECOMP  link100/STUBS/report.md#hand-verified  read instruction by instruction against ov065 0x021177e4 0xa4; exact

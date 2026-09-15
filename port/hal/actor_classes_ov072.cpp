@@ -622,7 +622,9 @@ int _ZN12daBgSnmBdy_c6State5Ev(char *c);
 
 /* SnowmanHead's eight state handlers (four enter/tick pairs) */
 int _ZN11SnowmanHead10InitState0Ev(char *c);
-bool _ZN11SnowmanHead6State0Ev(void *self);
+int _ZN11SnowmanHead6State0Ev(void *self);   /* int, like its seven siblings and
+   like the body: src/_ZN11SnowmanHead6State0Ev.cpp:9 is `int SnowmanHead::State0()`,
+   and the seat table below casts every one of these to PortSnFn, int (*)(void *). */
 int _ZN11SnowmanHead10InitState1Ev(char *p);
 int _ZN11SnowmanHead6State1Ev(void *thiz);
 int _ZN11SnowmanHead10InitState2Ev(char *base);

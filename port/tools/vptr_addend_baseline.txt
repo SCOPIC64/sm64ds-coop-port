@@ -21,6 +21,37 @@
 # here so that the SEVENTY-SECOND one stops the build.
 #
 #   <source path>.obj  <vtable symbol>  <applied value>
+# RETIRED 2026-09-15, run link100 lane VPTR16: the sixteen rows below this
+# line are gone because their translation units joined port/CMakeLists.txt's
+# PORT_HOSTGEN_TU list. These are the sixteen CRASH6 left open on the reading
+# that they named .dsstate ROM MOUNTS, where a vtable mwcc built does carry
+# offset-to-top and typeinfo in front of its slots, so +8 might have been the
+# ROM's own address point. READ OUT OF THE CARTRIDGE, BOTH HALVES OF THAT
+# READING WERE WRONG AND ALL SIXTEEN WERE THE SAME DEFECT AS CRASH6's SIX.
+#
+# They are not ROM mounts: every one is a host array declared in
+# port/hal/actor_classes_*.cpp, 31 to 33 wide, that lands in .dsstate only
+# because it sits inside a DSSTATE_BEGIN/END bracket so the save state captures
+# it. And +8 is not the ROM's address point: for all sixteen the ROM's Itanium
+# header sits BEFORE the symbol the config names (symbol-8 is offset-to-top,
+# symbol-4 points at _ZTI<Class>), and symbol+0/+4/+8 are InitResources,
+# dActor_c::BeforeInitResources and dActor_c::AfterInitResources, which is the
+# exact front triplet CRASH6 convicted at run time on daObjWaterfall_c.
+# Counted from the symbol, slots 16 and 17 also land on each class's own D1 and
+# D0, which is the index port/hal already seats them at.
+#
+# Verified after the build rather than predicted: all sixteen factories were
+# re-found BY NAME in the new walk_window.map and the bytes they ship read
+# table+0, none table+8. The guard went from 27 nonzero rows to 11.
+#
+# WHAT IS LEFT IS EXPLAINED, NOT TOLERATED. The 11 remaining relocations are 9
+# distinct rows and every one was settled the same way out of the cartridge:
+# dScMgMemory2_c, dScMgBSC_c, dScMgCard_c, dMgCardObj_c, dMgDilarCardObj_c,
+# dScMgMCarlo_c, dScMgMCarlo2_c, dScMgMemory_c, dScMgTrampoline_c. All nine
+# live in ov006, all nine have the header in front of the symbol, all nine are
+# this same defect. They are one coherent follow-up, the ov006 minigame scene
+# family, and they are outside lane VPTR16's brief rather than undecided.
+#
 # RETIRED 2026-09-15, run link100 lane CRASH6: the six rows below this line
 # are gone because their translation units joined port/CMakeLists.txt's
 # PORT_HOSTGEN_TU list, where tools/hostgen.py's VPTR_ADDRESS_POINT rewrite
@@ -40,11 +71,8 @@ src/actors/daBombking_c.cpp.obj                      __ZTV12daBombking_c        
 src/actors/daObjClock_c.cpp.obj                      __ZTV12daObjClock_c                                      0x8
 src/actors/daObjFire_c.cpp.obj                       __ZTV11daObjFire_c                                       0x8
 src/actors/daObjFl_London_c.cpp.obj                  __ZTV16daObjFl_London_c                                  0x8
-src/actors/daObjLava_c.cpp.obj                       __ZTV11daObjLava_c                                       0x8
 src/actors/daSCoin_c.cpp.obj                         __ZTV9daSCoin_c                                          0x8
 src/actors/daYurei_Mucho_c.cpp.obj                   __ZTV15daYurei_Mucho_c                                   0x8
-src/game/actors/d_a_bar.cpp.obj                      __ZTV7daBar_c                                            0x8
-src/game/actors/d_a_cam_tag.cpp.obj                  __ZTV10daCamTag_c                                        0x8
 src/game/actors/d_a_ch_room.cpp.obj                  __ZTV10daChRoom_c                                        0x8
 src/game/actors/d_a_ch_scene.cpp.obj                 __ZTV11daChScene_c                                       0x8
 src/game/actors/d_a_kp_fr.cpp.obj                    __ZTV8daKpFr_c                                           0x8
@@ -62,27 +90,14 @@ src/game/actors/d_a_obj_hatena_switch.cpp.obj        ?_ZTV19daObjHatenaSwitch_c@
 src/game/actors/d_a_obj_ice_board.cpp.obj            __ZTV15daObjIceBoard_c                                   0x8
 src/game/actors/d_a_obj_kb1_billboard.cpp.obj        ?_ZTV19daObjKb1Billboard_c@@3PAHA                        0x8
 src/game/actors/d_a_obj_kinoko_tag.cpp.obj           __ZTV16daObjKinokoTag_c                                  0x8
-src/game/actors/d_a_obj_km1_dorifu.cpp.obj           __ZTV17daObjKm1_Dorifu_c                                 0x8
-src/game/actors/d_a_obj_km2_fall_block.cpp.obj       __ZTV21daObjKm2_Fall_Block_c                             0x8
-src/game/actors/d_a_obj_km2_gura.cpp.obj             ?_ZTV15daObjKm2_Gura_c@@3PAHA                            0x8
-src/game/actors/d_a_obj_km3_dorifu.cpp.obj           __ZTV17daObjKm3_Dorifu_c                                 0x8
-src/game/actors/d_a_obj_km3_kaitendai.cpp.obj        __ZTV16daObjKaitendai_c                                  0x8
-src/game/actors/d_a_obj_km3_kuruma.cpp.obj           __ZTV13daObjKuruma_c                                     0x8
-src/game/actors/d_a_obj_km3_kurumajiku.cpp.obj       __ZTV17daObjKurumajiku_c                                 0x8
 src/game/actors/d_a_obj_ks_water.cpp.obj             __ZTV14daObjKsWater_c                                    0x8
 src/game/actors/d_a_obj_mc_metalnet.cpp.obj          __ZTV18daObjMc_Metalnet_c                                0x8
 src/game/actors/d_a_obj_mc_water.cpp.obj             __ZTV14daObjMcWater_c                                    0x8
-src/game/actors/d_a_obj_rc_carpet.cpp.obj            __ZTV15daObjRcCarpet_c                                   0x8
 src/game/actors/d_a_obj_wakame.cpp.obj               __ZTV13daObjWakame_c                                     0x8
 src/game/actors/d_a_obj_wanwan_shutter.cpp.obj       __ZTV20daObjWanwanShutter_c                              0x8
-src/game/actors/d_a_obj_wc_obj01.cpp.obj             __ZTV14daObjWcObj01_c                                    0x8
 src/game/actors/d_a_obj_wc_obj02.cpp.obj             __ZTV15daObjWc_Obj02_c                                   0x8
 src/game/actors/d_a_obj_wc_obj05.cpp.obj             __ZTV15daObjWc_Obj05_c                                   0x8
-src/game/actors/d_a_obj_wc_obj06.cpp.obj             __ZTV14daObjWcObj06_c                                    0x8
-src/game/actors/d_a_obj_wc_obj07.cpp.obj             __ZTV15daObjWc_Obj07_c                                   0x8
-src/game/actors/d_a_s_cre.cpp.obj                    __ZTV8daSCre_c                                           0x8
 src/game/actors/d_a_sld_mng.cpp.obj                  __ZTV10daSldMng_c                                        0x8
-src/game/actors/d_a_warpkun.cpp.obj                  __ZTV11daWarpkun_c                                       0x8
 src/minigames/d_s_mg_bsc.cpp.obj                     __ZTV10dScMgBSC_c                                        0x8
 src/minigames/d_s_mg_card.cpp.obj                    __ZTV11dScMgCard_c                                       0x8
 src/minigames/d_s_mg_card.cpp.obj                    __ZTV12dMgCardObj_c                                      0x8
