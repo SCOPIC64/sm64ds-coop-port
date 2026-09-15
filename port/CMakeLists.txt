@@ -15755,6 +15755,31 @@ add_custom_command(TARGET walk_window POST_BUILD
     VERBATIM
     COMMENT "facecycle_guard: no face forwards to another face")
 
+# A HOSTED DS GLOBAL MUST BE AT LEAST AS BIG AS WHAT THE ROM WRITES THROUGH
+# IT. This class has shipped five times (memory note
+# sm64ds-port-undersized-globals): a DS global takes hal/auto_bss.cpp's
+# generous `int name[8]` default, the ROM routine that owns it writes its full
+# extent, and the write lands on whatever the linker put next. It never
+# presents as a bug in the subsystem that owns the buffer -- data_0209d74c
+# cleared 3808 bytes through hal_wipes[0]'s vtable pointer and faulted
+# HUD::Behavior the first time Mario talked, and the fix for it carried a
+# comment asking the next person to re-run the audit after adding a symbol.
+# Nobody did, the file grew from 152 symbols to 205, and on 2026-09-15 the
+# re-audit found two more live instances seventy lines above that comment.
+# A comment asking a human to remember is not a control, so this is the
+# control: the check runs on every link instead of when somebody remembers.
+# It reads only checked-in sources and config/arm9, so it needs no map, and
+# it self-validates against seven fixtures on every run -- three that must
+# fire and four that must not -- and fails the build if any of them comes
+# back with the wrong verdict, so deleting or weakening a rule breaks the
+# build rather than silently disarming the check. Lane BSSFIX, run link100.
+add_custom_command(TARGET walk_window POST_BUILD
+    COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/arm9_globals_guard.py"
+            --root "${CMAKE_CURRENT_SOURCE_DIR}/.."
+            --allow "${CMAKE_CURRENT_SOURCE_DIR}/arm9_globals_allow.txt"
+    VERBATIM
+    COMMENT "arm9_globals_guard: no ROM write runs past a hosted arm9 global")
+
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
 add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # run link100 lane BOOT: same slice as walk_window, for the same reason --
