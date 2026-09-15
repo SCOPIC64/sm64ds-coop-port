@@ -662,13 +662,18 @@ set(PORT_HOSTGEN_TU
     # right. The sixteen baseline rows retire in the NEXT commit, not this one,
     # for the ordering reason CRASH6 wrote down above.
     #
-    # THE SAME DEFECT IS OPEN IN TEN MORE TUs THAT ARE NOT IN THIS BRIEF AND ARE
-    # NOT TOUCHED HERE: d_s_mg_bsc, d_s_mg_card (three tables), d_s_mg_jump2,
-    # d_s_mg_m_carlo, d_s_mg_m_carlo2, d_s_mg_memory, d_s_mg_trampoline,
-    # d_s_mg_trampoline2. Swept the same way and they read the same way. Across
-    # the whole of src/ there are 37 (file, table) +2 stores, 11 of them already
-    # substituted, and every one of the 37 has the header in front of the
-    # symbol. There is no surviving case where +8 is correct.
+    # WHAT IS LEFT AFTER THIS ROW, TAKEN FROM THE GUARD ITSELF RATHER THAN FROM
+    # A SOURCE SWEEP, because a sweep of src/ undercounts what is already
+    # substituted and misses a store spelled through a macro. After the build
+    # this row earns, vptr_addend_guard reports ELEVEN nonzero relocations over
+    # NINE distinct rows, and all nine were settled out of the cartridge the
+    # same way and read the same way: dScMgMemory2_c, dScMgBSC_c, dScMgCard_c,
+    # dMgCardObj_c, dMgDilarCardObj_c, dScMgMCarlo_c, dScMgMCarlo2_c,
+    # dScMgMemory_c, dScMgTrampoline_c. All nine live in ov006 and all nine have
+    # the Itanium header in front of the symbol. So the residue is ONE coherent
+    # follow-up, the ov006 minigame scene family, and it is outside this lane's
+    # brief rather than undecided. There is no surviving case anywhere in this
+    # tree where +8 is correct.
     src/game/actors/d_a_bar.cpp
     src/game/actors/d_a_cam_tag.cpp
     src/game/actors/d_a_obj_km1_dorifu.cpp
