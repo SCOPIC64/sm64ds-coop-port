@@ -160,10 +160,13 @@ endif()
 #
 # WHY IT NEEDS NO OTHER SOURCE EDIT. /Gh is the compiler's own hook. No
 # translation unit is rewritten, no call site is wrapped and no header changes,
-# so a traced build cannot perturb what it is measuring by construction. The two
-# calls to ntr_fn_trace_frame in tests/walk_window.cpp are the only exception and
-# they exist for one reason -- both halves must agree where a frame ends -- and
-# they compile to nothing at all unless PORT_FN_TRACE is defined.
+# so a traced build cannot perturb what it is measuring by construction. The one
+# call to ntr_fn_trace_frame in hal/rom_frame.cpp is the only exception and it
+# exists for one reason -- both halves must agree where a frame ends. It sits in
+# port_rom_frame_phase6 because every path that renders a frame comes through
+# there exactly once, which is the property the frame cross-check in that same
+# file already depends on, and it compiles to nothing at all unless
+# PORT_FN_TRACE is defined.
 #
 # WHAT IT COSTS, MEASURED ON THIS BOX (cl 19.44 x86, /O2 /Oy-, C:/tmp/ghtest):
 # 20,000,000 real non-inlined calls took 0.0204 s untraced and 0.0364 s traced,

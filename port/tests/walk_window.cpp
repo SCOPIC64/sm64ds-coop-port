@@ -397,21 +397,6 @@ static bool winapi_load(void)
 #include "ntr/ppu.h"
 #include "ntr/rt.h"
 
-#if PORT_FN_TRACE
-/* THE ONE THING THE /Gh HOOK CANNOT WORK OUT FOR ITSELF (lane TRACEPORT).
-   port/hal/fn_trace.cpp records every function entry without a single edit to
-   any source file, because the compiler emits the call. What it cannot see is
-   where one frame ends and the next begins, and the cartridge-side trace from
-   lane ROMTRACE is scoped per frame, so without this the two lists cannot be
-   lined up at all. Both frame counters in this file get the call; it compiles
-   to nothing unless the build was configured -DPORT_FN_TRACE=ON. */
-extern "C" void ntr_fn_trace_frame(unsigned int frame);
-#define PORT_FN_TRACE_FRAME(f) ntr_fn_trace_frame((unsigned int)(f))
-#else
-#define PORT_FN_TRACE_FRAME(f) ((void)0)
-#endif
-
-
 /* walk_window is the one TU that installs the crash probe, so it also emits the
    external seams (port_rich_dump_ex, port_crash_dir_get) the quarantine walker
    in port/unmatched/func_02043fdc_hostcopy.cpp weak-links against. */
@@ -7359,7 +7344,6 @@ static int scene_window_run(void)
            path has no rollback boundary, so there is no re-anchor here. */
         port_rom_frame_phase6();
         ++frame;
-        PORT_FN_TRACE_FRAME(frame);
         /* fault_probe.h: crash.txt/exit.txt context, the ROM's frame number and
            this path's every-frame cross-check. */
         port_last_frame = port_rom_frame_checked(frame, "scene-fault-context");
@@ -13891,9 +13875,7 @@ int main(void)
            point -- the VBlank handler is dispatched by nothing (see the
            banner) -- so the bracket is left out rather than faked. */
         data_0209d4f0[0] = 1;
-        ++frame;
-        PORT_FN_TRACE_FRAME(frame);
-                   /* counts in live mode too -- the [cam-in]-style live
+        ++frame;   /* counts in live mode too -- the [cam-in]-style live
                       diagnostics carry a real frame number */
         /* SM64DS_MENU_AT: arm the freeze once the named frame is reached. It
            is tested with >= and not == because the rollback boundary just
