@@ -19667,8 +19667,98 @@ foreach(line IN LISTS SLICE_SLICE1_LINES)
     endif()
     list(APPEND SLICE_SLICE1_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+# ---- run link100 lane MODESEL: THE TITLE MENU'S CELL SUBMITTER -------------
+#
+# THE SAME DEFECT THE TITLETEX BLOCK ABOVE FIXED, ON A TU THAT ARRIVED AFTER
+# TITLETEX MEASURED ITS SET. src/func_ov007_020c4684.c is the routine the title
+# screen and its menu page draw every cell through, and its literal pool is
+# twelve geometry command ports and nothing else. TITLETEX's comment names it
+# by address and says so; on that day it was still unmatched and the port drew
+# through port/unmatched/Ov007_CellQuad_020c4684.cpp, a host transcription that
+# reached the engine through NTR_MMIO. The match has since landed, the interim
+# retired itself on SC1's own terms, and the matched TU joined walk_window
+# through slice_slice1.txt -- BUILT PLAIN. Every store in it now latches a word
+# into mapped memory and the geometry engine is never told.
+#
+# WHAT THAT COSTS, MEASURED ON THIS TREE rather than argued (lane MODESEL, the
+# main menu after the title is touched; SM64DS_STAR_GEO's per-object census
+# with this lane's DS-pixel rectangle):
+#
+#     obj0 verts=320 scale(1,1,1) trans(0.000 -0.184 -2.062)  ds 392.0 x 391.9
+#     obj1 verts=160 scale(1,1,1) trans(-0.240 -0.184 -2.062) ds 392.0 x 391.9
+#     obj2 verts=160 scale(1,1,1) trans(0.240 -0.184 -2.062)  ds 392.0 x 391.9
+#     obj3 verts=64  scale(1,1,1) trans(0.275 0.194 -2.062)   ds 392.0 x 392.0
+#
+# Four menu panels, every one of them EXACTLY 392 by 392 DS pixels on a 256x192
+# screen, each anchored at its own correct point: their rectangles start at DS x
+# 34, 128, 222 and 236 and end at y 168, 168, 168 and 20, which are the centres
+# of the ROM's OWN element boxes 1, 0, 2 and 7 (SM64DS_TITLE_ELEMS on the same
+# frame). So the placement, the camera and the projection were all right and the
+# panels were a UNIT QUAD DRAWN AT UNIT SIZE: 020c4684 pushes the matrix,
+# translates by (vec - w/2, -h/2), scales by the cell's own WIDTH and HEIGHT
+# read from self+0x20 and self+0x24, submits a unit quad through
+# func_ov007_020c49bc -- which IS routed and DOES arrive -- and pops. The push,
+# the translate, the scale and the pop are the four that do not arrive, so the
+# quad keeps unit size and its anchor corner, and 1.0 model unit is 392 DS
+# pixels under that scene's own projection.
+#
+# ppu_audit's command census is the independent witness: MTX_TRANS executed
+# ZERO times in 600 frames of this scene, against three writes per cell and
+# about fifty cells a frame.
+#
+# THE TREATMENT IS TITLETEX'S, unchanged: tools/hostgen.py rewrites the literal
+# derefs to NTR_MMIO so each store dispatches through ntr::io_write, src/ is not
+# edited and the TU stays byte-matched. Run standalone first and diffed: 25 MMIO
+# rewrites, every one a geometry command port, and the two volatile reads of
+# self+0x20 and self+0x24 left alone.
+#
+# IT IS CUT AND ADDED HERE rather than in TITLETEX's list because this row lives
+# on slice_slice1.txt and TITLETEX's cut walks slice_ov007.txt only. Same block,
+# same branch, so the cut cannot drift from the copy.
+option(TITLEQUAD_GX_PLAIN
+       "run link100 MODESEL: build ov007's cell submitter PLAIN (pre-fix arm)"
+       OFF)
+set(TITLEQUAD_SYM func_ov007_020c4684)
+set(TITLEQUAD_GEN "")
+set(TITLEQUAD_CUT 0)
+if(NOT TITLEQUAD_GX_PLAIN)
+    message(STATUS "TITLEQUAD: TITLEQUAD_GX_PLAIN=OFF -- ov007's cell "
+                   "submitter routes through hostgen (shipped arm).")
+    set(_tq_in "${PORT_REPO_ROOT_ABS}/src/${TITLEQUAD_SYM}.c")
+    if(NOT EXISTS "${_tq_in}")
+        set(_tq_in "${PORT_REPO_ROOT_ABS}/src/${TITLEQUAD_SYM}.cpp")
+    endif()
+    set(_tq_out "${CMAKE_BINARY_DIR}/host-src/src/${TITLEQUAD_SYM}.cpp")
+    add_custom_command(OUTPUT "${_tq_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${TITLEQUAD_SYM}
+        DEPENDS "${_tq_in}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${TITLEQUAD_SYM}")
+    list(APPEND TITLEQUAD_GEN "${_tq_out}")
+    set(_tq_keep "")
+    foreach(src IN LISTS SLICE_SLICE1_SOURCES)
+        if(src MATCHES "/${TITLEQUAD_SYM}\\.(c|cpp)$")
+            math(EXPR TITLEQUAD_CUT "${TITLEQUAD_CUT}+1")
+        else()
+            list(APPEND _tq_keep "${src}")
+        endif()
+    endforeach()
+    set(SLICE_SLICE1_SOURCES ${_tq_keep})
+    if(NOT TITLEQUAD_CUT EQUAL 1)
+        message(STATUS "TITLEQUAD: expected to cut 1 plain slice_slice1 row "
+                       "for ${TITLEQUAD_SYM} and cut ${TITLEQUAD_CUT}. If the "
+                       "row moved to another slice the hostgen copy is still "
+                       "added and the link will say so as a duplicate; if it "
+                       "left the build entirely the link will say undefined.")
+    endif()
+else()
+    message(STATUS "TITLEQUAD: TITLEQUAD_GX_PLAIN=ON -- ov007's cell submitter "
+                   "builds PLAIN. This is the PRE-FIX arm: MTX_PUSH, MTX_TRANS, "
+                   "MTX_SCALE and MTX_POP latch in mapped memory and the "
+                   "geometry engine is never told.")
+endif()
 foreach(_tslice1 walk_window walk_window_hires smoke_player)
-    target_sources(${_tslice1} PRIVATE ${SLICE_SLICE1_SOURCES})
+    target_sources(${_tslice1} PRIVATE ${SLICE_SLICE1_SOURCES} ${TITLEQUAD_GEN})
 endforeach()
 
 # ===========================================================================
