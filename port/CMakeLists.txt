@@ -7714,9 +7714,12 @@ endforeach()
 # and ticks never enters it. This lane's 60-frame and 1200-frame runs of scene
 # 375 both entered slots 0, 6 and 9 only. The check that works is reading the
 # TU and the body's own pool, which is what the paragraph above is.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/dScMgCurling2_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS "VT=data_ov006_0213c510")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names dScMgCurling2_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT=data_ov006_0213c510  --  dead, the TU does not spell VT
+# Deleted rather than merged. The surviving row is unchanged.
 
 # RUN MG8 lane SGX: THE PADDLE DRAWS FROM ANOTHER OVERLAY'S BYTES.
 # Tango's lap-2 report on scene 375 is "I cant see the paddle if im suposed to".
