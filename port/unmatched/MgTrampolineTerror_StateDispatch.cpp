@@ -290,14 +290,54 @@ extern MgPmf data_ov006_0213fbd0, data_ov006_0213fbd8, data_ov006_0213fbe0,
     data_ov006_0213fbe8, data_ov006_0213fbf0;
 }
 
+/* ---- WHAT THE MOUNT ACTUALLY HOLDS ON THIS MACHINE ------------------------
+ *
+ * The five records are NOT a hosted ROM blob. src/minigames/d_s_mg_trampoline2.cpp
+ * defines all five itself, and it defines them the way the cartridge's own
+ * source does -- by NAMING the function:
+ *
+ *     int data_ov006_0213fbd0[] = { (int)func_ov006_02123b20, 0 };
+ *
+ * On the DS that initializer IS the word 0x02123b20, because that is where the
+ * linker puts the body. On this port the same initializer is a relocation
+ * against the host image, so the word reads the HOST address of the same
+ * function -- 0x00408480 on the build this was written against. Both words are
+ * the same record; only the spelling of "where that function lives" differs,
+ * and the difference is the linker's, not the source's. The seat is what taught
+ * this: it read a host address, reported WRONG BYTES and aborted every scene.
+ *
+ * So `rom` is what the cartridge stores and `host` is what THIS build stores,
+ * and the check below compares the mount against `host`. The guard is not
+ * weakened by that. It still refuses any mount whose code word is not exactly
+ * this record's own function, it still refuses a nonzero adjustment, and it now
+ * also refuses a mount that was NOT produced by the TU's initializer -- a raw
+ * DS word here would mean the five records came back from a hosted blob and
+ * every seated face would be reached with the wrong calling convention. The DS
+ * word stays in the message so the report still names the cartridge record a
+ * reader can look up in config/arm9/overlays/ov006/relocs.txt.
+ *
+ * WHY THE MOUNT CANNOT SIMPLY BE CALLED AS IT STANDS, host address or not: the
+ * dispatch site is `mov eax,[esi+0x5004] / mov ecx,[esi+0x5008] / add ecx,esi /
+ * call eax`, which hands the object in ecx. func_ov006_02123b24 and its four
+ * siblings are C-linkage cdecl and take the object as a stack argument, so the
+ * seat is still required and each face is still the __fastcall shim that moves
+ * ecx across.
+ * ======================================================================== */
+
 namespace {
-struct TteSeat { MgPmf *rec; unsigned rom; void *face; const char *what; };
+struct TteSeat { MgPmf *rec; unsigned rom; void *host; void *face;
+                 const char *what; };
 const TteSeat g_tte_seats[] = {
-    {&data_ov006_0213fbd0, 0x02123b20u, (void *)tte_f02123b20, "0213fbd0"},
-    {&data_ov006_0213fbd8, 0x02124088u, (void *)tte_f02124088, "0213fbd8"},
-    {&data_ov006_0213fbe0, 0x02123b24u, (void *)tte_f02123b24, "0213fbe0"},
-    {&data_ov006_0213fbe8, 0x02123cb4u, (void *)tte_f02123cb4, "0213fbe8"},
-    {&data_ov006_0213fbf0, 0x02123bf4u, (void *)tte_f02123bf4, "0213fbf0"},
+    {&data_ov006_0213fbd0, 0x02123b20u, (void *)func_ov006_02123b20,
+     (void *)tte_f02123b20, "0213fbd0"},
+    {&data_ov006_0213fbd8, 0x02124088u, (void *)func_ov006_02124088,
+     (void *)tte_f02124088, "0213fbd8"},
+    {&data_ov006_0213fbe0, 0x02123b24u, (void *)func_ov006_02123b24,
+     (void *)tte_f02123b24, "0213fbe0"},
+    {&data_ov006_0213fbe8, 0x02123cb4u, (void *)func_ov006_02123cb4,
+     (void *)tte_f02123cb4, "0213fbe8"},
+    {&data_ov006_0213fbf0, 0x02123bf4u, (void *)func_ov006_02123bf4,
+     (void *)tte_f02123bf4, "0213fbf0"},
 };
 }  /* namespace */
 
@@ -309,11 +349,13 @@ extern "C" void port_mg_tte2_field_seat(void)
     done = 1;
     for (unsigned i = 0; i < sizeof g_tte_seats / sizeof g_tte_seats[0]; ++i) {
         MgPmf *p = g_tte_seats[i].rec;
-        if (p->code != g_tte_seats[i].rom || p->adj != 0) {
+        unsigned want = (unsigned)(size_t)g_tte_seats[i].host;
+        if (p->code != want || p->adj != 0) {
             std::fprintf(stderr, "FATAL: dScMgTrampoline2_c pair %s: the mount holds "
-                         "%08x/%d, the cartridge's own record says %08x/0 -- "
+                         "%08x/%d, this build's own record says %08x/0 (the "
+                         "cartridge's is %08x/0) -- "
                          "WRONG BYTES\n", g_tte_seats[i].what, p->code, p->adj,
-                         g_tte_seats[i].rom);
+                         want, g_tte_seats[i].rom);
             std::abort();
         }
         p->code = (unsigned)(size_t)g_tte_seats[i].face;
