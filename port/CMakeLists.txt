@@ -15810,14 +15810,13 @@ endforeach()
 # so a dead store is never bound to them.
 #
 # Spawns -- live store is the own table:
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj01.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj01.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c;VT1=_ZTV14daObjWcObj01_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj01.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c  --  identity rename, a no-op even if it had run
+#   VT1=_ZTV14daObjWcObj01_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj06.cpp"
     # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
@@ -15838,14 +15837,14 @@ set_source_files_properties(
 #  their own already-defined host symbol and need no binding.)
 #
 # Destructors -- live (last) store is _ZTV10dBgActor_c; dead stores to the own array:
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj01.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj01.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c;_ZTV10dBgActor_c=_ZTV14daObjWcObj01_c;VT2=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj01.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV14daObjWcObj01_c  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT2=_ZTV10dBgActor_c  --  dead, the TU does not spell VT2
+# Deleted rather than merged. The surviving row is unchanged.
 # GATE 229 CORRECTION (lane SEAT3). This row predates any seat of the TU, so it
 # was never compiled and never checked. VT1 read the class's OWN table where the
 # body's literal pool at 0x02111248 holds the ov002 base 0x02108fdc, and G0 was
