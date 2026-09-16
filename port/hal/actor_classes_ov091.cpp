@@ -149,6 +149,7 @@ extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include "fBase_c.h"
 #include "RotatingUpDownPlatform.h"
 #include "Stump.h"
+#include "Fwoosh.h"
 
 extern "C" {
 
@@ -587,9 +588,9 @@ int _ZN22RotatingUpDownPlatform16CleanupResourcesEv(void *self)
 int _ZN22RotatingUpDownPlatform6RenderEv(void *self)
 { return ((RotatingUpDownPlatform *)self)->RotatingUpDownPlatform::Render(); }
 int _ZN6Fwoosh13InitResourcesEv(void *self)
-{ return ((Stump *)self)->Stump::InitResources(); }
+{ return ((Fwoosh *)self)->Fwoosh::InitResources(); }
 int _ZN6Fwoosh16CleanupResourcesEv(void *self)
-{ return ((Stump *)self)->Stump::CleanupResources(); }
+{ return ((Fwoosh *)self)->Fwoosh::CleanupResources(); }
 }
 
 /* THE TWO RTTI-SPELLING BRIDGES. Each is ONE table under two names; the

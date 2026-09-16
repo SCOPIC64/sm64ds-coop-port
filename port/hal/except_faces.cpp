@@ -63,6 +63,7 @@
 #include "Skeeter.h"
 #include "Spiny.h"
 #include "Stump.h"
+#include "Fwoosh.h"
 #include "TreasureChest.h"
 
 /* TWO NAME BRIDGES, and they are the whole reason this file has a pragma in it.
@@ -103,7 +104,7 @@ int _ZN8MantaRay6RenderEv(void *s)            { return ((MantaRay *)s)->MantaRay
 int _ZN6Lakitu6RenderEv(void *s)              { return ((Lakitu *)s)->Lakitu::Render(); }
 int _ZN7HeaveHo6RenderEv(void *s)             { return ((HeaveHo *)s)->HeaveHo::Render(); }
 int _ZN10CheepCheep6RenderEv(void *s)         { return ((CheepCheep *)s)->CheepCheep::Render(); }
-int _ZN6Fwoosh6RenderEv(void *s)               { return ((Stump *)s)->Stump::Render(); }
+int _ZN6Fwoosh6RenderEv(void *s)              { return ((Fwoosh *)s)->Fwoosh::Render(); }
 int _ZN7daPkn_c6RenderEv(void *s)       { return ((daPkn_c *)s)->daPkn_c::Render(); }
 int _ZN19FirePiranhaPlantBig6RenderEv(void *s){ return ((FirePiranhaPlantBig *)s)->FirePiranhaPlantBig::Render(); }
 int _ZN7daMip_c6RenderEv(void *s)              { return ((daMip_c *)s)->daMip_c::Render(); }

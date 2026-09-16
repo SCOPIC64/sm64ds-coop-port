@@ -272,6 +272,7 @@ int _ZN10CheepCheep8BehaviorEv(void *self)
 #include "daBombking_c.h"
 #include "LakituBro.h"
 #include "Stump.h"
+#include "Fwoosh.h"
 #include "UnchainedChomp.h"
 
 extern "C" {
@@ -286,7 +287,7 @@ int _ZN9LakituBro8BehaviorEv(void *self)
 { return ((LakituBro *)self)->LakituBro::Behavior(); }
 /* ov091 0x021341ec -- the three FWOOSH cells 021356b0/c0/d0 */
 int _ZN6Fwoosh8BehaviorEv(void *self)
-{ return ((Stump *)self)->Stump::Behavior(); }
+{ return ((Fwoosh *)self)->Fwoosh::Behavior(); }
 /* ov100 0x02143d64 -- the cell data_ov100_021486f4, hi half at +8 */
 int _ZN14UnchainedChomp8BehaviorEv(void *self)
 { return ((UnchainedChomp *)self)->UnchainedChomp::Behavior(); }
