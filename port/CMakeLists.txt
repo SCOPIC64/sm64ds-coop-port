@@ -2095,18 +2095,22 @@ endif()
 # evidence for all of them is one measurement, and a reader comparing two rows
 # should not have to page through nine hundred lines to do it.
 
-# smoke_roots: 30 unresolved -> 0.  7 ledger faces, 17 alias rows (15 copied
-# verbatim from hal/cxx_aliases.cpp, plus the global-deallocator pair that file
-# documents), 7 source rows, 1 harness call ported to Heap::SetupRootHeap().
-# The six ExpandingHeap and Heap bodies below are on walk_window through
-# port/slice_gate16.txt; this target reaches all six from
+# THE HEAP-TEARDOWN SOURCE ROWS, once, because every target from smoke_roots
+# on hosts the same root-heap layer and was missing the same fifteen bodies.
+# All fifteen already exist in this tree and are on walk_window through
+# port/slice_gate16.txt; not one of them is a new definition.
+#
+# The first eight are what the link asked for directly: ExpandingHeap's and
+# Heap's destructors and four of ExpandingHeap's virtuals, reached from
 # src/_ZN13ExpandingHeapC1EPvjP4HeapP22ExpandingHeapAllocator.cpp's and
 # src/_ZN4HeapC2EPvjPS_.cpp's scalar deleting destructors and from the class's
-# own vtable, and simply never listed them.  Only D1 of each class is listed:
-# MSVC folds the ROM's D1 and D0 into one symbol, so listing both per-function
-# destructor TUs of a class in one link is the LNK2005 port/slice_seat2.txt:57
-# states the rule for.
-port_smoke_relink(roots SRC
+# own vtable, plus the ROM's operator_delete2 veneer at 0x0203cbcc and the
+# global operator delete it tail-calls.  The next five are what those eight
+# then asked for, and the last two what those asked for.  Only D1 of each
+# class is listed: MSVC folds the ROM's D1 and D0 into one symbol, so listing
+# both per-function destructor TUs of one class in one link is the LNK2005
+# port/slice_seat2.txt:57 states the rule for.
+set(PORT_SMOKE_HEAP_TEARDOWN_SRC
     src/_ZN13ExpandingHeapD1Ev.cpp
     src/_ZN4HeapD1Ev.cpp
     src/_ZN13ExpandingHeap14VDeallocateAllEv.cpp
@@ -2115,24 +2119,25 @@ port_smoke_relink(roots SRC
     src/_ZN13ExpandingHeap22VMaxAllocationUnitSizeEv.cpp
     src/_ZN6Memory16operator_delete2EPv.cpp
     src/_ZdlPv.cpp
-    # SECOND ORDER, and measured the same way: the eight rows above are what
-    # the link asked for, and these five are what those eight then asked for.
-    # Every one is an ordinary member of a class this target already hosts,
-    # every one is on walk_window through slice_gate16, and none of them is a
-    # new definition.  ExpandingHeap's four virtuals reach the allocator's
-    # DeallocateAll / InvokeDeallocate / MaxAllocatableSize and
-    # HeapAllocator::Destroy; src/_ZdlPv.cpp reaches Heap::_Deallocate, the
-    # three-word veneer include/Heap.h describes, which lands on
-    # Heap::Deallocate -- already on this target.
     src/_ZN22ExpandingHeapAllocator13DeallocateAllEPFvPvPS_jEj.cpp
     src/_ZN22ExpandingHeapAllocator16InvokeDeallocateEPvPS_j.cpp
     src/_ZN22ExpandingHeapAllocator18MaxAllocatableSizeEi.cpp
     src/_ZN13HeapAllocator7DestroyEv.cpp
     src/_ZN4Heap11_DeallocateEPv.cpp
-    # THIRD ORDER, the last two: HeapAllocator::Destroy unlinks itself first,
-    # and ExpandingHeapAllocator::MaxAllocatableSize takes an absolute value.
     src/_ZN13HeapAllocator6RemoveEv.cpp
     src/_ZN4cstd3absEi.cpp)
+
+# smoke_roots: 30 unresolved -> 0.  8 ledger faces (7 copied verbatim from
+# port/faces_sync.txt, 1 derived by address), 19 alias rows (15 copied verbatim
+# from hal/cxx_aliases.cpp, 4 for the heap-teardown seam), the 15 source rows
+# above, 1 harness call ported to Heap::SetupRootHeap().
+port_smoke_relink(roots SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC})
+
+# smoke_fs: 32 unresolved -> 0.  Gate 3a plus the NitroFS layer, so it is
+# smoke_roots's block plus two SharedFilePtr faces, and every other row is the
+# same row for the same reason.  10 ledger faces, 19 alias rows, the 15 source
+# rows above, 1 harness call ported.
+port_smoke_relink(fs SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC})
 
 # Gate 10: Player spawns and stands (the walking campaign).
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
