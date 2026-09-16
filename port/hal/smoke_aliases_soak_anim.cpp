@@ -1,5 +1,5 @@
-// port/hal/smoke_aliases_model.cpp -- the __cdecl, static and data half of
-// smoke_model's link, as /alternatename rows copied verbatim from
+// port/hal/smoke_aliases_soak_anim.cpp -- the __cdecl, static and data half of
+// smoke_soak_anim's link, as /alternatename rows copied verbatim from
 // port/hal/cxx_aliases.cpp.
 //
 // Lane SMOKELINK3, run link100 wave 10 round 2.
@@ -19,7 +19,7 @@
 // free function and __cdecl, 3 is plain data, and an AE-to-AE pair inside one
 // class is the non-virtual against the virtual spelling of one body with the
 // receiver in ECX on both sides.  Anything else on this target is a face in
-// port/faces_sync_smoke_model.txt, not a row here.
+// port/faces_sync_smoke_soak_anim.txt, not a row here.
 //
 // Every row is copied CHARACTER FOR CHARACTER from hal/cxx_aliases.cpp at the
 // line named beside it, so a grep proves the two files agree and neither is a
@@ -81,7 +81,7 @@
      __ZN18NestedHeapIterator10FindNestedEPv   HeapAllocator::Remove calls it;
         include/NestedHeapIterator.h:26 declares it STATIC, which is why it is a
         row here while its non-static sibling Remove is a face in
-        port/faces_sync_smoke_model.txt. */
+        port/faces_sync_smoke_soak_anim.txt. */
 /* hal/cxx_aliases.cpp:2936, REVERSED: see hal/smoke_aliases_roots.cpp's tail */
 #pragma comment(linker, "/alternatename:__ZN6Memory16operator_delete2EPv=?operator_delete2@Memory@@YAXPAX@Z")
 /* hal/cxx_aliases.cpp:3665 */
@@ -89,26 +89,26 @@
 /* hal/cxx_aliases.cpp:3299 */
 #pragma comment(linker, "/alternatename:__ZN18NestedHeapIterator10FindNestedEPv=?FindNested@NestedHeapIterator@@SAPAU1@PAX@Z")
 
-/* IDENTITY_MATRIX4X3, the C++ spelling of one ROM constant.  This target
-   already compiles the generated host-src/romdata.c, whose line 4 is
-   `int data_02082128[12] = { 4096, 0, 0, ... }' -- arm9 0x02082128, the
-   identity Matrix4x3 -- and src/_ZN5ModelC1Ev.cpp asks for it under the name a
-   C++ TU produces when it declares the constant with its recovered type.  The
-   storage is unchanged; this is one more name for the same forty-eight bytes,
-   which is what makes a name bridge an ABI bridge for a data row.  Copied
-   verbatim from port/hal/bob_enemy_bridges.cpp:440, which is where the window
-   targets get this exact spelling (hal/cxx_aliases.cpp:3676 carries the flat
-   C one and hal/actor_classes_bbh.cpp:270 the M48 one, all three onto the same
-   symbol). */
+/* THE MODEL-FAMILY SEAM, the same two rows port/hal/smoke_aliases_model.cpp
+   carries and for the same reason.  This target hosts Model and ModelBase, so
+   the same source rows join its link and the same two data names come with
+   them.  Read that file's tail for each derivation; in short:
+
+     ?IDENTITY_MATRIX4X3@@3UMatrix4x3@@A   the C++ spelling of the identity
+        Matrix4x3 at arm9 0x02082128, which this target's generated
+        host-src/romdata.c defines on its line 4 as data_02082128 and
+        src/_ZN5ModelC1Ev.cpp asks for under its recovered type.  Copied
+        verbatim from port/hal/bob_enemy_bridges.cpp:440, which is the file the
+        window targets get this exact spelling from.  out/SMOKELINK2/route.md
+        classified it NEW because hal/cxx_aliases.cpp does not carry it; it is
+        not new, it is one file over.
+     _data_0208e87c                        ModelBase's vtable under the port's
+        old name, which port/unmatched/ModelBaseModel_Dtors_HostCopy.c's
+        ModelBase bodies store into word 0, against config's _ZTV9ModelBase.
+        Plain data on both sides: one table, two names.
+   Both are data rows, so a name bridge IS an ABI bridge here. */
 /* hal/bob_enemy_bridges.cpp:440 */
 #pragma comment(linker, "/alternatename:?IDENTITY_MATRIX4X3@@3UMatrix4x3@@A=_data_02082128")
-
-/* data_0208e87c, the port's old name for ModelBase's vtable at arm9
-   0x0208e87c.  port/unmatched/ModelBaseModel_Dtors_HostCopy.c's ModelBase
-   bodies store it into word 0 under that spelling, the way the parent file
-   they are copied from does, and config now names the same table
-   _ZTV9ModelBase.  Plain data on both sides: one table, two names.  Copied
-   verbatim. */
 /* hal/cxx_aliases.cpp:3684 */
 #pragma comment(linker, "/alternatename:_data_0208e87c=__ZTV9ModelBase")
 /* cstd::abs is not repeated here: the verbatim block above already

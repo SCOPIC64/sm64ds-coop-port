@@ -2157,6 +2157,29 @@ port_smoke_relink(model SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC}
     src/Deallocate.c
     port/unmatched/func_02073244_hostcopy.c)
 
+# THE MODEL-FAMILY SOURCE ROWS, once, for the same reason the heap-teardown
+# list exists: every gate-4b and gate-5 smoke below hosts Model and ModelBase
+# and was missing exactly these six.  The two subset files are explained in
+# smoke_model's block above and in their own headers.
+set(PORT_SMOKE_MODEL_SRC
+    src/_ZN5Model11UpdateVertsEv.cpp
+    src/_ZN5Model9Virtual10ER9Matrix4x3.cpp
+    port/hal/smoke_dtor_slots_model.cpp
+    port/unmatched/ModelBaseModel_Dtors_HostCopy.c
+    src/Deallocate.c
+    port/unmatched/func_02073244_hostcopy.c)
+
+# smoke_soak    43 unresolved -> 0.  Gate 4b soak: smoke_model's block exactly.
+# smoke_frames  44 -> 0.  Gate 5, the fiber frame loop, same block.
+# smoke_oam     44 -> 0.  Same block; this one has no harness row of its own.
+# smoke_anim    44 -> 0.  Gate 7 animation, same block.
+# smoke_soak_anim 45 -> 0.  Same block.
+port_smoke_relink(soak      SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
+port_smoke_relink(frames    SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
+port_smoke_relink(oam       SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
+port_smoke_relink(anim      SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
+port_smoke_relink(soak_anim SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
+
 # Gate 10: Player spawns and stands (the walking campaign).
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
 set(SLICE10_SOURCES "")
