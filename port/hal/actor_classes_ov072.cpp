@@ -644,35 +644,111 @@ int _ZN11SnowmanHead6State3Ev(char *c);
    of extracted/overlays/overlay_0072.bin AT THE SOURCE PAIR THE SINIT NAMES
    for that p, so a mount pointing at the wrong bytes aborts here instead of
    calling into garbage -- the MrBlizzard/BabyPenguin seat shape. */
-typedef int (*PortSnFn)(void *);
+/* ---- THE RECEIVER ARRIVES IN ECX AT EVERY ONE OF THESE FOUR CALL SITES,
+   so the twenty seated words are __fastcall thunks and not the flat C faces
+   themselves. This is 5ae983797's correction at a sixth and seventh class,
+   the one 27a24ff5a, 651b5e853, f9936e798 and 45ce69707 each had to make one
+   class over, and it is what level 10 (Cool Cool Mountain) was dying on after
+   45ce69707 took the mother penguin out of the way.
+
+   All four sites read off this build's own image:
+
+     ?SetState@SnowmanHead@@QAEXH@Z
+       mov  eax,[ebp+8] / shl eax,4 / add eax, offset _data_ov072_02122c00
+       mov  [ecx+0x328], eax        ; ecx is still `this`
+       call ?CallStateInit@SnowmanHead@@QAEXXZ    ; NOTHING pushed
+     ?CallStateInit@SnowmanHead@@QAEXXZ
+       mov eax,ecx / mov edx,[eax+0x328]
+       mov ecx,[edx+4] / add ecx,eax / mov eax,[edx] / jmp eax
+     ?Behavior@SnowmanHead@@UAEHXZ +0x4
+       mov edi,ecx / call ?CallStateBehavior@SnowmanHead@@QAEXXZ
+       (which is the same tail jump through [edx+8] with ecx from [edx+0xC])
+     ?Behavior@daBgSnmBdy_c@@UAEHXZ +0x4      -- the PMF call INLINED
+       mov eax,[edi+0x38c] / mov ecx,[eax+0xC] / mov eax,[eax+8]
+       add ecx,edi / call eax
+     ?InitResources@daBgSnmBdy_c@@UAEHXZ +0x13d   -- inlined as well
+       mov  ecx, dword ptr [_data_ov072_02122b64+4]   ; the adjustment word
+       lea  ecx, [ecx+esi]                            ; this + delta
+       call dword ptr [_data_ov072_02122b64]          ; A REAL CALL
+
+   Not one of them pushes a receiver. What the seat used to write into the
+   cells is the flat C face hal/faces_sync_gen.cpp emits for each method,
+
+       __ZN11SnowmanHead10InitState0Ev:
+         push ebp / mov ebp,esp / mov ecx,[ebp+8] / pop ebp / jmp InitState0
+
+   which reads the receiver off the STACK. On the tail-jump path that is
+   SetState's own saved ebp one word above the return address; on the inlined
+   path it is whatever the caller last spilled. Measured on level 10: after
+   45ce69707 the row transfers control to 00001000 with ecx = 30021318 and
+   ebp = 0, three runs identical, with SNOWMAN_HEAD (actor 0x111) the last
+   [spawn+] line under SM64DS_TRACE_SPAWN=1.
+
+   A __fastcall thunk is right on BOTH paths, which is why all twenty rows get
+   one: MSVC puts `this + delta` in ECX before it transfers control whichever
+   way it transfers, so ECX is right after a `call` and right after a `jmp`,
+   and the stack is right only after the jump. One register argument means
+   each thunk returns with a bare `ret`, which is what a call site that pushed
+   nothing wants and what a tail-jump caller that cleans its own __cdecl
+   argument wants too.
+
+   BabyPenguin's six cells above are deliberately NOT changed. Their
+   dispatchers are the host copies BabyPenguin_StateEnter.cpp and
+   BabyPenguin_StateTick.cpp, which call the cell as a plain function pointer
+   and PUSH the receiver, so __cdecl is correct there and __fastcall would
+   break it. Each thunk NAMES its matched body, so trap T2's rule (a host TU
+   must name the symbol behind a relocated word) still holds for all twenty. */
+static int __fastcall smb_is0(void *s) { return _ZN12daBgSnmBdy_c10InitState0Ev((char *)s); }
+static int __fastcall smb_st0(void *s) { return _ZN12daBgSnmBdy_c6State0Ev(s); }
+static int __fastcall smb_is1(void *s) { return _ZN12daBgSnmBdy_c10InitState1Ev((char *)s); }
+static int __fastcall smb_st1(void *s) { return _ZN12daBgSnmBdy_c6State1Ev((char *)s); }
+static int __fastcall smb_is2(void *s) { return _ZN12daBgSnmBdy_c10InitState2Ev((char *)s); }
+static int __fastcall smb_st2(void *s) { return _ZN12daBgSnmBdy_c6State2Ev((char *)s); }
+static int __fastcall smb_is3(void *s) { return _ZN12daBgSnmBdy_c10InitState3Ev((char *)s); }
+static int __fastcall smb_st3(void *s) { return _ZN12daBgSnmBdy_c6State3Ev((unsigned char *)s); }
+static int __fastcall smb_is4(void *s) { return _ZN12daBgSnmBdy_c10InitState4Ev((char *)s); }
+static int __fastcall smb_st4(void *s) { return _ZN12daBgSnmBdy_c6State4Ev((char *)s); }
+static int __fastcall smb_is5(void *s) { return _ZN12daBgSnmBdy_c10InitState5Ev((char *)s); }
+static int __fastcall smb_st5(void *s) { return _ZN12daBgSnmBdy_c6State5Ev((char *)s); }
+
+static int __fastcall smh_is0(void *s) { return _ZN11SnowmanHead10InitState0Ev((char *)s); }
+static int __fastcall smh_st0(void *s) { return _ZN11SnowmanHead6State0Ev(s); }
+static int __fastcall smh_is1(void *s) { return _ZN11SnowmanHead10InitState1Ev((char *)s); }
+static int __fastcall smh_st1(void *s) { return _ZN11SnowmanHead6State1Ev(s); }
+static int __fastcall smh_is2(void *s) { return _ZN11SnowmanHead10InitState2Ev((char *)s); }
+static int __fastcall smh_st2(void *s) { return _ZN11SnowmanHead6State2Ev((char *)s); }
+static int __fastcall smh_is3(void *s) { return _ZN11SnowmanHead10InitState3Ev((char *)s); }
+static int __fastcall smh_st3(void *s) { return _ZN11SnowmanHead6State3Ev((char *)s); }
+
+typedef int (__fastcall *PortSnFn)(void *);
 struct PortSnRow { unsigned enter_rom, tick_rom; PortSnFn enter_host, tick_host; };
 
 static const PortSnRow g_smb_cells[6] = {
     /* cell 0: p0  <- 0x02122750, p1  <- 0x02122728 */
-    {0x0211fb7c, 0x0211fb14, (PortSnFn)_ZN12daBgSnmBdy_c10InitState0Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State0Ev},
+    {0x0211fb7c, 0x0211fb14, smb_is0, smb_st0},
     /* cell 1: p2  <- 0x02122720, p3  <- 0x02122730 */
-    {0x0211faf0, 0x0211fa08, (PortSnFn)_ZN12daBgSnmBdy_c10InitState1Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State1Ev},
+    {0x0211faf0, 0x0211fa08, smb_is1, smb_st1},
     /* cell 2: p4  <- 0x02122748, p5  <- 0x02122738 */
-    {0x0211f9c4, 0x0211f81c, (PortSnFn)_ZN12daBgSnmBdy_c10InitState2Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State2Ev},
+    {0x0211f9c4, 0x0211f81c, smb_is2, smb_st2},
     /* cell 3: p6  <- 0x02122740, p7  <- 0x02122778 */
-    {0x0211f804, 0x0211f65c, (PortSnFn)_ZN12daBgSnmBdy_c10InitState3Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State3Ev},
+    {0x0211f804, 0x0211f65c, smb_is3, smb_st3},
     /* cell 4: p8  <- 0x02122770, p9  <- 0x02122758 */
-    {0x0211f63c, 0x0211f598, (PortSnFn)_ZN12daBgSnmBdy_c10InitState4Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State4Ev},
+    {0x0211f63c, 0x0211f598, smb_is4, smb_st4},
     /* cell 5: p10 <- 0x02122768, p11 <- 0x02122760 */
-    {0x0211f578, 0x0211f48c, (PortSnFn)_ZN12daBgSnmBdy_c10InitState5Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State5Ev},
+    {0x0211f578, 0x0211f48c, smb_is5, smb_st5},
 };
 
 /* SnowmanHead's four, from __sinit_ov072_021221f8's own assignment order into
    data_ov072_02122c00[0..7]. */
 static const PortSnRow g_smh_cells[4] = {
     /* cell 0: [0] <- 0x02122874, [1] <- 0x02122854 */
-    {0x02120514, 0x02120450, (PortSnFn)_ZN11SnowmanHead10InitState0Ev, (PortSnFn)_ZN11SnowmanHead6State0Ev},
+    {0x02120514, 0x02120450, smh_is0, smh_st0},
     /* cell 1: [2] <- 0x0212286c, [3] <- 0x02122864 */
-    {0x02120430, 0x02120358, (PortSnFn)_ZN11SnowmanHead10InitState1Ev, (PortSnFn)_ZN11SnowmanHead6State1Ev},
+    {0x02120430, 0x02120358, smh_is1, smh_st1},
     /* cell 2: [4] <- 0x0212285c, [5] <- 0x02122844 */
-    {0x02120308, 0x021201d4, (PortSnFn)_ZN11SnowmanHead10InitState2Ev, (PortSnFn)_ZN11SnowmanHead6State2Ev},
+    {0x02120308, 0x021201d4, smh_is2, smh_st2},
     /* cell 3: [6] <- 0x0212284c, [7] <- 0x0212283c */
-    {0x02120180, 0x0212001c, (PortSnFn)_ZN11SnowmanHead10InitState3Ev, (PortSnFn)_ZN11SnowmanHead6State3Ev},
+    {0x02120180, 0x0212001c, smh_is3, smh_st3},
 };
 
 static void ov72_seat_cells(const char *who, PortSnowmanCell *cells,

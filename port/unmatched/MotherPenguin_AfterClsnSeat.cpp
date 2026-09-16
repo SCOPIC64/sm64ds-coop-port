@@ -46,18 +46,65 @@
  * the `self` argument the dispatcher was called with -- exactly where a
  * __cdecl `int f(char *self)` reads it. That is PMFB7's rule ("the enter
  * cells stay untouched because their dispatchers are jmp edx tail jumps")
- * with the tick half measured the same way instead of assumed. No
- * __fastcall face is needed for either half. The records are {code, delta}
- * with delta 0 in all six, and /vmg /vmm makes MSVC's own representation the
- * same 8-byte {code, delta} pair, so the seat writes only the code word.
+ * with the tick half measured the same way instead of assumed. The records
+ * are {code, delta} with delta 0 in all six, and /vmg /vmm makes MSVC's own
+ * representation the same 8-byte {code, delta} pair, so the seat writes only
+ * the code word.
+ *
+ * CORRECTED (lane SINGLES3, run link100 wave 10). The paragraph above used to
+ * end "No __fastcall face is needed for either half," and that sentence was
+ * wrong for the same reason 5ae983797, 27a24ff5a, 651b5e853 and f9936e798 were
+ * each wrong one class over. THE TAIL JUMP IS NOT THE ONLY PATH. It is the
+ * path when the dispatcher survives as a separate frame, and it is not the
+ * path when the caller shares a translation unit with the dispatcher and /O2
+ * folds the dispatcher into the caller's own frame. Read off this build's own
+ * image, not reasoned about:
+ *
+ *   ?InitResources@daPgMthr_c@@UAEHXZ +0xcc
+ *     mov  dword ptr [ebx+0x370], offset _data_ov018_02113c4c   ; the setter,
+ *                                                     ; inlined with i = 0
+ *     add  esp, 0x18                    ; the PREVIOUS call's arguments
+ *     mov  ecx, dword ptr [_data_ov018_02113c4c+4]  ; the adjustment word
+ *     lea  ecx, [ecx+ebx]                           ; this + delta
+ *     call dword ptr [_data_ov018_02113c4c]         ; A REAL CALL
+ *   +0xe8
+ *     push 0                            ; the return lands here
+ *
+ * Both the state setter func_ov018_021123d0 and the enter dispatcher
+ * func_ov018_02112398 are inlined there, so the pointer-to-member call runs
+ * in InitResources' own frame with NOTHING PUSHED. Record 0's __cdecl
+ * trampoline then read InitResources' own spilled stack as its receiver and
+ * handed it on to ModelAnim::SetAnim. Measured on level 10 (Cool Cool
+ * Mountain), three runs, three different junk words at one instruction:
+ *
+ *   FAULT c0000005 at ?SetAnim@ModelAnim@@... +0xd accessing ee12e972
+ *   FAULT c0000005 at ?SetAnim@ModelAnim@@... +0xd accessing 29d8a74b
+ *   FAULT c0000005 at ?SetAnim@ModelAnim@@... +0xd accessing 20b67d50
+ *
+ * which is what an uninitialised stack slot looks like. The stack's first word
+ * resolves to func_ov018_021122ec+0x22 and the word above it to
+ * InitResources+0xe8, the instruction after that call; ebx held 3003677c, the
+ * MOTHER_PENGUIN actor.
  *
  * WHAT IS SEATED ARE COUNTING TRAMPOLINES, not the bare bodies -- the
  * dScStarSel_c "tick witness" treatment (hal/scene_boot.cpp's g_ss_hits).
  * A class that is constructed is not a class that RUNS, and from outside the
- * two look identical. Each trampoline is the __cdecl callee of the tail
- * jump, counts, and then calls the ROM body with an ordinary call, so the
- * ROM's own reference graph reaches every one of the six bodies and a run
- * can say how many times.
+ * two look identical. Each trampoline counts and then calls the ROM body with
+ * an ordinary call, so the ROM's own reference graph reaches every one of the
+ * six bodies and a run can say how many times.
+ *
+ * All six trampolines are __fastcall, not only record 0, because MSVC puts
+ * `this + delta` in ECX before it transfers control EITHER WAY: the tail-jump
+ * dispatchers above load ecx from [edx+4] and [edx+0xC] and add the receiver
+ * before the jmp, so reading the receiver from ECX is right on that path too,
+ * and reading it from the stack is right only there. A __fastcall callee with
+ * one register argument returns with a bare `ret`, which is what the inlined
+ * call site that pushed nothing wants and what a tail-jump caller that cleans
+ * its own __cdecl argument itself wants as well. So both paths are covered by
+ * one shape: MotherPenguin_Behavior.cpp's `func_ov018_0211235c((char*)this)`
+ * is that second path and needs no change. The trampolines still NAME the six
+ * matched bodies, so trap T2's rule (a host TU must name the symbol behind a
+ * relocated word) still holds, and the counting witness is untouched.
  *
  * WHAT THIS GATE HAD TO FIX BEFORE THE SEAT COULD BE HONEST (all three are
  * port-side defects the ROM byte gate cannot see):
@@ -136,7 +183,7 @@ void func_ov018_021123d0(char *self, int i);  /* the state setter           */
 
 enum { PORT_MPG_RECORDS = 6 };
 
-typedef int (*PortMpgFn)(char *);
+typedef int (__fastcall *PortMpgFn)(char *);
 
 /* ---- defect 2's shim: the ROM's own r1 = 0, supplied by name -------------
    port/CMakeLists.txt's gate block renames src/game/actors/d_a_pg_mthr.cpp's ONE
@@ -152,17 +199,17 @@ extern "C" void port_mpg_set_state_zero(char *self)
    above). SM64DS_MPG_LOG names a file to append one line per process to. */
 static unsigned g_mpg_hits[PORT_MPG_RECORDS];
 
-static int __cdecl mpg_r0_enter(char *self)
+static int __fastcall mpg_r0_enter(char *self)
 { ++g_mpg_hits[0]; return func_ov018_021122ec(self); }
-static int __cdecl mpg_r0_tick(char *self)
+static int __fastcall mpg_r0_tick(char *self)
 { ++g_mpg_hits[1]; return func_ov018_02112234(self); }
-static int __cdecl mpg_r1_enter(char *self)
+static int __fastcall mpg_r1_enter(char *self)
 { ++g_mpg_hits[2]; return func_ov018_021121dc(self); }
-static int __cdecl mpg_r1_tick(char *self)
+static int __fastcall mpg_r1_tick(char *self)
 { ++g_mpg_hits[3]; return func_ov018_02111fac(self); }
-static int __cdecl mpg_r2_enter(char *self)
+static int __fastcall mpg_r2_enter(char *self)
 { ++g_mpg_hits[4]; return func_ov018_02111f1c(self); }
-static int __cdecl mpg_r2_tick(char *self)
+static int __fastcall mpg_r2_tick(char *self)
 { ++g_mpg_hits[5]; return func_ov018_02111e28(self); }
 
 /* {ROM code address the sinit's own source record carries, host entry point}
