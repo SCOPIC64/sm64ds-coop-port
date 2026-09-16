@@ -290,14 +290,52 @@ extern MgPmf data_ov006_0213fbd0, data_ov006_0213fbd8, data_ov006_0213fbe0,
     data_ov006_0213fbe8, data_ov006_0213fbf0;
 }
 
+/* THE MOUNT IS NO LONGER THE ONLY THING THAT CAN BE IN THESE FIVE WORDS, and
+   the seat used to abort the binary over the second case. Run link100, lane
+   LEVELBOOT.
+
+   src/minigames/d_s_mg_trampoline2.cpp is on the link line now and it DEFINES
+   this storage; port/ov006_syms.txt records the handover ("data_ov006_0213fbd0
+   now defined by d_s_mg_trampoline2.cpp.obj"). Its initialisers read
+
+       int data_ov006_0213fbd0[] = { (int)func_ov006_02123b20, 0 };
+       P2  data_ov006_0213fbd8   = {{ (int)func_ov006_02124088, 0 }};
+
+   so each word now arrives holding the HOST address of the very function the
+   cartridge's word named, rather than the DS address. That is a correct
+   handover of the DATA and a wrong word for the DISPATCH: all five are reached
+   by an MSVC pointer-to-member call whose receiver rides in ECX with nothing
+   pushed, and a bare cdecl body reads [esp+4]. The five __fastcall faces above
+   exist for exactly that seam, so the seat still has to run.
+
+   What it may not do is call the handover WRONG BYTES. Measured before this
+   change: every minigame scene -- 363, 366, 368, 369, 374, 376, 378 and 390 --
+   aborted here before its first frame, because port_scene_mg_overlay_load runs
+   this seat on all of them:
+
+       FATAL: dScMgTrampoline2_c pair 0213fbd0: the mount holds 00408480/0,
+              the cartridge's own record says 02123b20/0 -- WRONG BYTES
+
+   00408480 is &func_ov006_02123b20 in that build, not a stray word.
+
+   So a row now carries both acceptable spellings and the refusal is unchanged
+   for anything that is neither: a third value still aborts, and so does any
+   nonzero adjustment. The face's own address is accepted as well, which makes a
+   second call over a seated record a no-op rather than a refusal. */
 namespace {
-struct TteSeat { MgPmf *rec; unsigned rom; void *face; const char *what; };
+struct TteSeat { MgPmf *rec; unsigned rom; void *rombody; void *face;
+                 const char *what; };
 const TteSeat g_tte_seats[] = {
-    {&data_ov006_0213fbd0, 0x02123b20u, (void *)tte_f02123b20, "0213fbd0"},
-    {&data_ov006_0213fbd8, 0x02124088u, (void *)tte_f02124088, "0213fbd8"},
-    {&data_ov006_0213fbe0, 0x02123b24u, (void *)tte_f02123b24, "0213fbe0"},
-    {&data_ov006_0213fbe8, 0x02123cb4u, (void *)tte_f02123cb4, "0213fbe8"},
-    {&data_ov006_0213fbf0, 0x02123bf4u, (void *)tte_f02123bf4, "0213fbf0"},
+    {&data_ov006_0213fbd0, 0x02123b20u, (void *)func_ov006_02123b20,
+     (void *)tte_f02123b20, "0213fbd0"},
+    {&data_ov006_0213fbd8, 0x02124088u, (void *)func_ov006_02124088,
+     (void *)tte_f02124088, "0213fbd8"},
+    {&data_ov006_0213fbe0, 0x02123b24u, (void *)func_ov006_02123b24,
+     (void *)tte_f02123b24, "0213fbe0"},
+    {&data_ov006_0213fbe8, 0x02123cb4u, (void *)func_ov006_02123cb4,
+     (void *)tte_f02123cb4, "0213fbe8"},
+    {&data_ov006_0213fbf0, 0x02123bf4u, (void *)func_ov006_02123bf4,
+     (void *)tte_f02123bf4, "0213fbf0"},
 };
 }  /* namespace */
 
@@ -309,14 +347,19 @@ extern "C" void port_mg_tte2_field_seat(void)
     done = 1;
     for (unsigned i = 0; i < sizeof g_tte_seats / sizeof g_tte_seats[0]; ++i) {
         MgPmf *p = g_tte_seats[i].rec;
-        if (p->code != g_tte_seats[i].rom || p->adj != 0) {
-            std::fprintf(stderr, "FATAL: dScMgTrampoline2_c pair %s: the mount holds "
-                         "%08x/%d, the cartridge's own record says %08x/0 -- "
-                         "WRONG BYTES\n", g_tte_seats[i].what, p->code, p->adj,
-                         g_tte_seats[i].rom);
+        const unsigned host = (unsigned)(size_t)g_tte_seats[i].rombody;
+        const unsigned face = (unsigned)(size_t)g_tte_seats[i].face;
+        if ((p->code != g_tte_seats[i].rom && p->code != host &&
+             p->code != face) || p->adj != 0) {
+            std::fprintf(stderr, "FATAL: dScMgTrampoline2_c pair %s: the record holds "
+                         "%08x/%d, and the only words it may hold are the "
+                         "cartridge's %08x, this build's own body at %08x or "
+                         "the seated face at %08x, each with a zero "
+                         "adjustment -- WRONG BYTES\n", g_tte_seats[i].what,
+                         p->code, p->adj, g_tte_seats[i].rom, host, face);
             std::abort();
         }
-        p->code = (unsigned)(size_t)g_tte_seats[i].face;
+        p->code = face;
         p->adj = 0;
     }
 }
