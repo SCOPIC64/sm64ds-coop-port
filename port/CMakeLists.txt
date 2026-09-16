@@ -20514,6 +20514,33 @@ set(PORT_TAILPAD_DBGACTOR_SOURCES
     src/_ZN10LavaSeesaw6RenderEv.cpp
     src/_ZN10LavaSeesaw8BehaviorEv.cpp
     src/_ZN10LavaSeesawD1Ev.cpp
+    # StarSwitch is a 25th class with the same defect and the list missed it,
+    # because the list was built from the 24 and StarSwitch was not one of them.
+    # Its first own field is pad_31e[2], which IS the field that lives in
+    # dBgActor_c's tail padding, so without the wrapper every field it owns sits
+    # four bytes high: InitResources wrote mEventBit at 0x352 while
+    # BigBrickBlock::Behavior, which IS on this list, read it at the cartridge's
+    # 0x34e. BigBrickBlock::Behavior asks FindWithActorID for star switches until
+    # one answers with its own mEventID, and that is a do/while with no other
+    # exit, so on level 35 it spun at 88% of one core forever with no fault and
+    # no crash report. Render reads the same object's mTimer/mTimeLimit and had
+    # the same split. Run link100, lane LEVELHANG.
+    #
+    # BOTH WAYS, the rule this block states: all seven rows below move under the
+    # wrapper (InitResources 32 assembly lines, Behavior 30, the destructor pair
+    # 12 each, CleanupResources 4, Render and OnGroundPounded 2), and every moved
+    # line lands on the offset include/StarSwitch.h records. The other three TUs
+    # that name StarSwitch were compiled both ways too and are deliberately NOT
+    # here, because nothing in them moves: unmatched/ExclamationSwitch_StateDispatch.cpp,
+    # hal/actorport_dtor_bridge.cpp and hal/actor_classes_bob_world.cpp, the last
+    # of which this block already excludes by name.
+    src/_ZN10StarSwitch13InitResourcesEv.cpp
+    src/_ZN10StarSwitch15OnGroundPoundedER8dActor_c.cpp
+    src/_ZN10StarSwitch16CleanupResourcesEv.cpp
+    src/_ZN10StarSwitch6RenderEv.cpp
+    src/_ZN10StarSwitch8BehaviorEv.cpp
+    src/_ZN10StarSwitchD0Ev.cpp
+    src/_ZN10StarSwitchD1Ev.cpp
     src/_ZN10SlidingIce13InitResourcesEv.cpp
     src/_ZN10SlidingIce15OnHitByMegaCharER6Player.cpp
     src/_ZN10SlidingIce16CleanupResourcesEv.cpp
