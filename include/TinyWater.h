@@ -20,7 +20,7 @@
 #include "TextureTransformer.h"
 
 struct TinyWater : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     TextureTransformer mTextureTransformer;/* 0x320 */
     s32 mMinPosY;                      /* 0x334 */
     /* Named out of the padding by this class's own Behavior, which stores

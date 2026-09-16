@@ -19,7 +19,7 @@
 #include "dBgActor_c.h"
 
 struct LavaPlank : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     s32 mOriginalPosY;                      /* 0x320 */
     s16 mPhaseAngle;                  /* 0x324 -- seeded from mAngleX, += 0x400 per Behavior; (>>4) indexes the sine table */
 

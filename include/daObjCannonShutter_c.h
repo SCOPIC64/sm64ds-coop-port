@@ -28,7 +28,7 @@
 extern "C" void *_ZN7fBase_cnwEj(unsigned size);
 
 struct daObjCannonShutter_c : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     s32 mHomePosX;                      /* 0x320 */
     s32 mHomePosY;                      /* 0x324 */
     s32 mHomePosZ;                      /* 0x328 */

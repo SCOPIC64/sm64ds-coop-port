@@ -20,7 +20,7 @@
 #include "TextureTransformer.h"
 
 struct BasementWater : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     TextureTransformer mTextureTransformer;/* 0x320 */
     s32 mLoweredY;                    /* 0x334 */
     u32 mSoundID;                      /* 0x338 */

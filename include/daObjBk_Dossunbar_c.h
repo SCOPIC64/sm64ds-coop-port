@@ -42,7 +42,7 @@
 #include "dBgActor_c.h"
 
 struct daObjBk_Dossunbar_c : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     /* InitResources copies mPosX/mPosY/mPosZ into these three as its last act
        before installing state 5, and the state bodies steer mPosX back towards
        mHomePosX. The word "Home" is a reading of that, not a ROM fact. */

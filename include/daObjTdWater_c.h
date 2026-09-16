@@ -32,7 +32,7 @@ struct daObjTdWater_c : dBgActor_c {
        the two bytes of its tail padding are unused here -- unlike
        daObjRc_Guruguru_c::mAngVelY, this class's first member is 4-byte
        aligned and starts at 0x320. */
-    u8 pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
 
     /* THIS CLASS'S OWN. InitResources hands it the BTA at ov032 0x02112f64 and
        Behavior sets its rate to 0x1000 and advances it every frame -- that is

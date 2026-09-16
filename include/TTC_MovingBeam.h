@@ -20,7 +20,7 @@
 #include "ShadowModel.h"
 
 struct TTC_MovingBeam : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     s32 mStartPosY;                      /* 0x320 */
     s32 mEndPosY;                      /* 0x324 */
     u8 mDirection;                       /* 0x328 */

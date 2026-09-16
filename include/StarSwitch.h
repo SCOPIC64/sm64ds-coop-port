@@ -19,7 +19,7 @@
 #include "dBgActor_c.h"
 
 struct StarSwitch : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     s32 mDrawScaleX;             /* 0x320 */
     s32 mDrawScaleY;             /* 0x324 */
     s32 mDrawScaleZ;             /* 0x328 */

@@ -12,7 +12,7 @@
 #include "dBgActor_c.h"
 
 struct FloatOnLavaPlatform : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     s32 mMaxPosY;                      /* 0x320 */
     u8 mHadClsn;                       /* 0x324 */
 

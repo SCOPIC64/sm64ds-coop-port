@@ -109,4 +109,48 @@ typedef int OnYoshiEatReturnVal;
 typedef int bool;  /* a keyword in C++, an ordinary identifier in C */
 #endif
 
+/* THE BASE'S TAIL PADDING, CLAIMED BY THE DERIVED CLASS.
+
+   mwccarm follows the Itanium C++ ABI here: a derived class's first member may
+   be laid down inside the base's tail padding, at the base's dsize (its last
+   field's end) rather than at sizeof(base). dBgActor_c's fields stop at 0x31e
+   and its sizeof rounds to 0x320, so mwccarm starts a derived class at 0x31e
+   and every header that wants its first derived field at the ROM's 0x320 has
+   to spell those two bytes itself.
+
+   MSVC does not reuse tail padding. It starts the derived class at
+   sizeof(base) == 0x320, so the SAME two bytes of pad push every derived field
+   two bytes up, and the first 4-aligned one lands at 0x324 rather than 0x320.
+   Nothing in the build can see that: the class still compiles, the byte gate
+   only ever compiles the mwccarm arm, and every member access is simply four
+   bytes off in the host binary. Run link100's boot sweep is where it surfaced,
+   as nine levels faulting on a null vtable pointer inside ModelBase::SetFile --
+   the model member each actor's factory had constructed at the ROM offset while
+   the header read it four bytes further on.
+
+   So the pad is spelled through this macro: emitted for the compiler that needs
+   it, absent for the one that does not, and a single name to grep for. Both
+   arms put the following member at the ROM offset, which is the point; use
+   ROM_OFFSET_ASSERT below to pin that per class.
+
+       struct Derived : dBgActor_c {
+           ROM_BASE_TAIL_PAD(31e, 0x2)
+           ShadowModel mShadowModel;   / * 0x320 * /
+       }; */
+#ifdef _MSC_VER
+#define ROM_BASE_TAIL_PAD(at, size)
+#else
+#define ROM_BASE_TAIL_PAD(at, size) u8 pad_##at[size];
+#endif
+
+/* Pin a member to the offset the cartridge reads it at. C++ only, host only:
+   the matching build compiles some of these headers as C, where offsetof on a
+   class with base classes is not available, and the ROM arm is already pinned
+   by the whole-object size asserts each header carries. */
+#if defined(__cplusplus) && defined(_MSC_VER)
+#define ROM_OFFSET_ASSERT(type, member, off)     static_assert(offsetof(type, member) == (off),                   #type "::" #member " is not at the ROM offset " #off)
+#else
+#define ROM_OFFSET_ASSERT(type, member, off)
+#endif
+
 #endif /* TYPES_H */

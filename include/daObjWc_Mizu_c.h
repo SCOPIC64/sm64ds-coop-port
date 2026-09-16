@@ -30,7 +30,7 @@ extern "C" void *_ZN7fBase_cnwEj(unsigned size);
  */
 
 struct daObjWc_Mizu_c : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     TextureTransformer mTextureTransformer; /* 0x320 */
     s32 mTargetPosY;                  /* 0x334 */
     u8 mUseSpawnPosY;                 /* 0x338 -- param1 & 1; when clear InitResources overrides mPosY from the WDW water-level table data_ov029_02112b2c[setting] */

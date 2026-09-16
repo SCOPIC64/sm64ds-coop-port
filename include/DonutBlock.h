@@ -20,7 +20,7 @@
 #include "dBgCh_Actr.h"
 
 struct DonutBlock : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     dBgCh_Actr mWithMeshClsn;       /* 0x320 */
     s32 mHomePosX;                    /* 0x4dc -- InitResources copies mPosX/Y/Z; state 1 restores the block from them */
     s32 mHomePosY;                    /* 0x4e0 */

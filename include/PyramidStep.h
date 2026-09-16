@@ -20,7 +20,7 @@
 #include "Model.h"
 
 struct PyramidStep : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     /* The class's own model. NOT "mModel": dBgActor_c's inherited
        Model at 0xd4 already owns that name, and the flat C twin below
        restates both. */

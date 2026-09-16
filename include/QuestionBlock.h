@@ -27,7 +27,7 @@
 #include "ShadowModel.h"
 
 struct QuestionBlock : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     ModelAnim mModelAnim;             /* 0x320 */
     ShadowModel mShadowModel;         /* 0x384 */
     /* InitResources copies the 0x30 bytes at mModel + 0x1c (Model's own
