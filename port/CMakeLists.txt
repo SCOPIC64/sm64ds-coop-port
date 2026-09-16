@@ -17839,10 +17839,13 @@ endforeach()
 # host array in hal/actor_classes_ov047.cpp) and VT1 is the class's own table.
 # Binding the named one to the own table would land the right vptr by accident
 # and still be a wrong reloc destination, which is what linkcheck catches.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kurumajiku.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV21daObjKm1_Kurumajiku_c=_ZTV17daObjKurumajiku_c;VT1=_ZTV21daObjKm1_Kurumajiku_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_kurumajiku.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV21daObjKm1_Kurumajiku_c=_ZTV17daObjKurumajiku_c  --  dead, the TU does not spell _ZTV21daObjKm1_Kurumajiku_c
+#   VT1=_ZTV21daObjKm1_Kurumajiku_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 #
 # The D1 (0x021113fc) and the D0 (0x0211144c) both make THREE stores in the same
 # order -- own table, ov002 base, _ZTV10dBgActor_c -- and there the source order and
@@ -17852,10 +17855,14 @@ set_source_files_properties(
 #     02111410  ldr r1 -> [02111448] = 0210ae38 ; 0211141c str r1,[r4]
 # and the D0 adds 0x021114ac -> 0x020a0eac, the game heap pointer it hands to
 # Memory::Deallocate as G0. 0x0210ae38 is _ZTV10dBgActor_c in ov002/symbols.txt.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kurumajiku.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV21daObjKm1_Kurumajiku_c=_ZTV21daObjKm1_Kurumajiku_c;_ZTV10dBgActor_c=_ZTV17daObjKurumajiku_c;VT2=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_kurumajiku.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV21daObjKm1_Kurumajiku_c=_ZTV21daObjKm1_Kurumajiku_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV17daObjKurumajiku_c  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT2=_ZTV10dBgActor_c  --  dead, the TU does not spell VT2
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kurumajiku.cpp"
     PROPERTIES COMPILE_DEFINITIONS
