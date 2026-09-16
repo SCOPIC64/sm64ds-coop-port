@@ -239,13 +239,22 @@ void ppu_compose_sub(const SubFramebuffer &sub, uint32_t *dst, int dst_w,
 // back, which is the shape this note was written for and is still what every
 // level and every scene with no gap gets.
 //
-// evy / to_white are the MAIN engine's master-brightness fade as
-// port_fader_blend_state reports it, applied to the BOTTOM half only. The top
-// half arrives already faded, because it is the framebuffer after walk_window's
-// own fade composite has run over it. This reproduces what the corner panel
-// gets today -- the panel is inside the framebuffer when that loop runs, so
-// the main engine's fade lands on it -- so switching layout changes the
-// layout and nothing else. Pass evy 0 for no fade.
+// evy / to_white are the SUB engine's brightness blend (BLDCNT mode 2 or 3 plus
+// BLDY at 0x4001050/0x4001054) as port_fader_blend_state_sub reports it, applied
+// to the `sub` framebuffer as it is scaled in. The other half arrives ALREADY
+// faded with the MAIN engine's, because it is engine A's framebuffer after
+// walk_window's own fade composite has run over it. One engine, one blend unit,
+// one half each -- which is what the hardware does and what the title's opening
+// screen is the first screen to notice: ov007 leaves engine B at a full
+// brightness-decrease while engine A is clear, so a compose fed engine A's
+// answer for both halves draws the sub screen unblackened.
+//
+// THIS PARAMETER USED TO CARRY THE MAIN ENGINE'S for both halves, and the two
+// were the same number everywhere the port had filmed, because every fade
+// hal/fader_wipes.cpp drives writes both engines together. The corner-inset
+// path still borrows engine A's, and honestly: the panel sits inside engine A's
+// framebuffer when walk_window's fade loop runs, so it is the fade loop and not
+// a compose that lands on it. Pass evy 0 for no fade.
 constexpr int STACK_W = SCREEN_W;
 // The image with NO gap, which is what every level and every gapless scene
 // composes and what the shape of this presentation was before the gap existed.

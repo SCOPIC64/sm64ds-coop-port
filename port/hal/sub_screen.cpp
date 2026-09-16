@@ -108,9 +108,12 @@ int hal_present_client_to_sub(int cx, int cy, int *dsx, int *dsy);
 /* the layout mode, defined at the bottom of this file */
 int hal_sub_screen_stacked(void);
 void hal_touch_client_probe(void);
-/* the main engine's master-brightness fade (hal/fader_wipes.cpp), read so the
-   stacked bottom half fades with the top half the way the inset does */
+/* the two engines' brightness blends (hal/fader_wipes.cpp). The SUB one is what
+   the sub framebuffer is composed with; the main one is still read by the inset
+   path, where the panel is inside engine A's framebuffer when walk_window's own
+   fade composite runs over it. */
 int port_fader_blend_state(int *evy, int *toWhite);
+int port_fader_blend_state_sub(int *evy, int *toWhite);
 void _ZN3OAM4LoadEv(void);
 unsigned int _ZN3OAM12EnableSubOAMEv(void);
 int hal_oam_layout_check(void);
@@ -1895,8 +1898,25 @@ unsigned int *hal_sub_screen_stacked_image(const unsigned int *top)
         }
     }
     if (!px || cap < need) return 0;
+    /* THE SUB ENGINE'S OWN BRIGHTNESS, NOT THE MAIN ENGINE'S.
+     *
+     * `top` arrives having already been through walk_window's fade composite,
+     * which reads engine A's BLDCNT/BLDY -- correct, because `top` IS engine
+     * A's framebuffer. g_sub is engine B's, and the DS's colour-special-effects
+     * unit is per engine, so engine B's half has to be composed with engine B's
+     * registers. This line used to read engine A's for both.
+     *
+     * IT WAS INVISIBLE UNTIL THE TITLE. Every fade hal/fader_wipes.cpp drives
+     * writes both engines the same values, so on every screen the port had
+     * filmed the two answers were identical. The opening is the first screen
+     * where they are not: ov007 puts BOTH engines at brightness-decrease EVY 16
+     * and then fades only engine A back in, which is how the cartridge's upper
+     * LCD is fully black while its lower one is lit. Reading engine A here left
+     * the sub half unblackened, and since that same screen also clears POWCNT1
+     * bit 15 (engine B drives the UPPER LCD there), the unblackened half was
+     * the one the player is looking at. */
     int evy = 0, to_white = 0;
-    if (!port_fader_blend_state(&evy, &to_white)) evy = 0;
+    if (!port_fader_blend_state_sub(&evy, &to_white)) evy = 0;
     ntr::ppu_compose_stacked(top, g_sub, px, lay.w, lay.h, evy, to_white, lay);
     return px;
 }

@@ -616,6 +616,51 @@ int port_fader_blend_state(int *evy, int *toWhite)
     return 1;
 }
 
+/* THE SAME QUESTION ASKED OF THE SUB ENGINE, 0x4001050 / 0x4001054.
+ *
+ * THE BLEND UNIT IS PER ENGINE AND THE TWO ENGINES DO DIVERGE. Every fade the
+ * fader itself drives writes both engines the same values (AdvanceFade above
+ * writes 0x4000050/54 and 0x4001050/54 together), so for a long time "read
+ * engine A and apply it to both screens" and "read each engine" were the same
+ * answer, and the first one was the one the port had. The title's opening
+ * screen is where they part: func_ov007_020b7138 (src/func_ov007_020b7138.c)
+ * calls G2x::SetBlendBrightness on BOTH engines with first-target 0x3f and
+ * -0x10, so both go to mode 3 with EVY 16, and then only engine A is faded back
+ * in. From there to the first stylus tap engine B sits at mode 3 EVY 16, fully
+ * black, while engine A is clear.
+ *
+ * MEASURED ON BOTH SIDES, SAME INPUT, NEITHER TOUCHED. The cartridge in
+ * melonDS at frames 300-900: engine A BLDCNT 0x00bf mode 2 EVY 0, engine B
+ * BLDCNT 0x00ef mode 3 EVY 16, MASTER_BRIGHT zero on both engines. The port's
+ * own SM64DS_PPU_AUDIT over the same 915 frames: engine A BLDCNT 0x00bf x886
+ * with BLDY 0, engine B BLDCNT 0x00ff x30 then 0x00ef x885 with BLDY 0x0010 on
+ * every one of the 915 samples. The ROM code is writing the right registers on
+ * the port. Nothing was reading engine B's.
+ *
+ * THE LAYER-TARGET MASK IS NOT HONOURED HERE, which is the same approximation
+ * the engine-A path above has always made: the caller darkens the whole
+ * finished panel rather than only the layers BLDCNT bits 0-5 select. On the
+ * opening that is exact -- engine B's mask is 0x2f, which covers every layer it
+ * has content on, and its OAM has no placed object at all -- but a scene that
+ * put sprites on the sub screen with OBJ left out of the first-target set would
+ * have them darkened here and not on hardware. Worth knowing before this is
+ * leaned on for a screen other than the one it was measured against. */
+int port_fader_blend_state_sub(int *evy, int *toWhite)
+{
+    unsigned short bldcnt = *(volatile unsigned short *)0x4001050;
+    unsigned short bldy = *(volatile unsigned short *)0x4001054;
+    int mode = (bldcnt >> 6) & 3;            /* 2 = brighten, 3 = darken */
+    if (mode != 2 && mode != 3)
+        return 0;
+    int e = bldy & 0x1f;
+    if (e > 16) e = 16;
+    if (e == 0)
+        return 0;
+    if (evy) *evy = e;
+    if (toWhite) *toWhite = (mode == 2);
+    return 1;
+}
+
 /* ---- THE FRAME CLOCK, data_020a0db0 (run mg12 lane SELECT) ----------------
  *
  * WHAT IT IS. One int at 0x020a0db0, incremented once per frame by the ROM's

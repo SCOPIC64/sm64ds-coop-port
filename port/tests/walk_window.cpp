@@ -13447,17 +13447,31 @@ int main(void)
         if (!rb_skip_render())
         hal_sub_screen_present(&fb.px[0][0], ntr::active_w, ntr::active_h);
 
-        /* THE FADE COMPOSITE. The DS master-brightness blend (MASTER_BRIGHT,
-           reached through BLDCNT/BLDY at 0x4000050/0x4000054 for the main
-           engine and 0x4001050/0x4001054 for the sub) darkens or brightens the
-           WHOLE 2D panel in hardware after the scene is drawn -- BOTH screens,
-           which is why this composites after the sub-screen present but before
-           the host debug overlay (the overlay is not game content and must stay
-           readable through a fade). port_fader_advance wrote those registers
+        /* THE FADE COMPOSITE, ENGINE A'S. The DS colour-special-effects unit's
+           brightness modes (BLDCNT mode 2 or 3 plus BLDY) darken or brighten
+           the whole of an engine's 2D panel after the scene is drawn. IT IS PER
+           ENGINE: 0x4000050/0x4000054 is engine A's and only engine A's, and
+           0x4001050/0x4001054 is engine B's. `fb` is engine A's framebuffer, so
+           this loop is engine A's blend and nothing else; engine B's is applied
+           where engine B's picture is composed (hal/sub_screen.cpp passes
+           port_fader_blend_state_sub into ppu_compose_stacked). This used to
+           claim it covered both screens, which was true only because every fade
+           the fader drives writes both engines the same values -- ov007's
+           opening writes them differently and that is where it showed.
+           Composited after the sub-screen present but before the host debug
+           overlay, because the overlay is not game content and must stay
+           readable through a fade. port_fader_advance wrote those registers
            this frame; read them back and do the same fade over the finished
            framebuffer. EVY is the 0..16 coefficient: fade-to-black is
            rgb*(1 - evy/16), fade-to-white is rgb + (255-rgb)*evy/16, both per
-           channel, which is exactly the DS blend math (16/16 = full). */
+           channel, which is exactly the DS blend math (16/16 = full).
+
+           THE CORNER-INSET PANEL IS INSIDE `fb` WHEN THIS RUNS and therefore
+           takes engine A's blend. That is unchanged and deliberate: the inset is
+           a host convenience, not an LCD, and reproducing it exactly keeps a
+           layout change a layout change. The STACKED layout is the one where
+           both halves are real DS screens, and there each half now carries its
+           own engine's blend. */
         {
             int evy = 0, toWhite = 0;
             if (!rb_skip_render() && port_fader_blend_state(&evy, &toWhite)) {

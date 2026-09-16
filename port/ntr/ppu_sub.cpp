@@ -43,13 +43,17 @@
 //     is what makes dScMgCurling_c's 0x0440 light-blue shadow render. The
 //     window colour-effect bit (bit 5 of the window masks) gates it per region.
 //     SM64DS_BLEND_OFF=1 restores the old opaque path for A/B and bisection.
-//   - NOT the BLDY brightness modes (BLDCNT mode 2/3). Those are owned by the
-//     fade path: hal/fader_wipes.cpp writes BLDCNT mode 2/3 + BLDY and the
-//     sub-screen fade is applied downstream (ppu_compose_stacked's evy, and the
-//     corner panel inside walk_window's fade composite), on top of the master
-//     brightness this file applies. Applying mode 2/3 here too would double the
-//     fade, so this unit recognises them and defers. The game only ever writes
-//     mode 2/3 for fades and mode 1 (alpha) for effects, so the split is clean.
+//   - NOT the BLDY brightness modes (BLDCNT mode 2/3). Those are applied
+//     downstream, on top of the master brightness this file applies:
+//     ppu_compose_stacked's evy for the stacked half, and the corner panel
+//     inside walk_window's fade composite. Applying mode 2/3 here too would
+//     double them, so this unit recognises them and defers. The game writes
+//     mode 2/3 for brightness and mode 1 (alpha) for effects, so the split is
+//     clean. It is NOT only the fader that writes them: ov007's own
+//     func_ov007_020b7138 sets mode 3 EVY 16 on both engines at the opening and
+//     leaves engine B there, which is why the downstream reader has to be the
+//     SUB engine's registers (port_fader_blend_state_sub) and not the main
+//     engine's.
 //   - EXTENDED AFFINE BITMAP BGs, both arms: 256-colour and DIRECT COLOUR.
 //     BGxCNT bit 7 in an extended-affine slot means bitmap rather than 256
 //     colours, and this file used to refuse the whole arm. It is how the
@@ -4560,23 +4564,32 @@ void ppu_compose_stacked(const uint32_t *top, const SubFramebuffer &sub,
             uint32_t p = src[sx < SUB_W ? sx : SUB_W - 1];
             if (evy) {
                 /* the same expression walk_window's fade composite runs over
-                   the framebuffer, so the two halves fade together.
+                   the framebuffer, so each half fades with its own engine.
 
-                   AND THE QUESTION UNDER IT IS OPEN. evy comes from
-                   port_fader_blend_state, which reads the MAIN engine's
-                   BLDCNT/BLDY at 0x4000050 and 0x4000054. This copy exists
-                   because the corner panel gets that fade today, and it gets
-                   it by accident: the panel is inside the framebuffer when
-                   walk_window's fade loop runs over it. Whether engine A's
-                   fade belongs on the SUB screen AT ALL on hardware is a
-                   question nobody has opened. The sub engine has its own
-                   master brightness at 0x0400106C and ppu_scanout_sub above
-                   already applies it, so this may well be a second fade on
-                   top of the right one. Reproducing today's behaviour is
-                   deliberate, so that switching layout changes the layout and
-                   nothing else; it is not a claim that today's behaviour is
-                   correct. No run has yet exercised a fade in the stacked
-                   layout. */
+                   THE QUESTION THIS USED TO LEAVE OPEN IS ANSWERED, and the
+                   answer was no. evy used to come from port_fader_blend_state,
+                   the MAIN engine's BLDCNT/BLDY at 0x4000050/0x4000054, on the
+                   reasoning that the corner panel gets that fade today -- and
+                   it does, but only because the panel is inside engine A's
+                   framebuffer when walk_window's fade loop runs over it, which
+                   is a fact about the inset and not about the DS. The blend
+                   unit is PER ENGINE. hal/sub_screen.cpp now passes
+                   port_fader_blend_state_sub, engine B's own 0x4001050 and
+                   0x4001054, and this half fades with the engine that is
+                   drawing it.
+
+                   THE RUN THAT EXERCISED IT. The title's opening screen, which
+                   is the first screen filmed where the two engines disagree:
+                   func_ov007_020b7138 puts both at brightness-decrease EVY 16
+                   and only engine A is faded back in, so engine B is fully
+                   black from frame 300 to the first stylus tap. Measured on the
+                   cartridge in melonDS (engine B BLDCNT 0x00ef mode 3 EVY 16,
+                   top screen colors=1 lit=0 at every shot from 399 to 900) and
+                   on the port's own SM64DS_PPU_AUDIT (engine B BLDY 0x0010 on
+                   all 915 samples). MASTER_BRIGHT is zero on both engines on
+                   both sides for the whole of it, so the sub engine's own
+                   0x0400106C -- which ppu_scanout_sub does apply -- is not a
+                   second fade here and there is nothing being doubled. */
                 int r = (p >> 16) & 0xff, g = (p >> 8) & 0xff, b = p & 0xff;
                 if (to_white) {
                     r += ((255 - r) * evy) >> 4;
