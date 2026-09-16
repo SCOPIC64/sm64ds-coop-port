@@ -14462,9 +14462,12 @@ set_source_files_properties(
 # id 107's deleting destructor spells both its tables by name and needs only the
 # heap: its pool at 0x02112740 is 0x020a0eac module:main. Its D1 twin needs
 # nothing at all.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_td_water.cpp"
-    PROPERTIES COMPILE_DEFINITIONS "G0=data_020a0eac")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_td_water.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=data_020a0eac  --  dead, the TU does not spell G0
+# Deleted rather than merged. The surviving row is unchanged.
 # id 107's CleanupResources releases two SharedFilePtrs as G0/G1, and its own
 # pool names them: 0x02112780 -> 0x02113afc then 0x02112784 -> 0x02113af4, both
 # module:overlay(32), both in this lane's own mount. Unrenamed, G0 resolves
