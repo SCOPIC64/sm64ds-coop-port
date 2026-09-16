@@ -12656,10 +12656,14 @@ endforeach()
 # G0 is renamed too even though hal/cxx_aliases.cpp already binds bare _G0 to
 # _data_020a0eac: one statement per ROM word reads better here than a rule
 # that depends on which other gate's alias happens to be live.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/dScGameOver_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV13dScGameOver_c=data_ov003_020b179c;_ZTV7dBase_c=data_0208e4b8;_ZTV8dScene_c=port_go_vt_scene")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names dScGameOver_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV13dScGameOver_c=data_ov003_020b179c  --  dead, the TU does not spell _ZTV13dScGameOver_c
+#   _ZTV7dBase_c=data_0208e4b8  --  dead, the TU does not spell _ZTV7dBase_c
+#   _ZTV8dScene_c=port_go_vt_scene  --  dead, the TU does not spell _ZTV8dScene_c
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/dScGameOver_c.cpp"
     PROPERTIES COMPILE_DEFINITIONS
