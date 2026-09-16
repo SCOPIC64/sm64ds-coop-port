@@ -19570,10 +19570,40 @@ set_source_files_properties(
 # _ZN5ModelD1Ev and _ZN10FaderColorD2Ev are in each target's own .rsp,
 # Memory::operator_delete2 comes from hal/cxxname_bridge.cpp which both
 # compile, and _ZTV9FaderWipe is the alias hal/fader_wipes.cpp defines itself.
+# LANE SMOKELINK2 (run link100 wave 10 round 2): THE FADERWIPE D0 ROW IS
+# RETIRED HERE, and the paragraph above is the record of why it was right when
+# it was written.  The 09-14 sync took the flat name away from it.
+#
+# What the row bought was __ZN9FaderWipeD0Ev, the flat name
+# hal/fader_wipes.cpp's HalFaderWipe::DtorDeleting calls, and the block above
+# quotes the LNK2019 that proved these two narrow targets needed the body.
+# port/faces_sync.txt now carries that same name as a D row --
+#   __ZN9FaderWipeD0Ev   _ZN9FaderWipeD1Ev   0x02017418   D
+#     _ZN6Memory16operator_delete2EPv   -
+# (line 2272) -- so port/tools/facegen.py --sync generates the definition into
+# build/port/host-src/faces_sync_gen.cpp, and ${PORT_FACES_SYNC_GEN} is on all
+# three of walk_window, walk_window_hires and smoke_player.  The row is paying
+# for a name the generated face already defines.
+#
+# And it is no longer free.  src/engine/fader/_ZN9FaderWipeD0Ev.cpp compiles as
+# C++ on the synced line, so MSVC emits ??1FaderWipe@@UAE@XZ out of it -- the
+# same symbol src/engine/fader/_ZN9FaderWipeD1Ev.cpp emits, which
+# port/slice_gate36.txt already puts on these targets.  That is the only
+# LNK2005 in a full ninja -k 0 over all targets at 79388ffe5, once on
+# smoke_player and once on walk_window_hires:
+#   _ZN9FaderWipeD0Ev.cpp.obj : error LNK2005:
+#     "public: virtual __thiscall FaderWipe::~FaderWipe(void)"
+#     (??1FaderWipe@@UAE@XZ) already defined in _ZN9FaderWipeD1Ev.cpp.obj
+# port/slice_seat2.txt:57 states the rule it breaks in as many words: MSVC
+# folds the ROM's destructor variants into one symbol, so only one of a class's
+# two per-function destructor translation units can be compiled.  walk_window
+# never had this row and never had the collision.
+#
+# src/_ZN5Stage19BeforeInitResourcesEv.cpp stays: its reason is unchanged and
+# nothing else in any of the three links defines __ZN5Stage19BeforeInitResourcesEv.
 foreach(_tseat2s smoke_player walk_window_hires)
     target_sources(${_tseat2s} PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN5Stage19BeforeInitResourcesEv.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../src/engine/fader/_ZN9FaderWipeD0Ev.cpp")
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN5Stage19BeforeInitResourcesEv.cpp")
 endforeach()
 
 # ===========================================================================
