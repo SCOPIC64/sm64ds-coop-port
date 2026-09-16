@@ -2139,6 +2139,24 @@ port_smoke_relink(roots SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC})
 # rows above, 1 harness call ported.
 port_smoke_relink(fs SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC})
 
+# smoke_model: 42 unresolved -> 0.  Gate 4b, so the heap-teardown block again
+# plus the model family's own rows.  hal/int4_rows.cpp is what DEFINES
+# ?Destructor1@Model@@UAEXXZ and its three siblings: include/ModelBase.h:110
+# explains that those two names are ordinary host virtuals holding the two
+# vtable slots the ROM's D1 and D0 occupy, so src/_ZN5ModelC1Ev.cpp's vftable
+# asks the linker for them, and that file is where the twelve faces live.
+port_smoke_relink(model SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC}
+    src/_ZN5Model11UpdateVertsEv.cpp
+    src/_ZN5Model9Virtual10ER9Matrix4x3.cpp
+    port/hal/smoke_dtor_slots_model.cpp
+    port/unmatched/ModelBaseModel_Dtors_HostCopy.c
+    # What those six bodies then call: ModelBase's Deallocate (0x02018144) and
+    # func_0203cbc0, the ROM veneer onto _ZdlPv whose src form is an ARM r0
+    # ride-through.  The host copy that replaces it is the same file and the
+    # same reason smoke_modelanim's block already names, twelve targets up.
+    src/Deallocate.c
+    port/unmatched/func_02073244_hostcopy.c)
+
 # Gate 10: Player spawns and stands (the walking campaign).
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
 set(SLICE10_SOURCES "")
