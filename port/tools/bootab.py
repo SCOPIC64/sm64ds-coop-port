@@ -1,11 +1,15 @@
 """Headless, silent boot sweep, same knobs for every binary, so builds compare.
-usage: python bootab.py <walk_window.exe> <outdir> [frames] [budget_s] [levels=2,4,5 | scenes=4,5 | levels=all | scenes=all]
+usage: python bootab.py <walk_window.exe> <outdir> [frames] [budget_s]
+       [levels=2,4,5 | scenes=4,5 | levels=all | scenes=all] [idle=1]
 The SM64DS_TEST_LOCK* variables are passed through (every other inherited SM64DS_* is dropped),
 so exporting SM64DS_TEST_LOCK=1 SM64DS_TEST_LOCK_PATH=C:/tmp/sm64ds-test-slot/slot.lock
 SM64DS_TEST_LOCK_TIMEOUT=10800 before running makes every row take the machine-wide test slot.
 Levels: SM64DS_LEVEL=<id> SM64DS_WINDOW_SELFTEST=<frames> (the battery's own level path)
 Scenes: SM64DS_SCENE=<id> SM64DS_SCENE_FRAMES=<frames>
 Always: SM64DS_FAULTS_FATAL=1 SM64DS_NO_FOCUS=1 SM64DS_VOLUME=0, no SCENE_WINDOW,
+idle=1 adds SM64DS_SELFTEST_IDLE=1 to the LEVEL rows, which walk_window.cpp uses to
+leave dz at 0 so the selftest neither holds forward nor hops at frame 30: the level
+boots and then sits still. Scene rows have no selftest and are unaffected.
 CREATE_NO_WINDOW + SW_SHOWMINNOACTIVE, every inherited SM64DS_* dropped.
 Failing rows keep crash.txt + exit.txt + stdout tail under <outdir>/<kind><id>/.
 """
@@ -22,6 +26,8 @@ SI = subprocess.STARTUPINFO(); SI.dwFlags |= subprocess.STARTF_USESHOWWINDOW; SI
 NOCON = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 base_env = {k: v for k, v in os.environ.items() if not k.startswith("SM64DS_") or k.startswith("SM64DS_TEST_LOCK")}
 FILTER = sys.argv[5] if len(sys.argv) > 5 else ""
+IDLE = any(a == "idle=1" for a in sys.argv[5:])
+if FILTER == "idle=1": FILTER = ""
 if FILTER.startswith("levels="):
     sel = FILTER[7:]; SCENES = ()
     if sel != "all": LEVELS = tuple(i for i in LEVELS if str(i) in sel.split(","))
@@ -39,7 +45,9 @@ def run(kind, ident, label):
     clear()
     env = dict(base_env)
     env[kind] = str(ident)
-    if kind == "SM64DS_LEVEL": env["SM64DS_WINDOW_SELFTEST"] = FRAMES
+    if kind == "SM64DS_LEVEL":
+        env["SM64DS_WINDOW_SELFTEST"] = FRAMES
+        if IDLE: env["SM64DS_SELFTEST_IDLE"] = "1"
     else: env["SM64DS_SCENE_FRAMES"] = FRAMES
     env["SM64DS_FAULTS_FATAL"] = "1"; env["SM64DS_NO_FOCUS"] = "1"; env["SM64DS_VOLUME"] = "0"
     t0 = time.time(); out = ""; rc = "TIMEOUT"
@@ -80,4 +88,4 @@ with open(os.path.join(OUT, "sweep.tsv"), "w") as f:
     f.write("kind\tid\tverdict\trc\tseconds\tnote\n")
     for r in rows: f.write("\t".join(str(x) for x in r) + "\n")
 lv = [r for r in rows if r[0] == "level"]; sc = [r for r in rows if r[0] == "scene"]
-print("SUMMARY exe=%s levels %d/%d scenes %d/%d" % (EXE, sum(r[2] == "PASS" for r in lv), len(lv), sum(r[2] == "PASS" for r in sc), len(sc)), flush=True)
+print("SUMMARY exe=%s%s levels %d/%d scenes %d/%d" % (EXE, " idle" if IDLE else "", sum(r[2] == "PASS" for r in lv), len(lv), sum(r[2] == "PASS" for r in sc), len(sc)), flush=True)
