@@ -42,10 +42,30 @@
 
 // Flat C name -> the MSVC-mangled method the matched .cpp TU actually emits.
 #pragma comment(linker, "/alternatename:__ZN4dBgW9Virtual08Ev=?Virtual08@dBgW@@UAEXXZ")
-#pragma comment(linker, "/alternatename:__ZN4dBgW10DetectClsnER9dBgCh_Gnd=?DetectClsn@dBgW@@UAEHAAURaycastGround@@@Z")
-#pragma comment(linker, "/alternatename:__ZN4dBgW10DetectClsnER9dBgCh_Lin=?DetectClsn@dBgW@@UAEHAAURaycastLine@@@Z")
-#pragma comment(linker, "/alternatename:__ZN4dBgW10DetectClsnER12dBgCh_SphCrr=?DetectClsn@dBgW@@UAEHAAUSphereClsn@@@Z")
-#pragma comment(linker, "/alternatename:__ZN4dBgW10BeforeClsnER5dBgPiP8dActor_cR7Vector3P10Vector3_16S7_=?BeforeClsn@dBgW@@UAEXAAUClsnResult@@PAUActor@@AAUVector3@@PAUVector3_16@@3@Z")
+// FOUR ROWS RETIRED at SMOKELINK (wave 10). All four are dead in the shape
+// alternatename_guard refuses: the LHS is a DEFINED symbol, so the alias is
+// inert and references bind to that definition rather than to the RHS, and in
+// these four the RHS is not in the map at all -- the 09-14 main-to-port sync
+// renamed the parameter classes (RaycastGround/RaycastLine/SphereClsn ->
+// dBgCh_Gnd/dBgCh_Lin/dBgCh_SphCrr, ClsnResult -> dBgPi), so the decorated
+// spellings these rows name stopped existing. The flat names are defined by
+// the sync FACES instead, which walk_window.map carries:
+//   0001:001c6190  __ZN4dBgW10DetectClsnER9dBgCh_Gnd      faces_sync_gen.cpp.obj
+//   0001:001c6190  __ZN4dBgW10DetectClsnER9dBgCh_Lin      faces_sync_gen.cpp.obj
+//   0001:001c6190  __ZN4dBgW10DetectClsnER12dBgCh_SphCrr  faces_sync_gen.cpp.obj
+//   0001:001c6170  __ZN4dBgW10BeforeClsnER5dBgPi...       faces_sync_gen.cpp.obj
+// A face is the right binding here and an alias never was: the flat caller is
+// __cdecl with the receiver on the stack and the synced body is __thiscall
+// with it in ECX, which is a NAME bridge against an ABI mismatch.
+// NOT FIXED HERE, and logged rather than touched: those three DetectClsn faces
+// share ONE address while the cartridge has three distinct virtuals at
+// 0x02039480 / 0x02039478 / 0x02039470 (see out/SMOKELINK/bugs.md, and lane
+// SINGLES's bugs.md item 3, which found it first). That belongs to whoever
+// owns port/faces_sync.txt.
+// #pragma comment(linker, "/alternatename:__ZN4dBgW10DetectClsnER9dBgCh_Gnd=?DetectClsn@dBgW@@UAEHAAURaycastGround@@@Z")
+// #pragma comment(linker, "/alternatename:__ZN4dBgW10DetectClsnER9dBgCh_Lin=?DetectClsn@dBgW@@UAEHAAURaycastLine@@@Z")
+// #pragma comment(linker, "/alternatename:__ZN4dBgW10DetectClsnER12dBgCh_SphCrr=?DetectClsn@dBgW@@UAEHAAUSphereClsn@@@Z")
+// #pragma comment(linker, "/alternatename:__ZN4dBgW10BeforeClsnER5dBgPiP8dActor_cR7Vector3P10Vector3_16S7_=?BeforeClsn@dBgW@@UAEXAAUClsnResult@@PAUActor@@AAUVector3@@PAUVector3_16@@3@Z")
 #pragma comment(linker, "/alternatename:__ZN4dBgW12TransformPosERK7Vector3RS0_=?TransformPos@dBgW@@UAEHABUVector3@@AAU2@@Z")
 #pragma comment(linker, "/alternatename:__ZN4dBgW14GetAngularVelYEv=?GetAngularVelY@dBgW@@UAEFXZ")
 #pragma comment(linker, "/alternatename:__ZN4dBgW11GetVelocityER7Vector3=?GetVelocity@dBgW@@UAEXAAUVector3@@@Z")
