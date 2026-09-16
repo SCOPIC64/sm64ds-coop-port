@@ -748,6 +748,232 @@ set(PORT_HOSTGEN_TU
     src/game/actors/d_a_s_cre.cpp
     src/game/actors/d_a_warpkun.cpp
     src/actors/daObjLava_c.cpp)
+
+# ---- run link100 lane SAMECLASS: THE SAME DROPPED-STORE DEFECT, ELEVEN MORE -
+#
+# THE CLASS lane mg15 TITLETEX named and fixed for twelve ov007 translation
+# units, and lane MODESEL fixed for a thirteenth (the title menu's cell
+# submitter, the TITLEQUAD block far below), arriving on ELEVEN MORE. Same
+# shape every time: a ROM translation unit writes a DS geometry command port
+# with a PLAIN literal store while being built plain, ntr maps real memory
+# across 0x04000000, the word latches and the geometry engine is never told.
+# Nothing in the build can see it -- the TU byte-matches, the linker is happy
+# and linkage.py counts the row -- and the instruction is thrown away every
+# frame.
+#
+# THE SET IS THE MEASURED ONE AND IT WAS MEASURED TWICE. MODESEL rescanned
+# TITLETEX's stale set on its own tree and found these eleven; this lane
+# repeated the scan independently on its own configured build.ninja
+# (out/SAMECLASS/gxscan.py: every source on walk_window's own compile lines
+# that is not already a host-src copy, comments stripped) and got the same
+# eleven files with the same register lists to the digit. The sixteen other
+# hits are the host's own files -- gx.cpp, io.cpp, runtime.cpp,
+# walk_window.cpp, player_bridges.cpp and the smoke_*.cpp harnesses -- which
+# reach the engine through NTR_MMIO by construction and are excluded by
+# reading them, not by a name rule.
+#
+#   func_ov007_020c19cc   444 448 470 48c 494 500 504
+#       MTX_PUSH, MTX_POP, MTX_TRANS, VTX_16, VTX_XY, BEGIN_VTXS, END_VTXS.
+#       ov007's ribbon/stroke submitter: it brackets each segment of a stroke
+#       with a push and a pop, translates to the point, rotates by the bisector
+#       of the two segment angles through func_0205532c (which IS routed), and
+#       emits the two edge vertices. EVERY store in it is dropped, so the whole
+#       routine draws nothing at all -- not a misplaced ribbon, no ribbon.
+#       This is the one MODESEL called the cheapest next one, and the only one
+#       of the eleven on a path the port reaches today.
+#
+#   func_ov075_0211a948   4a4 4a8 4ac 4c0 4c4
+#   func_ov075_0211afb0   440 444 448 46c 484 488 48c 4c8 4cc 500 504
+#       dScEntry_c's material setup and its VS/wireless entry-menu grid mesh.
+#       The first pushes the object's cached DIF_AMB, SPE_EMI, TEXIMAGE_PARAM
+#       and TEXPLTT_BASE and then a fixed POLYGON_ATTR; the second concatenates
+#       the object matrix with the pooled camera matrix and emits the grid's
+#       triangle strips. Both drop everything.
+#
+#   func_ov080_02125460   4a4 4a8 4ac 4c0 4c4
+#   func_ov080_02125fd0   440 444 448 46c 484 488 48c 4c8 4cc 500 504
+#   func_ov080_0212677c   440 444 448 46c 484 488 48c 4c8 4cc 500 504
+#       The same two routines again in ov080, plus a second mesh submitter.
+#       The register lists are identical to the ov075 pair's, which is what a
+#       routine duplicated into a second overlay looks like.
+#
+#   _ZN11dScMiniGm_c13InitResourcesEv   4cc
+#       LIGHT_COLOR. The minigame scene's resource init sets its light colours
+#       once and none of them arrives.
+#
+#   Initialise3dGraphics  44c 540 580   (and DISP3DCNT at 0x4000060)
+#   func_0205583c         4a4 4a8 4ac 504
+#   func_020556d0         440 448 454   (and GXSTAT at 0x4000600)
+#   func_020554bc         4d0
+#       THE BOOT 3D SETUP, one call chain: Initialise3dGraphics calls
+#       func_0205583c, which calls func_020556d0 and func_020554bc, and then
+#       Initialise3dGraphics calls both of them again itself. Between them they
+#       are the whole reset: GXSTAT and DISP3DCNT, the matrix-stack unwind
+#       (MTX_MODE / MTX_POP / MTX_IDENTITY for all three stacks), the 32-entry
+#       SHININESS table, the default POLYGON_ATTR, TEXIMAGE_PARAM and
+#       TEXPLTT_BASE, MTX_STORE into slot 0 and SWAP_BUFFERS. Not one of those
+#       stores arrives. MODESEL recorded that the VIEWPORT word here is
+#       bfff0000, the whole screen, which is also ntr::gx_reset's own fallback
+#       rectangle, so THAT register costs nothing today; MTX_STORE and the
+#       matrix-stack unwind are not free, for the reason the TITLETEX block
+#       above already wrote down about MTX_STORE's slot.
+#       func_020556d0's sibling func_02055624 -- GXSTAT, MTX_MODE, MTX_POP,
+#       MTX_IDENTITY, the identical shape -- has been on the TIDEP_RESET_SYMS
+#       list since run mg15, which is the precedent for routing this one.
+#
+# THE TREATMENT IS THE ONE THE PORT ALREADY USES FOR THIS CLASS and it costs
+# nothing in the ledger: tools/hostgen.py rewrites the literal derefs to
+# NTR_MMIO so each store dispatches through ntr::io_write, src/ is not edited,
+# and every one of these translation units stays byte-matched. Each was run
+# through hostgen standalone first and the output read: 20, 1, 9, 23, 5, 19, 5,
+# 14, 19, 9 and 34 rewrites respectively, every one a register the routine's
+# own literal pool already named.
+#
+# THEY GO ON PORT_HOSTGEN_TU RATHER THAN INTO ELEVEN BLOCKS OF THEIR OWN.
+# port_read_lines substitutes a listed TU in every slice row that names it, as
+# the row is read, so no slice can miss one and none can take the raw TU as
+# well. That matters here beyond tidiness: src/Initialise3dGraphics.cpp is on
+# THREE lists (slice_gate36.txt, slice_s4_slot0.txt and slice_w1l2.txt) and a
+# hand-written cut against one of them would have left the other two adding the
+# plain copy beside the generated one. The other ten are on one list each
+# (slice_ov007, slice_vs twice, slice_gate50 three times, slice_mgm, and
+# slice_w1l2 for the remaining three boot TUs). None of the eleven is named by
+# a raw path anywhere in this file, so the per-source-property guard below has
+# nothing to complain about.
+#
+# WHAT EACH ONE IS WORTH TODAY, measured on this lane's own baseline binary
+# rather than assumed. The port reaches exactly ONE of the five registered
+# scene classes: every capture reports "37 scene classes registered (ov003,
+# ov005, ov006, ov007, ov075)" and then only ov007 takes slot hits, and every
+# run ends "frames of scene 1 (SCENE_TITLE)". So func_ov007_020c19cc is on a
+# live path and can show a picture; the ov075 pair, the ov080 trio and
+# dScMiniGm_c::InitResources are on scenes nothing reaches yet, and routing
+# them is right for the day those scenes run while changing nothing visible
+# now. The four boot-setup TUs run on every scene including level 1, which is
+# why they are switched separately from the other seven.
+#
+# ---- run link100 lane SAMECLASS2: THE SET RE-MEASURED, AND THREE CORRECTIONS
+#
+# The eleven rows above were banked without a verdict. This lane re-derived the
+# set from the commit's own diff, re-ran every count, and A/B'd the two arms on
+# three builds (build/port, build/port-plain with both switches ON, and two
+# tracing builds). THE ROUTING IS RIGHT IN ALL ELEVEN CASES and none of it is
+# backed out. Three of the claims above are wrong and are corrected here rather
+# than edited away, because the wrong claim is the useful record.
+#
+# 1. THE REWRITE COUNTS RE-MEASURE EXACTLY. 20, 5, 19, 5, 14, 19, 34, 9, 23, 9
+#    and 1 in this block's own order, the same multiset the paragraph above
+#    lists. Every generated copy was lined up against its byte-matched source
+#    and differs by NOTHING but an MMIO rewrite of the same width at the same
+#    address, with no plain deref left behind. The two documented leftovers
+#    (an unused pointer bind in func_ov075_0211a948's shape) are the binding
+#    statements hostgen deliberately keeps.
+#
+# 2. func_ov007_020c19cc IS NOT ON A LIVE PATH TODAY. The paragraph above calls
+#    it "the only one of the eleven on a path the port reaches today" and says
+#    it can show a picture. It cannot, and that is why the banking lane saw no
+#    pixel change and could not make the ribbon appear. It is THE DOODLE: its
+#    three callers all come from the draw hub func_ov007_020b91b4, which the
+#    render dispatcher func_ov007_020bcf90 reaches only in outer states 1..4,
+#    the draw screen. MEASURED with the /Gh function-entry trace (lane
+#    TRACEPORT's tools, frames 60..70 and 150..158 of scene 1, with and without
+#    a 200-frame scripted stylus drag over the whole bottom screen):
+#    func_ov007_020bcf90 is entered 20 times and the stylus driver
+#    func_ov007_020c1db0 twice, while func_ov007_020b0358, func_ov007_020b91b4,
+#    func_ov007_020b8fd4 and func_ov007_020c19cc itself are entered ZERO times.
+#    The headless title never leaves the attract screen, so the draw screen is
+#    not reachable from here. Routing it is still right; it is INERT today.
+#
+# 3. ov080 IS NOT dScEntry_c DUPLICATED AND IT IS NOT ON A SCENE. The paragraph
+#    above reads the ov080 trio as "the same two routines again in ov080".
+#    The register lists match because the Nitro G3 material-setup shape is the
+#    same, but ov080 is an ACTOR overlay (port/ov080_syms.txt: the castle
+#    interior's PAINTING, daPicGate_c actor 307, plus MontyMole, MontyMoleRock
+#    and CrazedCrate). func_ov080_02125fd0 and func_ov080_0212677c are two of
+#    the PAINTING's twelve state slots, seated in hal/actor_overlays.cpp's
+#    g_painting_states, and func_ov080_02125460 is the material setter both of
+#    them call. So they are on a live ACTOR's render path on level 2, not on an
+#    unreachable scene -- which makes routing them worth more than the note
+#    above claims, not less. They are inert today only because level 2 faults
+#    during boot (c0000005 after the six "[paint] init" lines), IDENTICALLY on
+#    both arms and equally on level 5, so it is a pre-existing level fault and
+#    nothing to do with this change. Level 1 boots clean and its framebuffer is
+#    byte-identical between the arms at 200 and 420 frames.
+#
+# WHAT THE FOUR BOOT TUs ARE ACTUALLY WORTH, which the block above left as a
+# prediction. They are LIVE and the census proves it. SM64DS_PPU_AUDIT over 300
+# frames of scene 1, this arm against SAMECLASS_GX_PLAIN=ON + SAMECLASS_BOOT_
+# PLAIN=ON, differs on the boot frame and only there: PORT_WRITES 404 -> 617,
+# MTX_MODE 29 -> 44, MTX_IDENTITY 8 -> 23, MTX_POP 8 -> 13, MTX_STORE 7 -> 9,
+# SWAP_BUFFERS 2 -> 4, VIEWPORT 4 -> 6, and POLYGON_ATTR / TEXIMAGE_PARAM /
+# PLTT_BASE / END_VTXS each +3. Every command in that list is a register one of
+# the four boot TUs writes and none of the other seven writes any of them, and
+# the trace says none of the seven is entered at all, so the whole delta is the
+# boot group's. It costs nothing visible: VIEWPORT_X/Y/W/H, POLYGONS,
+# SWAP_PARAM, PROJ_FP, PROJ_IDENTITY and POS_IDENTITY are identical on both
+# arms, the title's last frame is byte-identical, and so is level 1's. The
+# ROM's own GX reset now reaches the engine and lands on the state
+# ntr::gx_reset had already produced.
+#
+# NOTHING ELSE OF THIS SHAPE IS LEFT. All 71 sources in the tree that name a
+# geometry command port were cross-referenced against the configured
+# build.ninja: 65 compile through hostgen, 4 are not compiled by any target at
+# all (func_01ffde98, func_0200f4b4, func_0201a054, func_ov007_020caeac -- two
+# of which DO store to command ports and will need routing the day a slice
+# takes them), and the remaining 2 are src/func_02055464.c and
+# src/func_02055490.c, which only READ GXSTAT's stack-level field and store
+# nothing. Those two are already served correctly: ntr::gxstat_publish keeps
+# the mapped window live for exactly those readers, by name, in ntr/gx.cpp.
+# tools/gxport_guard.py now asks this question on every build so the next one
+# refuses at configure time instead of waiting for somebody to read a literal
+# pool.
+#
+# TWO KILL SWITCHES, not one, because the two groups carry different risk and a
+# lane that has to back one out should not lose the other. Both print on every
+# configure in both directions, for the reason run mg15's SQRT lane wrote down:
+# a CMake option() CACHES, and an A/B switch that only announces one arm
+# silently keeps the wrong one. Lane SAMECLASS2 used both, together, to build
+# the pre-fix arm every measurement above is against, and gxport_guard.py reads
+# them out of CMakeCache.txt and stands down by name when either is on.
+option(SAMECLASS_GX_PLAIN
+       "run link100 SAMECLASS: build the seven scene-local geometry-port TUs PLAIN (pre-fix arm)"
+       OFF)
+option(SAMECLASS_BOOT_PLAIN
+       "run link100 SAMECLASS: build the four boot 3D-setup TUs PLAIN (pre-fix arm)"
+       OFF)
+set(SAMECLASS_GX_TU
+    src/func_ov007_020c19cc.c
+    src/func_ov075_0211a948.c
+    src/func_ov075_0211afb0.c
+    src/func_ov080_02125460.c
+    src/func_ov080_02125fd0.c
+    src/func_ov080_0212677c.c
+    src/_ZN11dScMiniGm_c13InitResourcesEv.cpp)
+set(SAMECLASS_BOOT_TU
+    src/Initialise3dGraphics.cpp
+    src/func_0205583c.c
+    src/func_020556d0.c
+    src/func_020554bc.c)
+if(SAMECLASS_GX_PLAIN)
+    message(STATUS "SAMECLASS: SAMECLASS_GX_PLAIN=ON -- the seven scene-local "
+                   "geometry-port TUs build PLAIN. This is the PRE-FIX arm: "
+                   "their stores latch in mapped memory and the geometry "
+                   "engine is never told.")
+else()
+    message(STATUS "SAMECLASS: SAMECLASS_GX_PLAIN=OFF -- the seven scene-local "
+                   "geometry-port TUs route through hostgen (shipped arm).")
+    list(APPEND PORT_HOSTGEN_TU ${SAMECLASS_GX_TU})
+endif()
+if(SAMECLASS_BOOT_PLAIN)
+    message(STATUS "SAMECLASS: SAMECLASS_BOOT_PLAIN=ON -- the four boot 3D "
+                   "setup TUs build PLAIN. This is the PRE-FIX arm: the GX "
+                   "reset, the matrix-stack unwind, the shininess table and "
+                   "MTX_STORE never reach the engine.")
+else()
+    message(STATUS "SAMECLASS: SAMECLASS_BOOT_PLAIN=OFF -- the four boot 3D "
+                   "setup TUs route through hostgen (shipped arm).")
+    list(APPEND PORT_HOSTGEN_TU ${SAMECLASS_BOOT_TU})
+endif()
 get_filename_component(PORT_HOSTGEN_TU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 set(PORT_HOSTGEN_TU_GEN "")
 foreach(_hgt_rel IN LISTS PORT_HOSTGEN_TU)
