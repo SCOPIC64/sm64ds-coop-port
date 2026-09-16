@@ -18251,12 +18251,12 @@ endforeach()
 # The other three batch-3 rows are NOT on this list at all: their tables are
 # arrays of the bare pointer-to-member, which is eight bytes with or without
 # the option, and adding it would be a claim nothing measured.
+# lane CDEFS 2026-09-16: dScMgSound_c.cpp was listed here AND in a later
+# set_source_files_properties() for COMPILE_OPTIONS. That later call REPLACES
+# this one (the property is set, not appended), so this row never reached
+# the compiler for that TU. Removed from this row only; the other sources
+# in the row keep it, and the surviving row for dScMgSound_c.cpp is unchanged.
 set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/dScMgSound_c.cpp"
-    # and the generated copy, lane DUPES: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set the property on a source
-    # nothing compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/actors/dScMgSound_c.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN16dPathLiftActor_c12BaseBehaviorEv.cpp"
     PROPERTIES COMPILE_OPTIONS "/Zp4")
 # dScMgSound_c.cpp also carries a fall-off-the-end body (dScMgSound_c::Virtual50),
