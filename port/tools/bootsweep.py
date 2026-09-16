@@ -48,6 +48,19 @@ os.makedirs(OUTDIR, exist_ok=True)
 # inherited from this shell can decide what a row runs. battery.py's rule.
 DROP = [k for k in os.environ if k.startswith("SM64DS_")]
 
+# HEADLESS AND SILENT, because this runs beside somebody working. No
+# SM64DS_SCENE_WINDOW: a headless row must stay headless, and an inherited one
+# opens a REAL window, which puts a live mouse into the touch path and a
+# machine-global key latch into the panel, both of which move the frame being
+# measured. CREATE_NO_WINDOW keeps the console out of the way (walk_window is a
+# console-subsystem binary, so a parent with no console of its own gets a fresh
+# console window per child), and SW_SHOWMINNOACTIVE covers anything that does
+# manage to open one: minimized, never activated, never focused.
+SI = subprocess.STARTUPINFO()
+SI.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+SI.wShowWindow = 7                                   # SW_SHOWMINNOACTIVE
+NOCON = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 # What the port leaves behind after a fault, in the order the house notes say to
 # read it: the play log first, then the crash and exit stamps.
 ARTIFACTS = ("crash.txt", "exit.txt", "census.txt", "playlog")
@@ -94,12 +107,14 @@ def run(kind, ident, label):
     env[kind] = str(ident)
     env["SM64DS_SCENE_FRAMES"] = FRAMES
     env["SM64DS_FAULTS_FATAL"] = "1"
-    env["SM64DS_SCENE_WINDOW"] = "1"          # Tango is watching this run
+    env["SM64DS_VOLUME"] = "0"                # silent: this runs beside a person
+    env["SM64DS_NO_FOCUS"] = "1"              # never take the keyboard
     t0 = time.time()
     timed_out = False
     try:
         p = subprocess.run([EXE], cwd=EXEDIR, env=env, capture_output=True,
-                           text=True, timeout=BUDGET)
+                           text=True, timeout=BUDGET,
+                           creationflags=NOCON, startupinfo=SI)
         rc = p.returncode
         out = (p.stdout or "") + (p.stderr or "")
     except subprocess.TimeoutExpired as e:
