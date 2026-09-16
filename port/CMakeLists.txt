@@ -13795,41 +13795,34 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_buranko.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "G0=data_ov036_02114028;G1=data_ov036_02114020")
-# (3) src/game/actors/d_a_obj_rc_kaitendai.cpp -- ROTATING_PLATFORM_RR's D1, three vptr stores
-#     back to back with no call between them. Pool in store order:
-#     0x02111488 -> 0x02113b74 (its own table), 0x0211148c -> 0x021091d4
-#     (daObjKaitendai_c, the ov002 INTERMEDIATE base, host storage in
-#     hal/actor_classes_ov036.cpp) and 0x02111490 -> 0x0210ae38 (_ZTV10dBgActor_c).
-#     The middle one is the trap: the TU spells it _ZTV10dBgActor_c, the
-#     196-speller placeholder the port defines AS the Platform base table, so
-#     unrenamed this body would store 0x0210ae38's host array where the ROM
-#     stores the Kaitendai one. Dead in this body, wrong everywhere it is read.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV19daObjRc_Kaitendai_c=_ZTV19daObjRc_Kaitendai_c;_ZTV10dBgActor_c=_ZTV16daObjKaitendai_c;VT2=_ZTV10dBgActor_c")
-# (4) src/game/actors/d_a_obj_rc_kaitendai.cpp -- ROTATING_PLATFORM_RR's D0, the same three
-#     stores as its D1 twin and the same pool order (0x021114e8/ec/f0), with the
-#     game-heap word at 0x021114f4 for G0, which is left on the cdecl row.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV19daObjRc_Kaitendai_c;VT1=_ZTV16daObjKaitendai_c;VT2=_ZTV10dBgActor_c")
-# (5) src/game/actors/d_a_obj_rc_kaitendai.cpp -- THE ONE MIS-BOUND NAME INSIDE A TU.
-#     The ROM stores the BASE table first and the derived one second, which is
-#     the correct constructor order:
+# (3) src/game/actors/d_a_obj_rc_kaitendai.cpp -- NO COMPILE_DEFINITIONS AT ALL,
+#     AND THAT IS THE FIX (wave 10, lane UNHOSTED). Before the main-to-port sync
+#     this class was three one-function files, each with a row of its own:
+#       src/func_ov036_02111444.c (D1)
+#         _ZTV19daObjRc_Kaitendai_c=data_ov036_02113b74;_ZTV10dBgActor_c=data_ov002_021091d4;VT2=_ZTV8Platform
+#       src/func_ov036_02111494.c (D0)
+#         VT0=data_ov036_02113b74;VT1=data_ov002_021091d4;VT2=_ZTV8Platform
+#       src/RotatingPlatformRr_Spawn.c (the factory)
+#         _ZTV19daObjRc_Kaitendai_c=data_ov002_021091d4;VT1=data_ov036_02113b74
+#     The factory row existed because the RECOVERED source spelled the BASE store
+#     with the DERIVED class's name. The synced TU does not. Its
+#     daObjRc_Kaitendai_c_classInit writes
+#       p[0] = (int)_ZTV16daObjKaitendai_c;     the ov002 intermediate, 0x021091d4
+#       p[0] = (int)_ZTV19daObjRc_Kaitendai_c;  its own table,          0x02113b74
+#     which is the cartridge's own order and the cartridge's own two values:
 #       0211155c ldr r1,[pc,#0x14] -> 0x02111578 -> 0x021091d4 daObjKaitendai_c
 #       02111560 ldr r0,[pc,#0x14] -> 0x0211157c -> 0x02113b74 its own table
 #       02111564 str r1,[r4]   02111568 str r0,[r4]
-#     but the recovered source calls the FIRST store _ZTV19daObjRc_Kaitendai_c
-#     (the derived class's own name on the base object) and the second VT1. Both
-#     spellings are bound here to the address that TU's own pool carries, so the
-#     store order and both values stay exactly the ROM's. Neither definition
-#     expands to the other, so there is no macro rescan.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV19daObjRc_Kaitendai_c=_ZTV16daObjKaitendai_c;VT1=_ZTV19daObjRc_Kaitendai_c")
+#     and the TU spells no VT0/VT1/VT2/G0 placeholder anywhere. It does not write
+#     the destructors either: the inline ~daObjRc_Kaitendai_c() in the header is
+#     the whole source of both variants, so _ZTV10dBgActor_c never appears in it.
+#     The three rows were carried across the sync BY NAME instead of by address,
+#     and only the LAST set_source_files_properties for a file takes effect, so
+#     once the TU merge collapsed all three onto one path the surviving binding
+#     was _ZTV19daObjRc_Kaitendai_c=_ZTV16daObjKaitendai_c: BOTH stores then wrote
+#     the abstract intermediate, every ROTATING_PLATFORM_RR on level 28 dispatched
+#     through the base table, and its slot 0 is ov36_base_trap0 -- "UNHOSTED:
+#     vtable slot 0 (abstract base InitResources)", the ROM word there being zero.
 # (6) THE THREE ROM-NAME SPELLINGS OF A TABLE THIS LANE ALREADY HOSTS UNDER ITS
 #     config NAME. Each pair is the SAME address under two labels dsd emitted,
 #     and the port needs one storage, so the ROM spelling is folded onto the
@@ -14558,78 +14551,55 @@ endforeach()
 # id 153's five TUs need no rename at all: they spell _ZTV17daObjKm3_Dorifu_c,
 # _ZTV13daObjDorifu_c and _ZTV10dBgActor_c, which are the three addresses the ROM
 # writes, in the ROM's own order.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV21daObjKm3_Kurumajiku_c=_ZTV21daObjKm3_Kurumajiku_c;_ZTV10dBgActor_c=_ZTV17daObjKurumajiku_c;VT2=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV21daObjKm3_Kurumajiku_c;VT1=_ZTV17daObjKurumajiku_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV21daObjKm3_Kurumajiku_c=_ZTV17daObjKurumajiku_c;VT1=_ZTV21daObjKm3_Kurumajiku_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV20daObjKm3_Kaitendai_c=_ZTV20daObjKm3_Kaitendai_c;_ZTV10dBgActor_c=_ZTV16daObjKaitendai_c;VT2=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV20daObjKm3_Kaitendai_c=_ZTV20daObjKm3_Kaitendai_c;_ZTV10dBgActor_c=_ZTV16daObjKaitendai_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV20daObjKm3_Kaitendai_c=_ZTV16daObjKaitendai_c;VT1=_ZTV20daObjKm3_Kaitendai_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kuruma.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kuruma.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV17daObjKm3_Kuruma_c=_ZTV17daObjKm3_Kuruma_c;_ZTV10dBgActor_c=_ZTV13daObjKuruma_c;VT2=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kuruma.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kuruma.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV17daObjKm3_Kuruma_c;VT1=_ZTV13daObjKuruma_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kuruma.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kuruma.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV17daObjKm3_Kuruma_c=_ZTV13daObjKuruma_c;VT1=_ZTV17daObjKm3_Kuruma_c")
+#
+# SUPERSEDED FOR THE THREE FACTORIES (wave 10, lane UNHOSTED). Everything above
+# describes the PRE-SYNC recovered sources. The synced TUs spell all three
+# factories in the cartridge's own order, base first and own table second, under
+# their real names and with no VT1 anywhere, so the three factory rows are gone;
+# each class says so in its own block below.
+# src/game/actors/d_a_obj_km3_kurumajiku.cpp -- NO COMPILE_DEFINITIONS AT ALL, same stale-by-name
+# family as d_a_obj_km3_kaitendai.cpp above (wave 10, lane UNHOSTED). Three rows
+# came across the sync, the TU merge collapsed them onto one path, and only the
+# last one takes effect: _ZTV21daObjKm3_Kurumajiku_c=_ZTV17daObjKurumajiku_c. The synced
+# TU spells its own factory correctly --
+#   *(int *)actor = (int)_ZTV17daObjKurumajiku_c;
+#   *(int *)actor = (int)&_ZTV21daObjKm3_Kurumajiku_c[2];
+# and the cartridge's relocation run for the factory at 0x02111280 says the same pair
+# in the same order:
+#   from:0x021112b4 kind:load to:0x02109320   _ZTV17daObjKurumajiku_c (the ov002 intermediate)
+#   from:0x021112b8 kind:load to:0x021122a0   its own table
+# so the rename turned both stores into the abstract intermediate. id 152 RICKSHAW_BS, ov047, levels 39 and 40.
+# src/game/actors/d_a_obj_km3_kaitendai.cpp -- NO COMPILE_DEFINITIONS AT ALL, AND
+# THAT IS THE FIX (wave 10, lane UNHOSTED). This is the ov036 (3) case one
+# overlay over: the same three rows the pre-sync one-function files carried (D1,
+# D0, and the factory's mis-bound name) were brought across the sync BY NAME and
+# collapsed onto one path when the TU merged. Only the LAST
+# set_source_files_properties for a file takes effect, so the row that actually
+# ran was the factory one, _ZTV20daObjKm3_Kaitendai_c=_ZTV16daObjKaitendai_c.
+# The synced TU needs none of them. Its daObjKm3_Kaitendai_c_classInit writes
+#   *(int *)actor = (int)_ZTV16daObjKaitendai_c;        the ov002 intermediate
+#   *(int *)actor = (int)&_ZTV20daObjKm3_Kaitendai_c[2]; its own table
+# (hostgen rewrites the +8 address point to the host array's own start, which is
+# where the port's tables put slot 0), and the cartridge's own relocation run for
+# the factory at 0x021113bc says exactly that pair, in that order:
+#   from:0x021113f0 kind:load to:0x021091d4 module:overlay(2)    daObjKaitendai_c
+#   from:0x021113f4 kind:load to:0x0211237c module:overlay(47)   its own table
+# With the stale row in place both stores wrote the abstract intermediate, so
+# every ROTATING_PLATFORM_BS on level 39 dispatched slot 0 into ov36_base_trap0
+# ("UNHOSTED: vtable slot 0 (abstract base InitResources)"). The TU spells no
+# VT0/VT1/VT2/G0 placeholder and does not name _ZTV10dBgActor_c anywhere.
+# src/game/actors/d_a_obj_km3_kuruma.cpp -- NO COMPILE_DEFINITIONS AT ALL, same stale-by-name
+# family as d_a_obj_km3_kaitendai.cpp above (wave 10, lane UNHOSTED). Three rows
+# came across the sync, the TU merge collapsed them onto one path, and only the
+# last one takes effect: _ZTV17daObjKm3_Kuruma_c=_ZTV13daObjKuruma_c. The synced
+# TU spells its own factory correctly --
+#   *(int *)actor = (int)_ZTV13daObjKuruma_c;
+#   *(int *)actor = (int)&_ZTV17daObjKm3_Kuruma_c[2];
+# and the cartridge's relocation run for the factory at 0x021114d0 says the same pair
+# in the same order:
+#   from:0x02111508 kind:load to:0x02109278   _ZTV13daObjKuruma_c (the ov002 intermediate)
+#   from:0x0211150c kind:load to:0x0211244c   its own table
+# so the rename turned both stores into the abstract intermediate. id 151 RICKSHAW_PLATFORM_BS, ov047, levels 39 and 40.
 # FOUR WRONG-NAMES AT THE SHARED WINDOW (T6), all in one sinit. STAIRS_BS's file
 # constructor spells FOUR of its own .bss symbols with an OV052 tag, and ov052
 # IS MOUNTED (PORT_ACTOR_OVERLAYS), so all four resolve: the sinit would

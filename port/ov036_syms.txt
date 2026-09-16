@@ -144,15 +144,19 @@
 # header names it, "ov045's off-by-one is ov045's"); ov070 does not. It is per
 # overlay, and it is measured here rather than inherited.
 #
-# ONE MIS-BOUND NAME INSIDE A TU, not just across the config.
-# src/game/actors/d_a_obj_rc_kaitendai.cpp spells its FIRST vtable store
-# _ZTV19daObjRc_Kaitendai_c, but that store's literal is ov002 0x021091d4, the
-# daObjKaitendai_c BASE table -- the derived name on the base object. Its
-# second store (VT1) is the real 0x02113b74. The ROM order is base then derived,
-# which is the correct constructor shape; only the two names are swapped. The
-# per-file COMPILE_DEFINITIONS in port/CMakeLists.txt bind each spelling to the
-# address its own literal pool carries, so the store order and both values stay
-# exactly the ROM's.
+# ONE MIS-BOUND NAME INSIDE A TU -- RETIRED 2026-09-16, lane UNHOSTED.
+# The PRE-SYNC recovered source (src/RotatingPlatformRr_Spawn.c) spelled its
+# FIRST vtable store _ZTV19daObjRc_Kaitendai_c although that store's literal is
+# ov002 0x021091d4, the daObjKaitendai_c BASE table, and called the second one
+# VT1. Per-file COMPILE_DEFINITIONS in port/CMakeLists.txt bound each spelling
+# to the address its own literal pool carries. The synced TU,
+# src/game/actors/d_a_obj_rc_kaitendai.cpp, does not have that defect: its
+# daObjRc_Kaitendai_c_classInit stores _ZTV16daObjKaitendai_c first and
+# _ZTV19daObjRc_Kaitendai_c second, which is the cartridge's own order and the
+# cartridge's own two values (relocs 0x02111578 -> 0x021091d4 and 0x0211157c ->
+# 0x02113b74). The binding was carried across the sync by NAME and then made
+# BOTH stores write the intermediate, which is what took level 28 out; the rows
+# are gone and that TU now takes no COMPILE_DEFINITIONS at all.
 #
 # ==== THE SEVEN VTABLE WIDTHS, SLOT BY SLOT ================================
 # Read out of config/arm9/overlays/ov036/relocs.txt with every target resolved
