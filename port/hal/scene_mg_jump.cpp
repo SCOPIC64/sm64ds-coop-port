@@ -589,9 +589,29 @@ static int __fastcall bnp_v18(void *s, void *, int st)
 }
 
 // ---- dScMgD3DBase_c's seventeen --------------------------------------------
+/* THE FOUR CALLS BELOW ARE QUALIFIED, AND THAT IS THE WHOLE OF THE FIX FOR THE
+   STACK OVERFLOW THESE SEATS WERE TAKING. Run link100, lane SCENES1.
+
+   These faces ARE dScMgD3DBase_c's vtable slots 1, 5, 7 and 11: the fill writes
+   them over the ROM words 0x020e70e4, 0x020e6f60, 0x020e7074 and 0x020e700c.
+   On 9bb3c454f each line read `((MgBounceAndPounce *)s)->BeforeInitResources()`
+   against a class whose methods were plain members -- MSVC emitted
+   ?BeforeInitResources@MgBounceAndPounce@@QAEHXZ, a QAE, and the call was
+   direct. The sync renamed the class to its real ROM name and gave it
+   include/dScMgD3DBase_c.h, which declares all four VIRTUAL (this build's map:
+   ?BeforeInitResources@dScMgD3DBase_c@@UAE_NXZ). An unqualified call on a
+   virtual member is a vtable dispatch, and the slot it reads is the one this
+   face was just written into, so the face called itself until the stack ran
+   out: scenes 372 and 385 died with c00000fd at bnp_v1+0xb and d3_v1+0xb, esp
+   on the guard page, no crash stack at all.
+
+   `->dScMgD3DBase_c::Method()` is the same call the old line made and the same
+   body the cartridge's word names. Nothing else changes: the receiver, the
+   arguments and the return value are untouched, and the per-slot witnesses
+   still count. */
 
 static int __fastcall bnp_v1(void *s, void *)
-{ BNP(1); return ((dScMgD3DBase_c *)s)->BeforeInitResources(); }
+{ BNP(1); return ((dScMgD3DBase_c *)s)->dScMgD3DBase_c::BeforeInitResources(); }
 
 /* SLOT 2 DROPS ITS SECOND ARGUMENT ON THE ROM TOO. 0x020e70c0 saves r0 and
    never reads r1: it calls _ZN11dScMgBase_c18AfterInitResourcesEj(self) then Particle::SysTracker
@@ -604,10 +624,10 @@ static int __fastcall bnp_v2(void *s, void *, unsigned f)
 /* SLOT 5 READS ITS SECOND ARGUMENT: 0x020e6f68 is `mov r4,r1` and 0x020e6f70
    is `cmp r4,#2`, a three-way split. Forwarded. */
 static int __fastcall bnp_v5(void *s, void *, unsigned b)
-{ BNP(5); ((dScMgD3DBase_c *)s)->AfterCleanupResources(b); return 1; }
+{ BNP(5); ((dScMgD3DBase_c *)s)->dScMgD3DBase_c::AfterCleanupResources(b); return 1; }
 
 static int __fastcall bnp_v7(void *s, void *)
-{ BNP(7); return ((dScMgD3DBase_c *)s)->BeforeBehavior(); }
+{ BNP(7); return ((dScMgD3DBase_c *)s)->dScMgD3DBase_c::BeforeBehavior(); }
 static int __fastcall bnp_v10(void *s, void *)
 { BNP(10); return port_mg_d3dbase_before_render(s); }
 
@@ -615,7 +635,7 @@ static int __fastcall bnp_v10(void *s, void *)
    TAIL-JUMPS to Scene::AfterRender(0x0202e398) with both registers riding
    through, and the src passes both explicitly. Forwarded. */
 static int __fastcall bnp_v11(void *s, void *, unsigned a)
-{ BNP(11); ((dScMgD3DBase_c *)s)->AfterRender(a); return 1; }
+{ BNP(11); ((dScMgD3DBase_c *)s)->dScMgD3DBase_c::AfterRender(a); return 1; }
 
 static int __fastcall bnp_v24(void *s, void *)
 { BNP(24); return _ZN14dScMgD3DBase_c8OnKickedEv(s); }
