@@ -22,7 +22,8 @@
 #include "dCcPos_c.h"
 
 struct RotatingFirebar : dBgActor_c {
-    u8  pad_31e[0x42];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
+    u8  pad_320[0x40];
     dCcPos_c mdCc_cs[8];   /* 0x360 */
 
     /* The destructor pair spelled as two plain virtuals on the host, plus
@@ -48,6 +49,10 @@ struct RotatingFirebar : dBgActor_c {
 /* ROM layout under mwccarm; host ABI divergence is tracked separately. */
 typedef char RotatingFirebar_size_must_be_0x540[sizeof(RotatingFirebar) == 0x540 ? 1 : -1];
 #endif
+/* daObjFl_KomaU_c_classInit runs __cxa_vec_ctor over eight dCcPos_c at a raw
+   this + 0x360, and this class's own five bodies reach them by name, so the two
+   have to agree. Without the macro MSVC put the array at 0x364. */
+ROM_OFFSET_ASSERT(RotatingFirebar, mdCc_cs, 0x360);
 
 #else
 
