@@ -14177,10 +14177,12 @@ set_source_files_properties(
 #     unrouted this TU Releases Tick Tock Clock's chain node three times.
 #     include/decl_common.h:3079 already declares data_ov027_02112ca4 as
 #     void*[3], which is the right type and the right width.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/daPgDfdr_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "data_ov035_02112ca4=data_ov027_02112ca4")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daPgDfdr_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   data_ov035_02112ca4=data_ov027_02112ca4  --  dead, the TU does not spell data_ov035_02112ca4
+# Deleted rather than merged. The surviving row is unchanged.
 # (3) SLIDING_ICE's TWO RESOURCE METHODS, and this is the worst of the nine.
 #     Both spell _ZN7daMky_c11EnterState2Ev for ov027's own model SharedFilePtr, and
 #     ov030's 0x02113be8 is a 0x138-byte FUNCTION that wave 1 linked
@@ -14309,12 +14311,12 @@ set_source_files_properties(
 #        D1       0x0211191c -> 0x02113a90   then 0x02111920 -> 0x0210ae38
 #                 (store order: own table, four member teardowns, then dBgActor)
 #        factory  0x021120c0 -> 0x02113a90
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/daPgDfdr_c.cpp"
-    # src/d_a_pg_dfdr.c dropped at the SYNC7 fold merge: main folded ov027
-    # .text 0x0211207c..0x021120c4 into daPgDfdr_c.cpp, the row above.
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV10daPgDfdr_c=_ZTV10daPgDfdr_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daPgDfdr_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV10daPgDfdr_c=_ZTV10daPgDfdr_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 # (12) DA_PG_DFDR's D0: the same two stores as its D1 twin, same order, plus
 #      the heap. 0x02111988 -> 0x02113a90, 0x0211198c -> 0x0210ae38,
 #      0x02111990 -> 0x020a0eac (G0, left).
