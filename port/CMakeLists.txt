@@ -4226,10 +4226,13 @@ list(APPEND SLICE_W3A_SOURCES ${SLICE_W3A_HOSTGEN_GEN})
 # character identical and their literal pools hold different pairs
 # (0211d88c/894 against 0211d904/90c). One shared define would silently break
 # one of the two, which is why this is per source.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/daObjCtMecha03_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV16daObjCtMecha03_c;VT1=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daObjCtMecha03_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT0=_ZTV16daObjCtMecha03_c  --  dead, the TU does not spell VT0
+#   VT1=_ZTV10dBgActor_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/daObjCtMecha05_c.cpp"
     PROPERTIES COMPILE_DEFINITIONS
