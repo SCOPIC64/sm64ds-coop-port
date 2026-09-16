@@ -21,6 +21,39 @@
 # here so that the SEVENTY-SECOND one stops the build.
 #
 #   <source path>.obj  <vtable symbol>  <applied value>
+# RETIRED 2026-09-16, run link100 wave 10 round 2, lanes SCENES1 and SCENES2:
+# THE OV006 MINIGAME SCENE FAMILY, the nine rows the VPTR16 block above named
+# as the residue and left as one coherent follow-up. They are gone because
+# their seven translation units joined port/CMakeLists.txt's PORT_HOSTGEN_TU
+# list, where tools/hostgen.py's VPTR_ADDRESS_POINT rewrite drops the bias.
+#
+# This one was CONVICTED AT RUN TIME before it was retired, which is what the
+# header above asks for. Seven scene boots -- 362 MEMORY1, 363 MEMORY2, 379
+# CARD, 381 MCARLO, 382 MCARLO2, 384 TRAMPOLINE, 388 LUCKYSTARS -- all died at
+# one instruction, CopyUpLargeMov+0xa, memcpying 0x4000 bytes to address 0.
+# cdb on scene 362 read the object holding __ZTV13dScMgMemory_c + 8, so
+# fBase_c::Process entered vtable slot 2 where it meant slot 0,
+# dScMgBase_c::BeforeInitResources (slot 1, the only writer of
+# data_ov004_020beb60) never ran, and LoadFont(2) loaded the font into a null
+# pointer. The commit before this one carries the whole measurement.
+#
+# Verified after the build rather than predicted: vptr_addend_guard now reads
+# ZERO nonzero addends over 380 vtable relocations in 301 in-scope objects,
+# down from eleven. Not one vptr store at a nonzero addend is left in this
+# tree.
+#
+# THE THIRTY-TWO ROWS THAT REMAIN BELOW ARE STALE, NOT LIVE, and this lane is
+# saying so rather than deleting them. The guard reads zero nonzero addends
+# over this build's objects, so no row left in this file describes a store the
+# tree still makes; the sync of 09-14 rewrote those factories and nobody
+# re-measured the file afterwards (the d_a_obj_b_swdoor row is the one the
+# PORT_HOSTGEN_TU block already caught going stale that way). Clearing them is
+# a sweep with its own measurement per row, and a row deleted on a guess comes
+# back as a refused build the day its TU is sliced, so it is left to a lane
+# that can take the measurement.
+# All seven scenes exit 0 three times in a row, headless, 600 frames,
+# SM64DS_FAULTS_FATAL=1.
+#
 # RETIRED 2026-09-15, run link100 lane VPTR16: the sixteen rows below this
 # line are gone because their translation units joined port/CMakeLists.txt's
 # PORT_HOSTGEN_TU list. These are the sixteen CRASH6 left open on the reading
@@ -65,7 +98,6 @@
 # carry offset-to-top and typeinfo in front of its slots, so +8 may be the
 # ROM's own address point there. Reading that layout is owed work, not done.
 #
-src/actors/dScMgMemory2_c.cpp.obj                    __ZTV14dScMgMemory2_c                                    0x8
 src/actors/dScMgSound_c.cpp.obj                      ?_ZTV12dScMgSound_c@@3PAPAXA                             0x8
 src/actors/daBombking_c.cpp.obj                      __ZTV12daBombking_c                                      0x8
 src/actors/daObjClock_c.cpp.obj                      __ZTV12daObjClock_c                                      0x8
@@ -98,11 +130,3 @@ src/game/actors/d_a_obj_wanwan_shutter.cpp.obj       __ZTV20daObjWanwanShutter_c
 src/game/actors/d_a_obj_wc_obj02.cpp.obj             __ZTV15daObjWc_Obj02_c                                   0x8
 src/game/actors/d_a_obj_wc_obj05.cpp.obj             __ZTV15daObjWc_Obj05_c                                   0x8
 src/game/actors/d_a_sld_mng.cpp.obj                  __ZTV10daSldMng_c                                        0x8
-src/minigames/d_s_mg_bsc.cpp.obj                     __ZTV10dScMgBSC_c                                        0x8
-src/minigames/d_s_mg_card.cpp.obj                    __ZTV11dScMgCard_c                                       0x8
-src/minigames/d_s_mg_card.cpp.obj                    __ZTV12dMgCardObj_c                                      0x8
-src/minigames/d_s_mg_card.cpp.obj                    __ZTV17dMgDilarCardObj_c                                 0x8
-src/minigames/d_s_mg_m_carlo.cpp.obj                 __ZTV13dScMgMCarlo_c                                     0x8
-src/minigames/d_s_mg_m_carlo2.cpp.obj                __ZTV14dScMgMCarlo2_c                                    0x8
-src/minigames/d_s_mg_memory.cpp.obj                  __ZTV13dScMgMemory_c                                     0x8
-src/minigames/d_s_mg_trampoline.cpp.obj              __ZTV17dScMgTrampoline_c                                 0x8
