@@ -17910,24 +17910,33 @@ endforeach()
 # to disentangle here. src/game/actors/d_a_obj_c1_trap.cpp (the D1) makes two, and the pool
 # order matches the source order: 0x021111e4 -> 0x02112ae4 for the class's own
 # table, 0x021111e8 -> 0x0210ae38 which is _ZTV10dBgActor_c.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_c1_trap.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjC1_Trap_c=_ZTV14daObjC1_Trap_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_c1_trap.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjC1_Trap_c=_ZTV14daObjC1_Trap_c;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_c1_trap.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjC1_Trap_c=_ZTV14daObjC1_Trap_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_c1_trap.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjC1_Trap_c=_ZTV14daObjC1_Trap_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 # The D0 (0x021111ec) spells all three of its words as placeholders. Its pool, in
 # store order: 0x02111240 -> 0x02112ae4 (VT0), 0x02111244 -> 0x0210ae38 (VT1,
 # _ZTV10dBgActor_c), 0x02111248 -> 0x020a0eac (G0, the game heap pointer it hands to
 # Memory::Deallocate). G0 is written out rather than left to the global
 # cxx_aliases binding, the gate-229 lesson: a -D row that has never been compiled
 # is a row nothing has ever checked.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_c1_trap.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV14daObjC1_Trap_c;VT1=_ZTV10dBgActor_c;G0=data_020a0eac")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_c1_trap.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT0=_ZTV14daObjC1_Trap_c  --  dead, the TU does not spell VT0
+#   VT1=_ZTV10dBgActor_c  --  dead, the TU does not spell VT1
+#   G0=data_020a0eac  --  dead, the TU does not spell G0
+# Deleted rather than merged. The surviving row is unchanged.
 #
 # SLOT 3'S TWO CROSS-OVERLAY MISNAMES. src/game/actors/d_a_obj_c1_trap.cpp spells
 # data_ov025_02112d08 and data_ov024_02112d00; the ROM's loads inside that body,
@@ -17939,10 +17948,13 @@ set_source_files_properties(
 # data_ov010_02112d00 as a scalar `void *`. So both take the PATH_LIFT remedy: a
 # -D to two private names this seat owns, bound onto the mounted objects by
 # /alternatename in hal/actor_classes_ov010.cpp.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_c1_trap.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "data_ov025_02112d08=port_ov010_trap_modelfile;data_ov024_02112d00=port_ov010_trap_clsnfile")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_c1_trap.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   data_ov025_02112d08=port_ov010_trap_modelfile  --  dead, the TU does not spell data_ov025_02112d08
+#   data_ov024_02112d00=port_ov010_trap_clsnfile  --  dead, the TU does not spell data_ov024_02112d00
+# Deleted rather than merged. The surviving row is unchanged.
 #
 # SLOT 6'S DISPATCH CELLS. src/game/actors/d_a_obj_c1_trap.cpp declares
 # `extern PMF data_ov010_02112d28[];` OUTSIDE extern "C" over a forward-declared
