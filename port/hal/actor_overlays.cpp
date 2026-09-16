@@ -909,15 +909,62 @@ static void port_rabbit_key_states_seat(void)
 /* TOAD's four pairs (run link60, lane A1), the same seat and the same reason:
    __sinit_ov085_0212f2a8 copies these into the two records of
    data_ov085_0212fe88, and what the mount holds is four DS code addresses.
-   The dispatchers that read them back are host copies for the gate-16 reason
-   (port/unmatched/Ov085_Toad_StateSeat.cpp); this is what makes what they read
-   a host address. */
-static const struct { PortPmf *slot; unsigned rom; void (*host)(void *); }
+
+   THE RECEIVER RIDES IN ECX ON THIS TABLE AND ON NO OTHER ONE HERE, which is
+   what run link100 lane LEVELBOOT found under levels 2 and 5. The sentence this
+   paragraph replaces said the dispatchers were host copies in
+   port/unmatched/Ov085_Toad_StateSeat.cpp. That file is gone: run link100 lane
+   PMFB1 retired it and put the ROM's own matched TUs on the link line
+   (src/_ZN4Toad8SetStateEi.cpp and src/_ZN4Toad8RunStateEv.cpp,
+   port/slice_pmfc.txt). Those two are the only rows in that slice of THIRTEEN
+   that are C++ MEMBERS. The other eleven are free functions --
+   `func_ovNNN_XXXXXXXX(C *c, int i)`, cdecl, receiver at [esp+4] -- and they
+   tail-jump, so a cdecl `void (*)(void *)` body reads the receiver out of the
+   caller's own frame and everything lines up. A member does not work that way:
+
+       ?SetState@Toad@@QAEXH@Z            ?RunState@Toad@@QAEXXZ
+         mov  edx, ecx                      mov  edx, ecx
+         ...                                ...
+         mov  eax, [table + i*20 + 8]       mov  eax, [table + i*20 + 8]
+         add  ecx, edx        ; this        add  ecx, edx        ; this
+         call eax                           jmp  eax
+
+   MSVC's pointer-to-member call is __thiscall: the receiver is in ECX and
+   NOTHING is pushed. A cdecl `void (*)(void *)` seated there reads [esp+4],
+   which on the call form is the return address's neighbour and on the jump form
+   is whatever the caller happened to leave there. Measured on level 2: the WAIT
+   enter ran with `this` = 0x001af0b4, a STACK address, and
+   Toad::St_Idle_Init's ModelAnim::SetAnim wrote three words over its own
+   caller's saved ebp and return address. func_020433b8 then returned to 0 and
+   the level died before its first frame. Level 1 has no Toad and never saw it.
+
+   So the four host words are __fastcall(void *, void *) thunks, not the bare
+   faces. __fastcall takes its first argument in ECX, its second in EDX and
+   cleans nothing off the stack, which is byte-for-byte what MSVC emits for a
+   member with no arguments -- the same shape hal/actor_classes*.cpp use for
+   every vtable slot. EDX is dead here: a member call leaves it undefined and
+   the thunks never read it.
+
+   NOT the arity hazard port/fader_boot_map.txt section 9 records. That one was
+   a __fastcall stub under a call site that PUSHES two arguments, so eight bytes
+   leaked. A pointer-to-member call with no arguments pushes nothing, so there
+   is nothing to leak and nothing to clean. */
+static void __fastcall toad_idle_init_pmf(void *self, void *)
+{ _ZN4Toad12St_Idle_InitEv(self); }
+static void __fastcall toad_idle_main_pmf(void *self, void *)
+{ _ZN4Toad12St_Idle_MainEv(self); }
+static void __fastcall toad_talk_init_pmf(void *self, void *)
+{ _ZN4Toad12St_Talk_InitEv(self); }
+static void __fastcall toad_talk_main_pmf(void *self, void *)
+{ _ZN4Toad12St_Talk_MainEv(self); }
+
+static const struct { PortPmf *slot; unsigned rom;
+                      void (__fastcall *host)(void *, void *); }
 g_toad_states[] = {
-    {data_ov085_0212fe40, 0x021294f0, _ZN4Toad12St_Idle_InitEv},  /* WAIT enter */
-    {data_ov085_0212fe48, 0x02129470, _ZN4Toad12St_Idle_MainEv},  /* WAIT main  */
-    {data_ov085_0212fe30, 0x0212943c, _ZN4Toad12St_Talk_InitEv},  /* TALK enter */
-    {data_ov085_0212fe38, 0x021291ac, _ZN4Toad12St_Talk_MainEv},  /* TALK main  */
+    {data_ov085_0212fe40, 0x021294f0, toad_idle_init_pmf},  /* WAIT enter */
+    {data_ov085_0212fe48, 0x02129470, toad_idle_main_pmf},  /* WAIT main  */
+    {data_ov085_0212fe30, 0x0212943c, toad_talk_init_pmf},  /* TALK enter */
+    {data_ov085_0212fe38, 0x021291ac, toad_talk_main_pmf},  /* TALK main  */
 };
 
 static void port_toad_states_seat(void)
