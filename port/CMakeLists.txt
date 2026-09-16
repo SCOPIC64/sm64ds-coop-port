@@ -15817,14 +15817,13 @@ endforeach()
 #   _ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c  --  identity rename, a no-op even if it had run
 #   VT1=_ZTV14daObjWcObj01_c  --  dead, the TU does not spell VT1
 # Deleted rather than merged. The surviving row is unchanged.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj06.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj06.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjWcObj06_c=_ZTV14daObjWcObj06_c;VT1=_ZTV14daObjWcObj06_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj06.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjWcObj06_c=_ZTV14daObjWcObj06_c  --  identity rename, a no-op even if it had run
+#   VT1=_ZTV14daObjWcObj06_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj07.cpp"
     # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
@@ -15875,14 +15874,14 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj05.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "VT0=_ZTV15daObjWc_Obj05_c;VT1=_ZTV10dBgActor_c;G0=data_020a0eac")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj06.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj06.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjWcObj06_c=_ZTV14daObjWcObj06_c;_ZTV10dBgActor_c=_ZTV14daObjWcObj06_c;VT2=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj06.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjWcObj06_c=_ZTV14daObjWcObj06_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV14daObjWcObj06_c  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT2=_ZTV10dBgActor_c  --  dead, the TU does not spell VT2
+# Deleted rather than merged. The surviving row is unchanged.
 # GATE 229 CORRECTION (lane SEAT3), the same two defects as the 021111f0 row
 # above: VT1 belongs to the ov002 base 0x02108fdc (pool word 0x02111f4c), not to
 # the class's own table, and G0 was missing.
