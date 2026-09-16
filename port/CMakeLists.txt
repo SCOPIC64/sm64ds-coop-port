@@ -14271,17 +14271,23 @@ set_source_files_properties(
 #       ldr r2 <- @02111610 -> 0x02113930   (own table)
 #       ldr r1 <- @02111614 -> 0x0211b768   (ov064 Bully/BigBully base, 37)
 #       str r2,[r4] ; str r1,[r4]
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_i_donketu.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV12daIDonketu_c=data_ov027_02113930;VT1=data_ov064_0211b768")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_i_donketu.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV12daIDonketu_c=data_ov027_02113930  --  dead, the TU does not spell _ZTV12daIDonketu_c
+#   VT1=data_ov064_0211b768  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 # (9) CHILL_BULLY's D0: the same two stores in the same order, plus the heap.
 #       0x02111674 -> 0x02113930   0x02111678 -> 0x0211b768
 #       0x0211167c -> 0x020a0eac (G0, left on the cdecl row)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_i_donketu.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=data_ov027_02113930;VT1=data_ov064_0211b768")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_i_donketu.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT0=data_ov027_02113930  --  dead, the TU does not spell VT0
+#   VT1=data_ov064_0211b768  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 # (10) src/game/actors/d_a_i_donketu.cpp -- THE ONE MIS-BOUND PAIR INSIDE A TU, and it is
 #      the exact inverse of (8). The ROM stores the BASE table first and the
 #      derived one last, which is the correct constructor shape, but the
