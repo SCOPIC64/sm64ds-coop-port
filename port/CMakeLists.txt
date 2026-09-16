@@ -17318,10 +17318,13 @@ foreach(_g224 _ZN13daObjSwdoor_cD0Ev _ZN13daObjSwdoor_cD1Ev)
 endforeach()
 # 020b8bf0 stores its OWN table first (the config RTTI name) and _ZTV10dBgActor_c
 # last, so here the placeholder that gets the live target is _ZTV10dBgActor_c.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/daObjPushblock_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV16daObjPushblock_c=_ZTV16daObjPushblock_c;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daObjPushblock_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV16daObjPushblock_c=_ZTV16daObjPushblock_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 # CapEnemy's pair is ALREADY in port/slice_gate32.txt and was dropped by
 # /OPT:REF for want of a reference edge; gate 224's slot 16/17 seat is that
 # edge. Both bodies name their table by the config RTTI placeholder, and D0
@@ -17508,10 +17511,13 @@ endforeach()
 #         0x020b8c90) and _ZTV10dBgActor_c second (0x020b8c5c from 0x020b8c94), so
 #         there is no dead store to redirect. 0x020a0eac is the heap global,
 #         the same G0 gate 224 binds on _ZN11dCapEnemy_cD0Ev.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/daObjPushblock_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "G0=data_ov002_0210df9c;G1=data_ov002_0210df94")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daObjPushblock_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=data_ov002_0210df9c  --  dead, the TU does not spell G0
+#   G1=data_ov002_0210df94  --  dead, the TU does not spell G1
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/daObjPushblock_c.cpp"
     PROPERTIES COMPILE_DEFINITIONS
