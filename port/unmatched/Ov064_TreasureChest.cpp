@@ -260,14 +260,61 @@ extern "C" int _ZN13TreasureChest6State0Ev(void *self)
 
 /* ---- the seat ------------------------------------------------------------ */
 
-static const struct { PortPmf *slot; unsigned rom; int (*host)(void *); }
+/* ---- RUN link100 LANE PMFSWEEP: THE SIX SEATED WORDS TAKE THEIR RECEIVER IN
+   ECX, so they are __fastcall thunks and not the flat C faces themselves.
+   Both dispatchers are back on the slice, and BOTH pass the receiver in ecx
+   and push nothing. Read off this build's own image:
+
+     ?SetState@TreasureChest@@QAEXH@Z  +0x1f
+       mov  dword ptr [eax+0x16c], edx                  ; mState = state
+       shl  edx, 4                                      ; the ROM's 0x10 stride
+       mov  ecx, dword ptr [edx+_data_ov064_0211c98c+4] ; the adjustment word
+       add  ecx, eax                                    ; this + delta
+       mov  eax, dword ptr [edx+_data_ov064_0211c98c]   ; the code word
+       call eax                                         ; A REAL CALL
+     ?CallStateBehavior@TreasureChest@@QAEXXZ  +0x19
+       mov  ecx, dword ptr [edx+_data_ov064_0211c98c+12]
+       add  ecx, eax
+       mov  eax, dword ptr [edx+_data_ov064_0211c98c+8]
+       jmp  eax
+
+   The header above rules a raw body correct because the dispatchers tail jump
+   and leave the caller's argument in place. That is true of a FLAT C
+   dispatcher whose first stack argument is the receiver, and false of both of
+   these: they are __thiscall members of TreasureChest, so at the jmp there is
+   nothing above the return address but the caller's own frame, and SetState's
+   [ebp+8] is the state INDEX, not a receiver. Five of the six cells held
+   hal/faces_sync_gen.cpp's flat C face,
+
+       __ZN13TreasureChest10InitState0Ev:
+         push ebp / mov ebp,esp / mov ecx,[ebp+8] / pop ebp / jmp InitState0
+
+   and the sixth held this file's own __ZN13TreasureChest6State0Ev, a cdecl
+   body reading [ebp+8]. This is 5ae983797's correction at another class, the
+   one 27a24ff5a, 651b5e853, f9936e798, 45ce69707 and 00732a5ab each had to
+   make one class over. Each thunk NAMES its matched body or face, so trap T2's
+   rule still holds, and the seat's abort-on-wrong-bytes check is untouched. */
+static int __fastcall tc_is0_pmf(void *self, void *)
+{ return _ZN13TreasureChest10InitState0Ev(self); }
+static int __fastcall tc_st0_pmf(void *self, void *)
+{ return _ZN13TreasureChest6State0Ev(self); }
+static int __fastcall tc_is1_pmf(void *self, void *)
+{ return _ZN13TreasureChest10InitState1Ev(self); }
+static int __fastcall tc_st1_pmf(void *self, void *)
+{ return _ZN13TreasureChest6State1Ev(self); }
+static int __fastcall tc_is2_pmf(void *self, void *)
+{ return _ZN13TreasureChest10InitState2Ev(self); }
+static int __fastcall tc_st2_pmf(void *self, void *)
+{ return _ZN13TreasureChest6State2Ev(self); }
+
+static const struct { PortPmf *slot; unsigned rom; int (__fastcall *host)(void *, void *); }
 g_treasure_chest_states[] = {
-    {data_ov064_0211c4c4, 0x0211a6e0, _ZN13TreasureChest10InitState0Ev},  /* Entry[0].enter */
-    {data_ov064_0211c4bc, 0x0211a4c4, _ZN13TreasureChest6State0Ev},  /* Entry[0].tick  */
-    {data_ov064_0211c4b4, 0x0211a49c, _ZN13TreasureChest10InitState1Ev},  /* Entry[1].enter */
-    {data_ov064_0211c4a4, 0x0211a39c, _ZN13TreasureChest6State1Ev},  /* Entry[1].tick  */
-    {data_ov064_0211c4ac, 0x0211a380, _ZN13TreasureChest10InitState2Ev},  /* Entry[2].enter */
-    {data_ov064_0211c49c, 0x0211a2c4, _ZN13TreasureChest6State2Ev},  /* Entry[2].tick  */
+    {data_ov064_0211c4c4, 0x0211a6e0, tc_is0_pmf},  /* Entry[0].enter */
+    {data_ov064_0211c4bc, 0x0211a4c4, tc_st0_pmf},  /* Entry[0].tick  */
+    {data_ov064_0211c4b4, 0x0211a49c, tc_is1_pmf},  /* Entry[1].enter */
+    {data_ov064_0211c4a4, 0x0211a39c, tc_st1_pmf},  /* Entry[1].tick  */
+    {data_ov064_0211c4ac, 0x0211a380, tc_is2_pmf},  /* Entry[2].enter */
+    {data_ov064_0211c49c, 0x0211a2c4, tc_st2_pmf},  /* Entry[2].tick  */
 };
 
 extern "C" void port_treasure_chest_states_seat(void)
