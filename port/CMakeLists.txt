@@ -1279,6 +1279,66 @@ add_custom_command(OUTPUT "${PORT_FACES_SYNC_SMOKE_HEAP_GEN}"
 target_sources(smoke_heap PRIVATE
     hal/smoke_aliases_heap.cpp "${PORT_FACES_SYNC_SMOKE_HEAP_GEN}")
 
+# LANE SMOKELINK3 (run link100 wave 10 round 2): THE SAME THREE MECHANISMS, ONCE.
+#
+# SMOKELINK2 wrote the block above by hand for smoke_heap and proved the lever.
+# Fourteen targets stopped linking at the 09-14 sync and the remaining twelve of
+# them close the same three ways, so the wiring is a function rather than twelve
+# copies of twenty lines.  The function adds nothing a target does not name:
+#
+#   faces_sync_smoke_<name>.txt   a SUBSET LEDGER, every row copied verbatim out
+#                                 of port/faces_sync.txt and re-derived against
+#                                 its ROM address by the SAME tools/facegen.py
+#                                 --sync on every build.  This is what closes a
+#                                 non-static member or a constructor: the
+#                                 receiver is in ECX and port/faces_sync.txt's
+#                                 header says an /alternatename is a NAME bridge
+#                                 and never an ABI bridge.
+#   hal/smoke_aliases_<name>.cpp  /alternatename rows, copied verbatim out of
+#                                 hal/cxx_aliases.cpp, for the names whose two
+#                                 sides already agree about the ABI (statics,
+#                                 data, and same-class thiscall spellings).  A
+#                                 file of nothing but linker directives compiles
+#                                 to an object with no code, no data and no
+#                                 external reference.
+#   SRC <files...>                translation units that already exist in this
+#                                 tree, that walk_window already compiles, and
+#                                 that this target simply did not list.  Never a
+#                                 new definition.
+#
+# Either file may be absent: a target with no ledger rows gets no generated
+# face, a target with no alias rows gets no directive object.  The ledger is
+# deliberately NOT ${PORT_FACES_SYNC_GEN}: that one is 1925 rows and every row
+# CALLS a C++ member, so putting it on a 54-object harness would trade a dozen
+# unresolved names for hundreds, and there is no /Gy in this build for /OPT:REF
+# to drop the difference.
+function(port_smoke_relink _psr_target)
+    cmake_parse_arguments(PSR "" "" "SRC" ${ARGN})
+    set(_psr_ledger "${CMAKE_CURRENT_SOURCE_DIR}/faces_sync_smoke_${_psr_target}.txt")
+    set(_psr_alias  "${CMAKE_CURRENT_SOURCE_DIR}/hal/smoke_aliases_${_psr_target}.cpp")
+    set(_psr_add "")
+    if(EXISTS "${_psr_ledger}")
+        set(_psr_gen "${CMAKE_BINARY_DIR}/host-src/faces_sync_smoke_${_psr_target}_gen.cpp")
+        port_configure_input("${_psr_ledger}")
+        add_custom_command(OUTPUT "${_psr_gen}"
+            COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/facegen.py"
+                    --sync "${_psr_ledger}"
+                    --root "${CMAKE_CURRENT_SOURCE_DIR}/.."
+                    --out "${_psr_gen}"
+            DEPENDS "${_psr_ledger}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tools/facegen.py"
+            COMMENT "facegen --sync faces_sync_smoke_${_psr_target}.txt")
+        list(APPEND _psr_add "${_psr_gen}")
+    endif()
+    if(EXISTS "${_psr_alias}")
+        list(APPEND _psr_add "${_psr_alias}")
+    endif()
+    foreach(_psr_src IN LISTS PSR_SRC)
+        list(APPEND _psr_add "${CMAKE_CURRENT_SOURCE_DIR}/../${_psr_src}")
+    endforeach()
+    target_sources(smoke_${_psr_target} PRIVATE ${_psr_add})
+endfunction()
+
 # Gate 3a: root heap + Memory:: layer over the gate-2 allocator.
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate3a.txt" SLICE3A_LINES)
 set(SLICE3A_SOURCES "")
@@ -2019,6 +2079,60 @@ if(MSVC)
     # matching flag on walk_window, which is the base the shipped states use.
     target_link_options(smoke_persist PRIVATE /DYNAMICBASE:NO)
 endif()
+
+# LANE SMOKELINK3: THE SMOKE HARNESSES' HALF OF THE 09-14 SYNC, ONE CALL EACH.
+#
+# Every target below stopped linking at the sync with a block of flat Itanium
+# names whose bodies it already compiles under an MSVC decoration.  The counts
+# beside each call are measured, not chosen: they come from a full
+# `ninja -j10 -k 0` over all targets at f7d4b3c3a, classified per name in
+# out/SMOKELINK3 (and, for the classification itself, out/SMOKELINK2/route.md).
+# Read port_smoke_relink's own block above for what the three mechanisms are
+# and why one name may not be closed with another's.
+#
+# The calls live here, after every one of these targets is defined, rather than
+# beside each add_executable: the wiring is identical for all of them, the
+# evidence for all of them is one measurement, and a reader comparing two rows
+# should not have to page through nine hundred lines to do it.
+
+# smoke_roots: 30 unresolved -> 0.  7 ledger faces, 17 alias rows (15 copied
+# verbatim from hal/cxx_aliases.cpp, plus the global-deallocator pair that file
+# documents), 7 source rows, 1 harness call ported to Heap::SetupRootHeap().
+# The six ExpandingHeap and Heap bodies below are on walk_window through
+# port/slice_gate16.txt; this target reaches all six from
+# src/_ZN13ExpandingHeapC1EPvjP4HeapP22ExpandingHeapAllocator.cpp's and
+# src/_ZN4HeapC2EPvjPS_.cpp's scalar deleting destructors and from the class's
+# own vtable, and simply never listed them.  Only D1 of each class is listed:
+# MSVC folds the ROM's D1 and D0 into one symbol, so listing both per-function
+# destructor TUs of a class in one link is the LNK2005 port/slice_seat2.txt:57
+# states the rule for.
+port_smoke_relink(roots SRC
+    src/_ZN13ExpandingHeapD1Ev.cpp
+    src/_ZN4HeapD1Ev.cpp
+    src/_ZN13ExpandingHeap14VDeallocateAllEv.cpp
+    src/_ZN13ExpandingHeap8VDestroyEv.cpp
+    src/_ZN13ExpandingHeap19VMaxAllocatableSizeEv.cpp
+    src/_ZN13ExpandingHeap22VMaxAllocationUnitSizeEv.cpp
+    src/_ZN6Memory16operator_delete2EPv.cpp
+    src/_ZdlPv.cpp
+    # SECOND ORDER, and measured the same way: the eight rows above are what
+    # the link asked for, and these five are what those eight then asked for.
+    # Every one is an ordinary member of a class this target already hosts,
+    # every one is on walk_window through slice_gate16, and none of them is a
+    # new definition.  ExpandingHeap's four virtuals reach the allocator's
+    # DeallocateAll / InvokeDeallocate / MaxAllocatableSize and
+    # HeapAllocator::Destroy; src/_ZdlPv.cpp reaches Heap::_Deallocate, the
+    # three-word veneer include/Heap.h describes, which lands on
+    # Heap::Deallocate -- already on this target.
+    src/_ZN22ExpandingHeapAllocator13DeallocateAllEPFvPvPS_jEj.cpp
+    src/_ZN22ExpandingHeapAllocator16InvokeDeallocateEPvPS_j.cpp
+    src/_ZN22ExpandingHeapAllocator18MaxAllocatableSizeEi.cpp
+    src/_ZN13HeapAllocator7DestroyEv.cpp
+    src/_ZN4Heap11_DeallocateEPv.cpp
+    # THIRD ORDER, the last two: HeapAllocator::Destroy unlinks itself first,
+    # and ExpandingHeapAllocator::MaxAllocatableSize takes an absolute value.
+    src/_ZN13HeapAllocator6RemoveEv.cpp
+    src/_ZN4cstd3absEi.cpp)
 
 # Gate 10: Player spawns and stands (the walking campaign).
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
