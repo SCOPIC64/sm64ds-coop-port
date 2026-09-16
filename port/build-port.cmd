@@ -28,6 +28,24 @@ if errorlevel 1 exit /b 1
 rem Fail before configure if a NEW guessed vtable body got seated past the baseline.
 python "%~dp0tools\guardcache.py" --replay inferred_stub_guard.py
 if errorlevel 1 exit /b 1
+rem Fail before configure if TWO per-source property calls in CMakeLists.txt
+rem name the SAME source for the SAME property. CMake REPLACES a per-source
+rem property rather than appending to it, so the second call silently throws
+rem the first away: no warning from CMake, no diagnostic from the compiler,
+rem just a -D that stopped being on the command line. main's TU consolidation
+rem folded one-function files into class TUs and the rows that named them were
+rem carried across BY NAME, which is how four factory rows came to name one
+rem path each and levels 28 and 39 lost their boot to the stale survivor
+rem (398ff4501). Twenty-five more sources had the shape; lane CDEFS cleared
+rem them and this line keeps it cleared.
+rem NOT THROUGH guardcache, for vtalias_guard's reason: it needs no build and
+rem no map, it reads one file, it costs a third of a second, and a remembered
+rem verdict is not worth the chance of a stale one. It re-runs its own four
+rem examples on every invocation before it looks at CMakeLists.txt and refuses
+rem the build if any comes back wrong, so gutting a rule breaks the build
+rem instead of silently disarming the check.
+python "%~dp0tools\cdefs_guard.py" "%~dp0.."
+if errorlevel 1 exit /b 1
 rem Fail before configure if a /alternatename joins two vtable names config
 rem gives DIFFERENT addresses. An alternatename asserts two names are one
 rem object; two addresses say they are two classes, and whichever fill runs

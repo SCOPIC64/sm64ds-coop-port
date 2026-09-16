@@ -4226,14 +4226,20 @@ list(APPEND SLICE_W3A_SOURCES ${SLICE_W3A_HOSTGEN_GEN})
 # character identical and their literal pools hold different pairs
 # (0211d88c/894 against 0211d904/90c). One shared define would silently break
 # one of the two, which is why this is per source.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/daObjCtMecha03_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV16daObjCtMecha03_c;VT1=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/daObjCtMecha05_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV16daObjCtMecha05_c;VT1=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daObjCtMecha03_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT0=_ZTV16daObjCtMecha03_c  --  dead, the TU does not spell VT0
+#   VT1=_ZTV10dBgActor_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daObjCtMecha05_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT0=_ZTV16daObjCtMecha05_c  --  dead, the TU does not spell VT0
+#   VT1=_ZTV10dBgActor_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/daObjCtMecha03_c.cpp"
     PROPERTIES COMPILE_DEFINITIONS
@@ -7708,9 +7714,12 @@ endforeach()
 # and ticks never enters it. This lane's 60-frame and 1200-frame runs of scene
 # 375 both entered slots 0, 6 and 9 only. The check that works is reading the
 # TU and the body's own pool, which is what the paragraph above is.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/dScMgCurling2_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS "VT=data_ov006_0213c510")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names dScMgCurling2_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT=data_ov006_0213c510  --  dead, the TU does not spell VT
+# Deleted rather than merged. The surviving row is unchanged.
 
 # RUN MG8 lane SGX: THE PADDLE DRAWS FROM ANOTHER OVERLAY'S BYTES.
 # Tango's lap-2 report on scene 375 is "I cant see the paddle if im suposed to".
@@ -11570,10 +11579,13 @@ endforeach()
 # object -- the game heap it hands Memory::Deallocate, literal at 0x02111238
 # relocating to 0x020a0eac module:main -- which is what cxx_aliases.cpp already
 # binds. Renaming it would break a binding that is right today.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_ukishima.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "G0=port_ov043_ukishima_file0;G1=port_ov043_ukishima_file1")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_ukishima.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=port_ov043_ukishima_file0  --  dead, the TU does not spell G0
+#   G1=port_ov043_ukishima_file1  --  dead, the TU does not spell G1
+# Deleted rather than merged. The surviving row is unchanged.
 # TRAP 3: src/game/actors/d_a_obj_km1_ukishima.cpp (InitResources) spells ov043's own two bss
 # cells with ov047 names. ov043 and ov047 are distinct objects sharing the load
 # window and dsd raced the name; the load sites are the same two addresses the
@@ -11582,10 +11594,13 @@ set_source_files_properties(
 # as a straight -D to the mount names: decl_common.h declares
 # data_ov047_021125e0/e8 as `extern int [];` and declares no data_ov043_
 # 021125e0/e8 at all, so there is nothing to conflict with.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_ukishima.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "data_ov047_021125e8=data_ov043_021125e8;data_ov047_021125e0=data_ov043_021125e0")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_ukishima.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   data_ov047_021125e8=data_ov043_021125e8  --  dead, the TU does not spell data_ov047_021125e8
+#   data_ov047_021125e0=data_ov043_021125e0  --  dead, the TU does not spell data_ov047_021125e0
+# Deleted rather than merged. The surviving row is unchanged.
 # TRAP 4: src/game/actors/d_a_obj_km1_ukishima.cpp (the deleting destructor) writes VT0 then
 # VT1 and both are placeholders. Its own literal pool names them:
 # 0x02111230 -> 0x021122b8 module:overlay(43), the class's own table, which is
@@ -11631,14 +11646,21 @@ endforeach()
 # id 136 (RICKSHAW_PLATFORM_BDW): factory + D1 + D0. Own table 0x0211245c
 # (host array _ZTV17daObjKm1_Kuruma_c), intermediate base ov002 0x02109278. Its
 # Init/Cleanup .c bodies spell only mounted names and need no -D.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kuruma.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV17daObjKm1_Kuruma_c=_ZTV13daObjKuruma_c;VT1=_ZTV17daObjKm1_Kuruma_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kuruma.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV17daObjKm1_Kuruma_c=_ZTV17daObjKm1_Kuruma_c;_ZTV10dBgActor_c=_ZTV13daObjKuruma_c;VT2=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_kuruma.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV17daObjKm1_Kuruma_c=_ZTV13daObjKuruma_c  --  dead, the TU does not spell _ZTV17daObjKm1_Kuruma_c
+#   VT1=_ZTV17daObjKm1_Kuruma_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_kuruma.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV17daObjKm1_Kuruma_c=_ZTV17daObjKm1_Kuruma_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV13daObjKuruma_c  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT2=_ZTV10dBgActor_c  --  dead, the TU does not spell VT2
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kuruma.cpp"
     PROPERTIES COMPILE_DEFINITIONS
@@ -11991,10 +12013,13 @@ endforeach()
 # here. _ZN13daObjKi_Ita_cD1Ev is not in the gate at all: its MIDDLE store is ov002
 # 0x02108fdc, and that intermediate base table is hosted nowhere in this port --
 # a table to host, not a rename.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_c0_switch.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV16daObjC0_Switch_c=_ZTV16daObjC0_Switch_c;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_c0_switch.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV16daObjC0_Switch_c=_ZTV16daObjC0_Switch_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN10RockPillarD1Ev.cpp"
     PROPERTIES COMPILE_DEFINITIONS
@@ -12631,10 +12656,14 @@ endforeach()
 # G0 is renamed too even though hal/cxx_aliases.cpp already binds bare _G0 to
 # _data_020a0eac: one statement per ROM word reads better here than a rule
 # that depends on which other gate's alias happens to be live.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/dScGameOver_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV13dScGameOver_c=data_ov003_020b179c;_ZTV7dBase_c=data_0208e4b8;_ZTV8dScene_c=port_go_vt_scene")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names dScGameOver_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV13dScGameOver_c=data_ov003_020b179c  --  dead, the TU does not spell _ZTV13dScGameOver_c
+#   _ZTV7dBase_c=data_0208e4b8  --  dead, the TU does not spell _ZTV7dBase_c
+#   _ZTV8dScene_c=port_go_vt_scene  --  dead, the TU does not spell _ZTV8dScene_c
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/dScGameOver_c.cpp"
     PROPERTIES COMPILE_DEFINITIONS
@@ -13092,10 +13121,13 @@ set_source_files_properties(
 # source, which a definition cannot defeat the way an /alternatename can.
 # func_ov039_02111214 is the matched TU on slice_gate217;
 # data_ov039_021118e0 is the four-byte counter the fill defines.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_kumo.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZN19daObjKb1Billboard_c20UpdateModelTransformEv=func_ov039_02111214;data_ov041_021118e0=data_ov039_021118e0")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_kumo.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZN19daObjKb1Billboard_c20UpdateModelTransformEv=func_ov039_02111214  --  dead, the TU does not spell _ZN19daObjKb1Billboard_c20UpdateModelTransformEv
+#   data_ov041_021118e0=data_ov039_021118e0  --  dead, the TU does not spell data_ov041_021118e0
+# Deleted rather than merged. The surviving row is unchanged.
 # Cloud::Behavior is a flat .c TU that spells decl_common.h's two generic
 # placeholder names, FindWithActorID and SetPolygonID. Both are real arm9
 # functions the ROM relocs name outright -- 0x02010ef0
@@ -13495,21 +13527,31 @@ endforeach()
 # (0x021111e8 = 0x0210ae38). Same inversion ov033's id-105 pair carries. A
 # direct -D onto _ZTV10dBgActor_c is impossible: it is a live host array for
 # every Platform in the port.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_fm_battan.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV10dBgActor_c=port_ov023_vt_own;VT1=port_ov023_vt_base")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_fm_battan.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV10dBgActor_c=port_ov023_vt_own;VT1=port_ov023_vt_base;G0=data_020a0eac")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_fm_battan.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV10dBgActor_c=port_ov023_vt_own  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT1=port_ov023_vt_base  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_fm_battan.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV10dBgActor_c=port_ov023_vt_own  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT1=port_ov023_vt_base  --  dead, the TU does not spell VT1
+#   G0=data_020a0eac  --  dead, the TU does not spell G0
+# Deleted rather than merged. The surviving row is unchanged.
 # CleanupResources releases the model file then the collision one, in that
 # order (pool 0x02111380 then 0x02111384). Private names because that TU
 # includes decl_common.h, which already declares 0x02112088 as a scalar.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_fm_battan.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "G0=port_ov023_sq_file0;G1=port_ov023_sq_file1")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_fm_battan.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=port_ov023_sq_file0  --  dead, the TU does not spell G0
+#   G1=port_ov023_sq_file1  --  dead, the TU does not spell G1
+# Deleted rather than merged. The surviving row is unchanged.
 # TWO LIVE ALIAS RACES IN ONE BODY (T6), both pinned to the ROM:
 #   the call at 0x021116a4 relocates to 0x02111308 module ov023 -- the source
 #     calls it _ZN17daObjWlPolelift_c6RenderEv, and lane W1-A is seating ov026 in this same
@@ -13553,17 +13595,24 @@ endforeach()
 # The other two are undefined today and latent, but ov056 IS mounted and a
 # later lane adding either name turns them live silently. The TU includes no
 # headers at all, so all three renames are direct.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_ks_water.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "data_ov056_02111a60=data_ov017_02111a60;_ZN15daObjKm2_Gura_cD0Ev=data_ov017_02111c80;data_ov055_02111a94=data_ov017_02111a94")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_ks_water.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   data_ov056_02111a60=data_ov017_02111a60  --  dead, the TU does not spell data_ov056_02111a60
+#   _ZN15daObjKm2_Gura_cD0Ev=data_ov017_02111c80  --  dead, the TU does not spell _ZN15daObjKm2_Gura_cD0Ev
+#   data_ov055_02111a94=data_ov017_02111a94  --  dead, the TU does not spell data_ov055_02111a94
+# Deleted rather than merged. The surviving row is unchanged.
 # G0 in the deleting destructor is the game heap. Note this overlay's D1/D0 get
 # their TWO VTABLE STORES IN THE RIGHT ORDER, unlike ov023's and ov033's: pool
 # 0x021111e4 holds the own table and 0x021111e8 Platform's base, which is the
 # order the source writes them, so neither store needs renaming.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_ks_water.cpp"
-    PROPERTIES COMPILE_DEFINITIONS "G0=data_020a0eac")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_ks_water.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=data_020a0eac  --  dead, the TU does not spell G0
+# Deleted rather than merged. The surviving row is unchanged.
 # CleanupResources releases the model file then the collision one (pool
 # 0x02111288 then 0x0211128c). Private names because that TU includes
 # decl_common.h, which already declares both.
@@ -13778,10 +13827,13 @@ set_source_files_properties(
 #     host-filled by hal_fill_platform_vtable). Its G0 is NOT renamed: the third
 #     pool word 0x02111238 -> 0x020a0eac module:main is the game heap
 #     Memory::Deallocate takes, which is exactly what the cdecl row binds.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_buranko.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV16daObjRcBuranko_c;VT1=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_rc_buranko.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT0=_ZTV16daObjRcBuranko_c  --  dead, the TU does not spell VT0
+#   VT1=_ZTV10dBgActor_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 # (2) src/game/actors/d_a_obj_rc_buranko.cpp -- SWINGING_PLATFORM's CleanupResources.
 #     Releases two SharedFilePtrs as G0/G1, and its own pool names them:
 #     0x021112c0 -> 0x02114028 then 0x021112c4 -> 0x02114020, both
@@ -13791,45 +13843,41 @@ set_source_files_properties(
 #     data_ov036_02114020 nor data_ov036_02114028, so there is nothing to
 #     conflict with (the ov043 TRAP-3 reading; the ov100 C2040 needed private
 #     names only because the target was already declared as a scalar).
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_buranko.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "G0=data_ov036_02114028;G1=data_ov036_02114020")
-# (3) src/game/actors/d_a_obj_rc_kaitendai.cpp -- ROTATING_PLATFORM_RR's D1, three vptr stores
-#     back to back with no call between them. Pool in store order:
-#     0x02111488 -> 0x02113b74 (its own table), 0x0211148c -> 0x021091d4
-#     (daObjKaitendai_c, the ov002 INTERMEDIATE base, host storage in
-#     hal/actor_classes_ov036.cpp) and 0x02111490 -> 0x0210ae38 (_ZTV10dBgActor_c).
-#     The middle one is the trap: the TU spells it _ZTV10dBgActor_c, the
-#     196-speller placeholder the port defines AS the Platform base table, so
-#     unrenamed this body would store 0x0210ae38's host array where the ROM
-#     stores the Kaitendai one. Dead in this body, wrong everywhere it is read.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV19daObjRc_Kaitendai_c=_ZTV19daObjRc_Kaitendai_c;_ZTV10dBgActor_c=_ZTV16daObjKaitendai_c;VT2=_ZTV10dBgActor_c")
-# (4) src/game/actors/d_a_obj_rc_kaitendai.cpp -- ROTATING_PLATFORM_RR's D0, the same three
-#     stores as its D1 twin and the same pool order (0x021114e8/ec/f0), with the
-#     game-heap word at 0x021114f4 for G0, which is left on the cdecl row.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV19daObjRc_Kaitendai_c;VT1=_ZTV16daObjKaitendai_c;VT2=_ZTV10dBgActor_c")
-# (5) src/game/actors/d_a_obj_rc_kaitendai.cpp -- THE ONE MIS-BOUND NAME INSIDE A TU.
-#     The ROM stores the BASE table first and the derived one second, which is
-#     the correct constructor order:
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_rc_buranko.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=data_ov036_02114028  --  dead, the TU does not spell G0
+#   G1=data_ov036_02114020  --  dead, the TU does not spell G1
+# Deleted rather than merged. The surviving row is unchanged.
+# (3) src/game/actors/d_a_obj_rc_kaitendai.cpp -- NO COMPILE_DEFINITIONS AT ALL,
+#     AND THAT IS THE FIX (wave 10, lane UNHOSTED). Before the main-to-port sync
+#     this class was three one-function files, each with a row of its own:
+#       src/func_ov036_02111444.c (D1)
+#         _ZTV19daObjRc_Kaitendai_c=data_ov036_02113b74;_ZTV10dBgActor_c=data_ov002_021091d4;VT2=_ZTV8Platform
+#       src/func_ov036_02111494.c (D0)
+#         VT0=data_ov036_02113b74;VT1=data_ov002_021091d4;VT2=_ZTV8Platform
+#       src/RotatingPlatformRr_Spawn.c (the factory)
+#         _ZTV19daObjRc_Kaitendai_c=data_ov002_021091d4;VT1=data_ov036_02113b74
+#     The factory row existed because the RECOVERED source spelled the BASE store
+#     with the DERIVED class's name. The synced TU does not. Its
+#     daObjRc_Kaitendai_c_classInit writes
+#       p[0] = (int)_ZTV16daObjKaitendai_c;     the ov002 intermediate, 0x021091d4
+#       p[0] = (int)_ZTV19daObjRc_Kaitendai_c;  its own table,          0x02113b74
+#     which is the cartridge's own order and the cartridge's own two values:
 #       0211155c ldr r1,[pc,#0x14] -> 0x02111578 -> 0x021091d4 daObjKaitendai_c
 #       02111560 ldr r0,[pc,#0x14] -> 0x0211157c -> 0x02113b74 its own table
 #       02111564 str r1,[r4]   02111568 str r0,[r4]
-#     but the recovered source calls the FIRST store _ZTV19daObjRc_Kaitendai_c
-#     (the derived class's own name on the base object) and the second VT1. Both
-#     spellings are bound here to the address that TU's own pool carries, so the
-#     store order and both values stay exactly the ROM's. Neither definition
-#     expands to the other, so there is no macro rescan.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV19daObjRc_Kaitendai_c=_ZTV16daObjKaitendai_c;VT1=_ZTV19daObjRc_Kaitendai_c")
+#     and the TU spells no VT0/VT1/VT2/G0 placeholder anywhere. It does not write
+#     the destructors either: the inline ~daObjRc_Kaitendai_c() in the header is
+#     the whole source of both variants, so _ZTV10dBgActor_c never appears in it.
+#     The three rows were carried across the sync BY NAME instead of by address,
+#     and only the LAST set_source_files_properties for a file takes effect, so
+#     once the TU merge collapsed all three onto one path the surviving binding
+#     was _ZTV19daObjRc_Kaitendai_c=_ZTV16daObjKaitendai_c: BOTH stores then wrote
+#     the abstract intermediate, every ROTATING_PLATFORM_RR on level 28 dispatched
+#     through the base table, and its slot 0 is ov36_base_trap0 -- "UNHOSTED:
+#     vtable slot 0 (abstract base InitResources)", the ROM word there being zero.
 # (6) THE THREE ROM-NAME SPELLINGS OF A TABLE THIS LANE ALREADY HOSTS UNDER ITS
 #     config NAME. Each pair is the SAME address under two labels dsd emitted,
 #     and the port needs one storage, so the ROM spelling is folded onto the
@@ -14129,10 +14177,12 @@ set_source_files_properties(
 #     unrouted this TU Releases Tick Tock Clock's chain node three times.
 #     include/decl_common.h:3079 already declares data_ov027_02112ca4 as
 #     void*[3], which is the right type and the right width.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/daPgDfdr_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "data_ov035_02112ca4=data_ov027_02112ca4")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daPgDfdr_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   data_ov035_02112ca4=data_ov027_02112ca4  --  dead, the TU does not spell data_ov035_02112ca4
+# Deleted rather than merged. The surviving row is unchanged.
 # (3) SLIDING_ICE's TWO RESOURCE METHODS, and this is the worst of the nine.
 #     Both spell _ZN7daMky_c11EnterState2Ev for ov027's own model SharedFilePtr, and
 #     ov030's 0x02113be8 is a 0x138-byte FUNCTION that wave 1 linked
@@ -14221,17 +14271,23 @@ set_source_files_properties(
 #       ldr r2 <- @02111610 -> 0x02113930   (own table)
 #       ldr r1 <- @02111614 -> 0x0211b768   (ov064 Bully/BigBully base, 37)
 #       str r2,[r4] ; str r1,[r4]
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_i_donketu.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV12daIDonketu_c=data_ov027_02113930;VT1=data_ov064_0211b768")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_i_donketu.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV12daIDonketu_c=data_ov027_02113930  --  dead, the TU does not spell _ZTV12daIDonketu_c
+#   VT1=data_ov064_0211b768  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 # (9) CHILL_BULLY's D0: the same two stores in the same order, plus the heap.
 #       0x02111674 -> 0x02113930   0x02111678 -> 0x0211b768
 #       0x0211167c -> 0x020a0eac (G0, left on the cdecl row)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_i_donketu.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=data_ov027_02113930;VT1=data_ov064_0211b768")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_i_donketu.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT0=data_ov027_02113930  --  dead, the TU does not spell VT0
+#   VT1=data_ov064_0211b768  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 # (10) src/game/actors/d_a_i_donketu.cpp -- THE ONE MIS-BOUND PAIR INSIDE A TU, and it is
 #      the exact inverse of (8). The ROM stores the BASE table first and the
 #      derived one last, which is the correct constructor shape, but the
@@ -14261,12 +14317,12 @@ set_source_files_properties(
 #        D1       0x0211191c -> 0x02113a90   then 0x02111920 -> 0x0210ae38
 #                 (store order: own table, four member teardowns, then dBgActor)
 #        factory  0x021120c0 -> 0x02113a90
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/daPgDfdr_c.cpp"
-    # src/d_a_pg_dfdr.c dropped at the SYNC7 fold merge: main folded ov027
-    # .text 0x0211207c..0x021120c4 into daPgDfdr_c.cpp, the row above.
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV10daPgDfdr_c=_ZTV10daPgDfdr_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daPgDfdr_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV10daPgDfdr_c=_ZTV10daPgDfdr_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 # (12) DA_PG_DFDR's D0: the same two stores as its D1 twin, same order, plus
 #      the heap. 0x02111988 -> 0x02113a90, 0x0211198c -> 0x0210ae38,
 #      0x02111990 -> 0x020a0eac (G0, left).
@@ -14406,9 +14462,12 @@ set_source_files_properties(
 # id 107's deleting destructor spells both its tables by name and needs only the
 # heap: its pool at 0x02112740 is 0x020a0eac module:main. Its D1 twin needs
 # nothing at all.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_td_water.cpp"
-    PROPERTIES COMPILE_DEFINITIONS "G0=data_020a0eac")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_td_water.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=data_020a0eac  --  dead, the TU does not spell G0
+# Deleted rather than merged. The surviving row is unchanged.
 # id 107's CleanupResources releases two SharedFilePtrs as G0/G1, and its own
 # pool names them: 0x02112780 -> 0x02113afc then 0x02112784 -> 0x02113af4, both
 # module:overlay(32), both in this lane's own mount. Unrenamed, G0 resolves
@@ -14558,78 +14617,55 @@ endforeach()
 # id 153's five TUs need no rename at all: they spell _ZTV17daObjKm3_Dorifu_c,
 # _ZTV13daObjDorifu_c and _ZTV10dBgActor_c, which are the three addresses the ROM
 # writes, in the ROM's own order.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV21daObjKm3_Kurumajiku_c=_ZTV21daObjKm3_Kurumajiku_c;_ZTV10dBgActor_c=_ZTV17daObjKurumajiku_c;VT2=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV21daObjKm3_Kurumajiku_c;VT1=_ZTV17daObjKurumajiku_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kurumajiku.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV21daObjKm3_Kurumajiku_c=_ZTV17daObjKurumajiku_c;VT1=_ZTV21daObjKm3_Kurumajiku_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV20daObjKm3_Kaitendai_c=_ZTV20daObjKm3_Kaitendai_c;_ZTV10dBgActor_c=_ZTV16daObjKaitendai_c;VT2=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV20daObjKm3_Kaitendai_c=_ZTV20daObjKm3_Kaitendai_c;_ZTV10dBgActor_c=_ZTV16daObjKaitendai_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kaitendai.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV20daObjKm3_Kaitendai_c=_ZTV16daObjKaitendai_c;VT1=_ZTV20daObjKm3_Kaitendai_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kuruma.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kuruma.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV17daObjKm3_Kuruma_c=_ZTV17daObjKm3_Kuruma_c;_ZTV10dBgActor_c=_ZTV13daObjKuruma_c;VT2=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kuruma.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kuruma.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV17daObjKm3_Kuruma_c;VT1=_ZTV13daObjKuruma_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km3_kuruma.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_km3_kuruma.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV17daObjKm3_Kuruma_c=_ZTV13daObjKuruma_c;VT1=_ZTV17daObjKm3_Kuruma_c")
+#
+# SUPERSEDED FOR THE THREE FACTORIES (wave 10, lane UNHOSTED). Everything above
+# describes the PRE-SYNC recovered sources. The synced TUs spell all three
+# factories in the cartridge's own order, base first and own table second, under
+# their real names and with no VT1 anywhere, so the three factory rows are gone;
+# each class says so in its own block below.
+# src/game/actors/d_a_obj_km3_kurumajiku.cpp -- NO COMPILE_DEFINITIONS AT ALL, same stale-by-name
+# family as d_a_obj_km3_kaitendai.cpp above (wave 10, lane UNHOSTED). Three rows
+# came across the sync, the TU merge collapsed them onto one path, and only the
+# last one takes effect: _ZTV21daObjKm3_Kurumajiku_c=_ZTV17daObjKurumajiku_c. The synced
+# TU spells its own factory correctly --
+#   *(int *)actor = (int)_ZTV17daObjKurumajiku_c;
+#   *(int *)actor = (int)&_ZTV21daObjKm3_Kurumajiku_c[2];
+# and the cartridge's relocation run for the factory at 0x02111280 says the same pair
+# in the same order:
+#   from:0x021112b4 kind:load to:0x02109320   _ZTV17daObjKurumajiku_c (the ov002 intermediate)
+#   from:0x021112b8 kind:load to:0x021122a0   its own table
+# so the rename turned both stores into the abstract intermediate. id 152 RICKSHAW_BS, ov047, levels 39 and 40.
+# src/game/actors/d_a_obj_km3_kaitendai.cpp -- NO COMPILE_DEFINITIONS AT ALL, AND
+# THAT IS THE FIX (wave 10, lane UNHOSTED). This is the ov036 (3) case one
+# overlay over: the same three rows the pre-sync one-function files carried (D1,
+# D0, and the factory's mis-bound name) were brought across the sync BY NAME and
+# collapsed onto one path when the TU merged. Only the LAST
+# set_source_files_properties for a file takes effect, so the row that actually
+# ran was the factory one, _ZTV20daObjKm3_Kaitendai_c=_ZTV16daObjKaitendai_c.
+# The synced TU needs none of them. Its daObjKm3_Kaitendai_c_classInit writes
+#   *(int *)actor = (int)_ZTV16daObjKaitendai_c;        the ov002 intermediate
+#   *(int *)actor = (int)&_ZTV20daObjKm3_Kaitendai_c[2]; its own table
+# (hostgen rewrites the +8 address point to the host array's own start, which is
+# where the port's tables put slot 0), and the cartridge's own relocation run for
+# the factory at 0x021113bc says exactly that pair, in that order:
+#   from:0x021113f0 kind:load to:0x021091d4 module:overlay(2)    daObjKaitendai_c
+#   from:0x021113f4 kind:load to:0x0211237c module:overlay(47)   its own table
+# With the stale row in place both stores wrote the abstract intermediate, so
+# every ROTATING_PLATFORM_BS on level 39 dispatched slot 0 into ov36_base_trap0
+# ("UNHOSTED: vtable slot 0 (abstract base InitResources)"). The TU spells no
+# VT0/VT1/VT2/G0 placeholder and does not name _ZTV10dBgActor_c anywhere.
+# src/game/actors/d_a_obj_km3_kuruma.cpp -- NO COMPILE_DEFINITIONS AT ALL, same stale-by-name
+# family as d_a_obj_km3_kaitendai.cpp above (wave 10, lane UNHOSTED). Three rows
+# came across the sync, the TU merge collapsed them onto one path, and only the
+# last one takes effect: _ZTV17daObjKm3_Kuruma_c=_ZTV13daObjKuruma_c. The synced
+# TU spells its own factory correctly --
+#   *(int *)actor = (int)_ZTV13daObjKuruma_c;
+#   *(int *)actor = (int)&_ZTV17daObjKm3_Kuruma_c[2];
+# and the cartridge's relocation run for the factory at 0x021114d0 says the same pair
+# in the same order:
+#   from:0x02111508 kind:load to:0x02109278   _ZTV13daObjKuruma_c (the ov002 intermediate)
+#   from:0x0211150c kind:load to:0x0211244c   its own table
+# so the rename turned both stores into the abstract intermediate. id 151 RICKSHAW_PLATFORM_BS, ov047, levels 39 and 40.
 # FOUR WRONG-NAMES AT THE SHARED WINDOW (T6), all in one sinit. STAIRS_BS's file
 # constructor spells FOUR of its own .bss symbols with an OV052 tag, and ov052
 # IS MOUNTED (PORT_ACTOR_OVERLAYS), so all four resolve: the sinit would
@@ -15774,42 +15810,39 @@ endforeach()
 # so a dead store is never bound to them.
 #
 # Spawns -- live store is the own table:
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj01.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj01.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c;VT1=_ZTV14daObjWcObj01_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj06.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj06.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjWcObj06_c=_ZTV14daObjWcObj06_c;VT1=_ZTV14daObjWcObj06_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj07.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj07.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV15daObjWc_Obj07_c=_ZTV15daObjWc_Obj07_c;VT1=_ZTV15daObjWc_Obj07_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj01.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c  --  identity rename, a no-op even if it had run
+#   VT1=_ZTV14daObjWcObj01_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj06.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjWcObj06_c=_ZTV14daObjWcObj06_c  --  identity rename, a no-op even if it had run
+#   VT1=_ZTV14daObjWcObj06_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj07.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV15daObjWc_Obj07_c=_ZTV15daObjWc_Obj07_c  --  identity rename, a no-op even if it had run
+#   VT1=_ZTV15daObjWc_Obj07_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 # (ArrowLift/WaterDiamond/CageLift/SwitchActivatedPlank/WDW_Water spawns store
 #  their own already-defined host symbol and need no binding.)
 #
 # Destructors -- live (last) store is _ZTV10dBgActor_c; dead stores to the own array:
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj01.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj01.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c;_ZTV10dBgActor_c=_ZTV14daObjWcObj01_c;VT2=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj01.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjWcObj01_c=_ZTV14daObjWcObj01_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV14daObjWcObj01_c  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT2=_ZTV10dBgActor_c  --  dead, the TU does not spell VT2
+# Deleted rather than merged. The surviving row is unchanged.
 # GATE 229 CORRECTION (lane SEAT3). This row predates any seat of the TU, so it
 # was never compiled and never checked. VT1 read the class's OWN table where the
 # body's literal pool at 0x02111248 holds the ov002 base 0x02108fdc, and G0 was
@@ -15823,10 +15856,13 @@ set_source_files_properties(
     "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj01.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "VT0=_ZTV14daObjWcObj01_c;VT1=_ZTV17daObjFloatBoard_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj05.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV15daObjWc_Obj05_c=_ZTV15daObjWc_Obj05_c;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj05.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV15daObjWc_Obj05_c=_ZTV15daObjWc_Obj05_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 # link100 SPAWN2 CORRECTION, the third instance of the defect lane SEAT3 fixed
 # twice at gate 229 and for the same reason: this row was written for a seat
 # that never happened, so nothing had ever compiled it. G0 was missing
@@ -15840,14 +15876,14 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj05.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "VT0=_ZTV15daObjWc_Obj05_c;VT1=_ZTV10dBgActor_c;G0=data_020a0eac")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj06.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj06.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjWcObj06_c=_ZTV14daObjWcObj06_c;_ZTV10dBgActor_c=_ZTV14daObjWcObj06_c;VT2=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj06.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjWcObj06_c=_ZTV14daObjWcObj06_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV14daObjWcObj06_c  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT2=_ZTV10dBgActor_c  --  dead, the TU does not spell VT2
+# Deleted rather than merged. The surviving row is unchanged.
 # GATE 229 CORRECTION (lane SEAT3), the same two defects as the 021111f0 row
 # above: VT1 belongs to the ov002 base 0x02108fdc (pool word 0x02111f4c), not to
 # the class's own table, and G0 was missing.
@@ -15859,14 +15895,25 @@ set_source_files_properties(
     "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj06.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "VT0=_ZTV14daObjWcObj06_c;VT1=_ZTV17daObjFloatBoard_c;VT2=_ZTV10dBgActor_c;G0=data_020a0eac")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj02.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV15daObjWc_Obj02_c=_ZTV15daObjWc_Obj02_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj02.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV15daObjWc_Obj02_c=_ZTV15daObjWc_Obj02_c;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj02.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV15daObjWc_Obj02_c=_ZTV15daObjWc_Obj02_c;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj07.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV15daObjWc_Obj07_c=_ZTV15daObjWc_Obj07_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV15daObjWc_Obj07_c  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT2=_ZTV10dBgActor_c  --  dead, the TU does not spell VT2
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj07.cpp"
     # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
@@ -15875,18 +15922,13 @@ set_source_files_properties(
     "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj07.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV15daObjWc_Obj07_c=_ZTV15daObjWc_Obj07_c;_ZTV10dBgActor_c=_ZTV15daObjWc_Obj07_c;VT2=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj07.cpp"
-    # and the generated copy, lane VPTR16: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set this for a source nothing
-    # compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj07.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV15daObjWc_Obj07_c=_ZTV15daObjWc_Obj07_c;_ZTV10dBgActor_c=_ZTV15daObjWc_Obj07_c;VT2=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_mizu.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjWc_Mizu_c=_ZTV19RotatingPlatformWdw;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_mizu.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjWc_Mizu_c=_ZTV19RotatingPlatformWdw  --  dead, the TU does not spell _ZTV14daObjWc_Mizu_c
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_mizu.cpp"
     PROPERTIES COMPILE_DEFINITIONS
@@ -15898,11 +15940,13 @@ set_source_files_properties(
 # would drop them silently, which is the drift the check near line 400
 # refuses. The src/ row is kept so the property is still right if the
 # substitution is ever retired.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj04.cpp"
-    "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj04.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV15daObjWc_Obj04_c=_ZTV20SwitchActivatedPlank;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_obj04.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV15daObjWc_Obj04_c=_ZTV20SwitchActivatedPlank  --  dead, the TU does not spell _ZTV15daObjWc_Obj04_c
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_obj04.cpp"
     "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj04.cpp"
@@ -17274,10 +17318,13 @@ foreach(_g224 _ZN13daObjSwdoor_cD0Ev _ZN13daObjSwdoor_cD1Ev)
 endforeach()
 # 020b8bf0 stores its OWN table first (the config RTTI name) and _ZTV10dBgActor_c
 # last, so here the placeholder that gets the live target is _ZTV10dBgActor_c.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/daObjPushblock_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV16daObjPushblock_c=_ZTV16daObjPushblock_c;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daObjPushblock_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV16daObjPushblock_c=_ZTV16daObjPushblock_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 # CapEnemy's pair is ALREADY in port/slice_gate32.txt and was dropped by
 # /OPT:REF for want of a reference edge; gate 224's slot 16/17 seat is that
 # edge. Both bodies name their table by the config RTTI placeholder, and D0
@@ -17464,10 +17511,13 @@ endforeach()
 #         0x020b8c90) and _ZTV10dBgActor_c second (0x020b8c5c from 0x020b8c94), so
 #         there is no dead store to redirect. 0x020a0eac is the heap global,
 #         the same G0 gate 224 binds on _ZN11dCapEnemy_cD0Ev.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/daObjPushblock_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "G0=data_ov002_0210df9c;G1=data_ov002_0210df94")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names daObjPushblock_c.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=data_ov002_0210df9c  --  dead, the TU does not spell G0
+#   G1=data_ov002_0210df94  --  dead, the TU does not spell G1
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/daObjPushblock_c.cpp"
     PROPERTIES COMPILE_DEFINITIONS
@@ -17789,10 +17839,13 @@ endforeach()
 # host array in hal/actor_classes_ov047.cpp) and VT1 is the class's own table.
 # Binding the named one to the own table would land the right vptr by accident
 # and still be a wrong reloc destination, which is what linkcheck catches.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kurumajiku.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV21daObjKm1_Kurumajiku_c=_ZTV17daObjKurumajiku_c;VT1=_ZTV21daObjKm1_Kurumajiku_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_kurumajiku.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV21daObjKm1_Kurumajiku_c=_ZTV17daObjKurumajiku_c  --  dead, the TU does not spell _ZTV21daObjKm1_Kurumajiku_c
+#   VT1=_ZTV21daObjKm1_Kurumajiku_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 #
 # The D1 (0x021113fc) and the D0 (0x0211144c) both make THREE stores in the same
 # order -- own table, ov002 base, _ZTV10dBgActor_c -- and there the source order and
@@ -17802,10 +17855,14 @@ set_source_files_properties(
 #     02111410  ldr r1 -> [02111448] = 0210ae38 ; 0211141c str r1,[r4]
 # and the D0 adds 0x021114ac -> 0x020a0eac, the game heap pointer it hands to
 # Memory::Deallocate as G0. 0x0210ae38 is _ZTV10dBgActor_c in ov002/symbols.txt.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kurumajiku.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV21daObjKm1_Kurumajiku_c=_ZTV21daObjKm1_Kurumajiku_c;_ZTV10dBgActor_c=_ZTV17daObjKurumajiku_c;VT2=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_kurumajiku.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV21daObjKm1_Kurumajiku_c=_ZTV21daObjKm1_Kurumajiku_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV17daObjKurumajiku_c  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT2=_ZTV10dBgActor_c  --  dead, the TU does not spell VT2
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kurumajiku.cpp"
     PROPERTIES COMPILE_DEFINITIONS
@@ -17853,24 +17910,33 @@ endforeach()
 # to disentangle here. src/game/actors/d_a_obj_c1_trap.cpp (the D1) makes two, and the pool
 # order matches the source order: 0x021111e4 -> 0x02112ae4 for the class's own
 # table, 0x021111e8 -> 0x0210ae38 which is _ZTV10dBgActor_c.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_c1_trap.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjC1_Trap_c=_ZTV14daObjC1_Trap_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_c1_trap.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjC1_Trap_c=_ZTV14daObjC1_Trap_c;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_c1_trap.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjC1_Trap_c=_ZTV14daObjC1_Trap_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_c1_trap.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjC1_Trap_c=_ZTV14daObjC1_Trap_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 # The D0 (0x021111ec) spells all three of its words as placeholders. Its pool, in
 # store order: 0x02111240 -> 0x02112ae4 (VT0), 0x02111244 -> 0x0210ae38 (VT1,
 # _ZTV10dBgActor_c), 0x02111248 -> 0x020a0eac (G0, the game heap pointer it hands to
 # Memory::Deallocate). G0 is written out rather than left to the global
 # cxx_aliases binding, the gate-229 lesson: a -D row that has never been compiled
 # is a row nothing has ever checked.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_c1_trap.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV14daObjC1_Trap_c;VT1=_ZTV10dBgActor_c;G0=data_020a0eac")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_c1_trap.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT0=_ZTV14daObjC1_Trap_c  --  dead, the TU does not spell VT0
+#   VT1=_ZTV10dBgActor_c  --  dead, the TU does not spell VT1
+#   G0=data_020a0eac  --  dead, the TU does not spell G0
+# Deleted rather than merged. The surviving row is unchanged.
 #
 # SLOT 3'S TWO CROSS-OVERLAY MISNAMES. src/game/actors/d_a_obj_c1_trap.cpp spells
 # data_ov025_02112d08 and data_ov024_02112d00; the ROM's loads inside that body,
@@ -17882,10 +17948,13 @@ set_source_files_properties(
 # data_ov010_02112d00 as a scalar `void *`. So both take the PATH_LIFT remedy: a
 # -D to two private names this seat owns, bound onto the mounted objects by
 # /alternatename in hal/actor_classes_ov010.cpp.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_c1_trap.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "data_ov025_02112d08=port_ov010_trap_modelfile;data_ov024_02112d00=port_ov010_trap_clsnfile")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_c1_trap.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   data_ov025_02112d08=port_ov010_trap_modelfile  --  dead, the TU does not spell data_ov025_02112d08
+#   data_ov024_02112d00=port_ov010_trap_clsnfile  --  dead, the TU does not spell data_ov024_02112d00
+# Deleted rather than merged. The surviving row is unchanged.
 #
 # SLOT 6'S DISPATCH CELLS. src/game/actors/d_a_obj_c1_trap.cpp declares
 # `extern PMF data_ov010_02112d28[];` OUTSIDE extern "C" over a forward-declared
@@ -18182,12 +18251,12 @@ endforeach()
 # The other three batch-3 rows are NOT on this list at all: their tables are
 # arrays of the bare pointer-to-member, which is eight bytes with or without
 # the option, and adding it would be a claim nothing measured.
+# lane CDEFS 2026-09-16: dScMgSound_c.cpp was listed here AND in a later
+# set_source_files_properties() for COMPILE_OPTIONS. That later call REPLACES
+# this one (the property is set, not appended), so this row never reached
+# the compiler for that TU. Removed from this row only; the other sources
+# in the row keep it, and the surviving row for dScMgSound_c.cpp is unchanged.
 set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/dScMgSound_c.cpp"
-    # and the generated copy, lane DUPES: this TU is on PORT_HOSTGEN_TU
-    # now, so the raw path alone would set the property on a source
-    # nothing compiles.
-    "${CMAKE_BINARY_DIR}/host-src/src/actors/dScMgSound_c.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN16dPathLiftActor_c12BaseBehaviorEv.cpp"
     PROPERTIES COMPILE_OPTIONS "/Zp4")
 # dScMgSound_c.cpp also carries a fall-off-the-end body (dScMgSound_c::Virtual50),
