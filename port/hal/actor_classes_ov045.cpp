@@ -814,23 +814,42 @@ extern "C" void hal_fill_fall_block_bfs_vtable(void)
 
 // ---- method faces ----------------------------------------------------------
 // The six bodies src defines as real C++ methods rather than extern-C free
-// functions: four of PoleLift's (spelled FireSeaElevator::*, the shift) and two
-// of ExtendingPlatform's (spelled PoleLift::*). The IceSheet/SwitchPillar/
-// ClockPaintingHandShort recipe -- these compile from src as real methods, so
-// the face is the C-name bridge INTO them, not a host copy of them.
+// functions. The IceSheet/SwitchPillar/ClockPaintingHandShort recipe -- these
+// compile from src as real methods, so the face is the C-name bridge INTO them,
+// not a host copy of them.
+//
+// EACH NAME BRIDGES TO ITS OWN CLASS, which is not what stood here. These six
+// used to be crossed by one class -- PoleLift's C names bridged into
+// FireSeaElevator's methods and ExtendingPlatform's into PoleLift's -- under a
+// note calling it "the shift". The cartridge says there is no shift. Its three
+// vtables in this overlay each point at the bodies config names for that class,
+// read out of extracted/overlays/overlay_0045.bin at the ROM addresses:
+//
+//   _ZTV15FireSeaElevator   0x02112cf4  slot0 0x021113ec = FireSeaElevator::InitResources
+//   _ZTV8PoleLift           0x02112dbc  slot0 0x02111738 = PoleLift::InitResources
+//   _ZTV17ExtendingPlatform 0x02112e80  slot0 0x02111a30 = ExtendingPlatform::InitResources
+//
+// and each src body's @symbol header carries the same address. The crossing put
+// PoleLift's InitResources on an ExtendingPlatform, whose Model is at +0xd8 and
+// not +0xd4 (the ExtendingMeshCollider subobject moves the layout, and this
+// file's own EXTENDING_PLATFORM note says so). PoleLift's body reaches +0xd4,
+// which on that object is mGrowing, so ModelBase::SetFile ran on a byte field
+// and faulted on a null vtable pointer. That is run link100's boot sweep level
+// 37.
+#include "ExtendingPlatform.h"
 #include "FireSeaElevator.h"
 #include "PoleLift.h"
 extern "C" {
 int _ZN8PoleLift13InitResourcesEv(void *self)
-{ return ((FireSeaElevator *)self)->FireSeaElevator::InitResources(); }
-int _ZN8PoleLift16CleanupResourcesEv(void *self)
-{ return ((FireSeaElevator *)self)->FireSeaElevator::CleanupResources(); }
-int _ZN8PoleLift8BehaviorEv(void *self)
-{ return ((FireSeaElevator *)self)->FireSeaElevator::Behavior(); }
-int _ZN8PoleLift6RenderEv(void *self)
-{ return ((FireSeaElevator *)self)->FireSeaElevator::Render(); }
-int _ZN17ExtendingPlatform13InitResourcesEv(void *self)
 { return ((PoleLift *)self)->PoleLift::InitResources(); }
-int _ZN17ExtendingPlatform6RenderEv(void *self)
+int _ZN8PoleLift16CleanupResourcesEv(void *self)
+{ return ((PoleLift *)self)->PoleLift::CleanupResources(); }
+int _ZN8PoleLift8BehaviorEv(void *self)
+{ return ((PoleLift *)self)->PoleLift::Behavior(); }
+int _ZN8PoleLift6RenderEv(void *self)
 { return ((PoleLift *)self)->PoleLift::Render(); }
+int _ZN17ExtendingPlatform13InitResourcesEv(void *self)
+{ return ((ExtendingPlatform *)self)->ExtendingPlatform::InitResources(); }
+int _ZN17ExtendingPlatform6RenderEv(void *self)
+{ return ((ExtendingPlatform *)self)->ExtendingPlatform::Render(); }
 }
