@@ -11579,10 +11579,13 @@ endforeach()
 # object -- the game heap it hands Memory::Deallocate, literal at 0x02111238
 # relocating to 0x020a0eac module:main -- which is what cxx_aliases.cpp already
 # binds. Renaming it would break a binding that is right today.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_ukishima.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "G0=port_ov043_ukishima_file0;G1=port_ov043_ukishima_file1")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_ukishima.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=port_ov043_ukishima_file0  --  dead, the TU does not spell G0
+#   G1=port_ov043_ukishima_file1  --  dead, the TU does not spell G1
+# Deleted rather than merged. The surviving row is unchanged.
 # TRAP 3: src/game/actors/d_a_obj_km1_ukishima.cpp (InitResources) spells ov043's own two bss
 # cells with ov047 names. ov043 and ov047 are distinct objects sharing the load
 # window and dsd raced the name; the load sites are the same two addresses the
@@ -11591,10 +11594,13 @@ set_source_files_properties(
 # as a straight -D to the mount names: decl_common.h declares
 # data_ov047_021125e0/e8 as `extern int [];` and declares no data_ov043_
 # 021125e0/e8 at all, so there is nothing to conflict with.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_ukishima.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "data_ov047_021125e8=data_ov043_021125e8;data_ov047_021125e0=data_ov043_021125e0")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_ukishima.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   data_ov047_021125e8=data_ov043_021125e8  --  dead, the TU does not spell data_ov047_021125e8
+#   data_ov047_021125e0=data_ov043_021125e0  --  dead, the TU does not spell data_ov047_021125e0
+# Deleted rather than merged. The surviving row is unchanged.
 # TRAP 4: src/game/actors/d_a_obj_km1_ukishima.cpp (the deleting destructor) writes VT0 then
 # VT1 and both are placeholders. Its own literal pool names them:
 # 0x02111230 -> 0x021122b8 module:overlay(43), the class's own table, which is
