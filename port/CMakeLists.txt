@@ -13121,10 +13121,13 @@ set_source_files_properties(
 # source, which a definition cannot defeat the way an /alternatename can.
 # func_ov039_02111214 is the matched TU on slice_gate217;
 # data_ov039_021118e0 is the four-byte counter the fill defines.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_kumo.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZN19daObjKb1Billboard_c20UpdateModelTransformEv=func_ov039_02111214;data_ov041_021118e0=data_ov039_021118e0")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_kumo.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZN19daObjKb1Billboard_c20UpdateModelTransformEv=func_ov039_02111214  --  dead, the TU does not spell _ZN19daObjKb1Billboard_c20UpdateModelTransformEv
+#   data_ov041_021118e0=data_ov039_021118e0  --  dead, the TU does not spell data_ov041_021118e0
+# Deleted rather than merged. The surviving row is unchanged.
 # Cloud::Behavior is a flat .c TU that spells decl_common.h's two generic
 # placeholder names, FindWithActorID and SetPolygonID. Both are real arm9
 # functions the ROM relocs name outright -- 0x02010ef0
