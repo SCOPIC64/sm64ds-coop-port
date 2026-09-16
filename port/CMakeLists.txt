@@ -12013,10 +12013,13 @@ endforeach()
 # here. _ZN13daObjKi_Ita_cD1Ev is not in the gate at all: its MIDDLE store is ov002
 # 0x02108fdc, and that intermediate base table is hosted nowhere in this port --
 # a table to host, not a rename.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_c0_switch.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV16daObjC0_Switch_c=_ZTV16daObjC0_Switch_c;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_c0_switch.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV16daObjC0_Switch_c=_ZTV16daObjC0_Switch_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN10RockPillarD1Ev.cpp"
     PROPERTIES COMPILE_DEFINITIONS
