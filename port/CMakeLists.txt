@@ -15922,10 +15922,13 @@ set_source_files_properties(
     "${CMAKE_BINARY_DIR}/host-src/src/game/actors/d_a_obj_wc_obj07.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "_ZTV15daObjWc_Obj07_c=_ZTV15daObjWc_Obj07_c;_ZTV10dBgActor_c=_ZTV15daObjWc_Obj07_c;VT2=_ZTV10dBgActor_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_mizu.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV14daObjWc_Mizu_c=_ZTV19RotatingPlatformWdw;_ZTV10dBgActor_c=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_wc_mizu.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV14daObjWc_Mizu_c=_ZTV19RotatingPlatformWdw  --  dead, the TU does not spell _ZTV14daObjWc_Mizu_c
+#   _ZTV10dBgActor_c=_ZTV10dBgActor_c  --  identity rename, a no-op even if it had run
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_wc_mizu.cpp"
     PROPERTIES COMPILE_DEFINITIONS
