@@ -13595,17 +13595,24 @@ endforeach()
 # The other two are undefined today and latent, but ov056 IS mounted and a
 # later lane adding either name turns them live silently. The TU includes no
 # headers at all, so all three renames are direct.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_ks_water.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "data_ov056_02111a60=data_ov017_02111a60;_ZN15daObjKm2_Gura_cD0Ev=data_ov017_02111c80;data_ov055_02111a94=data_ov017_02111a94")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_ks_water.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   data_ov056_02111a60=data_ov017_02111a60  --  dead, the TU does not spell data_ov056_02111a60
+#   _ZN15daObjKm2_Gura_cD0Ev=data_ov017_02111c80  --  dead, the TU does not spell _ZN15daObjKm2_Gura_cD0Ev
+#   data_ov055_02111a94=data_ov017_02111a94  --  dead, the TU does not spell data_ov055_02111a94
+# Deleted rather than merged. The surviving row is unchanged.
 # G0 in the deleting destructor is the game heap. Note this overlay's D1/D0 get
 # their TWO VTABLE STORES IN THE RIGHT ORDER, unlike ov023's and ov033's: pool
 # 0x021111e4 holds the own table and 0x021111e8 Platform's base, which is the
 # order the source writes them, so neither store needs renaming.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_ks_water.cpp"
-    PROPERTIES COMPILE_DEFINITIONS "G0=data_020a0eac")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_ks_water.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=data_020a0eac  --  dead, the TU does not spell G0
+# Deleted rather than merged. The surviving row is unchanged.
 # CleanupResources releases the model file then the collision one (pool
 # 0x02111288 then 0x0211128c). Private names because that TU includes
 # decl_common.h, which already declares both.
