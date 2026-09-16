@@ -13527,21 +13527,31 @@ endforeach()
 # (0x021111e8 = 0x0210ae38). Same inversion ov033's id-105 pair carries. A
 # direct -D onto _ZTV10dBgActor_c is impossible: it is a live host array for
 # every Platform in the port.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_fm_battan.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV10dBgActor_c=port_ov023_vt_own;VT1=port_ov023_vt_base")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_fm_battan.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV10dBgActor_c=port_ov023_vt_own;VT1=port_ov023_vt_base;G0=data_020a0eac")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_fm_battan.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV10dBgActor_c=port_ov023_vt_own  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT1=port_ov023_vt_base  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_fm_battan.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV10dBgActor_c=port_ov023_vt_own  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT1=port_ov023_vt_base  --  dead, the TU does not spell VT1
+#   G0=data_020a0eac  --  dead, the TU does not spell G0
+# Deleted rather than merged. The surviving row is unchanged.
 # CleanupResources releases the model file then the collision one, in that
 # order (pool 0x02111380 then 0x02111384). Private names because that TU
 # includes decl_common.h, which already declares 0x02112088 as a scalar.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_fm_battan.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "G0=port_ov023_sq_file0;G1=port_ov023_sq_file1")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_fm_battan.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=port_ov023_sq_file0  --  dead, the TU does not spell G0
+#   G1=port_ov023_sq_file1  --  dead, the TU does not spell G1
+# Deleted rather than merged. The surviving row is unchanged.
 # TWO LIVE ALIAS RACES IN ONE BODY (T6), both pinned to the ROM:
 #   the call at 0x021116a4 relocates to 0x02111308 module ov023 -- the source
 #     calls it _ZN17daObjWlPolelift_c6RenderEv, and lane W1-A is seating ov026 in this same
