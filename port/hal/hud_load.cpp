@@ -95,5 +95,16 @@ void port_hud_objpltt(const void *p, unsigned offset, unsigned size)
    return type in a member's decorated name. Same receiver (ECX, both
    __thiscall), no arguments, the value lands in eax either way and the body
    stores it to a u8 -- a name bridge, which is what an /alternatename is for
-   (hal/cxx_aliases.cpp). On ARM both spellings are r0. */
+   (hal/cxx_aliases.cpp). On ARM both spellings are r0.
+
+   RETIRED at SMOKELINK (wave 10). DEAD: the LHS is a DEFINED symbol now, so
+   the alias is inert and every reference binds to that definition instead of
+   to the RHS -- the R1/R2 arrival shape alternatename_guard refuses. What
+   defines it is the sync FACE, which walk_window.map names:
+     0001:001c1860  ?GetHealth@Player@@QAEEXZ   faces_sync_gen.cpp.obj
+     0001:001d5770  ?GetHealth@Player@@QAEHXZ   Player.cpp.obj
+   and the face is the better binding, because it bridges the ABI as well as
+   the name: the u8 spelling returns in AL alone, and the face truncates where
+   this alias handed the caller all four bytes of eax.
 #pragma comment(linker, "/alternatename:?GetHealth@Player@@QAEEXZ=?GetHealth@Player@@QAEHXZ")
+                                                                             */

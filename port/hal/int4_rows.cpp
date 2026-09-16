@@ -259,8 +259,18 @@ Vector3 dBgCh_Lin::GetClsnPos()
 //
 // THE TIDY VERSION: rename the two shadows in that file to the classes they
 // are, and delete this section.
-#pragma comment(linker, "/alternatename:??1CameraTag@@UAE@XZ=??1daChRoom_c@@UAE@XZ")
-#pragma comment(linker, "/alternatename:??1Cloud@@UAE@XZ=??1daObjKumo_c@@UAE@XZ")
+// RETIRED at SMOKELINK (wave 10). BOTH ROWS ARE DEAD, and dead in the way
+// alternatename_guard refuses: each LHS is a DEFINED symbol, so the alias is
+// inert and references bind to the definition rather than to the RHS. Neither
+// RHS is in the map at all. walk_window.map, this tip:
+//   0001:000082b0  ??1CameraTag@@UAE@XZ  actorport_dtor_faces.cpp.obj
+//   0001:000082c0  ??1Cloud@@UAE@XZ      actorport_dtor_faces.cpp.obj
+//   ??1daChRoom_c@@UAE@XZ, ??1daObjKumo_c@@UAE@XZ  -- absent
+// hal/actorport_dtor_faces.cpp took both host names over during the 09-14
+// main-to-port sync, so the routing these two rows were written for already
+// happens one file over and the pragmas only defeat themselves.
+// #pragma comment(linker, "/alternatename:??1CameraTag@@UAE@XZ=??1daChRoom_c@@UAE@XZ")
+// #pragma comment(linker, "/alternatename:??1Cloud@@UAE@XZ=??1daObjKumo_c@@UAE@XZ")
 
 // =========================================================================
 // FIVE ROWS A SECOND-SPELLING SWEEP FOUND, after the wall was down to 27
