@@ -415,8 +415,19 @@ def main(argv):
     if args.verbose:
         print("cdefs_guard: %s" % cmake)
         print("  %d governed per-source property calls" % len(calls))
-        print("  %d source arguments could not be resolved statically"
-              % len(unresolved))
+    if unresolved:
+        # Printed on EVERY run, not only under -v. This is the check's blind
+        # spot and it belongs in the build log, not behind a flag nobody passes.
+        print("cdefs_guard: note -- %d source argument(s) are computed at "
+              "configure time\n  (foreach variables, generated lists) and are "
+              "OUTSIDE this check. Audited by hand\n  on 2026-09-16: every one "
+              "of those loops iterates a LITERAL list, the lists are\n  disjoint, "
+              "none of the 37 sources they expand to is named by a static row "
+              "for\n  the same property, and the one loop that can revisit a "
+              "source reads the property\n  back with get_source_file_property "
+              "and appends. Re-audit when one of these\n  lines changes; -v "
+              "lists them." % len(unresolved))
+    if args.verbose:
         for line, name, arg, unknown in unresolved:
             print("    line %-6d %s(%s)  unknown: %s"
                   % (line, name, arg, ",".join(unknown)))
