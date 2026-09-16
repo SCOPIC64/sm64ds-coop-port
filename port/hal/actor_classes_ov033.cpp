@@ -162,14 +162,15 @@ DSSTATE_END
    slot-5 bare-call shadows over +0xd4; _ZTV5Model[5] is dual-filled in
    hal/cxxname_bridge.cpp, and neither class holds a ModelAnim, so this is the
    Tree/ov013 case and not the ModelAnim slot-5 collision. */
+#include "TinyWater.h"
 #include "TinyCover.h"
 extern "C" {
 int _ZN9TinyWater13InitResourcesEv(void *self)
-{ return ((TinyCover *)self)->TinyCover::InitResources(); }
+{ return ((TinyWater *)self)->TinyWater::InitResources(); }
 int _ZN9TinyWater16CleanupResourcesEv(void *self)
-{ return ((TinyCover *)self)->TinyCover::CleanupResources(); }
+{ return ((TinyWater *)self)->TinyWater::CleanupResources(); }
 int _ZN9TinyWater6RenderEv(void *self)
-{ return ((TinyCover *)self)->TinyCover::Render(); }
+{ return ((TinyWater *)self)->TinyWater::Render(); }
 }
 
 // ---- the trap --------------------------------------------------------------
