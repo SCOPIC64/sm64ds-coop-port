@@ -3034,7 +3034,31 @@ DSSTATE_END
 #pragma comment(linker, "/alternatename:?InitResources@MadPiano@@QAEHXZ=?InitResources@MadPiano@@UAEHXZ")
 #pragma comment(linker, "/alternatename:?Behavior@MadPiano@@QAEHXZ=?Behavior@MadPiano@@UAEHXZ")
 #pragma comment(linker, "/alternatename:?Render@MadPiano@@QAEHXZ=?Render@MadPiano@@UAEHXZ")
-#pragma comment(linker, "/alternatename:?UpdateCapPos@CapEnemy@@QAEXABUVector3@@ABUVector3_16@@@Z=?UpdateCapPos@CapEnemy@@QAEXABUVector3@@ABUVector3_16_local@@@Z")
+/* CapEnemy::UpdateCapPos GOES TO THE MATCHED BODY, NOT TO A FACE THAT CALLS IT
+   BACK (run link100, lane LEVELHANG).
+
+   This row used to name hal/bob_enemy_shadow_faces.cpp's Vector3_16_local
+   overload as its target, and that overload's whole body is
+   `UpdateCapPos(pos, *(const Vector3_16 *)&rot)`, a forward to THIS name. So
+   the alias closed a two-symbol cycle: the caller's spelling resolved to the
+   forwarder and the forwarder called the caller's spelling. MSVC turns that
+   self tail-call into a `jmp` to the function's own entry, which is an
+   infinite loop that grows no stack and raises no fault. walk_window.map
+   showed both decorated names sharing one address and the matched TU's own
+   symbol dropped by /OPT:REF, because the cycle left nothing referencing it.
+
+   Measured before the fix: every level carrying a cap enemy wedged on frame 2
+   at 98% of one core with no crash report. Levels 0, 3, 6 and 42 of the boot
+   sweep, reached through daKrb_c::Behavior on three of them and
+   daTrs_c::Behavior on the fourth.
+
+   The body is src/_ZN11dCapEnemy_c12UpdateCapPosERK7Vector3RK10Vector3_16.cpp,
+   arm9 0x020062b8, compiled as the real MSVC method under main's class name.
+   CapEnemy is the port's shadow spelling of the same ROM class and carries no
+   members, so the receiver contract is unchanged: both are __thiscall with
+   `this` in ecx. This is what hal/actor_classes_ov063.cpp's face 3 already says
+   the row was for. */
+#pragma comment(linker, "/alternatename:?UpdateCapPos@CapEnemy@@QAEXABUVector3@@ABUVector3_16@@@Z=?UpdateCapPos@dCapEnemy_c@@QAEXABUVector3@@ABUVector3_16@@@Z")
 #pragma comment(linker, "/alternatename:?InitResources@BookShot@@QAEHXZ=?InitResources@BookShot@@UAEHXZ")
 #pragma comment(linker, "/alternatename:?CleanupResources@BookShot@@QAEHXZ=?CleanupResources@BookShot@@UAEHXZ")
 #pragma comment(linker, "/alternatename:?Behavior@BookShot@@QAEHXZ=?Behavior@BookShot@@UAEHXZ")
