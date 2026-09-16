@@ -1050,20 +1050,43 @@ def falls_off_return_patch(text, sym):
 # one site dispatch the way its twenty-five siblings do -- explicitly, through
 # vptr[0], cdecl -- rather than to give slot 0 a second calling convention.
 # The local `virtual` declaration stays; only the call changes.
+# RETIRED 2026-09-16, run link100 lane NULLCALL2. The premise above -- "every
+# other dispatch of that table in this build is cdecl" -- stopped holding when
+# the callback classes became real C++ classes with matched constructors.
+# Nothing installs hal/particle_vtable.cpp's cdecl tables any more: grep the
+# tree for _ZTVN5dPa_c7level_c and only declarations come back, while
+# walk_window.map puts ??_7simpleCallback_c@level_c@dPa_c@@6B@ at 0x0075035c
+# and the crash dump of any boot that spawns a particle shows THAT address in
+# the vptr at SysTracker+0x754. MSVC's own table holds the matched __thiscall
+# bodies, which take `this` in ECX and end in `ret 4`.
+#
+# So the patched site pushed `this` and the System, called, and then cleaned 8
+# bytes of a stack the callee had already cleaned 4 of. Four bytes over-popped,
+# and Initialise's epilogue then popped Contents::Create's return address into
+# EBP and returned through the word below it -- the uniqueID Create had just
+# pushed. That is why fourteen levels "jumped to address 1" and level 31 to 2:
+# 1 and 2 are the uniqueID counter, not a pointer. Dropping the row puts the
+# matched source's own `newCallback->SpawnParticles(*system)` back, which MSVC
+# dispatches __thiscall through the same table the constructor installed.
 VIRTUAL_CALL = {
-    "_ZN8Particle10SysTracker8Contents5Entry10InitialiseEjjR7Vector3PK11Vector3_16fPN5dPa_c7level_c10callback_cE": [
-        # RE-DERIVED 2026-09-13 (main -> port sync, lane SYNC3). main retired
-        # the local shadow `struct Callback { virtual void Run(void *); }` and
-        # calls the real class: dPa_c::level_c::callback_c's FIRST virtual,
-        # SpawnParticles, which is the same slot 0 this patch always meant.
-        # Nothing about the reason changed -- MSVC would still compile the call
-        # __thiscall while every other dispatch of that table in this build is
-        # cdecl -- so the rewrite is the same explicit slot-0 call with the new
-        # receiver and argument names. The System& argument is passed as the
-        # pointer it already is on both sides.
-        ("        newCallback->SpawnParticles(*system);",
-         "        (*(void (***)(void *, void *))newCallback)[0]"
-         "((void *)newCallback, (void *)system);"),
+    # The OTHER end of the same correction, run link100 lane NULLCALL2.
+    # Particle::System::New is a .c file, so it reaches the callback through a
+    # C shadow -- `typedef void (*VFn)(void *, void *); o->vtable[0](o, p)` --
+    # on the reuse path, where FindData already has an entry for the type. A
+    # plain function-pointer call is cdecl, and the word in slot 0 is one of
+    # MSVC's __thiscall bodies: the receiver never reaches ECX and the callee's
+    # ret 4 leaves the caller's stack four bytes short. Levels 14, 15 and 37
+    # landed here the moment the Initialise dispatch above stopped killing them
+    # first, through daObjLava_c::Behavior -> func_02022c3c -> New+0x9c.
+    #
+    # The C shadow cannot carry a class, so the convention goes on the call:
+    # the cast names __thiscall and MSVC puts `o` in ECX and cleans nothing.
+    # ROM-side this is a no-op -- on ARM the receiver rides in r0 either way,
+    # mwccarm never sees hostgen's output, and the source keeps its own shape.
+    "_ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE": [
+        ("      o->vtable[0](o, p);",
+         "      /* hostgen VIRTUAL_CALL: slot 0 holds a __thiscall body. */\n"
+         "      ((void (__thiscall *)(void *, void *))o->vtable[0])(o, p);"),
     ],
     # Lane shadow-A: Model::LoadAndSetFile's middle. The matched source
     # dispatches DoSetFile through a LOCAL shadow class with three virtuals,
