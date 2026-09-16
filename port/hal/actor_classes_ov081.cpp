@@ -775,26 +775,81 @@ int _ZN8daGmch_c12UpdateState8Ev(void *self);   /* state 8 tick  */
    sinit's OWN copy order (data_ov081_02128f40[i] <- the source record
    src/__sinit_ov081_021284f0.c names on line i), each fn resolved out of
    ov081's relocs.txt rather than inferred from the copy order. */
-typedef int (*PortMnFn)(void *);
+/* ---- THE EIGHTEEN WORDS CARRY A __fastcall THUNK, NOT THE FLAT C FACE.
+   The names above are the flat C ones, and every one of them resolves to a
+   face in hal/faces_sync_gen.cpp of the shape
+
+     __ZN8daGmch_c11EnterState0Ev:
+       push ebp / mov ebp,esp / mov ecx,[ebp+8] / pop ebp / jmp EnterState0
+
+   i.e. it takes the receiver as a STACK argument and moves it into ECX for the
+   MSVC method. That is right for the flat C callers src makes, and it is wrong
+   for a pointer-to-member call, which pushes nothing. daGmch_c::InitResources
+   carries its dispatcher inlined, so the call comes out in its own frame:
+
+     ?InitResources@daGmch_c@@UAEHXZ +0xf3
+       mov  dword ptr [edi+0x3dc], offset _data_ov081_02128f40   ; c->pp
+       mov  ecx, dword ptr [_data_ov081_02128f40+4]              ; the delta, 0
+       add  ecx, edi                                             ; this + delta
+       call dword ptr [_data_ov081_02128f40]                     ; a REAL CALL
+
+   Nothing is pushed, so the face read an uninitialised stack word as the
+   receiver and passed it on. Measured on levels 19 (Snowman's Land) and 20 (SL
+   igloo) after 651b5e853 moved them past the ov027 row:
+
+     FAULT c0000005 at ?SetAnim@ModelAnim@@... +0xd, esi from [ebp+8]
+     level 19  accessing 0948e5fb    level 20  accessing 4097023f
+     and under cdb a third run gave 11efe53f -- three different junk words
+
+   with the record itself clean (dds of data_ov081_02128f40 shows fn 005c9e30,
+   delta 0) and the actor at 30038f10, so it is the SHAPE and not the seat.
+
+   Same family and same fix as 5ae983797, 27a24ff5a and 651b5e853: one register
+   argument, bare `ret`, correct on the tail-jump path too, all eighteen rows
+   and not only the one that was caught. The thunks name the eighteen flat
+   faces, so the seat's references are still load-bearing. */
+typedef int (__fastcall *PortMnFn)(void *);
+#define MN_ST(tag, fn) \
+    static int __fastcall tag(void *s) { return fn(s); }
+MN_ST(mn_st_e0, _ZN8daGmch_c11EnterState0Ev)
+MN_ST(mn_st_u0, _ZN8daGmch_c12UpdateState0Ev)
+MN_ST(mn_st_e1, _ZN8daGmch_c11EnterState1Ev)
+MN_ST(mn_st_u1, _ZN8daGmch_c12UpdateState1Ev)
+MN_ST(mn_st_e2, _ZN8daGmch_c11EnterState2Ev)
+MN_ST(mn_st_u2, _ZN8daGmch_c12UpdateState2Ev)
+MN_ST(mn_st_e3, _ZN8daGmch_c11EnterState3Ev)
+MN_ST(mn_st_u3, _ZN8daGmch_c12UpdateState3Ev)
+MN_ST(mn_st_e4, _ZN8daGmch_c11EnterState4Ev)
+MN_ST(mn_st_u4, _ZN8daGmch_c12UpdateState4Ev)
+MN_ST(mn_st_e5, _ZN8daGmch_c11EnterState5Ev)
+MN_ST(mn_st_u5, _ZN8daGmch_c12UpdateState5Ev)
+MN_ST(mn_st_e6, _ZN8daGmch_c11EnterState6Ev)
+MN_ST(mn_st_u6, _ZN8daGmch_c12UpdateState6Ev)
+MN_ST(mn_st_e7, _ZN8daGmch_c11EnterState7Ev)
+MN_ST(mn_st_u7, _ZN8daGmch_c12UpdateState7Ev)
+MN_ST(mn_st_e8, _ZN8daGmch_c11EnterState8Ev)
+MN_ST(mn_st_u8, _ZN8daGmch_c12UpdateState8Ev)
+#undef MN_ST
+
 static const struct { unsigned rom; PortMnFn host; } g_mn_recs[18] = {
-    {0x021276b0, _ZN8daGmch_c11EnterState0Ev},   /* [ 0] <- 02128b58, state 0 enter */
-    {0x02127558, _ZN8daGmch_c12UpdateState0Ev},   /* [ 1] <- 02128b68, state 0 tick  */
-    {0x021274c8, _ZN8daGmch_c11EnterState1Ev},   /* [ 2] <- 02128b40, state 1 enter */
-    {0x02127440, _ZN8daGmch_c12UpdateState1Ev},   /* [ 3] <- 02128b48, state 1 tick  */
-    {0x021273e8, _ZN8daGmch_c11EnterState2Ev},   /* [ 4] <- 02128b38, state 2 enter */
-    {0x02127398, _ZN8daGmch_c12UpdateState2Ev},   /* [ 5] <- 02128bc0, state 2 tick  */
-    {0x02127314, _ZN8daGmch_c11EnterState3Ev},   /* [ 6] <- 02128bb8, state 3 enter */
-    {0x02127240, _ZN8daGmch_c12UpdateState3Ev},   /* [ 7] <- 02128bb0, state 3 tick  */
-    {0x021271e8, _ZN8daGmch_c11EnterState4Ev},   /* [ 8] <- 02128ba8, state 4 enter */
-    {0x02127188, _ZN8daGmch_c12UpdateState4Ev},   /* [ 9] <- 02128ba0, state 4 tick  */
-    {0x02127134, _ZN8daGmch_c11EnterState5Ev},   /* [10] <- 02128b88, state 5 enter */
-    {0x02127070, _ZN8daGmch_c12UpdateState5Ev},   /* [11] <- 02128b98, state 5 tick  */
-    {0x02127044, _ZN8daGmch_c11EnterState6Ev},   /* [12] <- 02128b90, state 6 enter */
-    {0x02126fa4, _ZN8daGmch_c12UpdateState6Ev},   /* [13] <- 02128b70, state 6 tick  */
-    {0x02126e28, _ZN8daGmch_c11EnterState7Ev},   /* [14] <- 02128b50, state 7 enter */
-    {0x02126d64, _ZN8daGmch_c12UpdateState7Ev},   /* [15] <- 02128b60, state 7 tick  */
-    {0x02126c8c, _ZN8daGmch_c11EnterState8Ev},   /* [16] <- 02128b80, state 8 enter */
-    {0x02126c20, _ZN8daGmch_c12UpdateState8Ev},   /* [17] <- 02128b78, state 8 tick  */
+    {0x021276b0, mn_st_e0},   /* [ 0] <- 02128b58, state 0 enter */
+    {0x02127558, mn_st_u0},   /* [ 1] <- 02128b68, state 0 tick  */
+    {0x021274c8, mn_st_e1},   /* [ 2] <- 02128b40, state 1 enter */
+    {0x02127440, mn_st_u1},   /* [ 3] <- 02128b48, state 1 tick  */
+    {0x021273e8, mn_st_e2},   /* [ 4] <- 02128b38, state 2 enter */
+    {0x02127398, mn_st_u2},   /* [ 5] <- 02128bc0, state 2 tick  */
+    {0x02127314, mn_st_e3},   /* [ 6] <- 02128bb8, state 3 enter */
+    {0x02127240, mn_st_u3},   /* [ 7] <- 02128bb0, state 3 tick  */
+    {0x021271e8, mn_st_e4},   /* [ 8] <- 02128ba8, state 4 enter */
+    {0x02127188, mn_st_u4},   /* [ 9] <- 02128ba0, state 4 tick  */
+    {0x02127134, mn_st_e5},   /* [10] <- 02128b88, state 5 enter */
+    {0x02127070, mn_st_u5},   /* [11] <- 02128b98, state 5 tick  */
+    {0x02127044, mn_st_e6},   /* [12] <- 02128b90, state 6 enter */
+    {0x02126fa4, mn_st_u6},   /* [13] <- 02128b70, state 6 tick  */
+    {0x02126e28, mn_st_e7},   /* [14] <- 02128b50, state 7 enter */
+    {0x02126d64, mn_st_u7},   /* [15] <- 02128b60, state 7 tick  */
+    {0x02126c8c, mn_st_e8},   /* [16] <- 02128b80, state 8 enter */
+    {0x02126c20, mn_st_u8},   /* [17] <- 02128b78, state 8 tick  */
 };
 
 extern "C" void port_moneybag_states_seat(void)
