@@ -13827,10 +13827,13 @@ set_source_files_properties(
 #     host-filled by hal_fill_platform_vtable). Its G0 is NOT renamed: the third
 #     pool word 0x02111238 -> 0x020a0eac module:main is the game heap
 #     Memory::Deallocate takes, which is exactly what the cdecl row binds.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_buranko.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "VT0=_ZTV16daObjRcBuranko_c;VT1=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_rc_buranko.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   VT0=_ZTV16daObjRcBuranko_c  --  dead, the TU does not spell VT0
+#   VT1=_ZTV10dBgActor_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
 # (2) src/game/actors/d_a_obj_rc_buranko.cpp -- SWINGING_PLATFORM's CleanupResources.
 #     Releases two SharedFilePtrs as G0/G1, and its own pool names them:
 #     0x021112c0 -> 0x02114028 then 0x021112c4 -> 0x02114020, both
@@ -13840,10 +13843,13 @@ set_source_files_properties(
 #     data_ov036_02114020 nor data_ov036_02114028, so there is nothing to
 #     conflict with (the ov043 TRAP-3 reading; the ov100 C2040 needed private
 #     names only because the target was already declared as a scalar).
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_rc_buranko.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "G0=data_ov036_02114028;G1=data_ov036_02114020")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_rc_buranko.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   G0=data_ov036_02114028  --  dead, the TU does not spell G0
+#   G1=data_ov036_02114020  --  dead, the TU does not spell G1
+# Deleted rather than merged. The surviving row is unchanged.
 # (3) src/game/actors/d_a_obj_rc_kaitendai.cpp -- NO COMPILE_DEFINITIONS AT ALL,
 #     AND THAT IS THE FIX (wave 10, lane UNHOSTED). Before the main-to-port sync
 #     this class was three one-function files, each with a row of its own:
