@@ -138,6 +138,11 @@ int g_hal_fader_stepping;
 
 int hal_wipe_index(const void *self);
 
+/* Is the word the caller handed us a wipe object, or the vtable a wrong-shape
+   caller left behind? Both defined beside hal_wipe_index, under the array. */
+int hal_wipe_receiver_ok(const void *self);
+void hal_wipe_shape_trap(const char *slot, const void *self);
+
 /* Loud, but not per-frame: the first few calls say what the host is
    skipping, then it goes quiet. */
 void hal_wipe_note(const char *what, const void *self)
@@ -305,14 +310,55 @@ struct HalFaderWipe {
     /* 0x0c / 0x10 -- NOT delegated: the matched bodies end in a virtual
        IsAtStart()/IsAtEnd() that would land one slot off here. See the dtor-fold
        note in the header. The arithmetic below is the matched arithmetic:
-       cstd::fdiv(+-0x1000, frames << 12) is +-0x1000 / frames. */
-    virtual int SetBackwardTime(int frames, int)     /* 0x0c */
+       cstd::fdiv(+-0x1000, frames << 12) is +-0x1000 / frames.
+
+       AND __cdecl, WITH THE RECEIVER ON THE STACK. These two slots are the
+       fifth class of the shape 0ec379b94 and 19a71216e retired on the sibling
+       tables, and the reasoning is 19a71216e's word for word. The one call site
+       these two slots have is src/_ZN8dScene_c14BeforeBehaviorEv.cpp, whose
+       banner says why it cannot go through the real class and keep matching: it
+       reaches the installed fader through a file-local FaderVTable of PLAIN
+       FUNCTION POINTERS with an explicit first parameter,
+       `void (*SetBackwardTime)(void *, u32, u32)`, and MSVC compiles that as
+       __cdecl:
+
+           push 0
+           push 1Eh
+           push eax            <- THE RECEIVER, a stack argument
+           call eax
+           add  esp,0Ch        <- the CALLER takes all twelve back
+
+       and one instruction before the call it does `mov ecx,[eax]`, so ECX holds
+       THE VTABLE at that call, not the object. A __thiscall member here reads
+       ECX as `this` and its very first statement writes `speed` at this+8:
+       measured on levels 26, 34 and 35 as
+
+           FAULT c0000005 at ?SetBackwardTime@HalFaderWipe@@UAEHHH@Z+0x12
+           ecx 007192a0 = ??_7HalFaderWipe@@6B@, WRITE to 007192a8 = that + 8
+
+       i.e. the stub writing the fade speed into its own vtable, in .rdata. A
+       __cdecl member takes `this` as its first stack word and cleans nothing,
+       which is exactly the frame the call site builds. Run link100, lane
+       SINGLES2; measured by lane SINGLES (out/SINGLES/handoff_BOOT1.md).
+
+       Receiver check included for 19a71216e's stated reason: a caller of the
+       old shape would hand these two a vtable or a frame count as the receiver,
+       and a fault on that reports nothing. */
+    virtual int __cdecl SetBackwardTime(int frames, int)     /* 0x0c */
     {
+        if (!hal_wipe_receiver_ok(this)) {
+            hal_wipe_shape_trap("SetBackwardTime (ROM slot 0x0c)", this);
+            return 0;
+        }
         speed = frames ? -(Fix12i)(0x1000 / frames) : -0x1000;
         return HalFaderWipe::IsAtStart();
     }
-    virtual int SetForwardTime(int frames, int)      /* 0x10 */
+    virtual int __cdecl SetForwardTime(int frames, int)      /* 0x10 */
     {
+        if (!hal_wipe_receiver_ok(this)) {
+            hal_wipe_shape_trap("SetForwardTime (ROM slot 0x10)", this);
+            return 0;
+        }
         speed = frames ? (Fix12i)(0x1000 / frames) : 0x1000;
         return HalFaderWipe::IsAtEnd();
     }
@@ -349,6 +395,31 @@ int hal_wipe_index(const void *self)
 {
     long long d = (const char *)self - (const char *)&hal_wipes[0];
     return (int)(d / (long long)sizeof(HalFaderWipe));
+}
+
+/* Every object this file hands out -- the seven wipes and the colour fader
+   placement-new'd into data_0209f5e8 -- carries ??_7HalFaderWipe@@6B@ in its
+   first word, so comparing against wipe 0's own vptr accepts all eight and
+   rejects the vtable itself, a frame count and a null. Wipe 0 is constructed
+   at static init, long before any scene runs. */
+int hal_wipe_receiver_ok(const void *self)
+{
+    if (self == 0 || ((std::size_t)self & 3) != 0)
+        return 0;
+    return *(void *const *)self ==
+           *(void *const *)(const void *)&hal_wipes[0];
+}
+
+void hal_wipe_shape_trap(const char *slot, const void *self)
+{
+    static int said;
+    if (said >= 4) return;
+    ++said;
+    std::fprintf(stderr, "  [wipe] WRONG RECEIVER at %s: %p is not a wipe "
+                 "object. A caller of the old __thiscall shape reached a "
+                 "__cdecl slot; see the block above SetBackwardTime.\n",
+                 slot, self);
+    std::fflush(stderr);
 }
 
 }  /* anonymous namespace */
