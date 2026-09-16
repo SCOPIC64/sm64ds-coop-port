@@ -20,7 +20,7 @@
 #include "ShadowModel.h"
 
 struct KnockDownPlank : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     ShadowModel mShadowModel;         /* 0x320 */
     u8  pad_348[0x30];
     /* The point 0x32000 units in front of the plank: InitResources rotates
@@ -70,6 +70,9 @@ struct KnockDownPlank : dBgActor_c {
 /* ROM layout under mwccarm; host ABI divergence is tracked separately. */
 typedef char KnockDownPlank_size_must_be_0x39c[sizeof(KnockDownPlank) == 0x39c ? 1 : -1];
 #endif
+/* daObjBk_Botaosi_c_classInit constructs the ShadowModel at a raw +0x320 and
+   InitResources reaches it by name, so the two have to agree. */
+ROM_OFFSET_ASSERT(KnockDownPlank, mShadowModel, 0x320);
 
 #else
 

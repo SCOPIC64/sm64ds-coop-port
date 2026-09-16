@@ -30,7 +30,7 @@
 #include "dCcAcPos_c.h"
 
 struct WallSign : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     dCcAcPos_c mdCcAcPos_c;/* 0x320 */
 
     /* --- vtable --- */

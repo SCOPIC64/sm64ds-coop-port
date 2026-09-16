@@ -24,7 +24,7 @@
 #include "dBgActor_c.h"
 
 struct TtcRotatingGear : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     s32 mHomePosX;                    /* 0x320 -- InitResources copies mPosX/Y/Z here */
     s32 mHomePosY;                    /* 0x324 -- Behavior clamps mPosY to [mHomePosY, mHomePosY + 0x14a000] */
     s32 mHomePosZ;                    /* 0x328 */

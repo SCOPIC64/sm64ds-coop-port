@@ -20,7 +20,7 @@
 #include "ShadowModel.h"
 
 struct TowerStep : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     ShadowModel mShadowModel;         /* 0x320 */
     u8  pad_348[0x30];
     s32 mFloorPosY;                      /* 0x378 */

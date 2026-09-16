@@ -24,7 +24,7 @@
 #include "dCcAc_c.h"
 
 struct PoleLift : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     dCcAc_c mdCcAc_c;/* 0x320 */
     u16 mHeightAng;                      /* 0x354 */
 

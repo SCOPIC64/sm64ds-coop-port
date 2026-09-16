@@ -22,7 +22,7 @@
 struct Player;
 
 struct IceBlock : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     dCcAc_c mdCcAc_c;/* 0x320 */
     u8  mMeltTimer;                   /* 0x354 -- 0x1e on the hit; drives mScale down through cstd::fdiv and destroys the block at 0 */
     u8  pad_355[0x3];

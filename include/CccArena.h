@@ -33,7 +33,7 @@ struct CccArena : dBgActor_c {
        round-up -- a byte field placed first lands at 0x31e, not 0x320,
        which the ROM disagrees with (Behavior reads [this, #0x320]).
        Claiming it explicitly here forces unk_320 to its real offset. */
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     u8  mState;             /* 0x320 -- read as a pointer to the current state descriptor */
     u8  pad_321[0xb];
     u8  mVariant;           /* 0x32c -- 0/1/2 from actorID 0xaa/0xab/0xac; indexes the three ov073 file tables */

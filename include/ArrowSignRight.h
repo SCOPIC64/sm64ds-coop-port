@@ -100,7 +100,7 @@ static_assert(sizeof(ArrowSignRight) == 0x380, "ArrowSignRight host size");
 #include "dBgActor_c.h"
 
 struct ArrowSignRight : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     ShadowModel mShadowModel;         /* 0x320 */
     /* Behavior passes `&mShadowMat' as the `Matrix4x3 &' argument of
        dActor_c::DropShadowScaleXYZ, with mShadowModel as the argument before

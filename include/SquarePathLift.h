@@ -26,7 +26,7 @@
 #include "dBgActor_c.h"
 
 struct SquarePathLift : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     PathPtr mPath;            /* 0x320 */
     s32 mNodeIndex;                   /* 0x328 */
     s32 mPathDir;                     /* 0x32c */

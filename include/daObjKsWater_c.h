@@ -56,7 +56,7 @@ struct daObjKsWater_c : dBgActor_c {
     virtual int Behavior();                       /* slot 6 */
     virtual int Render();                         /* slot 9 */
 
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     TextureTransformer mTextureTransformer;       /* 0x320 -- scrolls the water's
                                                      surface texture every frame */
     s32 mOriginalPosY;                            /* 0x334 -- the height it starts

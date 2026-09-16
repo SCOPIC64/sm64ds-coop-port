@@ -24,7 +24,7 @@
 #include "Model.h"
 
 struct dPathLiftActor_c : dBgActor_c {
-    u8  pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     Model mModels[3];                     /* 0x320 */
     Vector3 mInitialPos;                  /* 0x410 */
     Vector3_16 mInitialAngle;             /* 0x41c */

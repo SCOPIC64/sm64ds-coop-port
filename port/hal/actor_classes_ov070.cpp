@@ -471,6 +471,50 @@ static int __fastcall fg_tick_f368(void *s) { return func_ov070_0211f368(s); }
 static int __fastcall fg_tick_f6e0(void *s) { return func_ov070_0211f6e0(s); }
 static int __fastcall fg_tick_f62c(void *s) { return func_ov070_0211f62c(s); }
 
+// ---- FLAMECHOMP'S AND FLAMECHOMPFIRE'S STATE BODIES NEED THE SAME THUNK ----
+//
+// The note above rules FlameChomp's rows correct because its dispatchers are
+// one-call forwarders MSVC compiles as `jmp eax`, which leaves the caller's own
+// cdecl frame in place so a raw body still finds its receiver at [esp+4]. That
+// is true of the dispatchers AS SEPARATE FRAMES and it is not true of the frame
+// the enter path actually runs in. func_ov070_02121880 and func_ov070_02121848
+// live in the same translation unit as daKrpa_c::InitResources, so /O2 inlines
+// both of them into it, and the PMF call comes out inside InitResources' own
+// frame. Read off this build's own object with dumpbin, not reasoned about:
+//
+//   ?InitResources@daKrpa_c@@UAEHXZ +0xD1
+//     mov ecx,dword ptr [_data_ov070_021236ac+4]   ; the record's delta
+//     lea ecx,[ecx+esi]                            ; this + delta
+//     call dword ptr [_data_ov070_021236ac]        ; a REAL CALL
+//
+// Nothing is pushed. func_ov070_021217ac is a raw cdecl body declared
+// `(daKrpa_c *self)`, so it reads InitResources' own spilled stack as its
+// receiver and hands that to ModelAnim::SetAnim: run link100's boot sweep saw
+// it as four levels faulting a few bytes into SetAnim on a garbage pointer
+// (21, 25, 26 and 27, each with a different junk address, which is what an
+// uninitialised stack slot looks like).
+//
+// A __fastcall thunk is correct on BOTH paths and that is why it goes on every
+// row rather than on the one site that was caught. MSVC's PMF call sequence
+// always puts `this + delta` in ECX before it transfers control, whether it
+// transfers with a call or with a tail jump, so reading the receiver from ECX
+// is right either way; reading it from the stack is right only when the
+// transfer happened to be a tail jump. One register argument, so the thunk
+// returns with a bare `ret`, which is what a call site that pushed nothing
+// wants.
+static int __fastcall fc_st_1438(void *s) { return func_ov070_02121438(s); }
+static int __fastcall fc_st_14f8(void *s) { return func_ov070_021214f8(s); }
+static int __fastcall fc_st_1548(void *s) { return func_ov070_02121548(s); }
+static int __fastcall fc_st_156c(void *s) { return func_ov070_0212156c(s); }
+static int __fastcall fc_st_16b8(void *s) { return func_ov070_021216b8(s); }
+static int __fastcall fc_st_1710(void *s) { return func_ov070_02121710(s); }
+static int __fastcall fc_st_13cc(void *s) { return func_ov070_021213cc(s); }
+static int __fastcall fc_st_17ac(void *s) { return func_ov070_021217ac(s); }
+static int __fastcall ff_st_1fb0(void *s) { return func_ov070_02121fb0(s); }
+static int __fastcall ff_st_1ef8(void *s) { return func_ov070_02121ef8(s); }
+static int __fastcall ff_st_1f18(void *s) { return func_ov070_02121f18(s); }
+static int __fastcall ff_st_1eb0(void *s) { return func_ov070_02121eb0(s); }
+
 static void ov70_seat_state_pmfs(void)
 {
     struct Row { unsigned char *rec; void *fn; };
@@ -496,19 +540,19 @@ static void ov70_seat_state_pmfs(void)
         { data_ov070_0212322c, (void *)_ZN7daBrq_c19UpdateDefeatedStateEv },
         { data_ov070_02123234, (void *)_ZN7daBrq_c17UpdateActiveStateEv },
         /* FlameChomp's eight; state 0 is the matched Kill root */
-        { data_ov070_021232f4, (void *)func_ov070_02121438 },
-        { data_ov070_021232fc, (void *)func_ov070_02121548 },
-        { data_ov070_02123304, (void *)func_ov070_0212156c },
-        { data_ov070_0212330c, (void *)func_ov070_021214f8 },
-        { data_ov070_02123314, (void *)func_ov070_021216b8 },
-        { data_ov070_0212331c, (void *)func_ov070_02121710 },
-        { data_ov070_02123324, (void *)func_ov070_021213cc },
-        { data_ov070_0212332c, (void *)func_ov070_021217ac },
+        { data_ov070_021232f4, (void *)fc_st_1438 },
+        { data_ov070_021232fc, (void *)fc_st_1548 },
+        { data_ov070_02123304, (void *)fc_st_156c },
+        { data_ov070_0212330c, (void *)fc_st_14f8 },
+        { data_ov070_02123314, (void *)fc_st_16b8 },
+        { data_ov070_0212331c, (void *)fc_st_1710 },
+        { data_ov070_02123324, (void *)fc_st_13cc },
+        { data_ov070_0212332c, (void *)fc_st_17ac },
         /* FlameChompFire's four; state 0 likewise */
-        { data_ov070_021233ec, (void *)func_ov070_02121fb0 },
-        { data_ov070_021233f4, (void *)func_ov070_02121ef8 },
-        { data_ov070_021233fc, (void *)func_ov070_02121f18 },
-        { data_ov070_02123404, (void *)func_ov070_02121eb0 },
+        { data_ov070_021233ec, (void *)ff_st_1fb0 },
+        { data_ov070_021233f4, (void *)ff_st_1ef8 },
+        { data_ov070_021233fc, (void *)ff_st_1f18 },
+        { data_ov070_02123404, (void *)ff_st_1eb0 },
     };
     for (unsigned i = 0; i < sizeof rows / sizeof rows[0]; ++i)
         *(void **)rows[i].rec = rows[i].fn;

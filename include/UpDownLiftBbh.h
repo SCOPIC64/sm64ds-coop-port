@@ -45,7 +45,7 @@
 struct UpDownLiftBbh : dBgActor_c {
     /* dBgActor_c's last member ends at 0x31e. Keep its two bytes of tail
        padding so the first word owned by this class starts at 0x320. */
-    u8 pad_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     Player *mRider;                 /* 0x320 */
     Player *mClosestPlayer;         /* 0x324 */
     s32 mVariant;                   /* 0x328 */
