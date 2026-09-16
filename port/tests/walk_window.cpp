@@ -9180,6 +9180,27 @@ int main(void)
        socket exists -- so the shipped window grows no listener by default. */
     editor_channel_init();
     for (;;) {
+        /* A FRAME BUDGET FOR THE WINDOWED LEVEL PATH (run link100, boot sweep).
+           The windowed SCENE path has ended by itself since it was written --
+           "it ends by itself, which is what a scripted proof needs" -- because
+           it reads SM64DS_SCENE_FRAMES before its own loop. THIS loop never
+           did, so a windowed level ran until somebody closed the window. That
+           is right for a player and useless for a sweep: an automated run over
+           all 51 levels sat on its first row until the timeout and reported a
+           hang that was not one. Level 1 was still going at ten minutes.
+
+           UNSET, THIS COSTS ONE getenv FOR THE LIFE OF THE PROCESS and never
+           ends the loop, so the shipped window is unchanged and still runs
+           until it is closed. The budget is read once on purpose: re-reading
+           it every frame would let the settings poll a few lines below move a
+           proof's finish line under it mid-run. */
+        {
+            static const int fb_budget = getenv("SM64DS_SCENE_FRAMES")
+                                             ? port_scene_frames_wanted() : 0;
+            static int fb_elapsed;
+            if (fb_budget && ++fb_elapsed > fb_budget)
+                return 0;
+        }
         double t_frame, t_phase;
         int game_ticked = 1;   /* cleared when a tick is skipped */
         while (W.PeekMessageA_(&msg, 0, 0, 0, PM_REMOVE)) {
