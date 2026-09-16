@@ -588,10 +588,73 @@ void __cdecl fdr_s08(void *s)
     }
     _ZN7dWipe_c11AdvanceFadeEv(s);
 }
-int __fastcall fdr_s0c(void *s, void *, int frames, int c)
-{ return _ZN7dWipe_c15SetBackwardTimeEj(s, (unsigned)frames, (unsigned)c); }
-int __fastcall fdr_s10(void *s, void *, int frames, int)
-{ return _ZN7dWipe_c14SetForwardTimeEj(s, (unsigned)frames); }
+/* 0x0c AND 0x10 ARE SHAPE C NOW, NOT SHAPE B. Run link100, lane LEVELBOOT.
+ *
+ * port/fader_boot_map.txt section 9c records one site each, both shape B:
+ *
+ *     _ZN8dScene_c14BeforeBehaviorEv+0x11b  push 0
+ *     +0x11d  push 0x1e
+ *     +0x121  call dword ptr [eax + 0xc]      <- no cleanup after
+ *
+ * two arguments pushed, the receiver in ECX, and nothing taken back off the
+ * stack afterwards, because the source spelled the call as a member on a local
+ * seven-virtual C++ struct. __fastcall(void *, void *, int, int) is the right
+ * stub for that: receiver out of ECX, and it cleans the eight bytes the caller
+ * does not.
+ *
+ * That source changed under it. src/_ZN8dScene_c14BeforeBehaviorEv.cpp now
+ * declares its own FaderVTable of PLAIN FUNCTION POINTERS with an explicit
+ * first parameter -- `void (*SetBackwardTime)(void *, u32, u32)` -- and the
+ * file says why in its banner: the ROM's call sites pass an argument the
+ * class's own mangled name does not take, so this TU cannot go through the real
+ * class and keep matching. MSVC compiles that spelling as __cdecl, and both
+ * sites in this build now read
+ *
+ *     005005da  push 0            005006b3  push 0
+ *     005005dc  push 1Eh          005006b5  push 1Eh
+ *     005005de  push eax          005006b7  push eax     <- THE RECEIVER
+ *     005005e2  mov  eax,[ecx+10h] 005006ba mov eax,[ecx+0Ch]
+ *     005005e4  call eax          005006bd  call eax
+ *     005005e6  add  esp,0Ch      005006bf  add esp,0Ch  <- CALLER cleans 12
+ *
+ * -- three pushes, the receiver among them, and the caller taking all twelve
+ * bytes back. Against that, a stub that cleans eight leaves the stack eight
+ * bytes high and the epilogue returns to whatever is there: measured on every
+ * minigame scene (363, 366, 368, 369, 374, 376, 378, 390) as a jump to the
+ * scene actor's own address on its first behaviour tick. And ECX is not the
+ * receiver at that call any more either -- `mov ecx,[eax]` loaded the VTABLE
+ * into it one instruction earlier -- so the old stub was reading the wrong
+ * object as well as unbalancing the frame.
+ *
+ * So both are __cdecl with the receiver named, which is section 9d's shape C,
+ * the one slot 0x08 already uses and the one that is correct BY THE LANGUAGE
+ * rather than by what the codegen happened to leave in a register. The
+ * receiver check is fdr_s08's, for fdr_s08's reason: if a caller of the old
+ * shape ever comes back, it says so on stderr and counts into
+ * port_fdr_fader_report instead of running on a garbage object.
+ */
+int __cdecl fdr_s0c(void *s, int frames, int c)
+{
+    if (s == 0 || *(void **)s != (void *)data_020926f0) {
+        fdr_trap("slot 0x0c SetBackwardTime, WRONG RECEIVER",
+                 "_ZN7dWipe_c15SetBackwardTimeEj -- the caller did not pass the object on "
+                 "the stack, so it is not the cdecl shape this stub is "
+                 "declared for");
+        return 0;
+    }
+    return _ZN7dWipe_c15SetBackwardTimeEj(s, (unsigned)frames, (unsigned)c);
+}
+int __cdecl fdr_s10(void *s, int frames, int)
+{
+    if (s == 0 || *(void **)s != (void *)data_020926f0) {
+        fdr_trap("slot 0x10 SetForwardTime, WRONG RECEIVER",
+                 "_ZN7dWipe_c14SetForwardTimeEj -- the caller did not pass the object on "
+                 "the stack, so it is not the cdecl shape this stub is "
+                 "declared for");
+        return 0;
+    }
+    return _ZN7dWipe_c14SetForwardTimeEj(s, (unsigned)frames);
+}
 int __fastcall fdr_s28(void *, void *)
 { fdr_trap("overhang slot 0x28", "nothing, this slot is not the ROM's"); return 0; }
 int __fastcall fdr_s2c(void *, void *)

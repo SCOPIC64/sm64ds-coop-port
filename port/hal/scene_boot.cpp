@@ -1829,17 +1829,57 @@ static void __cdecl l2_eb2c_s08(void *s)
     _ZN10FaderColor11AdvanceFadeEv(s);
 }
 
-/* +0x0c and +0x10. THE TWO THAT CLEAN EIGHT. __fastcall(self, edx, a, b) is
-   the host spelling of __thiscall(self, a, b): the receiver arrives in ecx,
-   edx is unread, the two pushed words come off the stack and MSVC emits
-   `ret 8`. THE ARITY IS THE CALL SITE'S AND NOT THE ROM BODY'S -- the ARM
-   bodies take one argument each because the second rides r1/r2 and costs
-   nothing there, and the host caller still pushed two words that somebody has
-   to clean. */
-static int __fastcall l2_eb2c_s0c(void *s, void *, int frames, int)
-{ l2_eb2c_note(3); return l2_eb2c_run_setter(s, (unsigned)frames, 1); }
-static int __fastcall l2_eb2c_s10(void *s, void *, int frames, int)
-{ l2_eb2c_note(4); return l2_eb2c_run_setter(s, (unsigned)frames, 0); }
+/* +0x0c and +0x10. THE TWO THAT CLEAN NOTHING, and the paragraph this replaces
+   is the one l2_ea6c_s0c twelve hundred lines up already had to retire on the
+   sibling table. It read:
+
+       THE TWO THAT CLEAN EIGHT. __fastcall(self, edx, a, b) is the host
+       spelling of __thiscall(self, a, b): the receiver arrives in ecx, edx is
+       unread, the two pushed words come off the stack and MSVC emits `ret 8`.
+
+   It was right about the caller it was written for. It is wrong about the
+   caller that exists, for the reason l2_ea6c's block states in capitals: a
+   shape claim nobody re-measured after the TU behind it changed.
+
+   src/_ZN8dScene_c14BeforeBehaviorEv.cpp reaches these two slots through a
+   FaderVTable of PLAIN FUNCTION POINTERS with an explicit first parameter --
+   `void (*SetBackwardTime)(void *, u32, u32)` -- and its banner says why it
+   cannot go through the real class and keep matching. MSVC compiles that as
+   __cdecl. Both sites in this build read
+
+       005005da  push 0            005006b3  push 0
+       005005dc  push 1Eh          005006b5  push 1Eh
+       005005de  push eax          005006b7  push eax     <- THE RECEIVER
+       005005e4  call eax          005006bd  call eax
+       005005e6  add  esp,0Ch      005006bf  add esp,0Ch  <- CALLER cleans 12
+
+   so a stub that cleans eight leaves the stack eight bytes high, and ECX holds
+   the VTABLE at the call (`mov ecx,[eax]` one instruction earlier), not the
+   object. Measured on scenes 4 and 5, whose installed fader is data_0209f5e8
+   and whose vptr is this table: the frame returned to 0xccc35e0c before either
+   scene drew anything. Run link100, lane LEVELBOOT.
+
+   Receiver check included, l2_ea6c's, and for l2_ea6c's stated reason: a
+   shape-B caller would hand these two `frames` (0x1e) as the receiver, and a
+   fault on that would report nothing. */
+static int __cdecl l2_eb2c_s0c(void *s, int frames, int)
+{
+    if (s == 0 || ((std::size_t)s & 3) != 0 ||
+        *(void **)s != (void *)data_0208eb2c) {
+        l2_trap("data_0208eb2c vtable slot 0x0c, WRONG RECEIVER");
+        return 0;
+    }
+    l2_eb2c_note(3); return l2_eb2c_run_setter(s, (unsigned)frames, 1);
+}
+static int __cdecl l2_eb2c_s10(void *s, int frames, int)
+{
+    if (s == 0 || ((std::size_t)s & 3) != 0 ||
+        *(void **)s != (void *)data_0208eb2c) {
+        l2_trap("data_0208eb2c vtable slot 0x10, WRONG RECEIVER");
+        return 0;
+    }
+    l2_eb2c_note(4); return l2_eb2c_run_setter(s, (unsigned)frames, 0);
+}
 
 /* +0x14, +0x18 and +0x1c. The three predicates, through the flat faces two
    other hal files already own. +0x1c is the one that must NOT be a qualified
@@ -1862,14 +1902,20 @@ static void __fastcall l2_eb2c_s24(void *s, void *)
 
 /* THE SAME DEFECT, ONE TABLE OVER, HARDENED RATHER THAN SEATED.
    data_0208eacc is _ZTV15FaderBrightness and its +0x0c / +0x10 are the same
-   two setters reached by the same shape B sites, so a bare `ret` there is the
-   same eight-byte leak waiting for an object of that class to be installed.
+   two setters reached by the same sites, so a WRONG-SHAPE `ret` there is the
+   same frame damage waiting for an object of that class to be installed.
    NOTHING IN THIS IMAGE INSTALLS ONE -- the audit under THE THREE SIBLING
    TABLES holds for eacc, whose only readers are through data_0209f5bc /
    data_0209d4ac -- so this is not a seat and claims no behaviour: it is the
    SAME trap with the SAME string and the SAME return, spelled so that if it
-   ever does fire it does not corrupt the caller on the way out. */
-static int __fastcall l2_vt_trap8(void *, void *, int, int)
+   ever does fire it does not corrupt the caller on the way out.
+
+   AND "NOT CORRUPTING THE CALLER" IS A CDECL FRAME NOW, run link100 lane
+   LEVELBOOT, for the reason the two live stubs above just had to change for:
+   the one call site those slots have takes the receiver as its first stack
+   argument and cleans all twelve bytes itself. A `ret 8` here would leave the
+   stack eight bytes high on the one path this trap exists to survive. */
+static int __cdecl l2_vt_trap8(void *, int, int)
 { l2_trap("data_0208ea6c vtable slot"); return 0; }
 
 /* SM64DS_EA6C_SELFTEST=1: DOES +0x1c REACH THE REAL PREDICATES? Env-gated and
