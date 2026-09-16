@@ -11646,14 +11646,21 @@ endforeach()
 # id 136 (RICKSHAW_PLATFORM_BDW): factory + D1 + D0. Own table 0x0211245c
 # (host array _ZTV17daObjKm1_Kuruma_c), intermediate base ov002 0x02109278. Its
 # Init/Cleanup .c bodies spell only mounted names and need no -D.
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kuruma.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV17daObjKm1_Kuruma_c=_ZTV13daObjKuruma_c;VT1=_ZTV17daObjKm1_Kuruma_c")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kuruma.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "_ZTV17daObjKm1_Kuruma_c=_ZTV17daObjKm1_Kuruma_c;_ZTV10dBgActor_c=_ZTV13daObjKuruma_c;VT2=_ZTV10dBgActor_c")
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_kuruma.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV17daObjKm1_Kuruma_c=_ZTV13daObjKuruma_c  --  dead, the TU does not spell _ZTV17daObjKm1_Kuruma_c
+#   VT1=_ZTV17daObjKm1_Kuruma_c  --  dead, the TU does not spell VT1
+# Deleted rather than merged. The surviving row is unchanged.
+# lane CDEFS 2026-09-16: a dead COMPILE_DEFINITIONS row stood here.
+# A LATER set_source_files_properties() names d_a_obj_km1_kuruma.cpp for the same
+# property, and that call REPLACES this one, so nothing on this row ever
+# reached the compiler. Each definition it carried, against the synced TU:
+#   _ZTV17daObjKm1_Kuruma_c=_ZTV17daObjKm1_Kuruma_c  --  identity rename, a no-op even if it had run
+#   _ZTV10dBgActor_c=_ZTV13daObjKuruma_c  --  dead, the TU does not spell _ZTV10dBgActor_c
+#   VT2=_ZTV10dBgActor_c  --  dead, the TU does not spell VT2
+# Deleted rather than merged. The surviving row is unchanged.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/game/actors/d_a_obj_km1_kuruma.cpp"
     PROPERTIES COMPILE_DEFINITIONS
