@@ -28,7 +28,7 @@ extern "C" void *_ZN7fBase_cnwEj(unsigned size);
  */
 
 struct daObjMcWater_c : dBgActor_c {
-    u8 unk_31e[0x2];
+    ROM_BASE_TAIL_PAD(31e, 0x2)
     TextureTransformer mTexTransformer; /* 0x320 -- Behavior re-forces
                                            speed to 0x1000 every frame */
     u8 unk_334[0x4];                    /* 0x334 -- allocation tail; nothing
@@ -67,5 +67,9 @@ struct daObjMcWater_c : dBgActor_c {
 /* ROM layout under mwccarm; host ABI divergence is tracked separately. */
 typedef char daObjMcWater_c_size_must_be_0x338[sizeof(daObjMcWater_c) == 0x338 ? 1 : -1];
 #endif
+/* hal/actor_classes.cpp and hal/dtor_forwarders_gen.cpp are both on
+   PORT_TAILPAD_DBGACTOR_SOURCES and built this object on the cartridge's 0x320,
+   while its own translation units are not on that list and read 0x324. */
+ROM_OFFSET_ASSERT(daObjMcWater_c, mTexTransformer, 0x320);
 
 #endif /* DAOBJMCWATER_C_H */

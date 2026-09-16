@@ -19,10 +19,19 @@
 #   _ZN17BowserPuzzlePiece8BehaviorEv.cpp   -> BowserPuzzle_StateDispatch.cpp
 #   _ZN9JetStream8BehaviorEv.cpp     -> BowserPuzzle_StateDispatch.cpp
 #   func_ov064_0211982c.cpp                   -> BowserPuzzle_StateDispatch.cpp
-# and the Manager's Render, the ROM-order Model slot-5 shadow collision:
-#   _ZN17BowserPuzzlePiece6RenderEv.cpp     -> BowserPuzzle_Render.cpp
-# The Piece's Render (return 1;) is a plain C stub and stays here; its draw is a
-# no-op, no slot-5 shadow.
+# Those three lines are the PRE-SYNC spelling and the classes they name have
+# since been corrected: _ZN17BowserPuzzlePiece8BehaviorEv is the Piece's own
+# body at ov064 0x021190b0 and IS carried below, and the Manager's Render row
+# named here does not exist (the Manager has no Render of its own; slot 9 of its
+# table 0x0211c1d8 is the arm9 base body 0x02043af0).
+#
+# ADDED with the ov064 face correction: the Piece's own CleanupResources
+# (0x0211904c, slot 3 of table 0x0211c25c) and Render (0x02119088, slot 9).
+# Both are plain methods -- Render is `mModel.Render(0); return 1;` -- and
+# nothing referenced them while the faces named the Manager's bodies, so the
+# linker dropped both.
+src/_ZN17BowserPuzzlePiece16CleanupResourcesEv.cpp
+src/_ZN17BowserPuzzlePiece6RenderEv.cpp
 #
 # The D-tors STAY here. The Manager D1/D0 write VT0=_ZTV16daObjFl_Puzzle_c (aliased
 # to the host Manager array) then VT1=_ZTV10dBgActor_c (Platform's base table,

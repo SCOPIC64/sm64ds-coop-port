@@ -213,6 +213,12 @@ int _ZTV9JetStream[31];
    ov064 mount's C-named symbol -- the gate-177 data_ov064_0211adbc reading. */
 #pragma comment(linker, "/alternatename:?data_ov075_0211c800@@3PAXA=_data_ov064_0211c800")
 
+/* The Piece's own CleanupResources, which the face above now reaches, declares
+   the same mount as a plain `void *` at file scope, so it emits a third
+   spelling of one address. Same reading, same shape: the LHS is declared and
+   never defined, so tools/alternatename_guard.py stays clean. */
+#pragma comment(linker, "/alternatename:?data_ov064_0211c800@@3PAXA=_data_ov064_0211c800")
+
 /* The C++/C data-linkage bridges, the montymole/painting reading: the Manager's
    .cpp InitResources/CleanupResources spell four ov064 data symbols at C++
    linkage with specific struct types, but the ov064 mount (ovdata.py) emits only
@@ -473,11 +479,19 @@ extern "C" void hal_fill_bowser_puzzle_pair_vtables(void)
 // faced onto their qualified method bodies.
 #include "BowserPuzzleManager.h"
 #include "BowserPuzzlePiece.h"
+#include "JetStream.h"
 extern "C" {
+/* Each C name is bound to ITS OWN class. config/arm9/overlays/ov064 puts
+   _ZN17BowserPuzzlePiece13InitResourcesEv at 0x021191a8 and
+   _ZN17BowserPuzzlePiece16CleanupResourcesEv at 0x0211904c, which are slots 0
+   and 3 of table 0x0211c25c (the Piece's), and
+   _ZN9JetStream13InitResourcesEv at 0x0211992c, which is slot 0 of table
+   0x0211c334 (JetStream's). src/ agrees: each of those three TUs defines the
+   method of the class its own name spells. */
 int _ZN17BowserPuzzlePiece13InitResourcesEv(void *self)
-{ ((BowserPuzzleManager *)self)->BowserPuzzleManager::InitResources(); return 1; }
-int _ZN17BowserPuzzlePiece16CleanupResourcesEv(void *self)
-{ return ((BowserPuzzleManager *)self)->BowserPuzzleManager::CleanupResources(); }
-int _ZN9JetStream13InitResourcesEv(void *self)
 { return ((BowserPuzzlePiece *)self)->BowserPuzzlePiece::InitResources(); }
+int _ZN17BowserPuzzlePiece16CleanupResourcesEv(void *self)
+{ return ((BowserPuzzlePiece *)self)->BowserPuzzlePiece::CleanupResources(); }
+int _ZN9JetStream13InitResourcesEv(void *self)
+{ return ((JetStream *)self)->JetStream::InitResources(); }
 }

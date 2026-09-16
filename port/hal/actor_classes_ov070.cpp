@@ -471,6 +471,50 @@ static int __fastcall fg_tick_f368(void *s) { return func_ov070_0211f368(s); }
 static int __fastcall fg_tick_f6e0(void *s) { return func_ov070_0211f6e0(s); }
 static int __fastcall fg_tick_f62c(void *s) { return func_ov070_0211f62c(s); }
 
+// ---- AND FLYGUY'S SIX ENTER BODIES NEED IT TOO -----------------------------
+//
+// The note above rules the ENTER half correct because FlyGuy_ChangeState is a
+// one-call forwarder MSVC compiles as a tail jump, so the caller's own cdecl
+// argument is still at [esp+4] when a raw body reads it. That is true of
+// FlyGuy_ChangeState AS A SEPARATE FRAME and it is not true of the frame the
+// spawn path actually runs in. FlyGuy_ChangeState and
+// daPropeller_Heyho_c::InitResources are the same translation unit
+// (src/game/actors/d_a_propeller_heyho.cpp), so /O2 inlines the forwarder into
+// InitResources' last statement and the pointer-to-member call comes out in
+// InitResources' own frame. Read off this build's own walk_window.exe rather
+// than reasoned about:
+//
+//   ?InitResources@daPropeller_Heyho_c@@UAEHXZ +0x105
+//     mov  dword ptr [esi+3BCh],offset _data_ov070_0212359c
+//     mov  edx,dword ptr [_data_ov070_0212359c]        ; the cell's enter fn
+//     test edx,edx
+//     je   +0x11A
+//     mov  ecx,dword ptr [_data_ov070_0212359c+4]      ; the cell's delta
+//     lea  ecx,[ecx+esi]                               ; this + delta
+//     call edx                                         ; a REAL CALL
+//
+// Nothing is pushed. func_ov070_0211ffa8 is a raw cdecl body declared
+// `(daPropeller_Heyho_c *c)`, so it read InitResources' own spilled stack as
+// its `c' -- the constant 1 on this build -- and its first statement writes
+// through it at +0x3e6. Run link100's boot sweep saw that as levels 16, 22 and
+// 24 faulting at func_ov070_0211ffa8+0x1c on the address 0x3e7.
+//
+// The thunk is right on BOTH paths, which is why it goes on all six enter rows
+// and not on the one that was caught: FlyGuy_ChangeState's own out-of-line body
+// ends `mov ecx,[ecx+4] / add ecx,eax / pop ebp / jmp edx`, so the receiver is
+// in ECX on the tail-jump path too, and reading it from the stack is right only
+// while that path is the one taken. Cells and their enter records are read out
+// of __sinit_ov070_02122afc, not from a comment:
+//   cell 0212358c[0] <- 02123110   cell 0212359c[0] <- 021230e8
+//   cell 021235ac[0] <- 021230d8   cell 021235bc[0] <- 021230f8
+//   cell 021235cc[0] <- 021230c0   cell 021235dc[0] <- 02123108
+static int __fastcall fg_enter_fa80(void *s) { return func_ov070_0211fa80(s); }
+static int __fastcall fg_enter_fd60(void *s) { return func_ov070_0211fd60(s); }
+static int __fastcall fg_enter_ffa8(void *s) { return func_ov070_0211ffa8(s); }
+static int __fastcall fg_enter_f450(void *s) { return func_ov070_0211f450(s); }
+static int __fastcall fg_enter_f694(void *s) { return func_ov070_0211f694(s); }
+static int __fastcall fg_enter_f5f0(void *s) { return func_ov070_0211f5f0(s); }
+
 // ---- FLAMECHOMP'S AND FLAMECHOMPFIRE'S STATE BODIES NEED THE SAME THUNK ----
 //
 // The note above rules FlameChomp's rows correct because its dispatchers are
@@ -520,17 +564,17 @@ static void ov70_seat_state_pmfs(void)
     struct Row { unsigned char *rec; void *fn; };
     static const Row rows[] = {
         /* FlyGuy's twelve, source order 0x021230c0.. */
-        { data_ov070_021230c0, (void *)func_ov070_0211fa80 },
+        { data_ov070_021230c0, (void *)fg_enter_fa80 }  /* ENTER: cell 021235cc[0] */,
         { data_ov070_021230c8, (void *)fg_tick_fd98 }   /* TICK: cell 0212359c[1] */,
         { data_ov070_021230d0, (void *)fg_tick_f62c }   /* TICK: cell 021235dc[1] */,
-        { data_ov070_021230d8, (void *)func_ov070_0211fd60 },
+        { data_ov070_021230d8, (void *)fg_enter_fd60 }  /* ENTER: cell 021235ac[0] */,
         { data_ov070_021230e0, (void *)fg_tick_f48c }   /* TICK: cell 0212358c[1] */,
-        { data_ov070_021230e8, (void *)func_ov070_0211ffa8 },
+        { data_ov070_021230e8, (void *)fg_enter_ffa8 }  /* ENTER: cell 0212359c[0] */,
         { data_ov070_021230f0, (void *)fg_tick_fae4 }   /* TICK: cell 021235ac[1] */,
-        { data_ov070_021230f8, (void *)func_ov070_0211f450 },
+        { data_ov070_021230f8, (void *)fg_enter_f450 }  /* ENTER: cell 021235bc[0] */,
         { data_ov070_02123100, (void *)fg_tick_f368 }   /* TICK: cell 021235bc[1] */,
-        { data_ov070_02123108, (void *)func_ov070_0211f694 },
-        { data_ov070_02123110, (void *)func_ov070_0211f5f0 },
+        { data_ov070_02123108, (void *)fg_enter_f694 }  /* ENTER: cell 021235dc[0] */,
+        { data_ov070_02123110, (void *)fg_enter_f5f0 }  /* ENTER: cell 0212358c[0] */,
         { data_ov070_02123118, (void *)fg_tick_f6e0 }   /* TICK: cell 021235cc[1] */,
         /* Amp's six */
         { data_ov070_0212320c, (void *)_ZN7daBrq_c18EnterCooldownStateEv },

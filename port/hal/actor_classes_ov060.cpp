@@ -770,18 +770,23 @@ int _ZN10daKpa2Bg_c6RenderEv(void *self)
 }
 
 // run linkw wave 6 (lane w6-A): the same recipe for the five wave-6 bodies src
-// defines as real C++ methods. SPIKE BOMB's three are under the shifted
-// BowserSkyPlatform.h spellings -- the header is generated from the matched
-// functions' own evidence, so it is SPIKE BOMB's layout under that name.
+// defines as real C++ methods. SPIKE BOMB's three were written against
+// BowserSkyPlatform.h when dsd's ov060 labels were one class off. They are not:
+// config/arm9/overlays/ov060 puts _ZN9SpikeBomb13InitResourcesEv at 0x02118bb4,
+// _ZN9SpikeBomb8BehaviorEv at 0x02118b2c and _ZN9SpikeBomb6RenderEv at
+// 0x02118ad4, and BowserSkyPlatform's own three at 0x021182b0 / 0x02118254 /
+// 0x0211822c. src/_ZN9SpikeBomb*.cpp define SpikeBomb's methods against
+// include/SpikeBomb.h, so each face is bound to its own class.
 #include "BowserSkyPlatform.h"
 #include "BowserTail.h"
+#include "SpikeBomb.h"
 extern "C" {
 int _ZN9SpikeBomb13InitResourcesEv(void *self)
-{ return ((BowserSkyPlatform *)self)->BowserSkyPlatform::InitResources(); }
+{ return ((SpikeBomb *)self)->SpikeBomb::InitResources(); }
 int _ZN9SpikeBomb8BehaviorEv(void *self)
-{ return ((BowserSkyPlatform *)self)->BowserSkyPlatform::Behavior(); }
+{ return ((SpikeBomb *)self)->SpikeBomb::Behavior(); }
 int _ZN9SpikeBomb6RenderEv(void *self)
-{ return ((BowserSkyPlatform *)self)->BowserSkyPlatform::Render(); }
+{ return ((SpikeBomb *)self)->SpikeBomb::Render(); }
 int _ZN10BowserTail13InitResourcesEv(void *self)
 { return ((BowserTail *)self)->BowserTail::InitResources(); }
 int _ZN10BowserTail8BehaviorEv(void *self)

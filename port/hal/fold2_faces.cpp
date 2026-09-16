@@ -103,9 +103,13 @@
 #include "RacingPenguin.h"
 #include "Submarine.h"
 #include "Wiggler.h"
+#include "BowserPuzzlePiece.h"
+#include "Whirlpool.h"
 
 extern "C" {
-int _ZN17BowserPuzzlePiece6RenderEv(void *s) { return ((BowserPuzzleManager *)s)->BowserPuzzleManager::Render(); }
+/* ov064 0x02119088, slot 9 of the Piece's table 0x0211c25c; the Manager has no
+   Render of its own, so this used to reach the inherited base instead. */
+int _ZN17BowserPuzzlePiece6RenderEv(void *s) { return ((BowserPuzzlePiece *)s)->BowserPuzzlePiece::Render(); }
 int _ZN6Cannon6RenderEv(void *s)               { return ((Cannon *)s)->Cannon::Render(); }
 int _ZN6Klepto6RenderEv(void *s)               { return ((Klepto *)s)->Klepto::Render(); }
 int _ZN5Koopa6RenderEv(void *s)                { return ((Koopa *)s)->Koopa::Render(); }
@@ -115,6 +119,8 @@ int _ZN3Key6RenderEv(void *s)                  { return ((Key *)s)->Key::Render(
 /* char*, not void*: hal/actor_classes_ov019_w3e.cpp declares this one
    `int _ZN13RacingPenguin6RenderEv(char *self)` and calls it with a cast. */
 int _ZN13RacingPenguin6RenderEv(char *s)       { return ((RacingPenguin *)s)->RacingPenguin::Render(); }
-int _ZN9Whirlpool6RenderEv(void *s)            { return ((Submarine *)s)->Submarine::Render(); }
+/* ov026 0x02111fd8, slot 9 of the whirlpool's table 0x02113d54; Submarine's own
+   Render is 0x02111998 in table 0x02113c6c. */
+int _ZN9Whirlpool6RenderEv(void *s)            { return ((Whirlpool *)s)->Whirlpool::Render(); }
 int _ZN7Wiggler6RenderEv(void *s)              { return ((Wiggler *)s)->Wiggler::Render(); }
 }

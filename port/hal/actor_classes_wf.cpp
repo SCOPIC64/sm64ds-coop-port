@@ -603,12 +603,37 @@ extern "C" void hal_fill_rotating_platform_wf_vtable(void)
 // ============================================================================
 //
 // Both factories (daObjBk_Dossunbar_c_classInit_BK_DOSSUNBAR_L / daObjBk_Dossunbar_c_classInit_BK_DOSSUNBAR_S) install vtable
-// 0x0211458c (config _ZTV19daObjBk_Dossunbar_c / _ZTV19daObjBk_Dossunbar_c), so an
-// id-53 or id-54 object runs KnockDownPlank's lifecycle -- an 824-byte object
-// (ActorBase::operator new(824)) built by Platform's ctor. The vtable's own
-// slots are KnockDownPlank's methods: slot 0 InitResources (0x021120fc, a real
-// C++ method), slot 3 CleanupResources (0x02112004, C++), slot 6 Behavior
-// (0x02112090), slot 9 Render (0x02112068, C++), slot 16 D1 (0x02111ba0, C).
+// 0x0211458c (config _ZTV19daObjBk_Dossunbar_c / _ZTV19daObjBk_Dossunbar_c) on an
+// 824-byte object (ActorBase::operator new(824)) built by Platform's ctor.
+//
+// THE SLOTS ARE THE CLASS'S OWN, NOT KNOCKDOWNPLANK'S. This block used to call
+// them "KnockDownPlank's methods" and seat slots 0, 3 and 9 with KnockDownPlank's
+// bodies. The cartridge disagrees, in its own relocation table
+// (config/arm9/overlays/ov015/relocs.txt) against its own symbol table
+// (config/arm9/overlays/ov015/symbols.txt, _ZTV19daObjBk_Dossunbar_c at
+// 0x0211458c):
+//
+//   slot 0  0x0211458c -> 0x021120fc  _ZN19daObjBk_Dossunbar_c13InitResourcesEv
+//   slot 3  0x02114598 -> 0x02112004  _ZN19daObjBk_Dossunbar_c16CleanupResourcesEv
+//   slot 6  0x021145a4 -> 0x02112090  _ZN19daObjBk_Dossunbar_c8BehaviorEv
+//   slot 9  0x021145b0 -> 0x02112068  _ZN19daObjBk_Dossunbar_c6RenderEv
+//   slot 16 0x021145cc -> 0x02111ba0  _ZN19daObjBk_Dossunbar_cD1Ev
+//
+// and KnockDownPlank's own bodies are somewhere else entirely in the same
+// overlay: InitResources 0x02111960, CleanupResources 0x021116b4, Render
+// 0x021116f8. Slots 6, 16 and 17 already named this class's bodies; slots 0, 3
+// and 9 now do too, and all three are matched src in
+// src/game/actors/d_a_obj_bk_dossunbar.cpp.
+//
+// The cost of the crossing was a fault, not a subtlety. daObjBk_Dossunbar_c's
+// object has mHomePosX at +0x320 (include/daObjBk_Dossunbar_c.h) and
+// KnockDownPlank's has a ShadowModel there (include/KnockDownPlank.h), so
+// KnockDownPlank::InitResources handed ShadowModel::InitCuboid a `this' pointing
+// at three position words. ModelBase::SetFile is a virtual dispatch on the host
+// (`mov eax,[ecx] / jmp [eax+8]'), the word it read was the zero that had never
+// been written, and run link100's boot sweep saw level 7 fault at
+// ModelBase::SetFile+0x6 on the address 8 with the receiver exactly
+// actor + 0x320.
 //
 // The one wall this class hit was slot 6. KnockDownPlank::Behavior (the matched
 // .cpp, MSVC-compiled) dispatches
@@ -635,6 +660,7 @@ extern "C" void hal_fill_rotating_platform_wf_vtable(void)
 // it as _ZTV19daObjBk_Dossunbar_c and the class D1 restores it as
 // _ZTV19daObjBk_Dossunbar_c, so both names are aliased onto the one host array.
 #include "KnockDownPlank.h"
+#include "daObjBk_Dossunbar_c.h"
 extern "C" {
 int _ZN19daObjBk_Dossunbar_c8BehaviorEv(void *self);          /* host copy, extern C */
 int *_ZN19daObjBk_Dossunbar_cD1Ev(int *self);                 /* .c, C linkage */
@@ -681,15 +707,15 @@ void *_ZTV19daObjBk_Dossunbar_c[32];
    so the thunks call them QUALIFIED; Behavior is the host copy (extern "C") and
    D1 is plain C, the TowerStep/ArrowSign shape. */
 static int __fastcall mb_init(void *s, void *)
-{ return ((KnockDownPlank *)s)->KnockDownPlank::InitResources(); }
+{ return ((daObjBk_Dossunbar_c *)s)->daObjBk_Dossunbar_c::InitResources(); }
 static int __fastcall mb_clean(void *s, void *)
-{ return ((KnockDownPlank *)s)->KnockDownPlank::CleanupResources(); }
+{ return ((daObjBk_Dossunbar_c *)s)->daObjBk_Dossunbar_c::CleanupResources(); }
 static int __fastcall mb_behavior(void *s, void *)
 { return _ZN19daObjBk_Dossunbar_c8BehaviorEv(s); }
 static int __fastcall mb_render(void *s, void *)
 {
     port_actor_render_probe("MOVING_BAR", (char *)s + 0xd4);
-    return ((KnockDownPlank *)s)->KnockDownPlank::Render();
+    return ((daObjBk_Dossunbar_c *)s)->daObjBk_Dossunbar_c::Render();
 }
 static int __fastcall mb_d1(void *s, void *)
 { return (int)(size_t)_ZN19daObjBk_Dossunbar_cD1Ev((int *)s); }
