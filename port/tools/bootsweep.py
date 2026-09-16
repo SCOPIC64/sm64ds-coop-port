@@ -29,7 +29,12 @@ import subprocess
 import sys
 import time
 
-EXE = sys.argv[1]
+# ABSOLUTE. Every row runs with cwd set to the exe's own directory (EXEDIR
+# below) while this argument arrives relative to the tree root, so
+# `python port/tools/bootsweep.py build/port/walk_window.exe ...` died on row
+# one with FileNotFoundError [WinError 2]. port/tools/bootab.py has always
+# called abspath here; this is that line.
+EXE = os.path.abspath(sys.argv[1])
 OUTDIR = sys.argv[2]
 FRAMES = sys.argv[3] if len(sys.argv) > 3 else "600"
 BUDGET = int(sys.argv[4]) if len(sys.argv) > 4 else 180
@@ -46,7 +51,16 @@ os.makedirs(OUTDIR, exist_ok=True)
 
 # Every SM64DS_ knob is dropped before the row's own is applied, so nothing
 # inherited from this shell can decide what a row runs. battery.py's rule.
-DROP = [k for k in os.environ if k.startswith("SM64DS_")]
+#
+# THE THREE SM64DS_TEST_LOCK* VARIABLES ARE THE EXCEPTION, exactly as
+# port/tools/bootab.py has them. They are not a knob a row reads; they are how
+# a launch takes the machine-wide windowed test slot. Dropping them made every
+# row run OUTSIDE the slot, so a sweep here collided with any other lane's
+# battery or capture and produced random rc=1 rows on levels that were fine.
+# Export SM64DS_TEST_LOCK=1 SM64DS_TEST_LOCK_PATH=C:/tmp/sm64ds-test-slot/slot.lock
+# SM64DS_TEST_LOCK_TIMEOUT=10800 before running and every row serialises.
+DROP = [k for k in os.environ
+        if k.startswith("SM64DS_") and not k.startswith("SM64DS_TEST_LOCK")]
 
 # HEADLESS AND SILENT, because this runs beside somebody working. No
 # SM64DS_SCENE_WINDOW: a headless row must stay headless, and an inherited one
