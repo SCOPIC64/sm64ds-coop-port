@@ -205,6 +205,7 @@ static void l7_fill_shared(void **vt)
 // Its own slots past 17 are slot 27 (_ZN6Thwomp15OnHitByMegaCharER6Player, OnHitByMegaChar) and
 // slot 29 (_ZN6Thwomp16OnAimedAtWithEggEv, OnAimedAtWithEgg). Init/Clean/Behavior/Render
 // are real C++ methods; D1/D0 are plain C.
+#include "daDsnBase_c.h"
 #include "Thwomp.h"
 extern "C" {
 int _ZN6Thwomp13InitResourcesEv(void *self);       /* face: below */
@@ -278,11 +279,11 @@ extern "C" {
 int _ZN6Thwomp13InitResourcesEv(void *self)
 { return ((Thwomp *)self)->Thwomp::InitResources(); }
 int _ZN11daDsnBase_c16CleanupResourcesEv(void *self)
-{ return ((Thwomp *)self)->Thwomp::CleanupResources(); }
+{ return ((daDsnBase_c *)self)->daDsnBase_c::CleanupResources(); }
 int _ZN6Thwomp8BehaviorEv(void *self)
 { return ((Thwomp *)self)->Thwomp::Behavior(); }
 int _ZN11daDsnBase_c6RenderEv(void *self)
-{ return ((Thwomp *)self)->Thwomp::Render(); }
+{ return ((daDsnBase_c *)self)->daDsnBase_c::Render(); }
 }
 
 // ============================================================================
