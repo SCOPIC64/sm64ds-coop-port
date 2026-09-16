@@ -1069,6 +1069,25 @@ def falls_off_return_patch(text, sym):
 # matched source's own `newCallback->SpawnParticles(*system)` back, which MSVC
 # dispatches __thiscall through the same table the constructor installed.
 VIRTUAL_CALL = {
+    # The OTHER end of the same correction, run link100 lane NULLCALL2.
+    # Particle::System::New is a .c file, so it reaches the callback through a
+    # C shadow -- `typedef void (*VFn)(void *, void *); o->vtable[0](o, p)` --
+    # on the reuse path, where FindData already has an entry for the type. A
+    # plain function-pointer call is cdecl, and the word in slot 0 is one of
+    # MSVC's __thiscall bodies: the receiver never reaches ECX and the callee's
+    # ret 4 leaves the caller's stack four bytes short. Levels 14, 15 and 37
+    # landed here the moment the Initialise dispatch above stopped killing them
+    # first, through daObjLava_c::Behavior -> func_02022c3c -> New+0x9c.
+    #
+    # The C shadow cannot carry a class, so the convention goes on the call:
+    # the cast names __thiscall and MSVC puts `o` in ECX and cleans nothing.
+    # ROM-side this is a no-op -- on ARM the receiver rides in r0 either way,
+    # mwccarm never sees hostgen's output, and the source keeps its own shape.
+    "_ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE": [
+        ("      o->vtable[0](o, p);",
+         "      /* hostgen VIRTUAL_CALL: slot 0 holds a __thiscall body. */\n"
+         "      ((void (__thiscall *)(void *, void *))o->vtable[0])(o, p);"),
+    ],
     # Lane shadow-A: Model::LoadAndSetFile's middle. The matched source
     # dispatches DoSetFile through a LOCAL shadow class with three virtuals,
     # `self->v2(file, c, d)`: slot 2 in ROM/Itanium numbering, where a
