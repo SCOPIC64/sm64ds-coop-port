@@ -56,6 +56,7 @@
 /* run link100 lane PMFB6 gate 2: the two member-defining EXTENT rows */
 #include "Key.h"
 #include "UpDownLiftBbh.h"
+#include "BowserPuzzlePiece.h"
 
 /* include/BowserPuzzleManager.h and include/Dorrie.h do NOT declare
    Behavior -- their matched TUs declare the class themselves -- so these two
@@ -78,9 +79,10 @@ int _ZN19daObjBk_Dossunbar_c8BehaviorEv(void *self)
 int _ZN10BowserFire8BehaviorEv(void *self)
 { return ((BowserFire *)self)->BowserFire::Behavior(); }
 
-/* ov064 0x021190b0 -- ov064 data_ov064_0211c904, 6 cells */
+/* ov064 0x021190b0 -- ov064 data_ov064_0211c904, 6 cells. 0x021190b0 is slot 6
+   of the Piece's own table 0x0211c25c; the Manager's Behavior is 0x0211915c. */
 int _ZN17BowserPuzzlePiece8BehaviorEv(void *self)
-{ return ((BowserPuzzleManager *)self)->BowserPuzzleManager::Behavior(); }
+{ return ((BowserPuzzlePiece *)self)->BowserPuzzlePiece::Behavior(); }
 
 /* ov065 0x02118df0 -- ov065 data_ov065_0211d7fc, 3 cells */
 int _ZN6Dorrie8BehaviorEv(void *self)
@@ -216,6 +218,8 @@ int _ZN13UpDownLiftBbh8BehaviorEv(void *self)
 #include "WaterSuction.h"
 #include "Submarine.h"
 #include "BowserPuzzlePiece.h"
+#include "Whirlpool.h"
+#include "JetStream.h"
 #include "LavaBubble.h"
 #include "WaterRing.h"
 #include "daYurei_Mucho_c.h"
@@ -229,12 +233,15 @@ int _ZN6Bullet8BehaviorEv(void *self)
 /* ov026 0x0211233c -- cell data_ov036_02113f58, tick half at +8 */
 int _ZN12WaterSuction8BehaviorEv(void *self)
 { return ((WaterSuction *)self)->WaterSuction::Behavior(); }
-/* ov026 0x0211200c -- cells data_ov026_02113f2c / _02113f3c */
+/* ov026 0x0211200c -- cells data_ov026_02113f2c / _02113f3c. That address is
+   slot 6 of the whirlpool's table 0x02113d54; Submarine has no Behavior of its
+   own, so this used to reach the inherited base body instead. */
 int _ZN9Whirlpool8BehaviorEv(void *self)
-{ return ((Submarine *)self)->Submarine::Behavior(); }
-/* ov064 0x021198bc -- cell data_ov064_0211c934, .b half at +8 */
+{ return ((Whirlpool *)self)->Whirlpool::Behavior(); }
+/* ov064 0x021198bc -- cell data_ov064_0211c934, .b half at +8. That address is
+   slot 6 of JetStream's table 0x0211c334; the Piece's Behavior is 0x021190b0. */
 int _ZN9JetStream8BehaviorEv(void *self)
-{ return ((BowserPuzzlePiece *)self)->BowserPuzzlePiece::Behavior(); }
+{ return ((JetStream *)self)->JetStream::Behavior(); }
 /* ov064 0x02118850 -- cells data_ov064_0211c7b8 / _0211c7c8 */
 int _ZN10LavaBubble8BehaviorEv(void *self)
 { return ((LavaBubble *)self)->LavaBubble::Behavior(); }

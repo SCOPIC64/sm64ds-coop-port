@@ -144,6 +144,7 @@ extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include "fBase_c.h"
 #include "Submarine.h"
 #include "WaterSuction.h"
+#include "Whirlpool.h"
 
 // ---- the two private names the G0/G1 routing needs -------------------------
 // include/decl_common.h:244-247 declares data_ov026_02113ebc / _02113eb4 /
@@ -669,8 +670,13 @@ extern "C" void hal_fill_ov026_water_suction_vtable(void)
 // recipe. Everything else in this cast is a plain C-linkage body and is called
 // directly.
 extern "C" {
+/* ov026 0x021120ec is _ZN9Whirlpool13InitResourcesEv and slot 0 of table
+   0x02113d54 (the whirlpool's); Submarine's own InitResources is 0x021119c0 and
+   sits in table 0x02113c6c. src/_ZN9Whirlpool13InitResourcesEv.cpp defines
+   Whirlpool::InitResources and reads its ModelAnim at +0x114, where the
+   Submarine body reads a Model at +0xd4. */
 int _ZN9Whirlpool13InitResourcesEv(void *self)
-{ return ((Submarine *)self)->Submarine::InitResources(); }
+{ return ((Whirlpool *)self)->Whirlpool::InitResources(); }
 int _ZN12WaterSuction13InitResourcesEv(void *self)
 { return ((WaterSuction *)self)->WaterSuction::InitResources(); }
 }
