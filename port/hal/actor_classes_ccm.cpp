@@ -1037,9 +1037,49 @@ extern "C" void hal_fill_mother_penguin_vtable(void)
 // port/unmatched/MotherPenguin_Behavior.cpp (the MSVC dtor-slot-shift host
 // copy), not matched src -- this face still applies unchanged, it just
 // resolves to the host copy's definition.
+//
+// EXCEPT SLOT 0, WHICH WENT ONE CLASS OVER WHEN ITS HOST COPY WAS DROPPED.
+// port/slice_gate191.txt's own slot table says MotherPenguin's slot 0 is
+// "_ZN10daPgMthr_c13InitResourcesEv own -- RETIRED to the matched src TU", and
+// its ARGSWEEP note says port/unmatched/MotherPenguin_InitResources.cpp is
+// dropped because the matched TU is behaviourally identical. The face below was
+// not moved with it, so ?InitResources@SkiLift@@UAEHXZ kept answering -- and
+// that symbol is defined by src/_ZN7SkiLift13InitResourcesEv.cpp, which is the
+// REAL ski lift's body: it includes daObjSm_Lift_c.h and builds a moving mesh
+// collider (dBgW_Kc::LoadFile, dBgW_KcMbg::SetFile, dBgActor_c::UpdateClsnPosAndRot).
+// include/SkiLift.h spells `struct SkiLift : dBgActor_c`, and a dBgActor_c has
+// its dBgW_KcMbg at +0x124. MotherPenguin is a plain Actor (the slice's own
+// words, 31 slots, no Kill) whose members are ModelAnim 0xd4, TextureSequence
+// 0x138, ShadowModel 0x14c, dCcAc_c 0x174, dBgCh_Actr 0x1a8 -- read off
+// daPgMthr_c_classInit, which allocates 908 = 0x38c and constructs exactly
+// those five. There is no collider at +0x124.
+//
+// So level 10 (Cool Cool Mountain) died here, measured under cdb:
+//
+//   actor 3003677c, vptr 00a63738 = __ZTV10daPgMthr_c, slot 0 = mpg_init
+//   ... -> ?InitResources@SkiLift@@UAEHXZ+0x61
+//       -> ?UpdateClsnPosAndRot@dBgActor_c@@QAEXXZ+0x56 (lea eax,[ecx+0x124])
+//       -> __ZN10dBgW_KcMbg9TransformERK9Matrix4x3s -> Transform+0x202
+//          call dword ptr [eax+0x30]        ; GetVelocity, ROM slot 12
+//   FAULT c0000005 at ?DetectClsn@dBgW_Kc@@UAEHAAUdBgCh_SphCrr@@@Z+0xac
+//        accessing 00001014
+//
+// and the vptr at actor+0x124 was 007302c0, which the map names
+// ??_7ModelAnim@@6BAnimation@@@ -- the ModelAnim at +0xd4's own Animation
+// sub-object vptr, 0x50 into it. ??_7dBgW_Kc@@6B@ is sixteen bytes higher at
+// 007302d0, so byte 0x30 off the low pointer is that table's index 8, which is
+// DetectClsn(dBgCh_SphCrr &). Nothing is skewed and no class is four bytes
+// high: MotherPenguin simply ran the ski lift's InitResources.
+//
+// Slot 0 is the matched daPgMthr_c::InitResources (ROM ov018 0x021124d0, the TU
+// src/game/actors/d_a_pg_mthr.cpp, already linked as
+// ?InitResources@daPgMthr_c@@UAEHXZ). Slot 6 is NOT touched: SkiLift::Behavior
+// resolves to port/unmatched/MotherPenguin_Behavior.cpp, MotherPenguin's own
+// host copy, which is right as it stands. Run link100 wave 10, lane SINGLES2.
+#include "daPgMthr_c.h"
 extern "C" {
 int _ZN10daPgMthr_c13InitResourcesEv(void *self)
-{ return ((SkiLift *)self)->SkiLift::InitResources(); }
+{ return ((daPgMthr_c *)self)->daPgMthr_c::InitResources(); }
 int _ZN10daPgMthr_c8BehaviorEv(void *self)
 { return ((SkiLift *)self)->SkiLift::Behavior(); }
 }
