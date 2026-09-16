@@ -8,7 +8,12 @@ struct Thing {
 };
 
 extern void *func_ov007_020c3df4(int heap, int size);
-extern void func_ov007_020c78b0(void);
+/* Takes the block to clear. src/func_ov007_020c78b0.c reads it out of r0 and
+   hands it to MultiStore_Int; on ARM the allocation below is still in r0 at
+   the branch, so spelling the argument costs no instruction and the TU keeps
+   its bytes. Declared `(void)` and called with nothing, this reads an unwritten
+   stack slot on any host with a stack calling convention. */
+extern void func_ov007_020c78b0(void *block);
 extern int func_ov007_020c844c(int a, void *b);
 extern int func_ov007_020c80a4(void);
 
@@ -18,7 +23,7 @@ struct Thing *func_ov007_020c798c(void *p0, int p1, void *p2, int p3)
     struct Thing *t;
 
     t = (struct Thing *)func_ov007_020c3df4(0, 0x14);
-    func_ov007_020c78b0();
+    func_ov007_020c78b0(t);
     t->field10 = p0;
     t->field4 = p1;
     t->fieldC = p3;

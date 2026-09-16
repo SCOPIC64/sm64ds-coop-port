@@ -434,22 +434,70 @@ extern "C" void port_actor_lists_seat(void)
 /* Phases 4, 2 and 3 of func_02044120: cleanup, the init pass for anything
    spawned since the last frame, then behaviour. */
 /* SM64DS_TRACE_LISTS=1: name every node on a list before it is walked --
-   actor id, alive state, kill flag and vtable. The only window into a frame
-   that is otherwise entirely matched code walking Nintendo's own structures. */
+   actor id, alive state, kill flag, PAUSE FLAGS and vtable. The only window
+   into a frame that is otherwise entirely matched code walking Nintendo's own
+   structures.
+
+   pauseFlags (fBase_c +0x13) is printed because being ON the list is not the
+   same as being ticked, and the two used to look identical here. ActorBase::
+   Process (func_02043288) calls slot 7 first and only calls slot 6 when it
+   returns non-zero, and fBase_c::BeforeBehavior returns 0 when shouldBeKilled
+   is set OR pauseFlags & 2; the render pair is the same shape on slots 10/9
+   with pauseFlags & 8. So an actor that is alive, unkilled, on the list and
+   nevertheless frozen is a flag-byte question, and the flag byte was the one
+   field this line did not carry.
+
+   SM64DS_TRACE_LISTS=2 adds the four dispatched vtable words, which separates
+   "the gate said no" from "the slot stopped holding the host thunk" -- what a
+   re-mounted overlay or a write through a vptr looks like, and invisible in
+   every other line this file prints. The {node ... actor ... id ...} prefix is
+   unchanged: port/tools/stage_pause_proof.py rung 2 parses it. */
 static void port_list_trace(const char *name, int *list)
 {
     static int on = -1;
-    if (on < 0) on = std::getenv("SM64DS_TRACE_LISTS") != 0;
+    if (on < 0) {
+        const char *e = std::getenv("SM64DS_TRACE_LISTS");
+        on = e ? std::atoi(e) : 0;
+        if (e && on == 0) on = 1;       /* a set but non-numeric value means 1 */
+    }
     if (!on)
         return;
-    std::printf("  [list] %s head %08x:", name, list[0]);
+    /* THE CALLBACK WORD IS PART OF THE LIST'S STATE AND IT WAS NOT PRINTED.
+       src/func_02043fdc.cpp opens `if (thiz->callback == 0) return`, so a list
+       whose callback word has been cleared is walked by NOBODY while every
+       node is still on it and every field in the node still reads healthy.
+       Printing the head and the nodes and not this word made those two states
+       -- "the list is live" and "the list is inert" -- literally identical in
+       the log. The two walked shapes differ: the scene tree at data_020a4b6c
+       is {head, callback, 0} and the four processing lists are {head, tail,
+       callback, 0}, so the index is chosen off the name rather than assumed. */
+    const int cb = (name[0] == 't') ? list[1] : list[2];   /* "tree" vs the rest */
+    /* AND THE PASS NUMBER, after the two words and still before the colon, so
+       the node text after the colon keeps its shape. The lines are otherwise
+       indistinguishable frame to frame, so five hundred identical lines cannot
+       be lined up against any other per-frame count in the run -- and "walked
+       N times, dispatched M times" is exactly such a comparison. Counted per
+       list, because the three lists are walked by the same function. */
+    static unsigned pass_beh, pass_other;
+    unsigned *pass = (name[0] == 'b') ? &pass_beh : &pass_other;
+    std::printf("  [list] %s head %08x cb %08x pass %u:", name, list[0], cb,
+                (*pass)++);
     for (int *n = (int *)(size_t)list[0]; n; n = (int *)(size_t)n[1]) {
         char *o = (char *)(size_t)n[2];
-        std::printf(" {node %p actor %p id %u alive %u kill %u vt %p}", (void *)n,
+        std::printf(" {node %p actor %p id %u alive %u kill %u pause %u vt %p",
+                    (void *)n,
                     (void *)o, o ? *(unsigned short *)(o + 0xc) : 0u,
                     o ? *(unsigned char *)(o + 0xe) : 0u,
                     o ? *(unsigned char *)(o + 0xf) : 0u,
+                    o ? *(unsigned char *)(o + 0x13) : 0u,
                     o ? *(void **)o : (void *)0);
+        if (on >= 2 && o) {
+            void **vt = *(void ***)o;
+            if (vt)
+                std::printf(" beh %p bbeh %p ren %p bren %p",
+                            vt[6], vt[7], vt[9], vt[10]);
+        }
+        std::printf("}");
     }
     std::printf("\n");
 }

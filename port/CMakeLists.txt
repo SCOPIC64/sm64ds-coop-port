@@ -6413,6 +6413,48 @@ elseif(NOT IR1_C2B9C_VOID_DEF)
                    "cut in the slice loop and the host copy)")
 endif()
 
+# run link100 lane FILESEL2: THE FILE SELECT'S OWN IMPLICIT r0, FIXED IN THE
+# DECOMP AND HELD THERE BY THIS GUARD.
+#
+# src/func_ov007_020c798c.c allocates a 0x14-byte record and hands it to
+# func_ov007_020c78b0 to be zeroed. The ROM's branch at 0x020c79b0 passes
+# nothing, because the allocation is still in r0 from func_ov007_020c3df4's
+# return and the callee reads it there, so the matched TU used to declare the
+# callee `(void)` and call it with no argument. On MSVC that reads an unwritten
+# stack slot: it read zero, MultiStore_Int wrote twenty bytes over address 0,
+# the quarantine net froze the title scene on the frame the file select comes
+# up, and both screens went flat for the rest of the run. Under
+# SM64DS_FAULTS_FATAL=1 the same build died with 0xC0000005 instead.
+#
+# THE FIX IS IN src/, not in a displacement. Spelling the argument costs no
+# instruction on ARM and func_ov007_020c798c still byte-matches at 2004/b56
+# with strict relocs, which is the MP1/mg16 shape -- the same reason the two
+# retirements above could happen. What this guard protects is that spelling.
+#
+# IT REFUSES rather than warning. A warning is right for a displacement that
+# has become redundant; this one is right for a defect that kills the process
+# on a screen every player reaches, and the regex is over the ONE call site
+# there is (checked by scanning ov007 for every branch to 0x020c78b0, not by
+# reading a comment). Break the spelling and the build stops at configure with
+# the reason, instead of a fortnight later on somebody's file select.
+port_configure_input("${PORT_REPO_ROOT_ABS}/src/func_ov007_020c798c.c")
+file(STRINGS "${PORT_REPO_ROOT_ABS}/src/func_ov007_020c798c.c"
+     FS2_C798C_VOID_CALL
+     REGEX "func_ov007_020c78b0[ \t]*\\([ \t]*(void)?[ \t]*\\)[ \t]*;")
+if(FS2_C798C_VOID_CALL)
+    message(FATAL_ERROR
+            "FILESEL2: src/func_ov007_020c798c.c declares or calls "
+            "func_ov007_020c78b0 with no argument again. On ARM the ROM leaves "
+            "the allocation in r0 across that branch; on this host the callee "
+            "reads an unwritten stack slot and MultiStore_Int writes 0x14 bytes "
+            "over whatever it finds -- address 0 in every run measured, which "
+            "faults inside the actor walk and freezes the title scene on the "
+            "frame the file select appears. Pass the record: "
+            "`extern void func_ov007_020c78b0(void *block);` and "
+            "`func_ov007_020c78b0(t);`. That spelling still byte-matches at "
+            "2004/b56 with strict relocs, so there is nothing to trade.")
+endif()
+
 # run link60 lane AE1: SCENE 1'S NEXT BLOCKER, AND IT IS A NEW DEFECT CLASS.
 #
 # The implicit-r0 seam above is seated, InitResources FINISHES, and Behavior
