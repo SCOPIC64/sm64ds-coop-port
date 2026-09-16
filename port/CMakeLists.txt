@@ -20421,6 +20421,54 @@ foreach(_tlink21 walk_window walk_window_hires smoke_player)
     target_sources(${_tlink21} PRIVATE ${SLICE_LINK21_SOURCES})
 endforeach()
 
+# LANE SMOKELINK2 (run link100 wave 10 round 2): walk_window_hires ALSO NEEDS
+# THESE DEFINITIONS, and it has needed them since the 09-14 sync.
+#
+# The three blocks above each say WALK_WINDOW ONLY because the wall they were
+# measured against was walk_window's own unresolved block.  That was true when
+# each was written and it is no longer the whole picture: the REFERENCES that
+# need these definitions live in hal/dtor_faces_cpp.cpp, hal/model_dtor_seat.cpp
+# and the thirty-odd hal/actor_classes_*.cpp files, every one of which is on
+# walk_window_hires as well.  The bodies went on one target and the callers went
+# on two, so walk_window links and walk_window_hires has never linked since.
+#
+# MEASURED, per name, on the untouched baseline (79388ffe5, a full ninja -k 0
+# over all targets, out/SMOKELINK2/build_smokelink2_0.log): walk_window_hires
+# reports 321 unresolved externals, and all 321 are defined by these three
+# slices and nothing else --
+#   253  hal/dtor_forwarders_gen.cpp                 (SLICE_DTORS_A)
+#     6  hal/dtor_forwarders_gen_stage.cpp           (SLICE_DTORS_A)
+#    30  hal/dtor_forwarders_gen_w9c.cpp             (SLICE_DTORS2)
+#     8  hal/dtor_forwarders_gen_w9c_structors.cpp   (SLICE_DTORS2)
+#    18  hal/int4_rows.cpp, its own definitions      (SLICE_INT4)
+#     5  hal/int4_rows.cpp, its /alternatename block at line 335 (the five
+#        ArrowSignRight / Enemy / Particle spellings whose bodies are already
+#        in this link through slice_gate10, 16, 29 and 32)
+#     1  hal/int4_rows.cpp's flat face at its line 126,
+#        __ZN22ExpandingHeapAllocator13DeallocateAllEPFvPvPS_jEj, which
+#        hal/lk4_eh_dtor_seat.cpp:300 calls on all three targets.  It is the
+#        only one of the 321 that walk_window.map does not print, so it reads
+#        as missing everywhere; dumpbin /symbols on
+#        build/port/CMakeFiles/walk_window.dir/hal/int4_rows.cpp.obj shows it
+#        SECT22 External, which is what settles it.
+#
+# SLICE_SEAT2 IS DELIBERATELY NOT ADDED.  It is the fourth walk_window-only
+# block and the obvious fourth row here, and it defines NONE of the 321:
+# hal/vtables_seat2.cpp appears against zero of walk_window_hires' unresolved
+# names.  Its own block states the rule -- a seat that has not been measured on
+# a target does not belong on it -- and putting an unmeasured vtable word on
+# this target would change what a live object dispatches and buy nothing.
+#
+# Nothing here is a new definition, a new seat or a keep-alive reference: every
+# file already builds, already carries its own derivation and its own ROM
+# evidence, and every one is already in walk_window's link.  This only makes
+# the two window targets agree about which of them are present.
+foreach(_tsmokelink2 walk_window_hires)
+    target_sources(${_tsmokelink2} PRIVATE ${SLICE_DTORS_A_SOURCES}
+                                           ${SLICE_DTORS2_SOURCES}
+                                           ${SLICE_INT4_SOURCES})
+endforeach()
+
 
 # MOVED BACK TO LAST IN THE FILE at the wave-9c fold (lane INT4). Its own banner
 # below says every port_read_lines call has to be above it, and two blocks had
