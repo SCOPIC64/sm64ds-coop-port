@@ -45,6 +45,7 @@
 
 /* seven of the nine classes are declared in the tree's own include/ */
 #include "KnockDownPlank.h"
+#include "daObjBk_Dossunbar_c.h"
 #include "BowserFire.h"
 #include "Whomp.h"
 #include "MontyMole.h"
@@ -71,9 +72,15 @@ struct Dorrie { int Behavior(); };
 
 extern "C" {
 
-/* ov015 0x02112090 -- ov015 data_ov015_021149ec, 7 cells */
+/* ov015 0x02112090 -- ov015 data_ov015_021149ec, 7 cells.
+   The receiver is daObjBk_Dossunbar_c, NOT KnockDownPlank: ov015 relocs.txt
+   sends slot 6 of _ZTV19daObjBk_Dossunbar_c (0x021145a4) to 0x02112090 and
+   slot 6 of _ZTV14KnockDownPlank (0x02114438) to 0x02111720. The plank's
+   object is 0x39c bytes with a ShadowModel at 0x320; the bar's is the 0x338
+   both its factories allocate, so the plank's body wrote its shadow matrix
+   0x10 past the bar's block and over the next actor's vtable word. */
 int _ZN19daObjBk_Dossunbar_c8BehaviorEv(void *self)
-{ return ((KnockDownPlank *)self)->KnockDownPlank::Behavior(); }
+{ return ((daObjBk_Dossunbar_c *)self)->daObjBk_Dossunbar_c::Behavior(); }
 
 /* ov060 0x021176d4 -- ov060 data_ov060_0211afb4, 8 cells */
 int _ZN10BowserFire8BehaviorEv(void *self)
