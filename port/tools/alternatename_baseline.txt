@@ -100,6 +100,12 @@
 # comes out) or it is truly defeated there too (row stays, reclassified). Not a
 # claim that these are correct; a documented hold on an inapplicable check.
 #
+# GROWTH, run link100 lane PROBEBASE: _data_0209ee74=_port_fault_no_particles
+# was ADDED. fault_probe.h:88, the crash probe's deliberate weak-link fallback
+# for harnesses without a particle tracker; inert in walk_window where
+# _data_0209ee74 is always defined; baselined by lane PROBEBASE 2026-09-17,
+# not a defect.
+#
 # THE THREE THAT ARE NOT HERE. The same lane needed port_romdata_sha,
 # port_romdata_bytes and port_asset_root_seen readable from hal/lk7_persist.cpp,
 # which is compiled into targets hal/romdata_loader.cpp is not. The weak-symbol
@@ -122,6 +128,7 @@ __ZN4Heap21MaxAllocationUnitSizeEv=?MaxAllocationUnitSize@Heap@@QAEIXZ
 __ZN4Heap8AllocateEj=_hal_heap_allocate_align4
 __ZN8dActor_c18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j=_hal_dropshadow_scalexyz_fallback
 __ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_=_port_l7_particle_newsimple_stub
+_data_0209ee74=_port_fault_no_particles
 _data_0209f250=_port_fault_no_pidx
 _data_0209f2f8=_port_fault_no_level
 _data_0209f394=_port_fault_no_players
