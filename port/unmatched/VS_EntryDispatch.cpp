@@ -47,6 +47,19 @@ extern "C" { extern VsVObj *data_0209f5bc; }
 
 typedef void (*VsStateFn)(void *self);
 
+/* the icon records at self+0x70: the matched TU models this walk as a
+   VIRTUAL call, `o->v0()`, and the cartridge agrees -- ov075 0x0211a3cc
+   is `mov r0, r5` before `blx r1`, the receiver in mwcc's `this`
+   register with nothing on the stack. The live records carry MSVC's own
+   ??_7icon_c@dScEntry_c@@6B@, whose two slots are the matched __thiscall
+   members dScEntry_c::icon_c::Behavior and ::Render, so the host has to
+   dispatch with the receiver in ecx. Spelling it cdecl left ecx holding
+   1 and ?Behavior@icon_c@dScEntry_c@@UAEXXZ+0x3 read [1+0x1c]. */
+struct VsIconObj {
+    virtual void v0();
+    virtual void v1();
+};
+
 static void vs_state_call(void *self, unsigned off)
 {
     char *c = (char *)self;
@@ -107,10 +120,9 @@ extern "C" int _ZN10dScEntry_c8BehaviorEv(void *cv)
             char *o = cc + 0x70;
             do {
                 /* the element walk: slot 0 of the record's own table (the
-                   mounted _ZTVN10dScEntry_c6icon_cE), self as the argument -- the
-                   mwcc virtual-call shape, spelled out */
-                VsStateFn *vt = *(VsStateFn **)o;
-                vt[0](o);
+                   mounted _ZTVN10dScEntry_c6icon_cE), the receiver in ecx --
+                   the mwcc virtual-call shape, spelled out */
+                ((VsIconObj *)o)->v0();
                 ++i;
                 o += 0x24;
             } while (i < (int)*(unsigned char *)(cc + 0x280));
