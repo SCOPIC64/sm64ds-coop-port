@@ -214,15 +214,30 @@ int json_int(const char *s, const char *key, int dflt)
                                 absent, unparseable, 0 itself, negatives and NaN
                                 (the !(a > 0) spelling catches NaN; the test
                                 written the other way round would not).
-     positive                -> clamped into [1.0, 3.0]. 1.0 is square, 3.0 is
-                                wider than any shipping monitor; below 1.0 is a
-                                portrait picture the HUD has no layout for, and
-                                above 3.0 the DS's vertical field is a slot. */
+     positive                -> clamped into [1.0, 4.0]. 1.0 is square; below
+                                1.0 is a portrait picture the HUD has no layout
+                                for.
+
+                                THE CEILING WAS 3.0 AND 3.0 WAS WRONG. It was
+                                picked as "wider than any shipping monitor",
+                                and 32:9 monitors exist: 32:9 is 3.5555556, so
+                                the old ceiling took a super-ultrawide panel's
+                                own ratio and quietly letterboxed it to 3.0.
+                                4.0 is still a picture -- the DS's vertical
+                                field is a slot long before the arithmetic
+                                stops working -- and the arithmetic's own limit
+                                is higher still and lives elsewhere: the
+                                stacked sub-screen presentation scales by the
+                                INTEGER active_h / 192 (ntr/ppu_sub.cpp), which
+                                must stay at least 1, so no ceiling above
+                                1024/192 = 5.33 is safe at all. 4.0 covers
+                                32:9 with room to spare and leaves that scale
+                                at 1. */
 double aspect_sanitise(double a)
 {
     if (!(a > 0.0)) return 0.0;
     if (a < 1.0) return 1.0;
-    if (a > 3.0) return 3.0;
+    if (a > 4.0) return 4.0;
     return a;
 }
 
@@ -725,12 +740,14 @@ int g_adventure_ghosts = 0;
    a boolean cannot express ultrawide, and a number means an odd monitor needs
    no new mode name, only its own ratio.
 
-   ACCEPTED: 0 for native, or a ratio CLAMPED TO [1.0, 3.0]. Absent,
+   ACCEPTED: 0 for native, or a ratio CLAMPED TO [1.0, 4.0]. Absent,
    unparseable, negative or otherwise not a positive number all read as 0, so a
    file written before this key existed -- or half-edited by hand -- lands on the
    shipped 4:3 look like every other key here. A positive number outside the band
-   is clamped rather than rejected: 9.0 becomes 3.0, which is a picture, where
-   rejecting it would be a surprise.
+   is clamped rather than rejected: 9.0 becomes 4.0, which is a picture, where
+   rejecting it would be a surprise. The ceiling is 4.0 and not 3.0 because
+   32:9 is 3.5555556 and those monitors are real; see aspect_sanitise for why
+   4.0 and not higher.
 
    BOOT-LATCHED, not read live: the framebuffer aspect is chosen once, at boot,
    and threaded through the whole render path (ntr::configure_aspect), so unlike

@@ -56,7 +56,7 @@ void configure_aspect(double aspect)
         // but this is the divide that sizes a framebuffer and it does not get to
         // trust its caller.
         if (aspect < 1.0) aspect = 1.0;
-        if (aspect > 3.0) aspect = 3.0;
+        if (aspect > 4.0) aspect = 4.0;
         // The largest w:h rectangle that fits the wide-maximum buffer. Start
         // full width and derive the height; if that is taller than the buffer,
         // the ratio is narrower than the buffer's own and the height binds

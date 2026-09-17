@@ -85,10 +85,11 @@ extern bool widescreen;
 //
 //   0            -> 512x384, byte-for-byte the 2x window the port ships
 //   1.7777778    -> 1024x576, the full buffer, the measured 16:9 tier
-//   wider        -> full width, shorter picture (3.0 -> 1024x341)
+//   wider        -> full width, shorter picture (3.5555556, 32:9 -> 1024x288;
+//                   4.0, the ceiling -> 1024x256)
 //   narrower     -> full height, narrower picture (1.0 -> 576x576)
 //
-// The caller is expected to have already clamped to [1.0, 3.0] (see
+// The caller is expected to have already clamped to [1.0, 4.0] (see
 // host_setting_aspect); this clamps again rather than trusting, because a bad
 // ratio here is a divide that sizes a framebuffer. Call once, at boot, before
 // the first framebuffer use.
