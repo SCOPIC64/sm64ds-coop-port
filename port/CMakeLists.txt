@@ -747,7 +747,65 @@ set(PORT_HOSTGEN_TU
     src/game/actors/d_a_obj_wc_obj07.cpp
     src/game/actors/d_a_s_cre.cpp
     src/game/actors/d_a_warpkun.cpp
-    src/actors/daObjLava_c.cpp)
+    src/actors/daObjLava_c.cpp
+    # Run link100 wave 10 round 2, lanes SCENES1 and SCENES2. THE OV006
+    # MINIGAME SCENE FAMILY, which is the residue the VPTR16 block above named
+    # and left ("the 11 remaining relocations are 9 distinct rows ... all nine
+    # live in ov006 ... one coherent follow-up"). It is now convicted at run
+    # time, the same way CRASH6's six were, and it costs SEVEN SCENE BOOTS:
+    #
+    #   362 MEMORY1   363 MEMORY2   379 CARD   381 MCARLO
+    #   382 MCARLO2   384 TRAMPOLINE           388 LUCKYSTARS
+    #
+    # All seven died at ONE instruction, CopyUpLargeMov+0xa, the CRT's memcpy
+    # writing to address 0. Measured with cdb on the 940023bca build, scene 362,
+    # breakpoint on ?AfterInitResources@dScMgBase_c@@UAEXI@Z:
+    #
+    #   [AINIT] obj=307facc0 vptr=0183581c slot0=006a9680 slot1=004161e0
+    #           slot2=004ff680 beb60=00000000
+    #
+    # __ZTV13dScMgMemory_c is at 0x01835814 in that build's map, so the object
+    # holds table + 8 and vptr[0] is the table's slot 2. fBase_c::Process
+    # dispatches its InitResources pointer-to-member at virtual index 0 and
+    # lands on AfterInitResources, so dScMgBase_c::BeforeInitResources (vtable
+    # slot 1, the ONLY writer of data_ov004_020beb60) never runs. Then
+    # AfterInitResources calls LoadFont(2), LoadFont's data_0209d698 == 2 arm
+    # calls LoadFileAt(0x980e, func_ov004_020adc4c()), that veneer returns the
+    # still-zero data_ov004_020beb60, and func_02018270 memcpys 0x4000 bytes to
+    # address 0. Crash record: c0000005 WRITE to 0x00000000, ecx = edx = 0x4000,
+    # edi = 0.
+    #
+    # THE CONTROL IS ALREADY IN THE TREE AND IT IS EXACT. dScMgCup_c,
+    # dScMgPanel_c, dScMgHanachan_c and dScMgRoulette_c are on this list
+    # already, carry no baseline row, and their scenes get past this point:
+    # the same breakpoint on scene 361 reads beb60=3011a57c and hits the port's
+    # own __ZN11dScMgBase_c19BeforeInitResourcesEv once, where scene 362 never
+    # hits it at all.
+    #
+    # Each of the seven was run through tools/hostgen.py standalone and diffed
+    # against its raw source before this row was written. THIRTEEN address-point
+    # biases dropped (d_s_mg_card.cpp has seven sites of its own: two element
+    # classes seated in four places plus the scene) and TWENTY-SEVEN MMIO
+    # rewrites, which are the second half of what the substitution is for and
+    # are counted here rather than by eye: 3 in d_s_mg_card.cpp, 4 in
+    # d_s_mg_m_carlo.cpp, 4 in d_s_mg_m_carlo2.cpp, 16 in d_s_mg_trampoline.cpp
+    # (both DISPCNTs, DISP3DCNT and the master brightness registers, which
+    # compiled raw latch in the mapped I/O window and never reach the PPU), and
+    # none at all in d_s_mg_memory.cpp, dScMgMemory2_c.cpp or d_s_mg_bsc.cpp.
+    # Nothing else changed in any of the seven.
+    #
+    # Their nine rows leave tools/vptr_addend_baseline.txt in the NEXT commit,
+    # not this one, for the ordering reason the CRASH6 block above wrote down:
+    # the guard runs once before configure against the PREVIOUS build's
+    # objects, so retiring the rows here would refuse the very build that earns
+    # the retirement.
+    src/minigames/d_s_mg_memory.cpp
+    src/actors/dScMgMemory2_c.cpp
+    src/minigames/d_s_mg_card.cpp
+    src/minigames/d_s_mg_m_carlo.cpp
+    src/minigames/d_s_mg_m_carlo2.cpp
+    src/minigames/d_s_mg_trampoline.cpp
+    src/minigames/d_s_mg_bsc.cpp)
 
 # ---- run link100 lane SAMECLASS: THE SAME DROPPED-STORE DEFECT, ELEVEN MORE -
 #
@@ -1033,7 +1091,16 @@ set(PORT_HOSTGEN_TU_RAW_OK
     # PROPERTIES LANGUAGE CXX, in the block near line 1,280, on a file that is
     # already .cpp and whose generated twin is .cpp as well: there is nothing
     # for the property to carry. Every other exemption needs the same sentence.
-    src/actors/Player.cpp)
+    src/actors/Player.cpp
+    # The ov006 minigame scene family, run link100 wave 10 round 2, lane
+    # SCENES2. Each of these two is named once by a PROPERTIES LANGUAGE CXX
+    # call (line 2,106 for the card scene, line 9,546 for the trampoline),
+    # and both files are ALREADY .cpp, as is the generated twin, so there is
+    # nothing for the property to carry. The two calls date from when each
+    # was a .c file with a //cpp marker; the sync renamed them and left the
+    # rows behind. Nothing else in this file names either raw path.
+    src/minigames/d_s_mg_card.cpp
+    src/minigames/d_s_mg_trampoline.cpp)
 file(READ "${CMAKE_CURRENT_LIST_FILE}" _hgp_self)
 string(LENGTH "${_hgp_self}" _hgp_self_len)
 foreach(_hgp_rel IN LISTS PORT_HOSTGEN_TU)
