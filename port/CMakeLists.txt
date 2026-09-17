@@ -2476,13 +2476,122 @@ set(PORT_SMOKE_ACTOR_SRC
     #                                       consumer, mixer and sequencer layer)
     # Each of those four therefore wants a verbatim subset in the shape
     # port/hal/smoke_dtor_slots_model.cpp established, which is written up in
-    # out/SMOKELINK4B/remaining.md rather than guessed at here.
+    # out/SMOKELINK4B/remaining.md and applied below by lane SMOKELINK5
+    # (run link100 wave 10 round 5): every one of the batch's 37 names placed.
     port/hal/actorport_dtor_bridge.cpp
+    # SMOKELINK5 section A: the three-class destructor-slot subset and its
+    # host copy (int4_rows.cpp lines 71-74/81-82/194-207, measured whole at 17
+    # against seven closed).
+    port/hal/smoke_dtor_slots_actor.cpp
+    port/unmatched/ModelBaseModelShadow_Dtors_HostCopy.c
+    src/_ZN8dActor_c25OnAimedAtWithEggReturnVecEv.cpp
+    # SMOKELINK5 section B: fBase_c's non-polymorphic shadow constructor
+    # (link21_rows.cpp lines 169-172, measured whole at 20 against one closed).
+    port/hal/smoke_fbase_ctor_actor.cpp
+    # SMOKELINK5 section C: the odr-use face for dBgActor_c's inline complete
+    # object destructor (actorport_dtor_bridge.cpp:532's alias target).
+    port/hal/smoke_dtor_face_actor.cpp
+    # SMOKELINK5 section D: the heap and fBase_c seam. Two faces and five
+    # alias pairs in port/hal/smoke_heap_seam_actor.cpp, backed by three SRC
+    # rows that were not on this batch before (a fourth,
+    # _ZN4Heap21MaxAllocationUnitSizeEv.cpp, already was).
+    port/hal/smoke_heap_seam_actor.cpp
+    src/_ZN4Heap15CreateSolidHeapEjPS_i.cpp
+    src/_ZN4Heap11_DeallocateEPv.cpp
+    src/_ZN4Heap11ResizeToFitEv.cpp
+    # SECOND ORDER on section D, measured the same way SMOKELINK3/4B measured
+    # theirs: what CreateSolidHeap's and ResizeToFit's own bodies call and
+    # walk_window already compiles. CreateSolidHeap's chain is
+    # CreateSolidHeapAllocator -> SolidHeapAllocator's constructor ->
+    # func_0204df54 -> NestedHeapIterator's constructor and AddLast (which
+    # itself calls Init) -- none a new definition, all matched TUs this batch
+    # did not carry yet. SolidHeap's own constructor and Heap's base
+    # constructor are the other half of CreateSolidHeap's body. ResizeToFit's
+    # is just Heap::Rescue (the decorated member ResizeToFit calls directly;
+    # Crash() is already on this batch via hal/heap_vtable.cpp).
+    src/_ZN4Heap24CreateSolidHeapAllocatorEPvjj.cpp
+    src/_ZN18SolidHeapAllocatorC1EPvj.cpp
+    src/func_0204df54.cpp
+    src/_ZN18NestedHeapIteratorC1Ej.cpp
+    src/_ZN18NestedHeapIterator7AddLastEP13HeapAllocator.cpp
+    src/_ZN18NestedHeapIterator4InitEP13HeapAllocator.cpp
+    src/_ZN9SolidHeapC1EPvjP4HeapP18SolidHeapAllocator.cpp
+    # SolidHeap is a real polymorphic class (include/SolidHeap.h), and its
+    # constructor's placement-new needs a complete vtable: all eleven virtual
+    # overrides plus the destructor family, or MSVC cannot emit
+    # ?_ZN9SolidHeapC1EPvjP4HeapP18SolidHeapAllocator@@... at all. All twelve
+    # exist as matched src/ TUs; only the destructor's D1 file is added (D0 is
+    # the identical `SolidHeap::~SolidHeap() {}' text -- mwcc emits D0, D1 and
+    # D2 from the one definition -- so both files would be LNK2005).
+    src/_ZN9SolidHeapD1Ev.cpp
+    src/_ZN9SolidHeap8VDestroyEv.cpp
+    src/_ZN9SolidHeap9VAllocateEji.cpp
+    src/_ZN9SolidHeap11VDeallocateEPv.cpp
+    src/_ZN9SolidHeap14VDeallocateAllEv.cpp
+    src/_ZN9SolidHeap7VIntactEv.cpp
+    src/_ZN9SolidHeap7VRescueEv.cpp
+    src/_ZN9SolidHeap11VReallocateEPvj.cpp
+    src/_ZN9SolidHeap7VSizeofEPv.cpp
+    src/_ZN9SolidHeap22VMaxAllocationUnitSizeEv.cpp
+    src/_ZN9SolidHeap19VMaxAllocatableSizeEv.cpp
+    src/_ZN9SolidHeap11VMemoryLeftEv.cpp
+    src/_ZN9SolidHeap10VSetNodeIDEj.cpp
+    src/_ZN9SolidHeap10VGetNodeIDEv.cpp
+    src/_ZN9SolidHeap12VResizeToFitEv.cpp
+    # THIRD ORDER: SolidHeapAllocator's own five methods the eleven virtuals
+    # above call, and Heap::Reallocate (VResizeToFit's fallback path).
+    src/_ZN18SolidHeapAllocator8AllocateEji.cpp
+    src/_ZN18SolidHeapAllocator5ResetEj.cpp
+    src/_ZN18SolidHeapAllocator10ReallocateEPvj.cpp
+    src/_ZN18SolidHeapAllocator10MemoryLeftEi.cpp
+    src/_ZN18SolidHeapAllocator14TryResizeToFitEv.cpp
+    src/_ZN18SolidHeapAllocator16AllocateForwardsEPvjj.cpp
+    src/_ZN18SolidHeapAllocator17AllocateBackwardsEPvjj.cpp
+    src/_ZN18SolidHeapAllocator10ResetStartEv.cpp
+    src/_ZN18SolidHeapAllocator8ResetEndEv.cpp
+    src/_ZN4Heap10ReallocateEPvj.cpp
+    src/func_0204ebb8.c
+    src/_ZN18NestedHeapIterator6RemoveEP13HeapAllocator.cpp
+    src/_ZN4HeapC2EPvjPS_.cpp
+    src/_ZN4Heap6RescueEv.cpp
+    # SMOKELINK5 section E: the host globals and ROM helpers. Eleven of
+    # fifteen are here or in the ov001 mount below; four are the plain SRC
+    # rows immediately following. data_020a4b58's own triplet is second order
+    # (func_02043060.c asks for it, and hal/player_bridges.cpp -- not on this
+    # batch, and far too wide to take whole -- is where the window build
+    # hosts it), pulled as the same kind of verbatim subset in
+    # port/hal/smoke_host_globals_actor.cpp.
+    port/hal/smoke_host_globals_actor.cpp
+    src/func_02042ffc.c
+    src/func_02043060.c
+    src/func_02043180.c
+    src/func_020433b8.c
+    src/func_0204335c.c
+    src/_ZN7fBase_c7ProcessEMS_FivEMS_FbvEMS_FvjE.cpp
+    # SMOKELINK5 section F: __ZN5Sound4PlayEjjRK7Vector3 is NOT placed. See
+    # out/SMOKELINK5/bugs.md -- the coordinator's ruling measured the matched
+    # TU's cost against its own six one-function dependencies only. Traced
+    # fully, two of those six (func_02048908 and func_02048d80, via
+    # func_0204f7cc) and the matched TU's own direct call to
+    # Player_PlaySoundEffect both reach func_0205b070's IPCSend, which is
+    # hal/boot2_ipc.cpp (713 lines, the host ARM7 simulation, on the two
+    # window targets and smoke_player only). The row stays on the wall.
     )
 
 port_smoke_relink(actor     SRC ${PORT_SMOKE_ACTOR_SRC})
 port_smoke_relink(savestate SRC ${PORT_SMOKE_ACTOR_SRC})
 port_smoke_relink(persist   SRC ${PORT_SMOKE_ACTOR_SRC})
+
+# SMOKELINK5 section E, the last of the fifteen host globals and ROM helpers:
+# _data_020ad524, the cuboid shadow's template BMD. hal/cxxname_bridge.cpp:240
+# (already on these three targets) aliases it onto _data_ov001_020ad524, so
+# the alias's left hand side was present and its right hand side was not: the
+# ov001 mount itself, which the build already generates unconditionally (ov001
+# is in PORT_ACTOR_OVERLAYS) and which smoke_actor, smoke_savestate and
+# smoke_persist did not list.
+foreach(_tov001 smoke_actor smoke_savestate smoke_persist)
+    target_sources(${_tov001} PRIVATE "${CMAKE_BINARY_DIR}/host-src/ov001_syms.c")
+endforeach()
 
 # Gate 10: Player spawns and stands (the walking campaign).
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)

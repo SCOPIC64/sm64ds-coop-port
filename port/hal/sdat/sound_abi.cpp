@@ -99,15 +99,28 @@ int func_0204fa2c(int *p, int fade)
 // hardware the game is never in that state. Printing once and returning is
 // the honest answer instead of reproducing a crash the DS would not have.
 //
-// RULED (w6-c item 3). This is the ride-through class, the same one the five
-// functions at the top of this file are in, and it is documented as such
-// rather than left in the replacement queue: the src is not wrong and there
-// is nothing to replace it with. mwccarm passes kind and id in r0/r1 and the
-// callee is declared (void), which is a spelling MSVC cannot reproduce at
-// any optimisation level -- a cdecl host callee reads its own stack slots.
-// The two host additions above it (sd_consumer_init and the null guard) do
-// not change the ruling; they are why the ride-through is survivable on a
-// host, and both are argued in their own comments.
+// STALE AS OF THE 09-14 SYNC (run link100 wave 10, lane SMOKELINK5). RULED
+// (w6-c item 3) read this as the ride-through class, the same one the five
+// functions at the top of this file are in: the PRE-SYNC src declared the
+// resolver `func_02050cdc(void)` and called it with no arguments, so kind and
+// id rode through in r0/r1 from Play's own frame and a cdecl host callee had
+// no spelling that reads them -- "the src is not wrong and there is nothing
+// to replace it with" was true of THAT declaration.
+//
+// The synced src/_ZN5Sound4PlayEjjRK7Vector3.cpp no longer declares it that
+// way. It now spells `extern "C" char* func_02050cdc(int a, int idx);` and
+// calls `func_02050cdc(j1, j2)` with both arguments explicit, which is an
+// ordinary two-int cdecl call MSVC reproduces with no ride-through at all --
+// the (void) spelling this ruling turned on is simply gone from the source.
+// The declaration two lines below this comment, `void *func_02050cdc(int
+// kind, int idx);`, already matches the synced shape; only this prose still
+// described the pre-sync one. Nothing here argues the whole front door is
+// unride-through now (SetPlayableSeqCount's own w6-c note below is about a
+// different symbol and a different reason, and is untouched), only that this
+// one function's excuse for being a ride-through no longer holds against the
+// current source. The two host additions below (sd_consumer_init and the
+// null guard) are unaffected either way and are still argued in their own
+// comments.
 struct Vector3 { int x, y, z; };
 void *func_02050cdc(int kind, int idx);
 void *func_02048720(struct Vector3 *v, int kind, int id);
