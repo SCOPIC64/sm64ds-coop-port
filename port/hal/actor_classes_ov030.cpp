@@ -157,6 +157,7 @@ extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include "dtor_faces_cpp.h"
 #include "dActor_c.h"
 #include "fBase_c.h"
+#include "daMky_c.h"
 #include "RollingLogTtm.h"
 
 extern "C" {
@@ -732,7 +733,7 @@ extern "C" void hal_fill_ukiki_vtable(void)
 // extern "C" above and called directly.
 extern "C" {
 int _ZN7daMky_c13InitResourcesEv(void *self)
-{ return ((RollingLogTtm *)self)->RollingLogTtm::InitResources(); }
+{ return ((daMky_c *)self)->daMky_c::InitResources(); }
 int _ZN7daMky_c6RenderEv(void *self)
-{ return ((RollingLogTtm *)self)->RollingLogTtm::Render(); }
+{ return ((daMky_c *)self)->daMky_c::Render(); }
 }

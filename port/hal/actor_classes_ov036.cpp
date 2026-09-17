@@ -191,6 +191,7 @@ extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include "dActor_c.h"
 #include "fBase_c.h"
 #include "daObjRc_Dorifu_c.h"
+#include "daObjRc_Guruguru_c.h"
 #include "DonutBlock.h"
 #include "PathLift.h"
 #include "daObjRc_Hane_c.h"
@@ -890,13 +891,13 @@ int _ZN10DonutBlock6RenderEv(void *self)
 { return ((DonutBlock *)self)->DonutBlock::Render(); }
 
 int _ZN18daObjRc_Guruguru_c13InitResourcesEv(void *self)
-{ return ((DonutBlock *)self)->DonutBlock::InitResources(); }
+{ return ((daObjRc_Guruguru_c *)self)->daObjRc_Guruguru_c::InitResources(); }
 int _ZN18daObjRc_Guruguru_c16CleanupResourcesEv(void *self)
-{ return ((DonutBlock *)self)->DonutBlock::CleanupResources(); }
+{ return ((daObjRc_Guruguru_c *)self)->daObjRc_Guruguru_c::CleanupResources(); }
 int _ZN18daObjRc_Guruguru_c8BehaviorEv(void *self)
-{ return ((DonutBlock *)self)->DonutBlock::Behavior(); }
+{ return ((daObjRc_Guruguru_c *)self)->daObjRc_Guruguru_c::Behavior(); }
 int _ZN18daObjRc_Guruguru_c6RenderEv(void *self)
-{ return ((DonutBlock *)self)->DonutBlock::Render(); }
+{ return ((daObjRc_Guruguru_c *)self)->daObjRc_Guruguru_c::Render(); }
 
 int _ZN16daObjRc_Dorifu_c13InitResourcesEv(void *self)
 { return ((daObjRc_Dorifu_c *)self)->daObjRc_Dorifu_c::InitResources(); }

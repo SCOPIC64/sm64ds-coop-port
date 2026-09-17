@@ -787,12 +787,13 @@ int _ZN9RabbitKey8BehaviorEv(void *self)
    its Render, CleanupResources, OnPendingDestroy and D0 are already C-named in
    src, and slot 16 reuses ac_d1_door (the member is a CommonModel at 0xd4, the
    real door's layout), so only these two need a face. */
+#include "daStarGate_c.h"
 #include "Door.h"
 extern "C" {
 int _ZN12daStarGate_c13InitResourcesEv(void *self)
-{ return ((Door *)self)->Door::InitResources(); }
+{ return ((daStarGate_c *)self)->daStarGate_c::InitResources(); }
 int _ZN12daStarGate_c8BehaviorEv(void *self)
-{ return ((Door *)self)->Door::Behavior(); }
+{ return ((daStarGate_c *)self)->daStarGate_c::Behavior(); }
 }
 
 /* ---- gate 41: ov010's TRAP (shared by LIGHT_BEAM) ------------------------
