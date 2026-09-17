@@ -91,6 +91,40 @@ LEDGER = [
      "SnowmanHead: ?SetState calls ?CallStateInit with nothing pushed and "
      "both Call* helpers tail jump with ecx = this + delta (00732a5ab)"),
 
+    # ---- the minigame framework base, run link100 lane PMFSWEEP2 -----------
+    ("ECX", r"^\?seats_ecx@\?1\?\?port_mg_base_writer_seat@@",
+     "dMgState_c: these twenty-nine pair globals are copied by the state "
+     "bodies into the framework message object at +0x08 and +0x10, and those "
+     "two fields have exactly two readers in the image, "
+     "?Behavior@dMgState_c@@QAEXXZ (+0x16 mov eax,[esi+8]; +0x20 mov ecx,"
+     "[esi+0xc]; add ecx,esi; jmp eax) and ?Render@dMgState_c@@QAEXXZ (+0x8 "
+     "mov edx,[eax+0x10]; +0xf mov ecx,[eax+0x14]; add ecx,eax; jmp edx). "
+     "Both are __thiscall members with NO stack argument and their callers "
+     "push nothing (?BeforeBehavior@dScMgBase_c@@UAEHXZ+0x96 lea ecx,"
+     "[esi+0xcc]; call), so the word at [esp+4] is the caller's saved edi"),
+    ("ECX", r"^\?cells_490@\?1\?\?port_mg_framework_tables_seat@@",
+     "data_ov004_020bf490: src/func_ov004_020b3278.cpp dispatches this table "
+     "itself with a real call, ecx = this and nothing pushed (lane MGWRITER "
+     "measured it off the TU's own listing and seated __fastcall faces)"),
+
+    ("CDECL", r"^\?seats_cdecl@\?1\?\?port_mg_base_writer_seat@@",
+     "dMgState_c: twenty of these are group A, the setter's own table, and "
+     "the only reader of the object's +0x00 field is the host copy "
+     "__ZN10dMgState_c8SetStateEi, whose mgbase_dispatch_seated is a plain "
+     "cdecl call that PUSHES the receiver. The other seven land in the "
+     "020b3278 object, whose two readers are the FLAT C dispatchers "
+     "_func_ov004_020b321c and _func_ov004_020b31b4, f(self) tail jumps that "
+     "leave the caller's own pushed argument at [esp+4]"),
+    ("CDECL", r"^\?cells_field@\?1\?\?port_mg_framework_tables_seat@@",
+     "data_ov004_020bf428 and _020bf4f8: func_ov004_020b3278 copies these "
+     "into the 020b3278 object at +0x00 and +0x08, which _func_ov004_020b321c "
+     "and _func_ov004_020b31b4 read, and both are flat f(self) tail jumps"),
+    ("CDECL", r"^\?seats@\?1\?\?port_mg_framework_states_seat@@",
+     "data_ov004_020beb88 and _020beb98: the readers are the matched TUs "
+     "src/func_ov004_020add88.cpp and src/func_ov004_020adf2c.cpp, each a "
+     "flat f(self) that loads the pair out of the table and tail jumps with "
+     "the frame restored (lane PMFB3 measured both listings)"),
+
     ("CDECL", r"^\?g_bp_cells@@",
      "BabyPenguin: the dispatchers are the host copies "
      "BabyPenguin_StateEnter.cpp and BabyPenguin_StateTick.cpp, which call "
@@ -186,6 +220,7 @@ KILLS_ITS_FIRST = ("mov", "lea", "pop", "movzx", "movsx", "xor")
 def receiver_of_bytes(md, blob, rva, limit=60):
     stack_read = False
     ecx_dead = False
+    saw_call = False
     for i in list(md.disasm(blob, rva))[:limit]:
         ops = i.op_str
         if STACKOP.search(ops):
@@ -199,11 +234,55 @@ def receiver_of_bytes(md, blob, rva, limit=60):
             ecx_dead = True
         if i.mnemonic == "ret":
             break
+        # A TAIL JUMP ENDS THE BODY (run link100 lane PMFSWEEP2). Without this
+        # the walk ran off the end of a short forwarder, through the int3
+        # padding and into whatever function the linker put next, and read that
+        # one's prologue instead. It was not academic: every one of the six
+        # counting wrappers in port/unmatched/MgBase_StateSetter.cpp is
+        # `push ebp; mov ebp,esp; inc <counter>; pop ebp; jmp <body>`, reads
+        # nothing itself, and classified as ECX purely because the NEXT wrapper
+        # in the image opens with `push ecx`. A forwarder like that in an ECX
+        # table is the defect this guard exists for -- it hands the body a
+        # stack nobody wrote -- so reading it as ECX is exactly the wrong
+        # answer. The caller re-walks at the target, which is what a tail jump
+        # means.
+        #
+        # ONLY WHEN THE BODY IS A PURE FORWARDER, though, and that qualifier is
+        # a measured one rather than caution: ?port_bird_state2@@YIXPAX0@Z is a
+        # __fastcall refusal stub that ignores its receiver, prints, and tail
+        # jumps into abort() -- and abort's own prologue reads [esp+4], so
+        # following that jump reported the stub as a stack reader and refused a
+        # build that is correct. A body that has already made a call has used
+        # its frame and is not handing a receiver on, so the walk stops there
+        # with what it saw, which for that stub is NEITHER.
+        if i.mnemonic == "call":
+            saw_call = True
+        if i.mnemonic == "jmp":
+            if re.match(r"^0x[0-9a-f]+$", ops) and not saw_call:
+                return ("STACK" if stack_read else "TAILJUMP:" + ops)
+            break   # an indirect or post-call tail jump: nothing to follow
     return "STACK" if stack_read else "NEITHER"
 
 
-def receiver_of(img, rva):
-    return receiver_of_bytes(img.md, img.code(rva, 760), rva)
+def receiver_of(img, rva, hops=4):
+    """The receiver class of the body at rva, following tail jumps.
+
+    A tail jump is a continuation: the body that ends in one takes its receiver
+    however the body it jumps to takes it, because the frame is handed over
+    untouched. Bounded at four hops so a jump cycle cannot spin."""
+    seen = set()
+    for _ in range(hops):
+        if rva in seen:
+            break
+        seen.add(rva)
+        k = receiver_of_bytes(img.md, img.code(rva, 760), rva)
+        if not k.startswith("TAILJUMP:"):
+            return k
+        nxt = int(k.split(":", 1)[1], 16)
+        if not (img.text[0] <= nxt < img.text[1]):
+            return "NEITHER"
+        rva = nxt
+    return "NEITHER"
 
 
 # ---- the census -----------------------------------------------------------
@@ -281,6 +360,17 @@ THISCALL_MEMBER = bytes(bytearray([
     0x8B, 0x50, 0x10,              # mov edx, dword ptr [eax+0x10]
     0xC3,                          # ret
 ]))
+# A counting wrapper that reads NOTHING of its own and tail jumps, the shape
+# every bw_ row in port/unmatched/MgBase_StateSetter.cpp has. Its receiver is
+# whatever the body it jumps to takes, so the classifier must report the jump
+# rather than walk off the end of it into the next function in the image.
+TAILJUMP_WRAPPER = bytes(bytearray([
+    0x55,                          # push ebp
+    0x8B, 0xEC,                    # mov ebp, esp
+    0xFF, 0x05, 0x00, 0x10, 0x40, 0x00,   # inc dword ptr [0x401000]
+    0x5D,                          # pop ebp
+    0xE9, 0xFB, 0x0F, 0x00, 0x00,  # jmp 0x402010
+]))
 
 SELFTESTS = [
     ("a flat C face from hal/faces_sync_gen.cpp", FLAT_FACE, "STACK"),
@@ -289,6 +379,7 @@ SELFTESTS = [
     ("a __fastcall face that also takes a stack argument",
      FASTCALL_WITH_STACK_ARG, "ECX"),
     ("a __thiscall member", THISCALL_MEMBER, "ECX"),
+    ("a counting wrapper that tail jumps", TAILJUMP_WRAPPER, "TAILJUMP:0x40200a"),
 ]
 
 
