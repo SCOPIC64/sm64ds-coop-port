@@ -359,20 +359,40 @@ static unsigned g_tte_flags5 = 0xffffffffu, g_tte_flags11 = 0xffffffffu;
 static unsigned g_tte_flags2 = 0xffffffffu;
 
 /* ---- dScMgD3DBase_c's seventeen ----------------------------------------- */
+/* THE FOUR CALLS BELOW ARE QUALIFIED, AND THAT IS THE WHOLE OF THE FIX FOR THE
+   STACK OVERFLOW THESE SEATS WERE TAKING. Run link100, lane SCENES1.
+
+   These faces ARE dScMgD3DBase_c's vtable slots 1, 5, 7 and 11: the fill writes
+   them over the ROM words 0x020e70e4, 0x020e6f60, 0x020e7074 and 0x020e700c.
+   On 9bb3c454f each line read `((MgBounceAndPounce *)s)->BeforeInitResources()`
+   against a class whose methods were plain members -- MSVC emitted
+   ?BeforeInitResources@MgBounceAndPounce@@QAEHXZ, a QAE, and the call was
+   direct. The sync renamed the class to its real ROM name and gave it
+   include/dScMgD3DBase_c.h, which declares all four VIRTUAL (this build's map:
+   ?BeforeInitResources@dScMgD3DBase_c@@UAE_NXZ). An unqualified call on a
+   virtual member is a vtable dispatch, and the slot it reads is the one this
+   face was just written into, so the face called itself until the stack ran
+   out: scenes 372 and 385 died with c00000fd at bnp_v1+0xb and d3_v1+0xb, esp
+   on the guard page, no crash stack at all.
+
+   `->dScMgD3DBase_c::Method()` is the same call the old line made and the same
+   body the cartridge's word names. Nothing else changes: the receiver, the
+   arguments and the return value are untouched, and the per-slot witnesses
+   still count. */
 static int  __fastcall d3_v1(void *s, void *)
-{ D3D(1);  return ((dScMgD3DBase_c *)s)->BeforeInitResources(); }
+{ D3D(1);  return ((dScMgD3DBase_c *)s)->dScMgD3DBase_c::BeforeInitResources(); }
 static int  __fastcall d3_v2(void *s, void *, unsigned f)
 { D3D(2);  g_tte_flags2 = f; return port_mg_d3dbase_after_init(s, f); }
 static int  __fastcall d3_v5(void *s, void *, unsigned f)
 { D3D(5);  g_tte_flags5 = f;
-  ((dScMgD3DBase_c *)s)->AfterCleanupResources(f); return 0; }
+  ((dScMgD3DBase_c *)s)->dScMgD3DBase_c::AfterCleanupResources(f); return 0; }
 static int  __fastcall d3_v7(void *s, void *)
-{ D3D(7);  return ((dScMgD3DBase_c *)s)->BeforeBehavior(); }
+{ D3D(7);  return ((dScMgD3DBase_c *)s)->dScMgD3DBase_c::BeforeBehavior(); }
 static int  __fastcall d3_v10(void *s, void *)
 { D3D(10); return port_mg_d3dbase_before_render(s); }
 static int  __fastcall d3_v11(void *s, void *, unsigned f)
 { D3D(11); g_tte_flags11 = f;
-  ((dScMgD3DBase_c *)s)->AfterRender(f); return 0; }
+  ((dScMgD3DBase_c *)s)->dScMgD3DBase_c::AfterRender(f); return 0; }
 static void *__fastcall d3_v16(void *s, void *)
 { D3D(16); return (void *)(size_t)_ZN14dScMgD3DBase_cD1Ev(s); }
 static void *__fastcall d3_v17(void *s, void *)
