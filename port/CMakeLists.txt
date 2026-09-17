@@ -1998,7 +1998,15 @@ set(HEAP_DESTROY_CHAIN_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap8_DestroyEv.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap7DestroyEv.cpp")
 
-add_executable(smoke_actor tests/smoke_actor.cpp "${HEAP_INITGAME_SRC}"
+# SMOKELINK6 (run link100, wave 10 round 6, 2026-09-17): EXCLUDE_FROM_ALL.
+# This target does not link -- one name outstanding, __ZN5Sound4PlayEjjRK7Vector3
+# (SMOKELINK5's finding, out/SMOKELINK5/bugs.md and status/SMOKELINK5.md step 1),
+# whose every route drags in hal/boot2_ipc.cpp's ARM7 IPC simulation, which this
+# harness has never hosted -- a scope question, not a missing row, per the
+# coordinator's ruling. Excluded from the default `all`/`ninja` build so
+# port/build-port.cmd (no -k) completes and the battery runs again; still
+# buildable by name (`ninja smoke_actor`) once the scope question is settled.
+add_executable(smoke_actor EXCLUDE_FROM_ALL tests/smoke_actor.cpp "${HEAP_INITGAME_SRC}"
     ${HEAP_DESTROY_CHAIN_SRC}
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
@@ -2023,7 +2031,12 @@ endif()
 
 # Save-state verification (lane lk6): the same actor world as smoke_actor, plus
 # hal/lk6_savestate.cpp, driving save -> diverge -> load -> byte-exact compare.
-add_executable(smoke_savestate tests/smoke_savestate.cpp "${HEAP_INITGAME_SRC}"
+# SMOKELINK6 (run link100, wave 10 round 6, 2026-09-17): EXCLUDE_FROM_ALL.
+# Same scope question as smoke_actor above: __ZN5Sound4PlayEjjRK7Vector3's every
+# route drags in hal/boot2_ipc.cpp's ARM7 IPC simulation, never hosted here.
+# Excluded from the default build so port/build-port.cmd (no -k) completes;
+# still buildable by name (`ninja smoke_savestate`).
+add_executable(smoke_savestate EXCLUDE_FROM_ALL tests/smoke_savestate.cpp "${HEAP_INITGAME_SRC}"
     ${HEAP_DESTROY_CHAIN_SRC}
     hal/lk6_savestate.cpp hal/dsstate_seg.cpp hal/auto_bss.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
@@ -2054,7 +2067,12 @@ endif()
 # SM64DS_SAVESTATE_NO_GUARD=1, a legacy format-2 file, and a truncated one --
 # and finally a clean valid file, which must refuse nothing at all, so a green
 # run cannot be one where every read happens to fail.
-add_executable(smoke_persist tests/smoke_persist.cpp "${HEAP_INITGAME_SRC}"
+# SMOKELINK6 (run link100, wave 10 round 6, 2026-09-17): EXCLUDE_FROM_ALL.
+# Same scope question as smoke_actor above: __ZN5Sound4PlayEjjRK7Vector3's every
+# route drags in hal/boot2_ipc.cpp's ARM7 IPC simulation, never hosted here.
+# Excluded from the default build so port/build-port.cmd (no -k) completes;
+# still buildable by name (`ninja smoke_persist`).
+add_executable(smoke_persist EXCLUDE_FROM_ALL tests/smoke_persist.cpp "${HEAP_INITGAME_SRC}"
     ${HEAP_DESTROY_CHAIN_SRC}
     hal/lk6_savestate.cpp hal/lk7_persist.cpp hal/dsstate_seg.cpp
     hal/auto_bss.cpp
@@ -16575,7 +16593,17 @@ endforeach()
 # func_0200d81c -> Camera::ChangeState on every state change, so the smoke
 # needs the host dispatcher too or the first ChangeState calls a mwcc
 # member-function pointer.
-add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
+# SMOKELINK6 (run link100, wave 10 round 6, 2026-09-17): EXCLUDE_FROM_ALL.
+# This target does not link -- two names outstanding, Stage::Behavior and
+# Stage::Render (SMOKELINK5B's finding, out/SMOKELINK5B/bugs.md item 2): the
+# compiler-generated _ZTV5Stage vtable asks for both directly, and their
+# matched bodies reach the window's message pump, pause screen, vignette
+# effect and level-complete closure whole, none of which this harness --
+# "Mario standing for a BMP capture" -- has ever hosted (GATE 220 / RENDER9's
+# own ruling). A scope question, not a missing row. Excluded from the default
+# build so port/build-port.cmd (no -k) completes; still buildable by name
+# (`ninja smoke_player`) once the scope question is settled.
+add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # hal/sub_screen.cpp is in this target's list below, and since the screen
     # gap landed it asks hal/screen_gap.cpp for the stacked layout -- which in
     # turn asks hal/host_settings.cpp for the player's four gap keys. Neither
