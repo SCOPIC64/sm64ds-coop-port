@@ -241,6 +241,26 @@ python "%~dp0tools\gxport_guard.py" --build-dir "%~dp0..\build\port"
 if errorlevel 1 exit /b 1
 ninja -C "%~dp0..\build\port"
 if errorlevel 1 exit /b 1
+rem Fail after link if a pointer-to-member CELL holds a body that reads its
+rem receiver off the caller's stack. MSVC calls a pointer to member with
+rem `this + delta` in ECX and pushes NOTHING, through a call and through a
+rem tail jump alike, so a seat that writes one of hal/faces_sync_gen.cpp's
+rem flat C faces -- or a matched body taken raw -- into such a cell gives the
+rem body a receiver nobody wrote. Nine lanes have now each found that at a
+rem different class (5ae983797, 27a24ff5a, 651b5e853, f9936e798, 45ce69707,
+rem 00732a5ab and this lane's three commits), every time because a seat header
+rem reasoned that the dispatcher tail jumps and leaves the caller's own
+rem argument in place -- true of a FLAT C dispatcher, false of a __thiscall
+rem member, and false again once /O2 inlines the dispatcher into a caller in
+rem the same translation unit. Post-link by design: the guard reads the seated
+rem words out of the built image's .rdata and walks each body's prologue, so it
+rem sees what actually shipped rather than what a comment says. Its ledger of
+rem tables, and the three adjudicated __cdecl exceptions with the flat
+rem dispatcher named beside each, are in the file's own header. It runs BEFORE
+rem alternatename_guard because this line inherits eight defeated aliases from
+rem the sync and that guard exits the script.
+python "%~dp0tools\pmf_guard.py" --root "%~dp0.."
+if errorlevel 1 exit /b 1
 rem Fail after link if any /alternatename LHS is also a DEFINED symbol in the
 rem map -- a defined LHS defeats the alias silently (the wave-5 R1/R2 class;
 rem EyerokD0 and the data_ov075 aliases flip the same way if their overlays
