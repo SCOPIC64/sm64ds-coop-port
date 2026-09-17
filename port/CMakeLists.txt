@@ -2180,6 +2180,28 @@ port_smoke_relink(oam       SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MOD
 port_smoke_relink(anim      SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
 port_smoke_relink(soak_anim SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
 
+# smoke_modelanim: 50 unresolved -> 0.  The BlendModelAnim gate, so it does NOT
+# read PORT_SMOKE_MODEL_SRC: it needs a THREE-class slot file (ModelBase, Model,
+# BlendModelAnim) and the WHOLE parent host copy rather than the two-class
+# subsets, because this target does host the anim half of the family and the
+# parent's Animation and ModelAnim calls resolve here.  Its own block already
+# carries unmatched/func_02073244_hostcopy.c, so that row is not repeated.
+# hal/blend_vtable.cpp, already on this target, defines Heap::_Deallocate, so
+# the one heap-teardown row that would be a duplicate here is dropped by name
+# rather than by leaving the list alone.
+set(PORT_SMOKE_MODELANIM_HEAP_SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC})
+list(REMOVE_ITEM PORT_SMOKE_MODELANIM_HEAP_SRC src/_ZN4Heap11_DeallocateEPv.cpp)
+port_smoke_relink(modelanim SRC ${PORT_SMOKE_MODELANIM_HEAP_SRC}
+    src/_ZN5Model11UpdateVertsEv.cpp
+    port/hal/smoke_dtor_slots_modelanim.cpp
+    port/hal/smoke_dtor_fwd_modelanim.cpp
+    port/unmatched/ModelBaseModelBlend_Dtors_HostCopy.c
+    src/Deallocate.c
+    src/_ZN9AnimationD1Ev.cpp
+    src/_ZN9ModelBaseD1Ev.cpp
+    src/_ZN5ModelD1Ev.cpp
+    src/_ZN9ModelAnimD1Ev.cpp)
+
 # Gate 10: Player spawns and stands (the walking campaign).
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
 set(SLICE10_SOURCES "")
