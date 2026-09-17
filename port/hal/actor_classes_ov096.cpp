@@ -233,6 +233,25 @@ extern unsigned int data_ov096_02137920[], data_ov096_02137928[],
 }
 
 namespace {
+// ---- POKEY'S TWELVE STATE BODIES NEED THE __fastcall THUNK ---------------
+// (a short banner in this file's own voice: the dispatcher at
+// ?Behavior@daSanbo_c@@UAEHXZ+0x25..+0x33 loads the record's delta into ECX,
+// adds `this`, and calls through the record's fn word, so the receiver
+// arrives in ECX and a raw __cdecl body reads the caller's stack instead.
+// Same family as commit 5ae983797's FlameChomp rows in ov070.)
+static int  __fastcall pk_st_60c4(void *s) { return func_ov096_021360c4(s); }
+static int  __fastcall pk_st_6134(void *s) { return func_ov096_02136134(s); }
+static int  __fastcall pk_st_6264(void *s) { return func_ov096_02136264(s); }
+static int  __fastcall pk_st_63b4(void *s) { return func_ov096_021363b4(s); }
+static int  __fastcall pk_st_63c4(void *s) { return func_ov096_021363c4(s); }
+static int  __fastcall pk_st_640c(void *s) { return func_ov096_0213640c(s); }
+static int  __fastcall pk_st_6434(void *s) { return func_ov096_02136434(s); }
+static int  __fastcall pk_st_6534(void *s) { return func_ov096_02136534(s); }
+static int  __fastcall pk_st_65d4(void *s) { return func_ov096_021365d4(s); }
+static void __fastcall pk_st_670c(void *s) {        func_ov096_0213670c(s); }
+static int  __fastcall pk_st_6754(void *s) { return func_ov096_02136754(s); }
+static int  __fastcall pk_st_68a4(void *s) { return func_ov096_021368a4(s); }
+
 struct Ov096Seat {
     unsigned int *rec;      /* the mounted source record        */
     unsigned int rom;       /* what its fn word must read first */
@@ -247,18 +266,18 @@ struct Ov096Seat {
    not the address order; the full table is in
    port/unmatched/Pokey_HostSites.cpp. */
 const Ov096Seat g_ov096_seats[] = {
-    {data_ov096_02137920, 0x02136434, (void *)func_ov096_02136434, "pokey/02137920 state2 tick"},
-    {data_ov096_02137928, 0x021365d4, (void *)func_ov096_021365d4, "pokey/02137928 state1 tick"},
-    {data_ov096_02137930, 0x02136534, (void *)func_ov096_02136534, "pokey/02137930 state2 enter"},
-    {data_ov096_02137938, 0x021363b4, (void *)func_ov096_021363b4, "pokey/02137938 state4 enter"},
-    {data_ov096_02137940, 0x02136754, (void *)func_ov096_02136754, "pokey/02137940 state0 tick"},
-    {data_ov096_02137948, 0x021368a4, (void *)func_ov096_021368a4, "pokey/02137948 state0 enter"},
-    {data_ov096_02137950, 0x0213670c, (void *)func_ov096_0213670c, "pokey/02137950 state1 enter"},
-    {data_ov096_02137958, 0x021360c4, (void *)func_ov096_021360c4, "pokey/02137958 state5 tick"},
-    {data_ov096_02137960, 0x02136134, (void *)func_ov096_02136134, "pokey/02137960 state5 enter"},
-    {data_ov096_02137968, 0x02136264, (void *)func_ov096_02136264, "pokey/02137968 state4 tick"},
-    {data_ov096_02137970, 0x021363c4, (void *)func_ov096_021363c4, "pokey/02137970 state3 tick"},
-    {data_ov096_02137978, 0x0213640c, (void *)func_ov096_0213640c, "pokey/02137978 state3 enter"},
+    {data_ov096_02137920, 0x02136434, (void *)pk_st_6434, "pokey/02137920 state2 tick"},
+    {data_ov096_02137928, 0x021365d4, (void *)pk_st_65d4, "pokey/02137928 state1 tick"},
+    {data_ov096_02137930, 0x02136534, (void *)pk_st_6534, "pokey/02137930 state2 enter"},
+    {data_ov096_02137938, 0x021363b4, (void *)pk_st_63b4, "pokey/02137938 state4 enter"},
+    {data_ov096_02137940, 0x02136754, (void *)pk_st_6754, "pokey/02137940 state0 tick"},
+    {data_ov096_02137948, 0x021368a4, (void *)pk_st_68a4, "pokey/02137948 state0 enter"},
+    {data_ov096_02137950, 0x0213670c, (void *)pk_st_670c, "pokey/02137950 state1 enter"},
+    {data_ov096_02137958, 0x021360c4, (void *)pk_st_60c4, "pokey/02137958 state5 tick"},
+    {data_ov096_02137960, 0x02136134, (void *)pk_st_6134, "pokey/02137960 state5 enter"},
+    {data_ov096_02137968, 0x02136264, (void *)pk_st_6264, "pokey/02137968 state4 tick"},
+    {data_ov096_02137970, 0x021363c4, (void *)pk_st_63c4, "pokey/02137970 state3 tick"},
+    {data_ov096_02137978, 0x0213640c, (void *)pk_st_640c, "pokey/02137978 state3 enter"},
 };
 DSSTATE_BEGIN
 bool g_ov096_seated = false;
