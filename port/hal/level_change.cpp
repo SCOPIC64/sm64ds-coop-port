@@ -188,6 +188,8 @@ extern int data_020a4b78[];   /* behaviour list {head, tail, cb, 0} */
 extern int data_020a4b88[];   /* pending list */
 extern int data_020a4b98[];   /* render list */
 extern int data_020a4ba8[];   /* cleanup list */
+extern int data_0209b468[];   /* live-actor list {head, tail}; every
+                                  dActor_c links its node at +0x50 in */
 
 }  /* extern "C" */
 
@@ -692,11 +694,21 @@ extern "C" int port_level_teardown(void)
        tick (playlog 001951, a stale cleanup node after the garden door).
        Repair instead: keep the stage links, drop the dangling nodes BY NAME
        so the leak is loud, and proceed with the boot. */
-    struct { const char *name; int *list; } lists[4] = {
+    /* AND THE LIVE-ACTOR LIST, the sixth structure. dActor_c's constructor links
+       every actor into data_0209b468 through its node at actor+0x50 and its
+       D1/D2 unlink it again, so a cleanup that never reaches dActor_c's own
+       destructor leaves a node here even when all four processing lists and the
+       scene tree came out clean. The head then points into a block the next
+       level's fBase_c::operator new hands out, the allocator zeroes the owner
+       word, and the first walker (dActor_c::FindWithID through func_02043f98)
+       reads [0 + 4]. Same node shape and same primitives as the four above, so
+       it is one more row. */
+    struct { const char *name; int *list; } lists[5] = {
         {"behaviour", data_020a4b78}, {"pending", data_020a4b88},
-        {"render", data_020a4b98}, {"cleanup", data_020a4ba8}};
+        {"render", data_020a4b98}, {"cleanup", data_020a4ba8},
+        {"actor", data_0209b468}};
     void *stage = port_stage_object();
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 5; ++i) {
         int *keep_head = 0, *keep_tail = 0;
         int dropped = 0;
         for (int *n = (int *)(size_t)lists[i].list[0]; n;) {
