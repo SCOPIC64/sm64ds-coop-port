@@ -21,6 +21,20 @@
 // It also checks the two edge cases the brief calls out: F9 with no prior save
 // is a safe no-op, and a save/load with no actor world (frontend-like, nothing
 // spawned) does not crash.
+//
+// TWO THINGS THIS FILE SPELLS FOLLOWED THE 09-14 SYNC (lane SMOKELINK4B, run
+// link100 wave 10 round 4).  Both edits are the same in tests/smoke_actor.cpp,
+// which builds the same actor world, and its header block carries the long
+// version of each:
+//
+//   1. the bring-up entry point is Heap::SetupRootHeap() now, a real static
+//      member (include/Heap.h:236), not the flat extern "C" Itanium name src/
+//      emitted before the sync;
+//   2. the arrow signs' entry table at ov098:0x0213c380 has THREE column
+//      symbols in the synced source, so the harness that owns the storage
+//      names the third one too.  It is left zero, which is the CLPS_Block
+//      pointer the pre-sync body already handed dBgW_KcMbg::SetFile out of
+//      data_ov098_0213c380[idx].c.
 
 #include <cstdio>
 #include <cstdlib>
@@ -33,11 +47,11 @@
 
 #include "fault_probe.h"
 
-typedef unsigned int u32;
+#include "types.h"
+#include "Heap.h"
 
 extern "C" {
 int *daObjYajirusi_c_classInit_YAJIRUSI_R(void);
-void *_ZN4Heap13SetupRootHeapEv(void);
 extern int data_0209b3ec[12];       /* camera matrix */
 struct SharedFilePtrC { unsigned short fileID; unsigned char numRefs;
                         unsigned char pad; void *filePtr; };
@@ -46,6 +60,7 @@ extern unsigned short data_020a4b54;    /* pending actor ID */
 extern void **data_020a4bb8;            /* actorID -> SpawnInfo* */
 void *data_ov098_0213c380[6];
 char data_ov098_0213c384[0x18];
+char data_ov098_0213c388[0x18];
 extern void *data_020a0eac_c;           /* Memory::gameHeapPtr */
 extern void *data_020a0ea0;             /* defaultHeapPtr */
 void _ZN4Heap18InitializeGameHeapEjPS_(unsigned size, void *root);
@@ -196,7 +211,7 @@ int main(void)
     CHECK(lk6_savestate_load() == 0);   // no state -> returns 0, does nothing
     printf("  [edge] load with no saved state: no-op, ok\n");
 
-    CHECK(_ZN4Heap13SetupRootHeapEv() != NULL);
+    CHECK(Heap::SetupRootHeap() != NULL);
     ident_fx(data_0209b3ec);
 
     // ---- edge case B: save/load with an empty world (no actor spawned) -----
