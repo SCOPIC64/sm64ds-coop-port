@@ -883,6 +883,7 @@ void _ZN10dBgActor_c4KillEv(void *self);             /* slot 31, shared base bod
 int _ZN10daPgMthr_c13InitResourcesEv(void *self);     /* face below -- HOST COPY */
 int _ZN10daPgMthr_c16CleanupResourcesEv(void);
 int _ZN10daPgMthr_c8BehaviorEv(void *self);           /* face below */
+int port_mother_penguin_behavior(void *self);         /* port/unmatched/MotherPenguin_Behavior.cpp */
 int _ZN10daPgMthr_c6RenderEv(char *self);
 void _ZN10daPgMthr_c16OnPendingDestroyEv(void);       /* slot 12, own empty body */
 int *_ZN10daPgMthr_cD0Ev(int *self);                  /* slot 17, spells _ZTV10daPgMthr_c */
@@ -1081,5 +1082,5 @@ extern "C" {
 int _ZN10daPgMthr_c13InitResourcesEv(void *self)
 { return ((daPgMthr_c *)self)->daPgMthr_c::InitResources(); }
 int _ZN10daPgMthr_c8BehaviorEv(void *self)
-{ return ((SkiLift *)self)->SkiLift::Behavior(); }
+{ return port_mother_penguin_behavior(self); }
 }
