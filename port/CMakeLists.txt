@@ -2302,6 +2302,270 @@ port_smoke_relink(clsn SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SR
     # Second order: dBgW_Kc's destructor destroys its CLPS_BlockRef member.
     src/_ZN13CLPS_BlockRefD1Ev.cpp)
 
+# LANE SMOKELINK4B: THE THREE GATE-9 ACTOR HARNESSES, ONE BLOCK.
+#
+# smoke_actor, smoke_savestate and smoke_persist each had 133 unresolved
+# externals after the 09-14 sync, and it is the SAME 133 on all three: the
+# targets host the same actor world (the same slices, the same hal files above),
+# so the sync moved the same names out from under each of them.  The three name
+# lists diff empty, which is out/SMOKELINK4B/actor_batch_names_identical.log,
+# and that is why this is one block, one measurement and one commit rather than
+# three of each.  Per target: 21 ledger faces, 28 alias rows, the source rows
+# below, 2 harness calls ported, 0 new derivations.
+#
+# NOT PORT_SMOKE_HEAP_TEARDOWN_SRC.  These three targets already compile
+# hal/cxxname_bridge.cpp and the gate-8 and gate-9 slices, so nine of that
+# list's fifteen rows are already defined here and listing them would be nine
+# LNK2005s instead of a fix.  The six that ARE missing are named below, in the
+# heap group, which is what the measurement asked for.
+set(PORT_SMOKE_ACTOR_SRC
+    # THE HEAP LAYER, the six rows of the teardown set these targets actually
+    # lack: ExpandingHeap's and Heap's destructors and four of ExpandingHeap's
+    # virtuals, reached from the scalar deleting destructors and from the
+    # class's own vtable.  Only D1 of each class is listed, for the LNK2005
+    # reason port/slice_seat2.txt:57 states.
+    src/_ZN13ExpandingHeap14VDeallocateAllEv.cpp
+    src/_ZN13ExpandingHeap19VMaxAllocatableSizeEv.cpp
+    src/_ZN13ExpandingHeap22VMaxAllocationUnitSizeEv.cpp
+    src/_ZN13ExpandingHeap8VDestroyEv.cpp
+    src/_ZN13ExpandingHeapD1Ev.cpp
+    src/_ZN4HeapD1Ev.cpp
+    # fBase_c's OWN VIRTUALS, the ones the actor world dispatches through
+    # hal/actor_vtables.cpp and the fBase_c vtable fills.  InitResources is not
+    # here: it is the one forward face in port/faces_sync_smoke_actor.txt.
+    src/_ZN7fBase_c16CleanupResourcesEv.cpp
+    src/_ZN7fBase_c18MarkForDestructionEv.cpp
+    src/_ZN7fBase_c6RenderEv.cpp
+    src/_ZN7fBase_c8BehaviorEv.cpp
+    # dActor_c's SURFACE.  Thirty rows, and they are one class's virtuals plus
+    # two of its non-virtual helpers: every Before/After hook the processing
+    # lists call, every On* damage and interaction hook the vtable holds, its
+    # constructor and its destructor.  All ordinary src/ translation units
+    # walk_window already compiles.
+    src/_ZN8dActor_c10EarthquakeERK7Vector35Fix12IiE.cpp
+    src/_ZN8dActor_c10PoofDustAtERK7Vector3.cpp
+    src/_ZN8dActor_c11AfterRenderEj.cpp
+    src/_ZN8dActor_c11OnAttacked1ERS_.cpp
+    src/_ZN8dActor_c11OnAttacked2ERS_.cpp
+    src/_ZN8dActor_c12BeforeRenderEv.cpp
+    src/_ZN8dActor_c13AfterBehaviorEj.cpp
+    src/_ZN8dActor_c13OnTurnIntoEggER6Player.cpp
+    src/_ZN8dActor_c13OnYoshiTryEatEv.cpp
+    src/_ZN8dActor_c14BeforeBehaviorEv.cpp
+    src/_ZN8dActor_c15OnGroundPoundedERS_.cpp
+    src/_ZN8dActor_c15OnHitByMegaCharER6Player.cpp
+    src/_ZN8dActor_c16OnAimedAtWithEggEv.cpp
+    src/_ZN8dActor_c18AfterInitResourcesEj.cpp
+    src/_ZN8dActor_c19BeforeInitResourcesEv.cpp
+    src/_ZN8dActor_c19OnHitFromUnderneathERS_.cpp
+    src/_ZN8dActor_c21AfterCleanupResourcesEj.cpp
+    src/_ZN8dActor_c22BeforeCleanupResourcesEv.cpp
+    src/_ZN8dActor_c24OnHitByCannonBlastedCharERS_.cpp
+    src/_ZN8dActor_c8OnKickedERS_.cpp
+    src/_ZN8dActor_c8OnPushedERS_.cpp
+    src/_ZN8dActor_c9UpdatePosEP5dCc_c.cpp
+    src/_ZN8dActor_c9Virtual50Ev.cpp
+    src/_ZN8dActor_cC1Ev.cpp
+    src/_ZN8dActor_cD1Ev.cpp
+    # THE MODEL FAMILY, the rows this gate reaches that are not already on the
+    # target: Model's and the animation pair's destructors, and the two
+    # ShadowModel bodies an actor's shadow needs.
+    src/_ZN11ShadowModel10InitCuboidEv.cpp
+    src/_ZN11ShadowModel9DoSetFileEPcii.cpp
+    src/_ZN5ModelD1Ev.cpp
+    src/_ZN9AnimationD1Ev.cpp
+    src/_ZN9ModelAnimD1Ev.cpp
+    # THE COLLISION LAYER.  dBgW and dBgW_KcMbg's virtuals and destructors, and
+    # dBgCh_Lin's four bodies, reached from hal/clsn_vtable.cpp's slot thunks
+    # and from each class's own vtable.  smoke_clsn's block names ten of the
+    # dBgW rows for the same reason; this gate adds dBgW_KcMbg, which is the
+    # collider an actor actually owns.
+    src/_ZN10dBgW_KcMbg10DetectClsnER12dBgCh_SphCrr.cpp
+    src/_ZN10dBgW_KcMbg10DetectClsnER9dBgCh_Gnd.cpp
+    src/_ZN10dBgW_KcMbg10DetectClsnER9dBgCh_Lin.cpp
+    src/_ZN10dBgW_KcMbg11GetVelocityER7Vector3.cpp
+    src/_ZN10dBgW_KcMbg12TransformPosERK7Vector3RS0_.cpp
+    src/_ZN10dBgW_KcMbg14GetAngularVelYEv.cpp
+    src/_ZN10dBgW_KcMbg17GetTriangleOriginEsR7Vector3.cpp
+    src/_ZN10dBgW_KcMbg9GetNormalEsR7Vector3.cpp
+    src/_ZN10dBgW_KcMbg9Virtual08Ev.cpp
+    src/_ZN10dBgW_KcMbgD1Ev.cpp
+    src/_ZN4dBgW10BeforeClsnER5dBgPiP8dActor_cR7Vector3P10Vector3_16S7_.cpp
+    src/_ZN4dBgW10DetectClsnER12dBgCh_SphCrr.cpp
+    src/_ZN4dBgW10DetectClsnER9dBgCh_Gnd.cpp
+    src/_ZN4dBgW10DetectClsnER9dBgCh_Lin.cpp
+    src/_ZN4dBgW11GetVelocityER7Vector3.cpp
+    src/_ZN4dBgW12TransformPosERK7Vector3RS0_.cpp
+    src/_ZN4dBgW14GetAngularVelYEv.cpp
+    src/_ZN4dBgW9Virtual08Ev.cpp
+    src/_ZN4dBgWD1Ev.cpp
+    src/_ZN7dBgW_KcD1Ev.cpp
+    src/_ZN9dBgCh_Lin10DetectClsnEv.cpp
+    src/_ZN9dBgCh_Lin13SetObjAndLineERK7Vector3S2_P8dActor_c.cpp
+    src/_ZN9dBgCh_LinC1Ev.cpp
+    src/_ZN9dBgCh_LinD1Ev.cpp
+    # WHAT THOSE THEN CALL: the fixed-point and vector helpers, the particle
+    # spawn and the positional sound.  Every one is a one-function src/ TU
+    # walk_window compiles, and out/SMOKELINK3/next_targets.md predicted seven
+    # of them (route.md had called them NEW derivations).
+    src/DecIfAbove0_Byte.c
+    src/Matrix4x3_ApplyInPlaceToRotationZXYExt.c
+    src/Matrix4x3_ApplyInPlaceToTranslation.c
+    src/Matrix4x3_FromTranslation.c
+    src/Vec3_Add.c
+    src/Vec3_Asr.c
+    src/Vec3_HorzAngle.c
+    src/_ZN5Sound9PlayBank3EjRK7Vector3.cpp
+    src/_ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_.c
+    # ---- SECOND ORDER.  Everything above was named by the link at 454383169;
+    # everything below was named by the NEXT link, once those rows were on the
+    # target.  out/SMOKELINK3/next_targets.md says to expect this ("a SRC row is
+    # rarely first-order") and the rounds are in out/SMOKELINK4B/.
+    #
+    # The heap allocator's four bodies, which ExpandingHeap::VDestroy and
+    # Heap::~Heap above reach.  These ARE four of PORT_SMOKE_HEAP_TEARDOWN_SRC's
+    # rows: the other eleven of that list are already defined on these targets,
+    # which is why the list is not used whole here.
+    src/_ZN13HeapAllocator7DestroyEv.cpp
+    src/_ZN22ExpandingHeapAllocator13DeallocateAllEPFvPvPS_jEj.cpp
+    src/_ZN22ExpandingHeapAllocator16InvokeDeallocateEPvPS_j.cpp
+    src/_ZN22ExpandingHeapAllocator18MaxAllocatableSizeEi.cpp
+    # dBgCh, dBgPi, dM3dG* and CLPS_BlockRef: the collision primitives
+    # dBgCh_Lin and dBgW_KcMbg above are built out of.
+    src/_ZN12dBgCh_SphCrr14SetFloorResultERK5dBgPi.cpp
+    src/_ZN12dBgCh_SphCrr15SetObjAndSphereERK7Vector35Fix12IiEP8dActor_c.cpp
+    src/_ZN12dBgCh_SphCrrC1Ev.cpp
+    src/_ZN12dBgCh_SphCrrD1Ev.cpp
+    src/_ZN13CLPS_BlockRefD1Ev.cpp
+    src/_ZN5dBgChC2Ev.cpp
+    src/_ZN5dBgChD1Ev.cpp
+    src/_ZN5dBgPiC1Ev.cpp
+    src/_ZN5dBgPiD1Ev.cpp
+    src/_ZN5dBgPiaSERKS_.cpp
+    src/_ZN8dM3dGLin3SetERK7Vector3S2_.cpp
+    src/_ZN8dM3dGLinD2Ev.cpp
+    src/_ZN8dM3dGSphC1Ev.cpp
+    src/_ZN8dM3dGSphD1Ev.cpp
+    # fBase_c's and dActor_c's own remaining bodies, plus the two fBase_c
+    # virtuals whose non-virtual spelling the alias rows point at
+    # (hal/cxx_aliases.cpp:2988-2989 join U to Q; Q is defined by these two).
+    src/_ZN7fBase_c13InitResourcesEv.cpp
+    src/_ZN7fBase_c9Virtual34Ejj.cpp
+    src/_ZN7fBase_c9Virtual38Ejj.cpp
+    src/_ZN7fBase_cD1Ev.cpp
+    src/_ZN8dActor_c18GetBitInDeathTableEv.cpp
+    src/_ZN8dActor_c22UpdatePosWithOnlySpeedEP5dCc_c.cpp
+    src/_ZN8dActor_c24KillAndTrackInDeathTableEv.cpp
+    src/_ZN8dActor_c28UpdatePosWithHorzSpeedAndAngEv.cpp
+    src/_ZN9fLiNdBa_cD1Ev.cpp
+    src/actors/ActorDerived.cpp
+    # The twenty-one ROM helpers the collision and background-actor bodies call,
+    # each a one-function src/ TU walk_window compiles.
+    src/func_0200d8c8.c
+    src/func_02016e70.c
+    src/func_02035354.c
+    src/func_02035394.c
+    src/func_020353b0.c
+    src/func_020374b8.c
+    src/func_02037608.c
+    src/func_0203782c.c
+    src/func_02037888.c
+    src/func_02037940.c
+    src/func_02037a04.c
+    src/func_02037fec.c
+    src/func_0203938c.c
+    src/func_0203939c.c
+    src/func_020393ac.c
+    src/func_020393b4.c
+    src/func_02039db8.c
+    src/func_02039e30.c
+    src/func_02039e48.c
+    src/func_0203abd4.c
+    # And what the rest call: the two rotation matrices, the area-visibility
+    # read, atan2, the clipper's point test.
+    src/IsAreaShowing.c
+    src/Matrix4x3_FromRotationX.c
+    src/Matrix4x3_FromRotationZ.c
+    src/_ZN4cstd5atan2E5Fix12IiES1_.c
+    src/_ZN7Clipper13Func_020150E8ER7Vector35Fix12IiEPh.cpp
+    src/_ZN9ModelBaseD1Ev.cpp
+    # THE ROM VENEER'S HOST COPY, the same row smoke_model's and
+    # smoke_modelanim's blocks already carry for the same symbol: func_0203cbc0
+    # is an ARM r0 ride-through onto _ZdlPv, so the host cannot compile the
+    # matched form.
+    port/unmatched/func_02073244_hostcopy.c
+    # ---- THIRD ORDER, measured in round 2 the same way round 2 was measured
+    # in round 1.  Twenty-one more one-function src/ translation units, every
+    # one of them already compiled by walk_window: what the collision bodies,
+    # dActor_c's death-table pair, fBase_c's two heap virtuals and the particle
+    # spawn then call.  src/_ZdlPv.cpp, src/Deallocate.c and
+    # src/_ZN13HeapAllocator6RemoveEv.cpp are three of
+    # PORT_SMOKE_HEAP_TEARDOWN_SRC's rows arriving here at last, which is why
+    # the heap group above has six of that list and not nine.
+    src/AddVec3.c
+    src/Deallocate.c
+    src/DeathTable_GetBit.c
+    src/_ZN11fLiNdBaPr_cD1Ev.cpp
+    src/_ZN13HeapAllocator6RemoveEv.cpp
+    src/_ZN4Heap20RestoreFromTemporaryEv.cpp
+    src/_ZN4Heap21MaxAllocationUnitSizeEv.cpp
+    src/_ZN4Heap28InitializeSolidHeapAsDefaultEjPS_i.cpp
+    src/_ZN6Memory8AllocateEjiP4Heap.cpp
+    src/_ZN8Particle7Manager9AddSystemEiR7Vector3.cpp
+    src/_ZN8dActor_c17TrackInDeathTableEv.cpp
+    src/_ZdlPv.cpp
+    src/func_02010da4.c
+    src/func_02037b5c.c
+    src/func_02037f5c.c
+    src/func_020380c0.c
+    src/func_0203abcc.c
+    src/func_0203ac00.c
+    src/func_02042fe4.c
+    src/func_ov002_020fea4c.c
+    src/func_ov002_020fea68.c
+    # ---- FOURTH ORDER, and the last round this lane measured.  Ten more
+    # one-function src/ TUs: the solid-heap pair fBase_c's two heap virtuals
+    # call, the nested-iterator lookup HeapAllocator::Remove calls, the death
+    # table's setter, and five ROM helpers.
+    src/DeathTable_SetBit.c
+    src/GetLevelPart.c
+    src/_ZN18NestedHeapIterator10FindNestedEPv.cpp
+    src/_ZN4Heap10SetDefaultEv.cpp
+    src/_ZN4Heap23SetupSolidHeapAsDefaultEjPS_i.cpp
+    src/func_02037b1c.c
+    src/func_02043098.c
+    src/func_0204ae2c.c
+    src/func_0204d958.c
+    src/func_0204d9a0.c
+    # ONE HOST FILE WHOLE, and it is the only one of five that measured free.
+    # port/hal/actorport_dtor_bridge.cpp closes the six
+    # ?Destructor1/0@dActor_c|dBase_c|dBgActor_c@@UAEXXZ rows the actor
+    # vftables ask for, and it closes them the way that file closes them for
+    # the window targets: Destructor1 is /alternatename'd onto the class's own
+    # complete-object destructor (ABI-exact, same __thiscall receiver, no stack
+    # args on either side) and Destructor0 onto the shared
+    # actorport_dtor_slot_trap, whose body is in the same file.  Measured on
+    # smoke_actor: it added NOTHING to the wall -- zero names -- because every
+    # right hand side its other 248 rows name is either already defined here or
+    # never referenced here, and an /alternatename for an unreferenced symbol is
+    # inert.  The four files below it were measured the same way and REFUSED,
+    # each one costing more than it closed (round 2, out/SMOKELINK4B):
+    #   port/hal/int4_rows.cpp              closes 7, costs 17
+    #   port/hal/actorport_dtor_faces.cpp   closes 0, costs 37 (its rows are the
+    #                                       bridge's aliases, not this file's)
+    #   port/hal/link21_rows.cpp            closes 1, costs 20
+    #   port/hal/sdat/sound_abi.cpp         closes 1, costs 22 (the whole sdat
+    #                                       consumer, mixer and sequencer layer)
+    # Each of those four therefore wants a verbatim subset in the shape
+    # port/hal/smoke_dtor_slots_model.cpp established, which is written up in
+    # out/SMOKELINK4B/remaining.md rather than guessed at here.
+    port/hal/actorport_dtor_bridge.cpp
+    )
+
+port_smoke_relink(actor     SRC ${PORT_SMOKE_ACTOR_SRC})
+port_smoke_relink(savestate SRC ${PORT_SMOKE_ACTOR_SRC})
+port_smoke_relink(persist   SRC ${PORT_SMOKE_ACTOR_SRC})
+
 # Gate 10: Player spawns and stands (the walking campaign).
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
 set(SLICE10_SOURCES "")
