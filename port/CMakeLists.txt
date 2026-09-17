@@ -7466,6 +7466,41 @@ set(PORT_DBGW_HOSTABI_SOURCES
     src/_ZN7dBgW_Kc10DetectClsnER9dBgCh_Gnd.cpp
     src/_ZN7dBgW_Kc14GetSurfaceInfoEsR11SurfaceInfo.cpp
     src/_ZN10dBgW_KcMbg9TransformERK9Matrix4x3s.cpp
+    # Run link100 lane LEVELS4B: THE FOUR CARRY CALLBACKS, added 2026-09-17.
+    # These four are the stock BeforeClsn callbacks a moving platform installs
+    # through func_020393d4 to walk its rider along, and every one of them
+    # dispatches a LATE dBgW slot on the collider it is handed:
+    #
+    #   UpdatePosWithTransform      clsn.TransformPos(local, pos)
+    #   UpdateAngsWithAngularVelY   clsn.GetAngularVelY()
+    #   UpdatePosWithVelocity       clsn.GetVelocity(local)
+    #   UpdatePosAndAngs            calls the first two
+    #
+    # Off this list they compiled against the TWELVE-slot include/dBgW.h while
+    # every live collider vtable in the link is THIRTEEN slots, because the
+    # tables are emitted by the ctor TUs above, which ARE on this list. Read out
+    # of build/port/walk_window.exe (??_7dBgW_KcMbg@@6B@ at 0x00731350): slot 9
+    # BeforeClsn, 10 TransformPos, 11 GetAngularVelY, 12 GetVelocity. The three
+    # callbacks emitted call [eax+0x24], [eax+0x28] and [eax+0x2c], i.e. indices
+    # 9, 10 and 11 -- each one slot low, so TransformPos landed on BeforeClsn. A
+    # rider on a moving platform therefore re-entered BeforeClsn from inside its
+    # own callback and recursed: the shim reads five stack arguments where that
+    # dispatch pushes two, so `pos` came off the caller's own frame (its local
+    # Vector3 copy) and the third round dereferenced the rider's x coordinate as
+    # an address. That is the whole UPDATEPOS cluster -- levels 21 DDD city, 38
+    # BFS arena, 46 Luigi key course and 49 Wario key arena all faulted at
+    # dBgW::UpdatePosWithTransform+0xd reading [pos] with pos = 0, 0xffffd000,
+    # 0x000c8710 and 0, with UpdatePosWithTransform+0x27 / BeforeClsn+0x18 /
+    # UpdatePosAndAngs+0x1a repeating up the stack and func_02038324+0x6e (the
+    # ROM's own Obj::m9 entry) underneath.
+    #
+    # hal/mmc_vtable.cpp measured the same three indices and worked around them
+    # by reseating its own hal array; that array is not what the live objects
+    # carry, so the shadow header is where the correction belongs.
+    src/_ZN4dBgW16UpdatePosAndAngsERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_.cpp
+    src/_ZN4dBgW21UpdatePosWithVelocityERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_.cpp
+    src/_ZN4dBgW22UpdatePosWithTransformERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_.cpp
+    src/_ZN4dBgW25UpdateAngsWithAngularVelYERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_.cpp
     )
 foreach(_dbgw_rel IN LISTS PORT_DBGW_HOSTABI_SOURCES)
     if(NOT EXISTS "${PORT_REPO_ROOT_ABS}/${_dbgw_rel}")
