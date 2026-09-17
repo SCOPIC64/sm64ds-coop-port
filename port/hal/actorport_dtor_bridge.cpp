@@ -466,7 +466,9 @@ ACTORPORT_D16(fBase_c)
 #pragma comment(linker, "/alternatename:??1PyramidStep@@UAE@XZ=??1PyramidStep@@QAE@XZ")
 #pragma comment(linker, "/alternatename:??1PyramidTag@@UAE@XZ=??1PyramidTag@@QAE@XZ")
 #pragma comment(linker, "/alternatename:??1PyramidTop@@UAE@XZ=??1PyramidTop@@QAE@XZ")
-#pragma comment(linker, "/alternatename:??1QuestionBlock@@UAE@XZ=??1QuestionBlock@@QAE@XZ")
+/* QuestionBlock: no D1 body in the link (see the note at line 169); the ??1
+   alias was dead and read as a defeated row by alternatename_guard; removed
+   by lane QBALIAS 2026-09-17. */
 #pragma comment(linker, "/alternatename:??1RabbitKey@@UAE@XZ=??1RabbitKey@@QAE@XZ")
 #pragma comment(linker, "/alternatename:??1RacingPenguin@@UAE@XZ=??1RacingPenguin@@QAE@XZ")
 #pragma comment(linker, "/alternatename:??1RecRoomCupboard@@UAE@XZ=??1RecRoomCupboard@@QAE@XZ")
