@@ -42,15 +42,29 @@
 # down from eleven. Not one vptr store at a nonzero addend is left in this
 # tree.
 #
-# THE THIRTY-TWO ROWS THAT REMAIN BELOW ARE STALE, NOT LIVE, and this lane is
-# saying so rather than deleting them. The guard reads zero nonzero addends
-# over this build's objects, so no row left in this file describes a store the
-# tree still makes; the sync of 09-14 rewrote those factories and nobody
-# re-measured the file afterwards (the d_a_obj_b_swdoor row is the one the
-# PORT_HOSTGEN_TU block already caught going stale that way). Clearing them is
-# a sweep with its own measurement per row, and a row deleted on a guess comes
-# back as a refused build the day its TU is sliced, so it is left to a lane
-# that can take the measurement.
+# RETIRED 2026-09-17, run link100 wave 10 round 5, lane TRIAGE1 and fixer VPTRBASE:
+# THE LAST THIRTY-TWO ROWS. SCENES2 flagged them as stale and left them in place
+# rather than delete them on a guess, and SCENES3 re-confirmed the reading and
+# asked for a lane that would measure each row. This is that measurement, taken
+# with the guard's own live_objects(), source_key() and vtable_addends() on
+# port/l7-boot4 9c034d8d3 so the criterion is the guard's own.
+#
+# THREE rows named an object build.ninja does not build at all, so there was no
+# object and no store: dScMgSound_c, daBombking_c and d_a_obj_b_swdoor. That is
+# the shape the PORT_HOSTGEN_TU note above already caught once.
+#
+# The other TWENTY-NINE named an object that IS compiled and present and that
+# carries no relocation whatever against the vtable symbol its row named, and no
+# nonzero vtable relocation of any kind. Nought for thirty-two: not one row
+# described a store this tree makes. The per-row table is in
+# runs/link100/out/TRIAGE1/vptr_addend_rows_measured_9c034d8d3.txt.
+#
+# THE FILE IS NOW EMPTY AND THAT IS THE STRONGEST STATE IT HAS EVER BEEN IN. The
+# guard refuses any nonzero row the baseline does not carry, so an empty baseline
+# refuses every nonzero vptr store in the tree. If one of these thirty-two TUs
+# comes back to raw compilation with the +8 spelling, the build stops, which is
+# what the header above asks for. Thirty-two rows nobody had re-measured since
+# the main-to-port sync of 09-14 were doing the opposite.
 # All seven scenes exit 0 three times in a row, headless, 600 frames,
 # SM64DS_FAULTS_FATAL=1.
 #
@@ -98,35 +112,3 @@
 # carry offset-to-top and typeinfo in front of its slots, so +8 may be the
 # ROM's own address point there. Reading that layout is owed work, not done.
 #
-src/actors/dScMgSound_c.cpp.obj                      ?_ZTV12dScMgSound_c@@3PAPAXA                             0x8
-src/actors/daBombking_c.cpp.obj                      __ZTV12daBombking_c                                      0x8
-src/actors/daObjClock_c.cpp.obj                      __ZTV12daObjClock_c                                      0x8
-src/actors/daObjFire_c.cpp.obj                       __ZTV11daObjFire_c                                       0x8
-src/actors/daObjFl_London_c.cpp.obj                  __ZTV16daObjFl_London_c                                  0x8
-src/actors/daSCoin_c.cpp.obj                         __ZTV9daSCoin_c                                          0x8
-src/actors/daYurei_Mucho_c.cpp.obj                   __ZTV15daYurei_Mucho_c                                   0x8
-src/game/actors/d_a_ch_room.cpp.obj                  __ZTV10daChRoom_c                                        0x8
-src/game/actors/d_a_ch_scene.cpp.obj                 __ZTV11daChScene_c                                       0x8
-src/game/actors/d_a_kp_fr.cpp.obj                    __ZTV8daKpFr_c                                           0x8
-src/game/actors/d_a_krpa.cpp.obj                     __ZTV8daKrpa_c                                           0x8
-src/game/actors/d_a_obj_abuku.cpp.obj                __ZTV12daObjAbuku_c                                      0x8
-src/game/actors/d_a_obj_b_swdoor.cpp.obj             __ZTV14daObjBSwdoor_c                                    0x8
-src/game/actors/d_a_obj_bc_switch.cpp.obj            __ZTV16daObjBC_Switch_c                                  0x8
-src/game/actors/d_a_obj_c0_switch.cpp.obj            __ZTV16daObjC0_Switch_c                                  0x8
-src/game/actors/d_a_obj_c1_trap.cpp.obj              __ZTV14daObjC1_Trap_c                                    0x8
-src/game/actors/d_a_obj_cannon_shutter.cpp.obj       __ZTV20daObjCannonShutter_c                              0x8
-src/game/actors/d_a_obj_clock_huriko.cpp.obj         __ZTV18daObjClockHuriko_c                                0x8
-src/game/actors/d_a_obj_emm_log.cpp.obj              __ZTV13daObjEmmLog_c                                     0x8
-src/game/actors/d_a_obj_fm_battan.cpp.obj            __ZTV16daObjFm_Battan_c                                  0x8
-src/game/actors/d_a_obj_hatena_switch.cpp.obj        ?_ZTV19daObjHatenaSwitch_c@@3PAHA                        0x8
-src/game/actors/d_a_obj_ice_board.cpp.obj            __ZTV15daObjIceBoard_c                                   0x8
-src/game/actors/d_a_obj_kb1_billboard.cpp.obj        ?_ZTV19daObjKb1Billboard_c@@3PAHA                        0x8
-src/game/actors/d_a_obj_kinoko_tag.cpp.obj           __ZTV16daObjKinokoTag_c                                  0x8
-src/game/actors/d_a_obj_ks_water.cpp.obj             __ZTV14daObjKsWater_c                                    0x8
-src/game/actors/d_a_obj_mc_metalnet.cpp.obj          __ZTV18daObjMc_Metalnet_c                                0x8
-src/game/actors/d_a_obj_mc_water.cpp.obj             __ZTV14daObjMcWater_c                                    0x8
-src/game/actors/d_a_obj_wakame.cpp.obj               __ZTV13daObjWakame_c                                     0x8
-src/game/actors/d_a_obj_wanwan_shutter.cpp.obj       __ZTV20daObjWanwanShutter_c                              0x8
-src/game/actors/d_a_obj_wc_obj02.cpp.obj             __ZTV15daObjWc_Obj02_c                                   0x8
-src/game/actors/d_a_obj_wc_obj05.cpp.obj             __ZTV15daObjWc_Obj05_c                                   0x8
-src/game/actors/d_a_sld_mng.cpp.obj                  __ZTV10daSldMng_c                                        0x8
