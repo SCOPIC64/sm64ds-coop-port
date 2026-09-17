@@ -1346,6 +1346,66 @@ add_custom_command(OUTPUT "${PORT_FACES_SYNC_SMOKE_HEAP_GEN}"
 target_sources(smoke_heap PRIVATE
     hal/smoke_aliases_heap.cpp "${PORT_FACES_SYNC_SMOKE_HEAP_GEN}")
 
+# LANE SMOKELINK3 (run link100 wave 10 round 2): THE SAME THREE MECHANISMS, ONCE.
+#
+# SMOKELINK2 wrote the block above by hand for smoke_heap and proved the lever.
+# Fourteen targets stopped linking at the 09-14 sync and the remaining twelve of
+# them close the same three ways, so the wiring is a function rather than twelve
+# copies of twenty lines.  The function adds nothing a target does not name:
+#
+#   faces_sync_smoke_<name>.txt   a SUBSET LEDGER, every row copied verbatim out
+#                                 of port/faces_sync.txt and re-derived against
+#                                 its ROM address by the SAME tools/facegen.py
+#                                 --sync on every build.  This is what closes a
+#                                 non-static member or a constructor: the
+#                                 receiver is in ECX and port/faces_sync.txt's
+#                                 header says an /alternatename is a NAME bridge
+#                                 and never an ABI bridge.
+#   hal/smoke_aliases_<name>.cpp  /alternatename rows, copied verbatim out of
+#                                 hal/cxx_aliases.cpp, for the names whose two
+#                                 sides already agree about the ABI (statics,
+#                                 data, and same-class thiscall spellings).  A
+#                                 file of nothing but linker directives compiles
+#                                 to an object with no code, no data and no
+#                                 external reference.
+#   SRC <files...>                translation units that already exist in this
+#                                 tree, that walk_window already compiles, and
+#                                 that this target simply did not list.  Never a
+#                                 new definition.
+#
+# Either file may be absent: a target with no ledger rows gets no generated
+# face, a target with no alias rows gets no directive object.  The ledger is
+# deliberately NOT ${PORT_FACES_SYNC_GEN}: that one is 1925 rows and every row
+# CALLS a C++ member, so putting it on a 54-object harness would trade a dozen
+# unresolved names for hundreds, and there is no /Gy in this build for /OPT:REF
+# to drop the difference.
+function(port_smoke_relink _psr_target)
+    cmake_parse_arguments(PSR "" "" "SRC" ${ARGN})
+    set(_psr_ledger "${CMAKE_CURRENT_SOURCE_DIR}/faces_sync_smoke_${_psr_target}.txt")
+    set(_psr_alias  "${CMAKE_CURRENT_SOURCE_DIR}/hal/smoke_aliases_${_psr_target}.cpp")
+    set(_psr_add "")
+    if(EXISTS "${_psr_ledger}")
+        set(_psr_gen "${CMAKE_BINARY_DIR}/host-src/faces_sync_smoke_${_psr_target}_gen.cpp")
+        port_configure_input("${_psr_ledger}")
+        add_custom_command(OUTPUT "${_psr_gen}"
+            COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/facegen.py"
+                    --sync "${_psr_ledger}"
+                    --root "${CMAKE_CURRENT_SOURCE_DIR}/.."
+                    --out "${_psr_gen}"
+            DEPENDS "${_psr_ledger}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tools/facegen.py"
+            COMMENT "facegen --sync faces_sync_smoke_${_psr_target}.txt")
+        list(APPEND _psr_add "${_psr_gen}")
+    endif()
+    if(EXISTS "${_psr_alias}")
+        list(APPEND _psr_add "${_psr_alias}")
+    endif()
+    foreach(_psr_src IN LISTS PSR_SRC)
+        list(APPEND _psr_add "${CMAKE_CURRENT_SOURCE_DIR}/../${_psr_src}")
+    endforeach()
+    target_sources(smoke_${_psr_target} PRIVATE ${_psr_add})
+endfunction()
+
 # Gate 3a: root heap + Memory:: layer over the gate-2 allocator.
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate3a.txt" SLICE3A_LINES)
 set(SLICE3A_SOURCES "")
@@ -2086,6 +2146,146 @@ if(MSVC)
     # matching flag on walk_window, which is the base the shipped states use.
     target_link_options(smoke_persist PRIVATE /DYNAMICBASE:NO)
 endif()
+
+# LANE SMOKELINK3: THE SMOKE HARNESSES' HALF OF THE 09-14 SYNC, ONE CALL EACH.
+#
+# Every target below stopped linking at the sync with a block of flat Itanium
+# names whose bodies it already compiles under an MSVC decoration.  The counts
+# beside each call are measured, not chosen: they come from a full
+# `ninja -j10 -k 0` over all targets at f7d4b3c3a, classified per name in
+# out/SMOKELINK3 (and, for the classification itself, out/SMOKELINK2/route.md).
+# Read port_smoke_relink's own block above for what the three mechanisms are
+# and why one name may not be closed with another's.
+#
+# The calls live here, after every one of these targets is defined, rather than
+# beside each add_executable: the wiring is identical for all of them, the
+# evidence for all of them is one measurement, and a reader comparing two rows
+# should not have to page through nine hundred lines to do it.
+
+# THE HEAP-TEARDOWN SOURCE ROWS, once, because every target from smoke_roots
+# on hosts the same root-heap layer and was missing the same fifteen bodies.
+# All fifteen already exist in this tree and are on walk_window through
+# port/slice_gate16.txt; not one of them is a new definition.
+#
+# The first eight are what the link asked for directly: ExpandingHeap's and
+# Heap's destructors and four of ExpandingHeap's virtuals, reached from
+# src/_ZN13ExpandingHeapC1EPvjP4HeapP22ExpandingHeapAllocator.cpp's and
+# src/_ZN4HeapC2EPvjPS_.cpp's scalar deleting destructors and from the class's
+# own vtable, plus the ROM's operator_delete2 veneer at 0x0203cbcc and the
+# global operator delete it tail-calls.  The next five are what those eight
+# then asked for, and the last two what those asked for.  Only D1 of each
+# class is listed: MSVC folds the ROM's D1 and D0 into one symbol, so listing
+# both per-function destructor TUs of one class in one link is the LNK2005
+# port/slice_seat2.txt:57 states the rule for.
+set(PORT_SMOKE_HEAP_TEARDOWN_SRC
+    src/_ZN13ExpandingHeapD1Ev.cpp
+    src/_ZN4HeapD1Ev.cpp
+    src/_ZN13ExpandingHeap14VDeallocateAllEv.cpp
+    src/_ZN13ExpandingHeap8VDestroyEv.cpp
+    src/_ZN13ExpandingHeap19VMaxAllocatableSizeEv.cpp
+    src/_ZN13ExpandingHeap22VMaxAllocationUnitSizeEv.cpp
+    src/_ZN6Memory16operator_delete2EPv.cpp
+    src/_ZdlPv.cpp
+    src/_ZN22ExpandingHeapAllocator13DeallocateAllEPFvPvPS_jEj.cpp
+    src/_ZN22ExpandingHeapAllocator16InvokeDeallocateEPvPS_j.cpp
+    src/_ZN22ExpandingHeapAllocator18MaxAllocatableSizeEi.cpp
+    src/_ZN13HeapAllocator7DestroyEv.cpp
+    src/_ZN4Heap11_DeallocateEPv.cpp
+    src/_ZN13HeapAllocator6RemoveEv.cpp
+    src/_ZN4cstd3absEi.cpp)
+
+# smoke_roots: 30 unresolved -> 0.  8 ledger faces (7 copied verbatim from
+# port/faces_sync.txt, 1 derived by address), 19 alias rows (15 copied verbatim
+# from hal/cxx_aliases.cpp, 4 for the heap-teardown seam), the 15 source rows
+# above, 1 harness call ported to Heap::SetupRootHeap().
+port_smoke_relink(roots SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC})
+
+# smoke_fs: 32 unresolved -> 0.  Gate 3a plus the NitroFS layer, so it is
+# smoke_roots's block plus two SharedFilePtr faces, and every other row is the
+# same row for the same reason.  10 ledger faces, 19 alias rows, the 15 source
+# rows above, 1 harness call ported.
+port_smoke_relink(fs SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC})
+
+# smoke_model: 42 unresolved -> 0.  Gate 4b, so the heap-teardown block again
+# plus the model family's own rows.  hal/int4_rows.cpp is what DEFINES
+# ?Destructor1@Model@@UAEXXZ and its three siblings: include/ModelBase.h:110
+# explains that those two names are ordinary host virtuals holding the two
+# vtable slots the ROM's D1 and D0 occupy, so src/_ZN5ModelC1Ev.cpp's vftable
+# asks the linker for them, and that file is where the twelve faces live.
+port_smoke_relink(model SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC}
+    src/_ZN5Model11UpdateVertsEv.cpp
+    src/_ZN5Model9Virtual10ER9Matrix4x3.cpp
+    port/hal/smoke_dtor_slots_model.cpp
+    port/unmatched/ModelBaseModel_Dtors_HostCopy.c
+    # What those six bodies then call: ModelBase's Deallocate (0x02018144) and
+    # func_0203cbc0, the ROM veneer onto _ZdlPv whose src form is an ARM r0
+    # ride-through.  The host copy that replaces it is the same file and the
+    # same reason smoke_modelanim's block already names, twelve targets up.
+    src/Deallocate.c
+    port/unmatched/func_02073244_hostcopy.c)
+
+# THE MODEL-FAMILY SOURCE ROWS, once, for the same reason the heap-teardown
+# list exists: every gate-4b and gate-5 smoke below hosts Model and ModelBase
+# and was missing exactly these six.  The two subset files are explained in
+# smoke_model's block above and in their own headers.
+set(PORT_SMOKE_MODEL_SRC
+    src/_ZN5Model11UpdateVertsEv.cpp
+    src/_ZN5Model9Virtual10ER9Matrix4x3.cpp
+    port/hal/smoke_dtor_slots_model.cpp
+    port/unmatched/ModelBaseModel_Dtors_HostCopy.c
+    src/Deallocate.c
+    port/unmatched/func_02073244_hostcopy.c)
+
+# smoke_soak    43 unresolved -> 0.  Gate 4b soak: smoke_model's block exactly.
+# smoke_frames  44 -> 0.  Gate 5, the fiber frame loop, same block.
+# smoke_oam     44 -> 0.  Same block; this one has no harness row of its own.
+# smoke_anim    44 -> 0.  Gate 7 animation, same block.
+# smoke_soak_anim 45 -> 0.  Same block.
+port_smoke_relink(soak      SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
+port_smoke_relink(frames    SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
+port_smoke_relink(oam       SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
+port_smoke_relink(anim      SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
+port_smoke_relink(soak_anim SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC})
+
+# smoke_modelanim: 50 unresolved -> 0.  The BlendModelAnim gate, so it does NOT
+# read PORT_SMOKE_MODEL_SRC: it needs a THREE-class slot file (ModelBase, Model,
+# BlendModelAnim) and the WHOLE parent host copy rather than the two-class
+# subsets, because this target does host the anim half of the family and the
+# parent's Animation and ModelAnim calls resolve here.  Its own block already
+# carries unmatched/func_02073244_hostcopy.c, so that row is not repeated.
+# hal/blend_vtable.cpp, already on this target, defines Heap::_Deallocate, so
+# the one heap-teardown row that would be a duplicate here is dropped by name
+# rather than by leaving the list alone.
+set(PORT_SMOKE_MODELANIM_HEAP_SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC})
+list(REMOVE_ITEM PORT_SMOKE_MODELANIM_HEAP_SRC src/_ZN4Heap11_DeallocateEPv.cpp)
+port_smoke_relink(modelanim SRC ${PORT_SMOKE_MODELANIM_HEAP_SRC}
+    src/_ZN5Model11UpdateVertsEv.cpp
+    port/hal/smoke_dtor_slots_modelanim.cpp
+    port/hal/smoke_dtor_fwd_modelanim.cpp
+    port/unmatched/ModelBaseModelBlend_Dtors_HostCopy.c
+    src/Deallocate.c
+    src/_ZN9AnimationD1Ev.cpp
+    src/_ZN9ModelBaseD1Ev.cpp
+    src/_ZN5ModelD1Ev.cpp
+    src/_ZN9ModelAnimD1Ev.cpp)
+
+# smoke_clsn: 57 unresolved -> 0.  Gate 8 collision: the heap-teardown and
+# model blocks plus eleven dBgW bodies this target reaches from
+# hal/clsn_vtable.cpp's slot thunks and from dBgW's own vtable, all of them
+# ordinary src/ translation units walk_window already compiles.
+port_smoke_relink(clsn SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC}
+    src/_ZN4dBgWD1Ev.cpp
+    src/_ZN7dBgW_KcD1Ev.cpp
+    src/_ZN4dBgW10BeforeClsnER5dBgPiP8dActor_cR7Vector3P10Vector3_16S7_.cpp
+    src/_ZN4dBgW10DetectClsnER9dBgCh_Gnd.cpp
+    src/_ZN4dBgW10DetectClsnER9dBgCh_Lin.cpp
+    src/_ZN4dBgW10DetectClsnER12dBgCh_SphCrr.cpp
+    src/_ZN4dBgW14GetAngularVelYEv.cpp
+    src/_ZN4dBgW11GetVelocityER7Vector3.cpp
+    src/_ZN4dBgW12TransformPosERK7Vector3RS0_.cpp
+    src/_ZN4dBgW9Virtual08Ev.cpp
+    # Second order: dBgW_Kc's destructor destroys its CLPS_BlockRef member.
+    src/_ZN13CLPS_BlockRefD1Ev.cpp)
 
 # Gate 10: Player spawns and stands (the walking campaign).
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
