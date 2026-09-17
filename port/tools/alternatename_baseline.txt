@@ -79,6 +79,27 @@
 # without linking os_arena.cpp the stub fires and the dump prints no install
 # block, which is correct -- such a binary has no verdict to give.
 #
+# SCOPE HOLD, run link100 lane SMOKELINK6: __ZN4Heap21MaxAllocationUnitSizeEv=
+# ?MaxAllocationUnitSize@Heap@@QAEIXZ and __ZN13HeapAllocator6RemoveEv=
+# ?Remove@HeapAllocator@@QAEXXZ were ADDED, and they are NOT the weak-symbol
+# idiom the rest of this list documents. Both pragmas live in
+# hal/smoke_heap_seam_actor.cpp:111,:120 (SMOKELINK5's 59bced026), which
+# port/CMakeLists.txt's PORT_SMOKE_ACTOR_SRC puts on smoke_actor, smoke_savestate
+# and smoke_persist ONLY -- none of it is compiled into walk_window at all.
+# This guard's directive scan walks the whole port/ tree by text and then checks
+# every pair it finds against ONE map, walk_window.map by default, regardless of
+# which target the directive's file is actually compiled into (read in full:
+# out/SMOKELINK5B/bugs.md item 3). So the "defeated" reading here is the guard
+# comparing an actor-target-only directive against a map that was never asked to
+# resolve it -- not a newly sliced TU defeating a real walk_window alias, and not
+# the fallback-stub design this list otherwise records. None of the three actor
+# targets links yet (Sound::Play, out/SMOKELINK5/bugs.md), so there is no map of
+# their own to check this pair against instead. Held here, named and reasoned
+# rather than silently passed, until an actor target links and produces a map:
+# then re-derive against THAT map and either confirm the alias fires there (row
+# comes out) or it is truly defeated there too (row stays, reclassified). Not a
+# claim that these are correct; a documented hold on an inapplicable check.
+#
 # THE THREE THAT ARE NOT HERE. The same lane needed port_romdata_sha,
 # port_romdata_bytes and port_asset_root_seen readable from hal/lk7_persist.cpp,
 # which is compiled into targets hal/romdata_loader.cpp is not. The weak-symbol
@@ -96,6 +117,8 @@
 ?MemoryLeft@ExpandingHeapAllocator@@QAEIXZ=__ZN22ExpandingHeapAllocator10MemoryLeftEv
 ?SetFile@ModelBase@@QAEHPAUBMD_File@@HH@Z=?SetFile@ModelBaseFace@@QAEHPAUBMD_File@@HH@Z
 __ZN11ShadowModelD1Ev=_hal_shadow_d1_fallback
+__ZN13HeapAllocator6RemoveEv=?Remove@HeapAllocator@@QAEXXZ
+__ZN4Heap21MaxAllocationUnitSizeEv=?MaxAllocationUnitSize@Heap@@QAEIXZ
 __ZN4Heap8AllocateEj=_hal_heap_allocate_align4
 __ZN8dActor_c18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j=_hal_dropshadow_scalexyz_fallback
 __ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_=_port_l7_particle_newsimple_stub
