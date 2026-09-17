@@ -244,6 +244,10 @@ CPPD1(daGmch_c)
 CPPD1(MugenBgm)
 CPPD1(PowerFlower)
 CPPD1(PoleLift)
+
+/* ExtendingPlatform (ov045 0x02112e80 word 16 -> 0x02111840, its own D1).
+   This slot used to be filled with hal_cppd1_PoleLift, one class off. */
+CPPD1(ExtendingPlatform)
 CPPD1(daObjFire_c)
 CPPD1(KoopaFlag)
 CPPD1(BobOmbBuddy)

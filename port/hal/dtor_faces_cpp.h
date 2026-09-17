@@ -64,6 +64,7 @@ int __fastcall hal_cppd1_Moneybag(void *self, void *edx);
 int __fastcall hal_cppd1_MugenBgm(void *self, void *edx);
 int __fastcall hal_cppd1_PushBlock(void *self, void *edx);
 int __fastcall hal_cppd1_PoleLift(void *self, void *edx);
+int __fastcall hal_cppd1_ExtendingPlatform(void *self, void *edx);
 int __fastcall hal_cppd1_BlueFlame(void *self, void *edx);
 int __fastcall hal_cppd1_KoopaFlag(void *self, void *edx);
 int __fastcall hal_cppd1_BobOmbBuddy(void *self, void *edx);
