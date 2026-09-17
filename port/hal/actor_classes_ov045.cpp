@@ -576,7 +576,7 @@ extern "C" void hal_fill_extending_platform_vtable(void)
     vt[6]  = (void *)ep_behavior;
     vt[9]  = (void *)ep_render;
     vt[12] = (void *)ep_pdes;
-    vt[16] = (void *)PORT_D16(hal_cppd1_PoleLift);
+    vt[16] = (void *)PORT_D16(hal_cppd1_ExtendingPlatform);
     vt[17] = (void *)ep_d0;
     /* 31 slots: this class is an Actor, not a Platform, and its table really
        does end at 30 -- the next dsd symbol is at 0x02112efc. No slot 31. */
