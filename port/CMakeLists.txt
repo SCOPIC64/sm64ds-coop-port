@@ -2202,6 +2202,24 @@ port_smoke_relink(modelanim SRC ${PORT_SMOKE_MODELANIM_HEAP_SRC}
     src/_ZN5ModelD1Ev.cpp
     src/_ZN9ModelAnimD1Ev.cpp)
 
+# smoke_clsn: 57 unresolved -> 0.  Gate 8 collision: the heap-teardown and
+# model blocks plus eleven dBgW bodies this target reaches from
+# hal/clsn_vtable.cpp's slot thunks and from dBgW's own vtable, all of them
+# ordinary src/ translation units walk_window already compiles.
+port_smoke_relink(clsn SRC ${PORT_SMOKE_HEAP_TEARDOWN_SRC} ${PORT_SMOKE_MODEL_SRC}
+    src/_ZN4dBgWD1Ev.cpp
+    src/_ZN7dBgW_KcD1Ev.cpp
+    src/_ZN4dBgW10BeforeClsnER5dBgPiP8dActor_cR7Vector3P10Vector3_16S7_.cpp
+    src/_ZN4dBgW10DetectClsnER9dBgCh_Gnd.cpp
+    src/_ZN4dBgW10DetectClsnER9dBgCh_Lin.cpp
+    src/_ZN4dBgW10DetectClsnER12dBgCh_SphCrr.cpp
+    src/_ZN4dBgW14GetAngularVelYEv.cpp
+    src/_ZN4dBgW11GetVelocityER7Vector3.cpp
+    src/_ZN4dBgW12TransformPosERK7Vector3RS0_.cpp
+    src/_ZN4dBgW9Virtual08Ev.cpp
+    # Second order: dBgW_Kc's destructor destroys its CLPS_BlockRef member.
+    src/_ZN13CLPS_BlockRefD1Ev.cpp)
+
 # Gate 10: Player spawns and stands (the walking campaign).
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
 set(SLICE10_SOURCES "")
