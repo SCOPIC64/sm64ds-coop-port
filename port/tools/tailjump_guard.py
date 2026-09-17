@@ -369,8 +369,8 @@ CLASS_C = tuple(
         # the face reads it. Verified in this lane's own build: both objects
         # disassemble to exactly `jmp __ZN13HeapAllocator6RemoveEv` and
         # nothing else.
-        {'frame': '_ZN13HeapAllocator7DestroyEv',
-         'callee': '_ZN13HeapAllocator6RemoveEv',
+        {'frame': '?Destroy@HeapAllocator@@QAEXXZ',
+         'callee': '?Remove@HeapAllocator@@QAEXXZ',
          'tu': 'src/_ZN13HeapAllocator7DestroyEv.cpp',
          'note':
              'The ExpandingHeap teardown leg. src/_ZN13ExpandingHeap8VDestroy'
@@ -378,7 +378,12 @@ CLASS_C = tuple(
              'names no parameter at all, so the allocator reaches '
              'HeapAllocator::Remove ONLY through the jmp. If it becomes a '
              'call, Remove unlinks a stack word from the nested-allocator '
-             'list on every expanding-heap teardown.'},
+             'list on every expanding-heap teardown. '
+             'Re-keyed 2026-09-17 (lane TAILJUMP2): the chain is C++ members '
+             'since the sync (VDestroy -> Destroy -> Remove, receiver in ECX '
+             'end to end); the frame still tail-jumps (E9 at 004f23a0, no E8 '
+             'at all); the old flat __ZN13HeapAllocator6RemoveEv in '
+             'lk4_eh_dtor_seat.cpp.obj is not this jmp\'s target.'},
         {'frame': 'func_0204ebb8',
          'callee': '_ZN13HeapAllocator6RemoveEv',
          'tu': 'src/func_0204ebb8.c',
@@ -428,7 +433,12 @@ VENEER = {
 # leaving a target is a coverage regression that reads as a smaller green,
 # because a map that does not host a frame is correctly SKIPPED. Widening this
 # is a measurement anyone can take; narrowing it needs the reason written down.
-HOSTS = ('smoke_player.map', 'walk_window.map', 'walk_window_hires.map')
+# smoke_player.map left the floor 2026-09-17 (lane TAILJUMP2): the target is
+# EXCLUDE_FROM_ALL since 1d7f6c98b pending Stage::Behavior/Render hosting
+# (out/SMOKELINK5B/bugs.md item 2), same measurement gxband_guard narrowed on
+# in commit 9176c774d; the floor is the built maps only. Put it back the day
+# smoke_player links.
+HOSTS = ('walk_window.map', 'walk_window_hires.map')
 
 # config symbol tables consulted when resolving a veneer's two ends. ov007
 # first: a veneer's target is usually inside the overlay, and two of the 22
@@ -1902,7 +1912,7 @@ def selftest():
         rc = run(tmp, [m], build_dir=bd, out=o, rows=floor_rows, sweep=True)
         case('a sweep missing floor maps FAILS', 1, rc, o.text(),
              wants=['COVERAGE FLOOR BROKEN', 'not in the build at all',
-                    'smoke_player.map'])
+                    'walk_window_hires.map'])
         o = _Out()
         rc = run(tmp, [m], build_dir=bd, out=o, rows=floor_rows, sweep=False)
         case('a partial run does not judge absent floor maps', 0, rc, o.text(),
