@@ -1053,6 +1053,70 @@ int read_voice_keys(const char *text)
     return changed;
 }
 
+/* ---- FrameRate: THE ONE PLACE THE PRESENTATION BAND IS SPELLED OUT -------
+   Both readers of the key -- settings.json and the SM64DS_FRAME_RATE override
+   -- come through here, so the file and the environment cannot disagree about
+   what 1000 or 45 means.
+
+     not a positive number  -> 0, the explicit native sentinel: one picture per
+                               game tick, the port's shipped behaviour. Covers
+                               absent, unparseable, 0 itself and negatives.
+     1..59                  -> 0 as well. 60 is the FLOOR because 60 is the
+                               fastest the ROM's own clock ever runs
+                               (data_0208ee44 == 1, every minigame), so a
+                               smaller number would be asking the port to
+                               present less often than the game ticks. That is
+                               not a presentation choice, it is a slower game,
+                               and this key does not do that.
+     60..240                -> that many pictures a second.
+     above 240              -> clamped to 240, the Aspect rule: a number that
+                               is a picture beats an error. */
+int frame_rate_sanitise(int n)
+{
+    if (n <= 0) return 0;
+    if (n < 60) return 0;
+    if (n > 240) return 240;
+    return n;
+}
+
+/* The primary display's refresh rate, once, for the key's "display" spelling.
+   user32 is HAND-LOADED rather than imported, the rule this whole port follows
+   (port/hal/pad_backend.cpp and hal/asset_root_refuse.cpp do the same): a
+   static import table maps over 0x02000000 and the ROM's own address space
+   lives there. A display that reports 0 or 1 (the "driver default" answer
+   EnumDisplaySettings is allowed to give) is no answer, so it reads as 0 and
+   the sanitiser turns that into native. */
+int display_refresh_hz(void)
+{
+#ifdef _WIN32
+    typedef BOOL (WINAPI *EnumDisplaySettingsA_t)(LPCSTR, DWORD, DEVMODEA *);
+    static int hz = -1;
+    if (hz >= 0) return hz;
+    hz = 0;
+    if (HMODULE u = LoadLibraryA("user32.dll")) {
+        EnumDisplaySettingsA_t f =
+            (EnumDisplaySettingsA_t)GetProcAddress(u, "EnumDisplaySettingsA");
+        if (f) {
+            DEVMODEA dm;
+            memset(&dm, 0, sizeof dm);
+            dm.dmSize = sizeof dm;
+            if (f(0, ENUM_CURRENT_SETTINGS, &dm) && dm.dmDisplayFrequency > 1)
+                hz = (int)dm.dmDisplayFrequency;
+        }
+    }
+    return hz;
+#else
+    return 0;
+#endif
+}
+
+/* FrameRate: the presentation rate in pictures a second, 0 for native (one
+   picture per game tick). BOOT-LATCHED like g_aspect and for the same kind of
+   reason: the presentation clock's shape is settled at the pacer's first turn
+   and a mid-run change would be a second code path nobody tests. The only
+   reader is walk_window's pacer. See the header for the whole contract. */
+int g_frame_rate = 0;
+
 void load_once(void)
 {
     if (g_loaded) return;
@@ -1094,6 +1158,10 @@ void load_once(void)
        missing file and a file that will not parse both land on it; the parse
        below only ever moves it to lockstep. */
     g_net_mode = 1;
+    /* FrameRate: native, one picture per game tick, read here with the other
+       defaults so a missing file and a file that will not parse both land on
+       the behaviour the port shipped with. */
+    g_frame_rate = 0;
 
     char path[1024];
     if (!find_settings(path, sizeof path)) return;
@@ -1310,6 +1378,22 @@ void load_once(void)
            pieces of code that drift apart. Every key reads against the value
            already in the variable, which at boot is its default. */
         read_voice_keys(text);
+        /* FrameRate: the presentation rate, read against its own default of 0
+           (native) so a file written before this key existed reads as one
+           picture per game tick. Either a whole number or the word "display",
+           which is the primary display's refresh rate read once here.
+           Sanitised HERE rather than at the accessor, the Aspect shape, so the
+           stored value is always one the pacer can keep. */
+        {
+            char fr[16];
+            int n;
+            if (json_str(text, "FrameRate", fr, sizeof fr) &&
+                strlen(fr) == 7 && ieq(fr, "display", 7))
+                n = display_refresh_hz();
+            else
+                n = json_int(text, "FrameRate", 0);
+            g_frame_rate = frame_rate_sanitise(n);
+        }
     }
     free(text);
 
@@ -1426,6 +1510,17 @@ void load_once(void)
                             "is a mod, not the game. (%s)\n",
                     PALETTE_KEY[i], v, PALETTE_WHO[i], v, path);
     }
+    /* Said on its own line and in plain words, the GaplessMinigames rule: a
+       support log for "it looks smoother than a DS" should carry the reason.
+       And it says what it does NOT do, because the honest sentence at this rung
+       is that the picture repeats. */
+    if (g_frame_rate)
+        fprintf(stderr, "[settings] FrameRate %d -- the finished picture is "
+                        "handed to the display %d times a second instead of "
+                        "once per game tick. The game still ticks at its own "
+                        "rate and nothing is interpolated yet, so the same "
+                        "picture repeats. This is a mod, not the game. "
+                        "(%s)\n", g_frame_rate, g_frame_rate, path);
 }
 
 /* ---- the live re-read -----------------------------------------------------
@@ -2063,4 +2158,40 @@ extern "C" int host_setting_save_pad_layout(const HostPadLayout *layout)
     const int ok = save_keys(keys, vals, 1, "pad layout");
     free(arr);
     return ok;
+}
+
+/* FrameRate: the presentation rate in pictures a second, 0 for native. Same
+   shape as host_setting_aspect above -- an environment override in front of
+   load_once and the stored value -- with the same grammar on both channels,
+   the word "display" included.
+
+     SM64DS_FRAME_RATE   the rate directly, through the same sanitiser the file
+                         goes through: 0 or anything under 60 is native, 144 is
+                         144, 1000 clamps to 240, "display" is the primary
+                         display's refresh rate, junk reads as 0.
+
+   Read once at boot -- the pacer latches the answer on its first turn and the
+   presentation clock cannot change shape mid-run. */
+extern "C" int host_setting_frame_rate(void)
+{
+    static int env_read = 0;
+    static int env = -1;             /* <0 means "the environment said nothing" */
+    if (!env_read) {
+        env_read = 1;
+        const char *e = getenv("SM64DS_FRAME_RATE");
+        if (e && *e) {
+            if (strlen(e) == 7 && ieq(e, "display", 7)) {
+                env = frame_rate_sanitise(display_refresh_hz());
+            } else {
+                char *end = 0;
+                const long v = strtol(e, &end, 10);
+                /* an unparseable override is still an override: it says
+                   "native", the same answer an unparseable file value gives */
+                env = (end != e) ? frame_rate_sanitise((int)v) : 0;
+            }
+        }
+    }
+    if (env >= 0) return env;
+    load_once();
+    return g_frame_rate;
 }
