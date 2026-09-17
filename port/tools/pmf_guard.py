@@ -175,7 +175,10 @@ LEDGER = [
      "`push edx / call eax`, PUSHING the receiver, and HOST COPY 1 "
      "func_ov060_02112434 in port/unmatched/Ov060_StateDispatch.cpp spells the "
      "same call as ((void (*)(char *))e->fn)(thiz + (e->adj >> 1))",
-     r"^_func_ov060_"),
+     r"^_func_ov060_(?!02115c1c|02115d50|02115d68|021167c8|021167ec|"
+     r"021168c4|021169b0|021169f8|02116b18|02116b68|02116c68|02116d78|"
+     r"02116f74|02116f90|021171e8|0211722c|0211747c|02117db8|021180e0|"
+     r"021181b4)"),
 
     ("ECX", r"^\?g_scuttlebug_sources@@",
      "Scuttlebug: the nine MAIN cells are dispatched inline by a member with "
