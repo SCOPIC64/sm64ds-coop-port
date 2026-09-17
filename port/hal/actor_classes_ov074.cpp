@@ -77,13 +77,13 @@
 //        0x0211fb44 (inside state 6's tick, func_ov074_0211fa74). Both
 //        callers already declare it `int (char *)`, which is the body's own
 //        shape, so nothing here has to bridge it.
-//   func_ov074_02121380  0x374  STILL MISSING. Called UNCONDITIONALLY from
-//        Goomboss::Behavior (the single arm_call at 0x02121ccc), right after
-//        func_ov074_02120d74. It calls only func_ov074_02121270 and loads
-//        data_ov074_02122e24: the boss's COLLISION-CYLINDER REBUILD, the four
-//        MovingCylinderClsnWithPos members at +0x110 stride 0x40. An honest
-//        div-11 near-miss is banked on the decomp side and a follow-up siege
-//        is queued.
+//   func_ov074_02121380  0x374  NOW COMPILED from src/func_ov074_02121380.c
+//        (main 6d4ffd596, PR #2018: declared NONMATCHING, permanent residue,
+//        run on its differential-execution audit). Called UNCONDITIONALLY
+//        from Goomboss::Behavior (the single arm_call at 0x02121ccc), right
+//        after func_ov074_02120d74. It calls only func_ov074_02121270 and
+//        loads data_ov074_02122e24: the boss's COLLISION-CYLINDER REBUILD,
+//        the four MovingCylinderClsnWithPos members at +0x110 stride 0x40.
 //
 // WHAT THAT LAST HOLE COSTS, WRITTEN DOWN BEFORE ANYONE MEASURES IT: the
 // fight may LOOK right and not HIT right. Every frame of Goomboss::Behavior
@@ -487,51 +487,15 @@ extern "C" void port_ov074_level_files_seat(void)
 //        plain under the ROM's own name; its two arm_call sites resolve to it
 //        directly and nothing here has to name it any more.
 //
-// A face is a tenant. What is left is the one body that is still missing.
-namespace {
-unsigned ov74_id_of(void *c)
-{ return c ? *(unsigned short *)((char *)c + 0xc) : 0u; }
-
-void ov74_missing(void *c, const char *sym, const char *what, int *said)
-{
-    unsigned id = ov74_id_of(c);
-    if (!*said) {
-        *said = 1;
-        std::fprintf(stderr,
-                     "UNHOSTED: %s (%s) HAS NO MATCHED BODY -- no delink block "
-                     "and no src file anywhere in the tree. dActor_c id %u %s "
-                     "reached it. ONE of ov074's 56 function symbols is in "
-                     "this state; see port/slice_ov074.txt section 3.\n",
-                     sym, what, id, port_actor_class_name(id));
-    }
-    { static char _m[160];
-      std::snprintf(_m, sizeof _m, "unhosted ov074 body %s on id %u %s",
-                    sym, id, port_actor_class_name(id));
-      port_actor_slot_decline_for(c, _m); }
-}
-int g_said_02121380;
-}  /* namespace */
-
-extern "C" {
-/* THE COLLISION-CYLINDER REBUILD, and the last hole in this overlay.
-   Called unconditionally from Goomboss::Behavior -- one arm_call, at
-   0x02121ccc, right after func_ov074_02120d74 -- so the face sits at its own
-   dispatch site under the ROM's own name and every frame of the fight that
-   reaches Behavior reaches it. decl_common.h:2825 declares it `void (char *)`;
-   this definition matches that.
-
-   READ THE QUARANTINE LINE THIS PRINTS AS "THE BOSS DOES NOT HIT", NOT AS
-   "the boss is idle". With the state machine now complete the fight animates,
-   talks, scales and moves; this body is what would move the four
-   MovingCylinderClsnWithPos members at +0x110 stride 0x40 to follow it. While
-   it declines, those volumes stay where the constructor put them. The fight
-   can look right and not hit right, and this line is the only thing that says
-   so. An honest div-11 near-miss is banked on the decomp side. */
-void func_ov074_02121380(char *c)
-{ ov74_missing(c, "func_ov074_02121380",
-               "ov074 collision-cylinder rebuild, 0x374 bytes",
-               &g_said_02121380); }
-}  /* extern "C" */
+// A face is a tenant, and the last tenant has moved out. func_ov074_02121380, the
+// collision-cylinder rebuild, is now compiled from src/func_ov074_02121380.c -- main
+// 6d4ffd596 (PR #2018) landed it as a declared NONMATCHING body whose residue is a
+// measured permanent ordering floor, and the port runs it on its exhaustive
+// differential-execution audit against the cartridge (2700 states, identical on every
+// one) rather than on a byte gate. port/slice_ov074.txt carries the row and the whole
+// ruling. Its one external, func_ov074_02121270, comes in from src/actors/Goomboss.cpp,
+// which already linked. Nothing in this overlay is faced for a missing body any more,
+// so ov74_missing and its two helpers went with the face.
 
 // ============================================================================
 // THE STATE SEAT
