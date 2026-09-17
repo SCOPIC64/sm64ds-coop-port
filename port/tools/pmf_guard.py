@@ -196,6 +196,12 @@ LEDGER = [
      "_func_ov098_02138b70 (va 0052ce80, +0x1e jmp eax), both flat f(self) "
      "tail jumps that load the pair out of the table with the receiver in "
      "[ebp+8] and leave it at [esp+4]"),
+    ("ECX", r"^\?g_ukiki_cells@@",
+     "daMky_c: ?Behavior@daMky_c@@UAEHXZ +0x203 calls the TICK half with "
+     "ecx = this + delta and nothing pushed; the ENTER half is reached only "
+     "by the flat tail jumps _func_ov030_021141a8 (va 006cd080) and "
+     "_02114134, _02113324, _02113d20, _02113ff0",
+     r"^(__ZN7daMky_c11EnterState\d+Ev|__ZN7daMky_c12EnterState10Ev)$"),
 ]
 
 

@@ -528,19 +528,60 @@ static void ov30_fill_shared(void **vt)
 typedef void (*PortUkikiFn)(void *);
 static void ukiki_state3_tick(void *c) { ov30_missing_021136b0(c); }
 
+/* ---- RUN link100 LANE PMFSWEEP3'S HANDOFF: THE ELEVEN TICK CELLS TAKE THEIR
+   RECEIVER IN ECX. ?Behavior@daMky_c@@UAEHXZ +0x1f5..+0x203 dispatches the
+   TICK half inline, with nothing pushed:
+
+       mov eax,[edi+0x3a4]   the cell
+       mov ecx,[eax+0xc]     the TICK delta
+       mov eax,[eax+8]       the TICK word
+       add ecx,edi           this + delta
+       call eax              a REAL call
+
+   while the eleven tick_rom bodies below (func_ov030_* and ukiki_state3_tick)
+   are matched flat cdecl bodies that read their receiver off the stack at
+   [ebp+8]. This is 5ae983797's family at another class (daMip_c and
+   Scuttlebug already fixed on port/l7-pmfsweep2). The ENTER half is reached
+   only by the flat tail jumps _func_ov030_021141a8 (va 006cd080) and
+   _02114134, _02113324, _02113d20, _02113ff0, so the enter_host column below
+   is untouched -- a thunk there would be harmless but unnecessary. Each
+   thunk names its matched body, so trap T2's rule still holds. */
+static void __fastcall uk_02113ff0(void *self, void *)
+{ func_ov030_02113ff0(self); }
+static void __fastcall uk_02113d20(void *self, void *)
+{ func_ov030_02113d20(self); }
+static void __fastcall uk_02113b38(void *self, void *)
+{ func_ov030_02113b38(self); }
+static void __fastcall uk_021136b0(void *self, void *)
+{ ukiki_state3_tick(self); }
+static void __fastcall uk_02113324(void *self, void *)
+{ func_ov030_02113324(self); }
+static void __fastcall uk_02113094(void *self, void *)
+{ func_ov030_02113094(self); }
+static void __fastcall uk_02112da0(void *self, void *)
+{ func_ov030_02112da0(self); }
+static void __fastcall uk_02112a84(void *self, void *)
+{ func_ov030_02112a84(self); }
+static void __fastcall uk_02112578(void *self, void *)
+{ func_ov030_02112578(self); }
+static void __fastcall uk_02112400(void *self, void *)
+{ func_ov030_02112400(self); }
+static void __fastcall uk_021122b0(void *self, void *)
+{ func_ov030_021122b0(self); }
+
 static const struct { unsigned enter_rom, tick_rom; PortUkikiFn enter_host, tick_host; }
 g_ukiki_cells[11] = {
-    { 0x02114124, 0x02113ff0, (PortUkikiFn)_ZN7daMky_c11EnterState0Ev, (PortUkikiFn)func_ov030_02113ff0 },
-    { 0x02113fd8, 0x02113d20, (PortUkikiFn)_ZN7daMky_c11EnterState1Ev, (PortUkikiFn)func_ov030_02113d20 },
-    { 0x02113be8, 0x02113b38, (PortUkikiFn)_ZN7daMky_c11EnterState2Ev, (PortUkikiFn)func_ov030_02113b38 },
-    { 0x02113a80, 0x021136b0, (PortUkikiFn)_ZN7daMky_c11EnterState3Ev, ukiki_state3_tick },
-    { 0x0211360c, 0x02113324, (PortUkikiFn)_ZN7daMky_c11EnterState4Ev, (PortUkikiFn)func_ov030_02113324 },
-    { 0x021132d4, 0x02113094, (PortUkikiFn)_ZN7daMky_c11EnterState5Ev, (PortUkikiFn)func_ov030_02113094 },
-    { 0x02112ff8, 0x02112da0, (PortUkikiFn)_ZN7daMky_c11EnterState6Ev, (PortUkikiFn)func_ov030_02112da0 },
-    { 0x02112c14, 0x02112a84, (PortUkikiFn)_ZN7daMky_c11EnterState7Ev, (PortUkikiFn)func_ov030_02112a84 },
-    { 0x02112a14, 0x02112578, (PortUkikiFn)_ZN7daMky_c11EnterState8Ev, (PortUkikiFn)func_ov030_02112578 },
-    { 0x02112560, 0x02112400, (PortUkikiFn)_ZN7daMky_c11EnterState9Ev, (PortUkikiFn)func_ov030_02112400 },
-    { 0x021123a4, 0x021122b0, (PortUkikiFn)_ZN7daMky_c12EnterState10Ev, (PortUkikiFn)func_ov030_021122b0 },
+    { 0x02114124, 0x02113ff0, (PortUkikiFn)_ZN7daMky_c11EnterState0Ev, (PortUkikiFn)(void *)uk_02113ff0 },
+    { 0x02113fd8, 0x02113d20, (PortUkikiFn)_ZN7daMky_c11EnterState1Ev, (PortUkikiFn)(void *)uk_02113d20 },
+    { 0x02113be8, 0x02113b38, (PortUkikiFn)_ZN7daMky_c11EnterState2Ev, (PortUkikiFn)(void *)uk_02113b38 },
+    { 0x02113a80, 0x021136b0, (PortUkikiFn)_ZN7daMky_c11EnterState3Ev, (PortUkikiFn)(void *)uk_021136b0 },
+    { 0x0211360c, 0x02113324, (PortUkikiFn)_ZN7daMky_c11EnterState4Ev, (PortUkikiFn)(void *)uk_02113324 },
+    { 0x021132d4, 0x02113094, (PortUkikiFn)_ZN7daMky_c11EnterState5Ev, (PortUkikiFn)(void *)uk_02113094 },
+    { 0x02112ff8, 0x02112da0, (PortUkikiFn)_ZN7daMky_c11EnterState6Ev, (PortUkikiFn)(void *)uk_02112da0 },
+    { 0x02112c14, 0x02112a84, (PortUkikiFn)_ZN7daMky_c11EnterState7Ev, (PortUkikiFn)(void *)uk_02112a84 },
+    { 0x02112a14, 0x02112578, (PortUkikiFn)_ZN7daMky_c11EnterState8Ev, (PortUkikiFn)(void *)uk_02112578 },
+    { 0x02112560, 0x02112400, (PortUkikiFn)_ZN7daMky_c11EnterState9Ev, (PortUkikiFn)(void *)uk_02112400 },
+    { 0x021123a4, 0x021122b0, (PortUkikiFn)_ZN7daMky_c12EnterState10Ev, (PortUkikiFn)(void *)uk_021122b0 },
 };
 
 extern "C" void port_ukiki_states_seat(void)
