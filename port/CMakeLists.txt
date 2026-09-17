@@ -2080,7 +2080,15 @@ set(HEAP_DESTROY_CHAIN_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap8_DestroyEv.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap7DestroyEv.cpp")
 
-add_executable(smoke_actor tests/smoke_actor.cpp "${HEAP_INITGAME_SRC}"
+# SMOKELINK6 (run link100, wave 10 round 6, 2026-09-17): EXCLUDE_FROM_ALL.
+# This target does not link -- one name outstanding, __ZN5Sound4PlayEjjRK7Vector3
+# (SMOKELINK5's finding, out/SMOKELINK5/bugs.md and status/SMOKELINK5.md step 1),
+# whose every route drags in hal/boot2_ipc.cpp's ARM7 IPC simulation, which this
+# harness has never hosted -- a scope question, not a missing row, per the
+# coordinator's ruling. Excluded from the default `all`/`ninja` build so
+# port/build-port.cmd (no -k) completes and the battery runs again; still
+# buildable by name (`ninja smoke_actor`) once the scope question is settled.
+add_executable(smoke_actor EXCLUDE_FROM_ALL tests/smoke_actor.cpp "${HEAP_INITGAME_SRC}"
     ${HEAP_DESTROY_CHAIN_SRC}
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
@@ -2105,7 +2113,12 @@ endif()
 
 # Save-state verification (lane lk6): the same actor world as smoke_actor, plus
 # hal/lk6_savestate.cpp, driving save -> diverge -> load -> byte-exact compare.
-add_executable(smoke_savestate tests/smoke_savestate.cpp "${HEAP_INITGAME_SRC}"
+# SMOKELINK6 (run link100, wave 10 round 6, 2026-09-17): EXCLUDE_FROM_ALL.
+# Same scope question as smoke_actor above: __ZN5Sound4PlayEjjRK7Vector3's every
+# route drags in hal/boot2_ipc.cpp's ARM7 IPC simulation, never hosted here.
+# Excluded from the default build so port/build-port.cmd (no -k) completes;
+# still buildable by name (`ninja smoke_savestate`).
+add_executable(smoke_savestate EXCLUDE_FROM_ALL tests/smoke_savestate.cpp "${HEAP_INITGAME_SRC}"
     ${HEAP_DESTROY_CHAIN_SRC}
     hal/lk6_savestate.cpp hal/dsstate_seg.cpp hal/auto_bss.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
@@ -2136,7 +2149,12 @@ endif()
 # SM64DS_SAVESTATE_NO_GUARD=1, a legacy format-2 file, and a truncated one --
 # and finally a clean valid file, which must refuse nothing at all, so a green
 # run cannot be one where every read happens to fail.
-add_executable(smoke_persist tests/smoke_persist.cpp "${HEAP_INITGAME_SRC}"
+# SMOKELINK6 (run link100, wave 10 round 6, 2026-09-17): EXCLUDE_FROM_ALL.
+# Same scope question as smoke_actor above: __ZN5Sound4PlayEjjRK7Vector3's every
+# route drags in hal/boot2_ipc.cpp's ARM7 IPC simulation, never hosted here.
+# Excluded from the default build so port/build-port.cmd (no -k) completes;
+# still buildable by name (`ninja smoke_persist`).
+add_executable(smoke_persist EXCLUDE_FROM_ALL tests/smoke_persist.cpp "${HEAP_INITGAME_SRC}"
     ${HEAP_DESTROY_CHAIN_SRC}
     hal/lk6_savestate.cpp hal/lk7_persist.cpp hal/dsstate_seg.cpp
     hal/auto_bss.cpp
@@ -2558,13 +2576,122 @@ set(PORT_SMOKE_ACTOR_SRC
     #                                       consumer, mixer and sequencer layer)
     # Each of those four therefore wants a verbatim subset in the shape
     # port/hal/smoke_dtor_slots_model.cpp established, which is written up in
-    # out/SMOKELINK4B/remaining.md rather than guessed at here.
+    # out/SMOKELINK4B/remaining.md and applied below by lane SMOKELINK5
+    # (run link100 wave 10 round 5): every one of the batch's 37 names placed.
     port/hal/actorport_dtor_bridge.cpp
+    # SMOKELINK5 section A: the three-class destructor-slot subset and its
+    # host copy (int4_rows.cpp lines 71-74/81-82/194-207, measured whole at 17
+    # against seven closed).
+    port/hal/smoke_dtor_slots_actor.cpp
+    port/unmatched/ModelBaseModelShadow_Dtors_HostCopy.c
+    src/_ZN8dActor_c25OnAimedAtWithEggReturnVecEv.cpp
+    # SMOKELINK5 section B: fBase_c's non-polymorphic shadow constructor
+    # (link21_rows.cpp lines 169-172, measured whole at 20 against one closed).
+    port/hal/smoke_fbase_ctor_actor.cpp
+    # SMOKELINK5 section C: the odr-use face for dBgActor_c's inline complete
+    # object destructor (actorport_dtor_bridge.cpp:532's alias target).
+    port/hal/smoke_dtor_face_actor.cpp
+    # SMOKELINK5 section D: the heap and fBase_c seam. Two faces and five
+    # alias pairs in port/hal/smoke_heap_seam_actor.cpp, backed by three SRC
+    # rows that were not on this batch before (a fourth,
+    # _ZN4Heap21MaxAllocationUnitSizeEv.cpp, already was).
+    port/hal/smoke_heap_seam_actor.cpp
+    src/_ZN4Heap15CreateSolidHeapEjPS_i.cpp
+    src/_ZN4Heap11_DeallocateEPv.cpp
+    src/_ZN4Heap11ResizeToFitEv.cpp
+    # SECOND ORDER on section D, measured the same way SMOKELINK3/4B measured
+    # theirs: what CreateSolidHeap's and ResizeToFit's own bodies call and
+    # walk_window already compiles. CreateSolidHeap's chain is
+    # CreateSolidHeapAllocator -> SolidHeapAllocator's constructor ->
+    # func_0204df54 -> NestedHeapIterator's constructor and AddLast (which
+    # itself calls Init) -- none a new definition, all matched TUs this batch
+    # did not carry yet. SolidHeap's own constructor and Heap's base
+    # constructor are the other half of CreateSolidHeap's body. ResizeToFit's
+    # is just Heap::Rescue (the decorated member ResizeToFit calls directly;
+    # Crash() is already on this batch via hal/heap_vtable.cpp).
+    src/_ZN4Heap24CreateSolidHeapAllocatorEPvjj.cpp
+    src/_ZN18SolidHeapAllocatorC1EPvj.cpp
+    src/func_0204df54.cpp
+    src/_ZN18NestedHeapIteratorC1Ej.cpp
+    src/_ZN18NestedHeapIterator7AddLastEP13HeapAllocator.cpp
+    src/_ZN18NestedHeapIterator4InitEP13HeapAllocator.cpp
+    src/_ZN9SolidHeapC1EPvjP4HeapP18SolidHeapAllocator.cpp
+    # SolidHeap is a real polymorphic class (include/SolidHeap.h), and its
+    # constructor's placement-new needs a complete vtable: all eleven virtual
+    # overrides plus the destructor family, or MSVC cannot emit
+    # ?_ZN9SolidHeapC1EPvjP4HeapP18SolidHeapAllocator@@... at all. All twelve
+    # exist as matched src/ TUs; only the destructor's D1 file is added (D0 is
+    # the identical `SolidHeap::~SolidHeap() {}' text -- mwcc emits D0, D1 and
+    # D2 from the one definition -- so both files would be LNK2005).
+    src/_ZN9SolidHeapD1Ev.cpp
+    src/_ZN9SolidHeap8VDestroyEv.cpp
+    src/_ZN9SolidHeap9VAllocateEji.cpp
+    src/_ZN9SolidHeap11VDeallocateEPv.cpp
+    src/_ZN9SolidHeap14VDeallocateAllEv.cpp
+    src/_ZN9SolidHeap7VIntactEv.cpp
+    src/_ZN9SolidHeap7VRescueEv.cpp
+    src/_ZN9SolidHeap11VReallocateEPvj.cpp
+    src/_ZN9SolidHeap7VSizeofEPv.cpp
+    src/_ZN9SolidHeap22VMaxAllocationUnitSizeEv.cpp
+    src/_ZN9SolidHeap19VMaxAllocatableSizeEv.cpp
+    src/_ZN9SolidHeap11VMemoryLeftEv.cpp
+    src/_ZN9SolidHeap10VSetNodeIDEj.cpp
+    src/_ZN9SolidHeap10VGetNodeIDEv.cpp
+    src/_ZN9SolidHeap12VResizeToFitEv.cpp
+    # THIRD ORDER: SolidHeapAllocator's own five methods the eleven virtuals
+    # above call, and Heap::Reallocate (VResizeToFit's fallback path).
+    src/_ZN18SolidHeapAllocator8AllocateEji.cpp
+    src/_ZN18SolidHeapAllocator5ResetEj.cpp
+    src/_ZN18SolidHeapAllocator10ReallocateEPvj.cpp
+    src/_ZN18SolidHeapAllocator10MemoryLeftEi.cpp
+    src/_ZN18SolidHeapAllocator14TryResizeToFitEv.cpp
+    src/_ZN18SolidHeapAllocator16AllocateForwardsEPvjj.cpp
+    src/_ZN18SolidHeapAllocator17AllocateBackwardsEPvjj.cpp
+    src/_ZN18SolidHeapAllocator10ResetStartEv.cpp
+    src/_ZN18SolidHeapAllocator8ResetEndEv.cpp
+    src/_ZN4Heap10ReallocateEPvj.cpp
+    src/func_0204ebb8.c
+    src/_ZN18NestedHeapIterator6RemoveEP13HeapAllocator.cpp
+    src/_ZN4HeapC2EPvjPS_.cpp
+    src/_ZN4Heap6RescueEv.cpp
+    # SMOKELINK5 section E: the host globals and ROM helpers. Eleven of
+    # fifteen are here or in the ov001 mount below; four are the plain SRC
+    # rows immediately following. data_020a4b58's own triplet is second order
+    # (func_02043060.c asks for it, and hal/player_bridges.cpp -- not on this
+    # batch, and far too wide to take whole -- is where the window build
+    # hosts it), pulled as the same kind of verbatim subset in
+    # port/hal/smoke_host_globals_actor.cpp.
+    port/hal/smoke_host_globals_actor.cpp
+    src/func_02042ffc.c
+    src/func_02043060.c
+    src/func_02043180.c
+    src/func_020433b8.c
+    src/func_0204335c.c
+    src/_ZN7fBase_c7ProcessEMS_FivEMS_FbvEMS_FvjE.cpp
+    # SMOKELINK5 section F: __ZN5Sound4PlayEjjRK7Vector3 is NOT placed. See
+    # out/SMOKELINK5/bugs.md -- the coordinator's ruling measured the matched
+    # TU's cost against its own six one-function dependencies only. Traced
+    # fully, two of those six (func_02048908 and func_02048d80, via
+    # func_0204f7cc) and the matched TU's own direct call to
+    # Player_PlaySoundEffect both reach func_0205b070's IPCSend, which is
+    # hal/boot2_ipc.cpp (713 lines, the host ARM7 simulation, on the two
+    # window targets and smoke_player only). The row stays on the wall.
     )
 
 port_smoke_relink(actor     SRC ${PORT_SMOKE_ACTOR_SRC})
 port_smoke_relink(savestate SRC ${PORT_SMOKE_ACTOR_SRC})
 port_smoke_relink(persist   SRC ${PORT_SMOKE_ACTOR_SRC})
+
+# SMOKELINK5 section E, the last of the fifteen host globals and ROM helpers:
+# _data_020ad524, the cuboid shadow's template BMD. hal/cxxname_bridge.cpp:240
+# (already on these three targets) aliases it onto _data_ov001_020ad524, so
+# the alias's left hand side was present and its right hand side was not: the
+# ov001 mount itself, which the build already generates unconditionally (ov001
+# is in PORT_ACTOR_OVERLAYS) and which smoke_actor, smoke_savestate and
+# smoke_persist did not list.
+foreach(_tov001 smoke_actor smoke_savestate smoke_persist)
+    target_sources(${_tov001} PRIVATE "${CMAKE_BINARY_DIR}/host-src/ov001_syms.c")
+endforeach()
 
 # Gate 10: Player spawns and stands (the walking campaign).
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
@@ -16642,7 +16769,17 @@ endforeach()
 # func_0200d81c -> Camera::ChangeState on every state change, so the smoke
 # needs the host dispatcher too or the first ChangeState calls a mwcc
 # member-function pointer.
-add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
+# SMOKELINK6 (run link100, wave 10 round 6, 2026-09-17): EXCLUDE_FROM_ALL.
+# This target does not link -- two names outstanding, Stage::Behavior and
+# Stage::Render (SMOKELINK5B's finding, out/SMOKELINK5B/bugs.md item 2): the
+# compiler-generated _ZTV5Stage vtable asks for both directly, and their
+# matched bodies reach the window's message pump, pause screen, vignette
+# effect and level-complete closure whole, none of which this harness --
+# "Mario standing for a BMP capture" -- has ever hosted (GATE 220 / RENDER9's
+# own ruling). A scope question, not a missing row. Excluded from the default
+# build so port/build-port.cmd (no -k) completes; still buildable by name
+# (`ninja smoke_player`) once the scope question is settled.
+add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # hal/sub_screen.cpp is in this target's list below, and since the screen
     # gap landed it asks hal/screen_gap.cpp for the stacked layout -- which in
     # turn asks hal/host_settings.cpp for the player's four gap keys. Neither
@@ -21074,7 +21211,7 @@ foreach(line IN LISTS SLICE_FACES4_LINES)
     endif()
     list(APPEND SLICE_FACES4_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
-foreach(_tfaces4 walk_window walk_window_hires)
+foreach(_tfaces4 walk_window walk_window_hires smoke_player)
     target_sources(${_tfaces4} PRIVATE ${SLICE_FACES4_SOURCES})
 endforeach()
 
@@ -21176,6 +21313,66 @@ foreach(_tsmokelink2 walk_window_hires)
                                            ${SLICE_DTORS2_SOURCES}
                                            ${SLICE_INT4_SOURCES})
 endforeach()
+
+# SMOKELINK5 (run link100 wave 10 round 5): smoke_player MEASURED against the
+# same three slices, the way SMOKELINK2 measured walk_window_hires above.
+# out/SMOKELINK5's classify.py run against smoke_player's own -k 0 residual
+# (363 rows, 220 distinct names) reads walk_window.map's object column for
+# every name and the overwhelming majority come back
+# hal/dtor_forwarders_gen.cpp.obj -- the same file SMOKELINK2's block above
+# measured as walk_window_hires' entire 253-row share. See
+# out/SMOKELINK5/player_route.md for the per-name count this measured.
+foreach(_tsmokeplayer smoke_player)
+    target_sources(${_tsmokeplayer} PRIVATE ${SLICE_DTORS_A_SOURCES}
+                                            ${SLICE_DTORS2_SOURCES}
+                                            ${SLICE_INT4_SOURCES})
+endforeach()
+
+# SMOKELINK5: what SLICE_DTORS_A/DTORS2/INT4 and SLICE_FACES4 did not close.
+# 363 -> 42 -> 5, measured round by round (out/SMOKELINK5/bugs.md). Two of
+# the five (OAM::Render, and func_0205ff08/00/fbd0 that a first pass at
+# func_0205f68c's own chain assumed were missing) turned out to already be on
+# this target through port/slice_gate10.txt and port/slice_gate27.txt --
+# adding them again read LNK2005, corrected by removing the duplicate. Left:
+# func_0205f77c.cpp's own flat call, out/SMOKELINK3/next_targets.md's
+# predicted one genuinely new pair for this target -- func_0205f68c and the
+# two one-function dependencies its own body calls. func_0205f68c reaches
+# data_020a8110, hal/boot2_ipc.cpp's own storage, already on this target
+# (unlike the actor batch), so nothing further is needed for those three.
+target_sources(smoke_player PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_0205f68c.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_0205fa78.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_0205fab4.c"
+    )
+
+# SMOKELINK5B, run link100 wave 10 round 5: OAM::Render's YA (free-function)
+# spelling closed. SMOKELINK5 measured that hal/sub_actors.cpp:1032's existing
+# bridge (YA to the STATIC-MEMBER INT spelling) is unconditional and shared by
+# all three targets that build the HUD, and that its right-hand side is only
+# defined on the two walk_window targets (hal/stage_frame.cpp's own
+# `int OAM::Render`, deliberately not on smoke_player -- see the GATE 220
+# comment above). A second, competing /alternatename for the same LHS does not
+# fire (tried and reverted; link.exe honours the first directive for an
+# undefined symbol). hal/smoke_player_oam_bridge.cpp instead gives smoke_player
+# its OWN copy of that same six-line forwarding body, so the EXISTING bridge
+# resolves here without touching the shared file or the two targets that
+# already pass through it. Full derivation in that file's own header.
+target_sources(smoke_player PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/hal/smoke_player_oam_bridge.cpp"
+    )
+
+# NOT PLACED, two names, pre-existing rather than introduced here:
+#
+# Stage::Behavior and Stage::Render (_ZN5StageD1Ev.cpp's own vtable fill, not
+# a row remaining.md or next_targets.md named). Measured once: src/
+# _ZN5Stage8BehaviorEv.cpp and src/_ZN5Stage6RenderEv.cpp's real bodies reach
+# the pause screen, the vignette effect and the level-complete flow whole
+# (PS_Cleanup/PS_Init/PS_Update/PS_Render, VE_Init/VE_Update, LC_Update/
+# LC_Render, UpdateMessage, CanPause, IsPauseDisabled, RenderVsModeNewStar,
+# RenderNumber and their own further calls), which this harness -- Mario
+# standing for a BMP capture, by its own file header -- has never hosted.
+#
+# out/SMOKELINK5B/bugs.md carries this finding with the measured call list.
 
 
 # MOVED BACK TO LAST IN THE FILE at the wave-9c fold (lane INT4). Its own banner
