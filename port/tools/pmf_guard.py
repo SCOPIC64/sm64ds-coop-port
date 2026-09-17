@@ -177,12 +177,17 @@ LEDGER = [
      "same call as ((void (*)(char *))e->fn)(thiz + (e->adj >> 1))",
      r"^_func_ov060_"),
 
-    ("CDECL", r"^\?g_scuttlebug_sources@@",
-     "Scuttlebug: the only reader of the eighteen cells is _Scuttlebug_SetState "
-     "(va 005ea900), a flat f(self, state) that tail jumps -- +0x3 mov eax,"
-     "[ebp+0xc]; +0xf mov eax,[ebp+8]; +0x18 mov ecx,[edx+4]; +0x1b add ecx,"
-     "eax; +0x1d mov eax,[edx]; +0x1f pop ebp; +0x20 jmp eax -- so the "
-     "caller's own first argument is still at [esp+4] when the cell starts"),
+    ("ECX", r"^\?g_scuttlebug_sources@@",
+     "Scuttlebug: the nine MAIN cells are dispatched inline by a member with "
+     "nothing pushed -- ?Behavior@Scuttlebug@@UAEHXZ +0x2 mov esi,ecx; +0x10 "
+     "mov eax,[esi+0x380]; +0x19 mov ecx,[eax+0xc]; +0x1c mov eax,[eax+8]; "
+     "+0x1f add ecx,esi; +0x21 call eax -- and that is the ONLY "
+     "pointer-to-member dispatch taking its receiver from ecx in the 37 "
+     "Scuttlebug bodies in this image. The nine ENTER cells named below are "
+     "reached only by _Scuttlebug_SetState (va 005ea900), a flat f(self, idx) "
+     "that tail jumps with the receiver still at [esp+4]",
+     r"^_func_ov071_(02120130|0211ff84|02120200|0211f6f8|0211f8d0|0211fb0c"
+     r"|0211fbf4|0211fcd4|0211fe38)$"),
     ("CDECL", r"^\?g_crate_states@@",
      "Crate: the readers are _Crate_SetState (va 0052ce50, +0x21 jmp eax) and "
      "_func_ov098_02138b70 (va 0052ce80, +0x1e jmp eax), both flat f(self) "
