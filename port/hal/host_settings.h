@@ -345,8 +345,10 @@ int host_setting_adventure_ghosts(void);
    1.7777778 is 16:9. A NUMBER rather than a Widescreen boolean because a
    boolean cannot express ultrawide, and a ratio means an odd monitor needs no
    new mode name. Absent, unparseable, negative or otherwise not a positive
-   number all read as 0; a positive value is CLAMPED into [1.0, 3.0], so 9.0 is
-   3.0 and not an error.
+   number all read as 0; a positive value is CLAMPED into [1.0, 4.0], so 9.0 is
+   4.0 and not an error. The ceiling is 4.0 rather than 3.0 so that 32:9
+   (3.5555556) survives the sanitiser as itself instead of being letterboxed to
+   3.0; aspect_sanitise in the .cpp carries why 4.0 is the right stop.
 
    BOOT-LATCHED, unlike the keys around it: the aspect is chosen once and
    threaded into the framebuffer, so a mid-run reload cannot move it.
