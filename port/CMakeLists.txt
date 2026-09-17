@@ -332,13 +332,28 @@ endfunction()
 #       called with two arguments where the ROM's caller leaves a third riding
 #       in a register). Added at the main->port sync, lane SYNC5: lane SEAT6
 #       keyed this on the per-function TU main has since folded into this one.
-#   src/actors/dScMgHanachan_c.cpp   PMF_SEAM on four typed member-pointer
+#   port/unmatched/dScMgHanachan_c.cpp   PMF_SEAM on four typed member-pointer
 #       dispatches of a FIELD (three per-Wiggler bodies at sub-object +0x10 and
 #       the Behavior at scene +0x4660) and MG_PMF_CALL on a fifth that open-codes
 #       the same decode in plain ints. Nothing seats those fields, so the code
 #       word is a DS address at every one of the five and a raw call jumps into
 #       the mounted overlay's data image. Added run link100, lane HOSTGEN2;
 #       retires the five host copies in unmatched/MgWiggler_StateDispatch.cpp.
+#       THE ROW MOVED OFF src/actors/dScMgHanachan_c.cpp, run link100 wave 10
+#       round 4, lane SCENES3: scene 386 died in func_ov006_020eac38 of an
+#       ARGUMENT EVALUATION ORDER defect (the matched source assigns t.urot
+#       inside the comma expression that is argument two of an OAM::Render call
+#       and reads it as argument eight; MSVC pushes a cdecl call right to left
+#       and passes uninitialised stack on the first loop iteration). src/ is
+#       byte-verified and is not edited, so port/unmatched/dScMgHanachan_c.cpp
+#       is the src TU with that one call spelled in the cartridge's own order,
+#       and THE COPY KEEPS THE STEM on purpose: tools/hostgen.py keys every
+#       patch table on the file stem, so all five rows above go on applying to
+#       the copy verbatim, which a copy under a new name would silently drop.
+#       port/slice_wig.txt names the copy in the src TU's place. The file's own
+#       header carries the ARM disassembly at 0x020eadd8..0x020eae10, the host
+#       disassembly at 0x005cbffa..0x005cc05b and the one line that reproduces
+#       it from the matched source.
 #   src/actors/dScMgRoulette_c.cpp   PMF_SEAM on the wheel object's one member-
 #       pointer dispatch, and VIRTUAL_CALL on the same body's other defect -- a
 #       local four-virtual shadow calling ROM slot 3 on the host Model at +0x10,
@@ -371,7 +386,7 @@ set(PORT_HOSTGEN_TU
     src/game/actors/d_a_mc_flag.cpp
     src/actors/dScMgCup_c.cpp
     src/actors/dScMgPanel_c.cpp
-    src/actors/dScMgHanachan_c.cpp
+    port/unmatched/dScMgHanachan_c.cpp
     src/actors/dScMgRoulette_c.cpp
     src/game/actors/d_a_bg_snwmn.cpp
     src/game/actors/d_a_propeller_heyho.cpp

@@ -392,7 +392,23 @@ src/func_ov006_020ea914.c
 # fifth, func_ov006_020eb610, open-codes the same decode in plain ints and is
 # routed by MG_PMF_CALL. The stride half of the ruling those copies rest on went
 # obsolete with /vmg /vmm; the DS code word half is what the seam answers.
-src/actors/dScMgHanachan_c.cpp
+# HOST-COPIED (SCENES3, run link100 wave 10 round 4): src/actors/dScMgHanachan_c.cpp
+# is REPLACED by port/unmatched/dScMgHanachan_c.cpp on the row below. Scene 386 died
+# in func_ov006_020eac38 at OAM::Render+0x1d6, a read of a different junk address on
+# every run, because the matched source assigns the local t.urot inside the comma
+# expression that is ARGUMENT TWO of that call and reads t.urot as ARGUMENT EIGHT of
+# it. The cartridge stores the halfword and then writes the same register into
+# argument eight's outgoing slot (0x020eadf8 then 0x020eadfc, right before
+# bl 0x2021024); MSVC pushes a cdecl call's arguments right to left and so passes
+# argument eight from a copy taken before the store, which on the first loop
+# iteration is uninitialised stack. The host copy is the src TU with those three
+# statements in the cartridge's own order and nothing else changed; its header
+# carries both disassemblies and the line that reproduces it. It KEEPS THE STEM
+# dScMgHanachan_c so the five hostgen patch rows this TU carries, which are keyed on
+# the file stem, go on applying to it; the PORT_HOSTGEN_TU row in port/CMakeLists.txt
+# names the copy as well, and the generated copy is what compiles. Taking BOTH rows
+# would be a duplicate symbol, so the src row is deliberately absent.
+port/unmatched/dScMgHanachan_c.cpp
 # HOST-COPIED (WIG): src/actors/dScMgHanachan_c.cpp -- table-free FIELD pmf at sub-object +0x10, member-pointer typed
 # HOST-COPIED (WIG): src/actors/dScMgHanachan_c.cpp -- FIELD pmf at sub-object +0x10, member-pointer typed
 # HOST-COPIED (WIG): src/actors/dScMgHanachan_c.cpp -- FIELD pmf at sub-object +0x10, member-pointer typed; ALSO copies the pair down to +0x00
