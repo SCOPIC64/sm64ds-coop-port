@@ -263,15 +263,15 @@
 # Pinned in the list below. Same argument as wave 17's: inert today, wrong, and
 # a pinned record cannot have its +4 id halfword moved by a dsd relabel.
 #
-# ---- CORRECTION 4: one body is MISSING, and it is a vtable slot -----------
+# ---- CORRECTION 4: one body WAS MISSING, and it is a vtable slot ----------
 # _ZN14TTC_MovingBeam8BehaviorEv, config addr 0x0211bd8c, size 0x178, is slot 6
-# of table 0x0211d568 -- id 118 TTC_MOVING_BEAM's Behavior. There is no src/ TU
-# for it and no host copy: it appears nowhere in the tree. It is therefore not
-# a matched TU, which is why linkage.py's 147 never counts it and why a census
-# of the 79 unlinked rows does not show it. Whoever seats id 118 owes it a LOUD
-# face (the hal/scene_boot.cpp l2_trap pattern), never a silent stub -- a beam
-# that returns 1 from a quiet stub is a platform that never moves and never
-# says so, which is the wave-17 failure mode in a new place.
+# of table 0x0211d568 -- id 118 TTC_MOVING_BEAM's Behavior. main 399049ca9
+# matched it on 2026-08-30, and the TU is seated by port/slice_seats2.txt with
+# the access-letter bridge in port/unmatched/Seats2_NameBridges.cpp, so
+# ?Behavior@TTC_MovingBeam@@QAEHXZ has been on the walk_window link since the
+# reconciliation. Slot 6 is now bound to it by member call in
+# hal/actor_classes_ov065.cpp, the wave-17 loud-face pattern retired now that
+# the body exists.
 #
 # ---- CORRECTION 5, AND IT IS THE ONE THAT MATTERS -------------------------
 # THE BLOCKER THIS FILE PARKS THE SUBSET ON IS **NOT** REMOVED BY WAVE 18's

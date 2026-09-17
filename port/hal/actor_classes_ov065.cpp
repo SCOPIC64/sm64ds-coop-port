@@ -851,6 +851,7 @@ class TTC_MovingBar        { public: int InitResources(); int CleanupResources()
 class TtcRotatingGear      { public: int InitResources(); int CleanupResources();
                                      int Render(); };
 class TtcMovingCubeA       { public: int CleanupResources(); int Render(); };
+class TTC_MovingBeam       { public: int Behavior(); };
 
 extern "C" {
 /* The seven host tables, named for the RTTI string at each table[-1]. 32 slots
@@ -1115,49 +1116,22 @@ int RaycastGround::SetObjAndPos(const Vector3 &v, dActor_c *a)
     return 0;
 }
 
-// ---- THE ONE BODY THAT DOES NOT EXIST --------------------------------------
-/* _ZN14TTC_MovingBeam8BehaviorEv, config addr 0x0211bd8c, size 0x178, is slot 6
- * of table 0x0211d568 -- id 118 TTC_MOVING_BEAM's Behavior. There is no src/ TU
- * for it, no delink block and no host copy: it appears NOWHERE in the tree. It
- * is therefore not a matched TU, which is why linkage.py never counts it and
- * why a census of ov065's unlinked rows does not show it.
+// ---- THE BODY THAT NOW EXISTS ----------------------------------------------
+/* TTC_MovingBeam::Behavior is slot 6 of table 0x0211d568 -- id 118's behaviour frame,
+ * ov065 0x0211bd8c, 0x178 bytes (relocs.txt:1592 reads that slot as a load to
+ * 0x0211bd8c; delinks.txt:360 carries the block). It used to be the one body in this
+ * overlay that existed nowhere in the tree, and it had a loud face here that declined
+ * through the receiver and hard-aborted level 27 under FAULTS_FATAL.
  *
- * IT GETS A LOUD FACE, NOT A STUB, and the reason is wave 17's whole lesson: a
- * beam that returns 1 from a quiet stub is a platform that never moves and
- * never says so, which is the silent-failure shape this cluster came back out
- * over the first time. This is the hal/actor_classes_ov074.cpp shape verbatim
- * -- announce once by name, then decline through the receiver so the fault is
- * attributed to the beam and not to whichever actor's phase callback the walk
- * happened to be inside.
+ * main 399049ca9 matched it on 2026-08-30 and lane SEATS2 seated the TU
+ * (port/slice_seats2.txt) with the access-letter bridge in
+ * port/unmatched/Seats2_NameBridges.cpp, so ?Behavior@TTC_MovingBeam@@QAEHXZ has been on
+ * the walk_window link since the reconciliation. The face outlived its own reason and the
+ * vtable fill below still called it; slot 6 now goes to the matched body by member call,
+ * the TTC_MovingBar shape this file's section 4 comment describes.
  *
- * THE DEBT IS IN THE DECOMP AND NO PORT LANE CAN CLOSE IT. It is filed as a
- * crack target and it is the sole reason port/tools/battery.py carries a
- * LEVEL_SKIPS row for level 27 naming TTC_MOVING_BEAM -- the GOOMBOSS row's
- * shape exactly, down to the bare re-probe that retires it automatically the
- * day 0x0211bd8c is matched. The class stays REGISTERED so that probe means
- * something. */
-static int g_said_0211bd8c;
-extern "C" int _ZN14TTC_MovingBeam8BehaviorEv(void *c)
-{
-    unsigned id = c ? *(unsigned short *)((char *)c + 0xc) : 0u;
-    if (!g_said_0211bd8c) {
-        g_said_0211bd8c = 1;
-        std::fprintf(stderr,
-                     "UNHOSTED: _ZN14TTC_MovingBeam8BehaviorEv (ov065 "
-                     "0x0211bd8c, 0x178 bytes, slot 6 of table 0x0211d568) HAS "
-                     "NO MATCHED BODY -- no src file, no delink block and no "
-                     "host copy anywhere in the tree. Actor id %u %s reached "
-                     "it. This is a DECOMP debt filed as a crack target; see "
-                     "battery.py's LEVEL_SKIPS row for level 27.\n",
-                     id, port_actor_class_name(id));
-    }
-    { static char _m[160];
-      std::snprintf(_m, sizeof _m, "unhosted ov065 body "
-                    "_ZN14TTC_MovingBeam8BehaviorEv on id %u %s", id,
-                    port_actor_class_name(id));
-      port_actor_slot_decline_for(c, _m); }
-    return 0;
-}
+ * The battery's LEVEL_SKIPS row for level 27 went with it: that table's own rule is that
+ * a skip must not outlive its bug. */
 
 // ---- the seven fills -------------------------------------------------------
 /* Every fill runs ttc_bringup, which runs the shared ov65_bringup and then the
@@ -1354,13 +1328,13 @@ extern "C" void hal_fill_ct_mecha08_vtable(void)
 
 /* id 118 TTC_MOVING_BEAM -- 0x0211d568. dsd spells these bodies
    _ZN14TtcMovingCubeA*, which is id 116's name. Slot 0 is an extern "C" free
-   function; slot 6 is THE MISSING BODY and takes the loud face above. */
+   function; slot 6 is TTC_MovingBeam::Behavior, the matched body above. */
 static int __fastcall m09_init(void *s, void *)
 { return _ZN14TTC_MovingBeam13InitResourcesEv((char *)s); }
 static int __fastcall m09_clean(void *s, void *)
 { return ((TtcMovingCubeA *)s)->TtcMovingCubeA::CleanupResources(); }
 static int __fastcall m09_behavior(void *s, void *)
-{ return _ZN14TTC_MovingBeam8BehaviorEv(s); }
+{ return ((TTC_MovingBeam *)s)->TTC_MovingBeam::Behavior(); }
 static int __fastcall m09_render(void *s, void *)
 { port_actor_render_probe("TTC_MOVING_BEAM", (char *)s + 0xd4);
   return ((TtcMovingCubeA *)s)->TtcMovingCubeA::Render(); }
