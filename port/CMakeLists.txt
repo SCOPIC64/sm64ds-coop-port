@@ -20982,7 +20982,7 @@ foreach(line IN LISTS SLICE_FACES4_LINES)
     endif()
     list(APPEND SLICE_FACES4_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
-foreach(_tfaces4 walk_window walk_window_hires)
+foreach(_tfaces4 walk_window walk_window_hires smoke_player)
     target_sources(${_tfaces4} PRIVATE ${SLICE_FACES4_SOURCES})
 endforeach()
 
@@ -21084,6 +21084,66 @@ foreach(_tsmokelink2 walk_window_hires)
                                            ${SLICE_DTORS2_SOURCES}
                                            ${SLICE_INT4_SOURCES})
 endforeach()
+
+# SMOKELINK5 (run link100 wave 10 round 5): smoke_player MEASURED against the
+# same three slices, the way SMOKELINK2 measured walk_window_hires above.
+# out/SMOKELINK5's classify.py run against smoke_player's own -k 0 residual
+# (363 rows, 220 distinct names) reads walk_window.map's object column for
+# every name and the overwhelming majority come back
+# hal/dtor_forwarders_gen.cpp.obj -- the same file SMOKELINK2's block above
+# measured as walk_window_hires' entire 253-row share. See
+# out/SMOKELINK5/player_route.md for the per-name count this measured.
+foreach(_tsmokeplayer smoke_player)
+    target_sources(${_tsmokeplayer} PRIVATE ${SLICE_DTORS_A_SOURCES}
+                                            ${SLICE_DTORS2_SOURCES}
+                                            ${SLICE_INT4_SOURCES})
+endforeach()
+
+# SMOKELINK5: what SLICE_DTORS_A/DTORS2/INT4 and SLICE_FACES4 did not close.
+# 363 -> 42 -> 5, measured round by round (out/SMOKELINK5/bugs.md). Two of
+# the five (OAM::Render, and func_0205ff08/00/fbd0 that a first pass at
+# func_0205f68c's own chain assumed were missing) turned out to already be on
+# this target through port/slice_gate10.txt and port/slice_gate27.txt --
+# adding them again read LNK2005, corrected by removing the duplicate. Left:
+# func_0205f77c.cpp's own flat call, out/SMOKELINK3/next_targets.md's
+# predicted one genuinely new pair for this target -- func_0205f68c and the
+# two one-function dependencies its own body calls. func_0205f68c reaches
+# data_020a8110, hal/boot2_ipc.cpp's own storage, already on this target
+# (unlike the actor batch), so nothing further is needed for those three.
+target_sources(smoke_player PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_0205f68c.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_0205fa78.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_0205fab4.c"
+    )
+
+# SMOKELINK5B, run link100 wave 10 round 5: OAM::Render's YA (free-function)
+# spelling closed. SMOKELINK5 measured that hal/sub_actors.cpp:1032's existing
+# bridge (YA to the STATIC-MEMBER INT spelling) is unconditional and shared by
+# all three targets that build the HUD, and that its right-hand side is only
+# defined on the two walk_window targets (hal/stage_frame.cpp's own
+# `int OAM::Render`, deliberately not on smoke_player -- see the GATE 220
+# comment above). A second, competing /alternatename for the same LHS does not
+# fire (tried and reverted; link.exe honours the first directive for an
+# undefined symbol). hal/smoke_player_oam_bridge.cpp instead gives smoke_player
+# its OWN copy of that same six-line forwarding body, so the EXISTING bridge
+# resolves here without touching the shared file or the two targets that
+# already pass through it. Full derivation in that file's own header.
+target_sources(smoke_player PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/hal/smoke_player_oam_bridge.cpp"
+    )
+
+# NOT PLACED, two names, pre-existing rather than introduced here:
+#
+# Stage::Behavior and Stage::Render (_ZN5StageD1Ev.cpp's own vtable fill, not
+# a row remaining.md or next_targets.md named). Measured once: src/
+# _ZN5Stage8BehaviorEv.cpp and src/_ZN5Stage6RenderEv.cpp's real bodies reach
+# the pause screen, the vignette effect and the level-complete flow whole
+# (PS_Cleanup/PS_Init/PS_Update/PS_Render, VE_Init/VE_Update, LC_Update/
+# LC_Render, UpdateMessage, CanPause, IsPauseDisabled, RenderVsModeNewStar,
+# RenderNumber and their own further calls), which this harness -- Mario
+# standing for a BMP capture, by its own file header -- has never hosted.
+#
+# out/SMOKELINK5B/bugs.md carries this finding with the measured call list.
 
 
 # MOVED BACK TO LAST IN THE FILE at the wave-9c fold (lane INT4). Its own banner

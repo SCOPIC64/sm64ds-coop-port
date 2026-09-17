@@ -16,11 +16,22 @@
 
 #include "fault_probe.h"
 
+// SMOKELINK5 (run link100 wave 10 round 5), the same fix port/tests/
+// smoke_roots.cpp made for the same reason (that file's own header carries
+// the full derivation): the entry used to be declared as a flat extern "C"
+// Itanium name over a forward-declared struct, which is what src/ emitted
+// before the 09-14 sync. It is now Heap::SetupRootHeap(), a real static
+// member (include/Heap.h:236, ?SetupRootHeap@Heap@@SAPAU1@XZ), so the flat
+// spelling bought a link error. This file is HOST TEST CODE, not ROM code,
+// so it may include the class header and call the member the way C++ calls
+// it, reaching the same object it always linked,
+// src/_ZN4Heap13SetupRootHeapEv.cpp -- only the spelling changed.
+#include "Heap.h"
+
 typedef unsigned int u32;
 
 extern "C" {
 void *_ZN6PlayerC1Ev(void *self);
-void *_ZN4Heap13SetupRootHeapEv(void);
 void *_ZN7fBase_cnwEj(unsigned size);
 extern int data_0209b3ec[12];
 extern unsigned short data_020a4b54;
@@ -163,7 +174,7 @@ int main(void)
     PORT_INSTALL_FAULT_PROBE();
     setvbuf(stdout, NULL, _IONBF, 0);
     if (!ntr::io_init()) { fprintf(stderr, "io_init failed\n"); return 2; }
-    CHECK(_ZN4Heap13SetupRootHeapEv() != NULL);
+    CHECK(Heap::SetupRootHeap() != NULL);
     ident_fx(data_0209b3ec);
     hal_fill_model_vtable();
     hal_fill_shadow_vtable();
