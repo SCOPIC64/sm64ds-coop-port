@@ -100,8 +100,9 @@ src/_ZN7SkiLift16CleanupResourcesEv.cpp
 #   1 unresolved, {'MEMBER': 1}
 src/_ZN7SkiLift6RenderEv.cpp
 #   1 unresolved, {'MEMBER': 1}
+# UNRETIRED at LEVELS4B (2026-09-17). The SLICE1 note below is right about the host copy and wrong about whose body it is. port/unmatched/MotherPenguin_Behavior.cpp transcribes src/game/actors/d_a_pg_mthr.cpp, MOTHER PENGUIN's Behavior at ov018 0x02112480, and the raw shadow-vtable index it repairs is in THAT body. This TU is the real SKI_LIFT's own Behavior at ov018 0x02111368 (port/ov018_syms.txt's gate-191 slot table, read off the reloc), a different 0x34c-byte function, so it is neither a duplicate nor the source of that fault. With it out of the build SKI_LIFT's vtable slot 6 dispatched MOTHER PENGUIN's body and level 10 faulted on the ski lift's first tick. The host copy is a free function now, so the two no longer collide.
 # RETIRED at SLICE1 batch 1: port/unmatched/MotherPenguin_Behavior.cpp is a DELIBERATE host copy of this body. The matched source dispatches ModelAnim::UpdateVerts through a raw shadow-vtable index, which lands on the wrong slot under MSVC folded destructor numbering and faults; the host copy fixes exactly that. Taking the matched TU would be a duplicate AND would put the fault back.
-#src/_ZN7SkiLift8BehaviorEv.cpp
+src/_ZN7SkiLift8BehaviorEv.cpp
 #   1 unresolved, {'MENTION': 1}
 # RETIRED at SLICE1 batch 1: MSVC folds the ROM D1 and D0 into ONE ??1SkiLift@@UAE@XZ, so compiling both per-function TUs is a duplicate symbol. The complete-object TU (D1) stays; this deleting-destructor TU leaves, and the ROM flat name _ZN7SkiLiftD0Ev wants a flat -> decorated alternatename onto that same dtor, which is lane ALIAS table, not a slice row.
 #src/_ZN7SkiLiftD0Ev.cpp
