@@ -130,25 +130,81 @@ extern PortPmf data_ov071_02122b60[], data_ov071_02122b68[],
 /* Each SOURCE PMF, in the mount's address order, with the ROM fn it holds and
    the host body that replaces it. Read out of ov071's relocs (the word at each
    source address relocates to the fn). */
+/* ---- RUN link100 LANE PMFSWEEP3: THE NINE *MAIN* CELLS TAKE THEIR RECEIVER
+   IN ECX, and the nine ENTER cells do not. The two halves of this table have
+   different dispatchers and only one of them is flat, which the header above
+   describes correctly and the seat did not act on.
+
+   MAIN, every frame, with NOTHING pushed. MSVC carries func_ov071_02120278's
+   dispatch inline into the caller, so what the image has is
+
+       ?Behavior@Scuttlebug@@UAEHXZ +0x2  mov  esi, ecx        this
+                                   +0x10 mov  eax, [esi+0x380] the record
+                                   +0x19 mov  ecx, [eax+0xc]   the MAIN delta
+                                   +0x1c mov  eax, [eax+8]     the MAIN word
+                                   +0x1f add  ecx, esi
+                                   +0x21 call eax
+
+   a __thiscall member with no stack argument: the word a cdecl body would
+   read at [esp+4] is the caller's own frame.
+
+   ENTER, on a state change, from a FLAT dispatcher that leaves the receiver
+   where a cdecl body reads it:
+
+       _Scuttlebug_SetState  va 005ea900  +0xf  mov eax, [ebp+8]
+                                          +0x12 mov [eax+0x380], edx
+                                          +0x18 mov ecx, [edx+4]
+                                          +0x1b add ecx, eax
+                                          +0x1d mov eax, [edx]
+                                          +0x1f pop ebp
+                                          +0x20 jmp eax
+
+   so the nine enter rows stay as they are and are named in
+   port/tools/pmf_guard.py's ledger as the adjudicated __cdecl half. The whole
+   class's bodies were scanned for a third dispatcher: ?Behavior's site above
+   is the ONLY pointer-to-member dispatch in the thirty-seven Scuttlebug
+   bodies in this image that takes its receiver from ecx.
+
+   This is 5ae983797's correction at a sixteenth class. Each thunk names the
+   body it forwards to. */
+static void __fastcall sb_0211fee4(void *self, void *)
+{ func_ov071_0211fee4(self); }
+static void __fastcall sb_02120028(void *self, void *)
+{ func_ov071_02120028(self); }
+static void __fastcall sb_021201b4(void *self, void *)
+{ func_ov071_021201b4(self); }
+static void __fastcall sb_0211fa54(void *self, void *)
+{ func_ov071_0211fa54(self); }
+static void __fastcall sb_0211f694(void *self, void *)
+{ func_ov071_0211f694(self); }
+static void __fastcall sb_0211f7d4(void *self, void *)
+{ func_ov071_0211f7d4(self); }
+static void __fastcall sb_0211fb24(void *self, void *)
+{ func_ov071_0211fb24(self); }
+static void __fastcall sb_0211fc60(void *self, void *)
+{ func_ov071_0211fc60(self); }
+static void __fastcall sb_0211fd58(void *self, void *)
+{ func_ov071_0211fd58(self); }
+
 static const struct { PortPmf *slot; unsigned rom; void (*host)(void *); }
 g_scuttlebug_sources[] = {
-    {data_ov071_02122b60, 0x0211fee4, func_ov071_0211fee4},  /* state 2 main  */
+    {data_ov071_02122b60, 0x0211fee4, (void (*)(void *))(void *)sb_0211fee4},  /* state 2 main  */
     {data_ov071_02122b68, 0x02120130, func_ov071_02120130},  /* state 1 enter */
-    {data_ov071_02122b70, 0x02120028, func_ov071_02120028},  /* state 1 main  */
+    {data_ov071_02122b70, 0x02120028, (void (*)(void *))(void *)sb_02120028},  /* state 1 main  */
     {data_ov071_02122b78, 0x0211ff84, func_ov071_0211ff84},  /* state 2 enter */
-    {data_ov071_02122b80, 0x021201b4, func_ov071_021201b4},  /* state 0 main  */
+    {data_ov071_02122b80, 0x021201b4, (void (*)(void *))(void *)sb_021201b4},  /* state 0 main  */
     {data_ov071_02122b88, 0x02120200, func_ov071_02120200},  /* state 0 enter */
-    {data_ov071_02122b90, 0x0211fa54, func_ov071_0211fa54},  /* state 6 main  */
-    {data_ov071_02122b98, 0x0211f694, func_ov071_0211f694},  /* state 8 main  */
+    {data_ov071_02122b90, 0x0211fa54, (void (*)(void *))(void *)sb_0211fa54},  /* state 6 main  */
+    {data_ov071_02122b98, 0x0211f694, (void (*)(void *))(void *)sb_0211f694},  /* state 8 main  */
     {data_ov071_02122ba0, 0x0211f6f8, func_ov071_0211f6f8},  /* state 8 enter */
-    {data_ov071_02122ba8, 0x0211f7d4, func_ov071_0211f7d4},  /* state 7 main  */
+    {data_ov071_02122ba8, 0x0211f7d4, (void (*)(void *))(void *)sb_0211f7d4},  /* state 7 main  */
     {data_ov071_02122bb0, 0x0211f8d0, func_ov071_0211f8d0},  /* state 7 enter */
     {data_ov071_02122bb8, 0x0211fb0c, func_ov071_0211fb0c},  /* state 6 enter */
-    {data_ov071_02122bc0, 0x0211fb24, func_ov071_0211fb24},  /* state 5 main  */
+    {data_ov071_02122bc0, 0x0211fb24, (void (*)(void *))(void *)sb_0211fb24},  /* state 5 main  */
     {data_ov071_02122bc8, 0x0211fbf4, func_ov071_0211fbf4},  /* state 5 enter */
-    {data_ov071_02122bd0, 0x0211fc60, func_ov071_0211fc60},  /* state 4 main  */
+    {data_ov071_02122bd0, 0x0211fc60, (void (*)(void *))(void *)sb_0211fc60},  /* state 4 main  */
     {data_ov071_02122bd8, 0x0211fcd4, func_ov071_0211fcd4},  /* state 4 enter */
-    {data_ov071_02122be0, 0x0211fd58, func_ov071_0211fd58},  /* state 3 main  */
+    {data_ov071_02122be0, 0x0211fd58, (void (*)(void *))(void *)sb_0211fd58},  /* state 3 main  */
     {data_ov071_02122be8, 0x0211fe38, func_ov071_0211fe38},  /* state 3 enter */
 };
 

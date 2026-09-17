@@ -684,24 +684,94 @@ static void port_iron_ball_states_seat(void)
    (public main 3bcbc9aea / #1361). The last hole in the rabbit state table is
    closed; the FATAL-refusal stub it used to carry is gone. */
 
+/* ---- RUN link100 LANE PMFSWEEP3: THE RABBIT'S SIXTEEN CELLS TAKE THEIR
+   RECEIVER IN ECX. daMip_c dispatches its own state record, and every one of
+   its dispatch sites is a __thiscall member that pushes NOTHING. Read off this
+   build's own image, the transition and the call in one piece:
+
+       ?Behavior@daMip_c@@UAEHXZ      +0x2f6 mov  [edi+0x364], 0x18a6b2c
+                                      +0x300 mov  eax, [0x18a6b2c]   the code
+                                      +0x309 mov  ecx, edi           this
+                                      +0x30b add  ecx, [0x18a6b30]   + delta
+                                      +0x311 call eax
+       ?InitResources@daMip_c@@UAEHXZ +0x373 mov  [esi+0x364], 0x18a6b4c
+                                      +0x386 mov  edx, [0x18a6b4c]
+                                      +0x390 mov  ecx, [0x18a6b50] / add ecx,esi
+                                      +0x398 call edx
+
+   and the same three-move shape again in ?Render, ?StateCaughtInit,
+   ?StateCaughtMain, ?StateFleeInit, ?StateFleeMain, ?StateReleasedMain,
+   ?StateRestInit, ?StateRestMain, ?StateSaveTalkMain, ?StateStartleInit,
+   ?StateStartleMain and ?StateTalkMain: sixteen sites in seven bodies, all
+   QAEHXZ/UAEHXZ members, not one of them pushing an argument. The records
+   those sites read are the RUNTIME ones: __sinit_ov085_0212f5ec copies the
+   seat's source records (_data_ov085_0213003c.. at 018a64bc) into
+   018a6aec..018a6b68 before any of them runs, so what the seat writes is what
+   those sites call. No reader calls a rabbit cell through a pushing __cdecl
+   call: every other reference to that range is `push <record>` (the record
+   pointer as an ARGUMENT to a helper) or a `cmp` against it.
+
+   The seat used to write hal/faces_sync_gen.cpp's flat C face for fifteen of
+   the sixteen and Ov085_Rabbit_b8dc.cpp's host copy for StateIdleMain, and a
+   flat face is
+
+       __ZN7daMip_c13StateFleeMainEv:
+         push ebp / mov ebp,esp / mov ecx,[ebp+8] / pop ebp / jmp StateFleeMain
+
+   which reads the receiver off the STACK, where nothing put one. This is
+   5ae983797's correction at a fifteenth class, the Butterfly case two hundred
+   lines up. Each thunk NAMES its face, so trap T2's rule still holds. */
+static void __fastcall rb_0212b4b4(void *self, void *)
+{ _ZN7daMip_c13StateFleeMainEv(self); }
+static void __fastcall rb_0212b8dc(void *self, void *)
+{ _ZN7daMip_c13StateIdleMainEv(self); }
+static void __fastcall rb_0212aaec(void *self, void *)
+{ _ZN7daMip_c13StateTalkMainEv(self); }
+static void __fastcall rb_0212ad8c(void *self, void *)
+{ _ZN7daMip_c17StateReleasedInitEv(self); }
+static void __fastcall rb_0212b478(void *self, void *)
+{ _ZN7daMip_c13StateRestInitEv(self); }
+static void __fastcall rb_0212b444(void *self, void *)
+{ _ZN7daMip_c13StateRestMainEv(self); }
+static void __fastcall rb_0212ac3c(void *self, void *)
+{ _ZN7daMip_c13StateTalkInitEv(self); }
+static void __fastcall rb_0212bc14(void *self, void *)
+{ _ZN7daMip_c13StateIdleInitEv(self); }
+static void __fastcall rb_0212b3fc(void *self, void *)
+{ _ZN7daMip_c15StateCaughtInitEv(self); }
+static void __fastcall rb_0212b8a0(void *self, void *)
+{ _ZN7daMip_c16StateStartleInitEv(self); }
+static void __fastcall rb_0212ae08(void *self, void *)
+{ _ZN7daMip_c15StateCaughtMainEv(self); }
+static void __fastcall rb_0212b86c(void *self, void *)
+{ _ZN7daMip_c16StateStartleMainEv(self); }
+static void __fastcall rb_0212ac4c(void *self, void *)
+{ _ZN7daMip_c17StateReleasedMainEv(self); }
+static void __fastcall rb_0212a904(void *self, void *)
+{ _ZN7daMip_c17StateSaveTalkMainEv(self); }
+static void __fastcall rb_0212aaa4(void *self, void *)
+{ _ZN7daMip_c17StateSaveTalkInitEv(self); }
+static void __fastcall rb_0212b75c(void *self, void *)
+{ _ZN7daMip_c13StateFleeInitEv(self); }
+
 static const struct { PortPmf *slot; unsigned rom; void (*host)(void *); }
 g_rabbit_states[] = {
-    {data_ov085_0213003c, 0x0212b4b4, _ZN7daMip_c13StateFleeMainEv},
-    {data_ov085_02130044, 0x0212b8dc, _ZN7daMip_c13StateIdleMainEv},
-    {data_ov085_0213004c, 0x0212aaec, _ZN7daMip_c13StateTalkMainEv},
-    {data_ov085_02130054, 0x0212ad8c, _ZN7daMip_c17StateReleasedInitEv},
-    {data_ov085_0213005c, 0x0212b478, _ZN7daMip_c13StateRestInitEv},
-    {data_ov085_02130064, 0x0212b444, _ZN7daMip_c13StateRestMainEv},
-    {data_ov085_0213006c, 0x0212ac3c, _ZN7daMip_c13StateTalkInitEv},
-    {data_ov085_02130074, 0x0212bc14, _ZN7daMip_c13StateIdleInitEv},
-    {data_ov085_0213007c, 0x0212b3fc, _ZN7daMip_c15StateCaughtInitEv},
-    {data_ov085_02130084, 0x0212b8a0, _ZN7daMip_c16StateStartleInitEv},
-    {data_ov085_0213008c, 0x0212ae08, _ZN7daMip_c15StateCaughtMainEv},
-    {data_ov085_02130094, 0x0212b86c, _ZN7daMip_c16StateStartleMainEv},
-    {data_ov085_0213009c, 0x0212ac4c, _ZN7daMip_c17StateReleasedMainEv},
-    {data_ov085_021300a4, 0x0212a904, _ZN7daMip_c17StateSaveTalkMainEv},
-    {data_ov085_021300ac, 0x0212aaa4, _ZN7daMip_c17StateSaveTalkInitEv},
-    {data_ov085_021300b4, 0x0212b75c, _ZN7daMip_c13StateFleeInitEv},
+    {data_ov085_0213003c, 0x0212b4b4, (void (*)(void *))(void *)rb_0212b4b4},
+    {data_ov085_02130044, 0x0212b8dc, (void (*)(void *))(void *)rb_0212b8dc},
+    {data_ov085_0213004c, 0x0212aaec, (void (*)(void *))(void *)rb_0212aaec},
+    {data_ov085_02130054, 0x0212ad8c, (void (*)(void *))(void *)rb_0212ad8c},
+    {data_ov085_0213005c, 0x0212b478, (void (*)(void *))(void *)rb_0212b478},
+    {data_ov085_02130064, 0x0212b444, (void (*)(void *))(void *)rb_0212b444},
+    {data_ov085_0213006c, 0x0212ac3c, (void (*)(void *))(void *)rb_0212ac3c},
+    {data_ov085_02130074, 0x0212bc14, (void (*)(void *))(void *)rb_0212bc14},
+    {data_ov085_0213007c, 0x0212b3fc, (void (*)(void *))(void *)rb_0212b3fc},
+    {data_ov085_02130084, 0x0212b8a0, (void (*)(void *))(void *)rb_0212b8a0},
+    {data_ov085_0213008c, 0x0212ae08, (void (*)(void *))(void *)rb_0212ae08},
+    {data_ov085_02130094, 0x0212b86c, (void (*)(void *))(void *)rb_0212b86c},
+    {data_ov085_0213009c, 0x0212ac4c, (void (*)(void *))(void *)rb_0212ac4c},
+    {data_ov085_021300a4, 0x0212a904, (void (*)(void *))(void *)rb_0212a904},
+    {data_ov085_021300ac, 0x0212aaa4, (void (*)(void *))(void *)rb_0212aaa4},
+    {data_ov085_021300b4, 0x0212b75c, (void (*)(void *))(void *)rb_0212b75c},
 };
 
 static const struct { PortPmf3 *slot; unsigned rom; void (*host)(void *); }

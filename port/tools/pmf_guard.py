@@ -140,6 +140,62 @@ LEDGER = [
      "BowserPuzzlePiece: the .b half already carries a __fastcall face; the "
      ".a half's only reader is func_ov064_0211982c, a flat C dispatcher "
      "f(self, state) that tail jumps"),
+
+    # ---- run link100 lane PMFSWEEP3 ---------------------------------------
+    ("ECX", r"^\?g_rabbit_states@@",
+     "daMip_c (MIPS the rabbit): the class dispatches its own state record and "
+     "every one of its sixteen dispatch sites is a __thiscall member that "
+     "pushes nothing -- ?Behavior@daMip_c@@UAEHXZ +0x2f6 mov [edi+0x364],"
+     "0x18a6b2c; +0x300 mov eax,[0x18a6b2c]; +0x309 mov ecx,edi; +0x30b add "
+     "ecx,[0x18a6b30]; +0x311 call eax, and the same three moves again in "
+     "?InitResources +0x398, ?Render +0x22a, ?StateCaughtInit, "
+     "?StateCaughtMain, ?StateFleeInit, ?StateFleeMain, ?StateReleasedMain, "
+     "?StateRestInit, ?StateRestMain, ?StateSaveTalkMain, ?StateStartleInit, "
+     "?StateStartleMain and ?StateTalkMain. __sinit_ov085_0212f5ec copies the "
+     "seat's source records into the runtime ones those sites read, so the "
+     "seat's word is the word they call"),
+    ("ECX", r"^\?g_ov077_seats@",
+     "ov077 HeaveHo's per-frame halves: ?Behavior@HeaveHo@@UAEHXZ +0x51 mov "
+     "ecx,[edi+0x3fc]; +0x5a mov eax,[ecx+8]; +0x61 mov ecx,[ecx+0xc]; +0x64 "
+     "add ecx,edi; +0x66 call eax -- the dispatcher is INLINE in a member and "
+     "pushes nothing. The rest of this table is the adjudicated __cdecl set "
+     "below: the enter halves and Lakitu's and Spiny's tick halves are reached "
+     "only by the flat f(self) tail jumps _func_ov077_02124754 (va 00529ab0), "
+     "_02124718 (00529a90), _02125e5c (00529af0), _02125e20 (00529ad0) and "
+     "_02126d5c (0052adc0), each `mov eax,[ebp+8] / mov ecx,[rec+4] / add "
+     "ecx,eax / pop ebp / jmp`, so [esp+4] really is the receiver there",
+     r"^_func_ov077_(?!02126640|0212679c|02126ad0|02126a50|021269a8)"),
+    ("ECX", r"^\?g_ov060_states@",
+     "ov060's Bowser pack: the four tables dispatched by __thiscall members "
+     "(?Behavior and ?InitResources of BowserFire, ?Behavior of "
+     "BowserSkyPlatform, and the Bowser tail) already carry the ov60_* "
+     "__fastcall faces and must keep them. The raw matched bodies in this "
+     "table are the adjudicated __cdecl set below: _func_ov060_021128c0 "
+     "(va 00505da0) decodes the record by hand and dispatches it at +0x8f "
+     "`push edx / call eax`, PUSHING the receiver, and HOST COPY 1 "
+     "func_ov060_02112434 in port/unmatched/Ov060_StateDispatch.cpp spells the "
+     "same call as ((void (*)(char *))e->fn)(thiz + (e->adj >> 1))",
+     r"^_func_ov060_(?!02115c1c|02115d50|02115d68|021167c8|021167ec|"
+     r"021168c4|021169b0|021169f8|02116b18|02116b68|02116c68|02116d78|"
+     r"02116f74|02116f90|021171e8|0211722c|0211747c|02117db8|021180e0|"
+     r"021181b4)"),
+
+    ("ECX", r"^\?g_scuttlebug_sources@@",
+     "Scuttlebug: the nine MAIN cells are dispatched inline by a member with "
+     "nothing pushed -- ?Behavior@Scuttlebug@@UAEHXZ +0x2 mov esi,ecx; +0x10 "
+     "mov eax,[esi+0x380]; +0x19 mov ecx,[eax+0xc]; +0x1c mov eax,[eax+8]; "
+     "+0x1f add ecx,esi; +0x21 call eax -- and that is the ONLY "
+     "pointer-to-member dispatch taking its receiver from ecx in the 37 "
+     "Scuttlebug bodies in this image. The nine ENTER cells named below are "
+     "reached only by _Scuttlebug_SetState (va 005ea900), a flat f(self, idx) "
+     "that tail jumps with the receiver still at [esp+4]",
+     r"^_func_ov071_(02120130|0211ff84|02120200|0211f6f8|0211f8d0|0211fb0c"
+     r"|0211fbf4|0211fcd4|0211fe38)$"),
+    ("CDECL", r"^\?g_crate_states@@",
+     "Crate: the readers are _Crate_SetState (va 0052ce50, +0x21 jmp eax) and "
+     "_func_ov098_02138b70 (va 0052ce80, +0x1e jmp eax), both flat f(self) "
+     "tail jumps that load the pair out of the table with the receiver in "
+     "[ebp+8] and leave it at [esp+4]"),
 ]
 
 
@@ -304,13 +360,57 @@ def cells_of(img, sym_rva, end_rva):
     return out
 
 
+
+def ledger():
+    """The ledger rows, normalised to (kind, pattern, why, cdecl_ok).
+
+    cdecl_ok is the fourth field an ECX row may carry (run link100 lane
+    PMFSWEEP3): a regex over BODY symbol names whose cells are the adjudicated
+    __cdecl exceptions INSIDE a checked table.  Several ROM tables mix the two
+    conventions because two dispatchers read the same array -- a flat f(self)
+    tail jump for one half, an inlined member for the other -- and a table with
+    no way to say so could only be left out of the ledger entirely or added as
+    a blanket CDECL row, which stops checking the half that must stay in ECX.
+    The exception is spelled as EXACT body names (or a negative lookahead over
+    them) rather than a family prefix on purpose: dropping a __fastcall face
+    back to its raw body renames the cell's body to something the list does not
+    allow, so that regression still refuses."""
+    for row in LEDGER:
+        kind, pat, why = row[0], row[1], row[2]
+        yield kind, pat, why, (row[3] if len(row) > 3 else None)
+
+
+def cdecl_ok_for(name):
+    for kind, pat, why, ok in ledger():
+        if re.match(pat, name):
+            return ok
+    return None
+
+
+def refusals(rows):
+    """Split census rows into (refused, excused-by-name, adjudicated tables).
+
+    Factored out of main so the self-test can drive it: gutting the criterion
+    is caught by the prologue fixtures, and gutting THIS is caught by the
+    verdict fixtures below."""
+    bad, excused = [], []
+    for r in rows:
+        if r[0] != "ECX" or r[6] != "STACK":
+            continue
+        ok = cdecl_ok_for(r[1])
+        if ok and re.match(ok, r[5][0]):
+            excused.append(r)
+        else:
+            bad.append(r)
+    return bad, excused
+
 def census(img):
     datasyms = [(r, n, o) for r, n, o in img.syms
                 if not (img.text[0] <= r < img.text[1])]
     datasyms.sort()
     rows = []
     for idx, (rva, name, obj) in enumerate(datasyms):
-        for kind, pat, why in LEDGER:
+        for kind, pat, why, ok in ledger():
             if re.match(pat, name):
                 end = rva + 0x400
                 for j in range(idx + 1, len(datasyms)):
@@ -383,6 +483,49 @@ SELFTESTS = [
 ]
 
 
+
+# ---- the verdict fixtures -------------------------------------------------
+# The prologue fixtures above prove the CRITERION.  These prove the WIRING:
+# that a stack-receiver cell in a checked table actually reaches the refusal,
+# that the fourth-field exception excuses only the body it names, and that a
+# CDECL table is reported rather than refused.  Without them, emptying the
+# refusal list in main() left every prologue fixture green and shipped a build
+# with a raw cell in it (measured, run link100 lane PMFSWEEP3).
+def _row(kind, table, body, klass):
+    return (kind, table, "fixture.obj", 0x1000, 0x2000, (body, "fixture.obj", 0),
+            klass, "fixture")
+
+
+VERDICTS = [
+    ("a stack-receiver cell in a checked table refuses",
+     [_row("ECX", "?g_rabbit_states@@3QBU", "_func_ov085_0212b4b4", "STACK")], 1, 0),
+    ("an ECX cell in a checked table passes",
+     [_row("ECX", "?g_rabbit_states@@3QBU", "?rb_0212b4b4@@YIXPAX0@Z", "ECX")], 0, 0),
+    ("the named __cdecl exception inside a checked table is excused",
+     [_row("ECX", "?g_ov077_seats@?A0x1@@3QBU", "_func_ov077_02124118", "STACK")], 0, 1),
+    ("a body the exception does NOT name still refuses",
+     [_row("ECX", "?g_ov077_seats@?A0x1@@3QBU", "_func_ov077_02126640", "STACK")], 1, 0),
+    ("a stack-receiver cell in an adjudicated table is only reported",
+     [_row("CDECL", "?g_bp_cells@@3QBU", "_func_ov072_02121c94", "STACK")], 0, 0),
+]
+
+
+def verdict_selftest():
+    bad = 0
+    for what, rows, want_bad, want_excused in VERDICTS:
+        got_bad, got_excused = refusals(rows)
+        ok = len(got_bad) == want_bad and len(got_excused) == want_excused
+        print("  %s %-58s want %d/%d got %d/%d" % (
+            "ok " if ok else "FAIL", what, want_bad, want_excused,
+            len(got_bad), len(got_excused)))
+        if not ok:
+            bad += 1
+    if bad:
+        print("pmf_guard --selftest: %d of %d verdicts are WRONG, so the guard "
+              "would not refuse what it classifies" % (bad, len(VERDICTS)))
+    return bad
+
+
 def selftest():
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
     bad = 0
@@ -396,8 +539,10 @@ def selftest():
         print("pmf_guard --selftest: %d of %d classifications are WRONG, so the "
               "guard cannot see the defect it exists for" % (bad, len(SELFTESTS)))
         return 1
-    print("pmf_guard --selftest OK: %d prologues, every one classified as the "
-          "campaign's own evidence says" % len(SELFTESTS))
+    if verdict_selftest():
+        return 1
+    print("pmf_guard --selftest OK: %d prologues and %d verdicts, every one as "
+          "the campaign's own evidence says" % (len(SELFTESTS), len(VERDICTS)))
     return 0
 
 
@@ -427,7 +572,7 @@ def main(argv):
     rows = census(img)
     seen = set(name for _, name, _, _, _, _, _, _ in rows)
     missing = []
-    for kind, pat, why in LEDGER:
+    for kind, pat, why, ok in ledger():
         if not any(re.match(pat, n) for n in seen):
             missing.append(pat)
     if missing:
@@ -440,7 +585,7 @@ def main(argv):
 
     checked = [r for r in rows if r[0] == "ECX"]
     adjudicated = [r for r in rows if r[0] == "CDECL"]
-    bad = [r for r in checked if r[6] == "STACK"]
+    bad, excused = refusals(rows)
 
     if a.list:
         for kind, name, obj, at, target, tn, klass, why in rows:
@@ -469,9 +614,12 @@ def main(argv):
 
     print("pmf_guard OK: %d cell(s) across %d pointer-to-member table(s) all "
           "take their receiver in ECX; %d cell(s) across %d table(s) are the "
-          "adjudicated __cdecl exceptions." % (
+          "adjudicated __cdecl exceptions, %d of them named cell by cell inside "
+          "a checked table." % (
               len(checked), len(set(r[1] for r in checked)),
-              len(adjudicated), len(set(r[1] for r in adjudicated))))
+              len(adjudicated) + len(excused),
+              len(set(r[1] for r in adjudicated)) +
+              len(set(r[1] for r in excused)), len(excused)))
     return 0
 
 
