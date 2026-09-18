@@ -351,9 +351,22 @@ static void hal_render_head_group(char *c, char *head, unsigned hid,
        all differ by the same order. This change is not an invisible numeric
        delta; what the box looks like is an owner's call, not this comment's.
        Shots: status_shots/cap/mario_crushed_f0{78,80,82}_{before,after}.png */
-    char *neck = *(char **)((char *)ma + 0x14) + 0x2d0;
-    if (neck)
-        m43_mul((const int *)neck, scene, (int *)(head + 0x1c));
+    /* THE ROM'S STATEMENT 1, src/_ZN6Player6RenderEv.cpp:123-126: the body's
+       neck bone is copied INTO the head model's bone 0, and the head model's
+       own mat4x3 is left as func_ov002_020e444c seated it this frame (the
+       player root, the same matrix the body draws through). The port used to
+       compose neck * scene into head+0x1c instead and leave bone 0 at
+       (0,0,0). The two are the same product while mScale is unit; they are
+       not the same product under a crush, because func_0204488c emits
+       MTX_SCALE between the world matrix and the bone, so a neck carried in
+       the world matrix is outside the scale and cannot shrink with the body.
+       Measured: crushed gap 41378 on castle grounds and 22714 on the
+       opening's Wario before, 0 after. */
+    char *hbones = *(char **)(head + 0x14);
+    const char *neck = *(const char *const *)((char *)ma + 0x14) + 0x2d0;
+    if (hbones && neck)
+        for (int i = 0; i < 12; ++i)
+            ((int *)hbones)[i] = ((const int *)neck)[i];
     /* Slot 5, not 4: VObj (src/_ZN6Player6RenderEv.cpp's shadow vtable) names
        every slot by byte offset, so m14 is index 5, and _ZTV5Model[5] is
        Model::Render (hal/cxxname_bridge.cpp:522). This read 4 while
@@ -1294,11 +1307,12 @@ static int hsink_axisY(const int *m, const int *b, const int *s)
    with the body's scale, so the column was measuring the body's scale twice
    and the head not at all.
 
-   CORRECTED: on the else arm the probe now composes the same neck * scene the
-   render arm composes and measures through THAT, which is the matrix the draw
-   loads. The real figures for Mario are 0 standing and +41378 crushed -- the
-   cap FLOATING 80.8 world units above the flattened body, not sinking into it.
-   Yoshi's arm is untouched and still reads 0. */
+   CORRECTED, AGAIN: hal_render_head_group's else arm now seats the body's
+   neck bone into the head model's own bone 0 (the ROM's statement 1) instead
+   of composing neck * scene into head+0x1c, so head+0x1c is left exactly as
+   func_ov002_020e444c seats it and is the matrix the draw loads on EVERY
+   arm, i==3 included. The probe reads it directly, with no separate compose
+   of its own. */
 static void hsink_probe(char *c, const int *scene, const char *head,
                         const char *ma, const int *bscale,
                         const int *hscale, unsigned hid, int btris)
@@ -1322,11 +1336,8 @@ static void hsink_probe(char *c, const int *scene, const char *head,
     const int *b0 = (const int *)hb;              /* head bone 0  */
     const int *nk = (const int *)(bb + 0x2d0);    /* body neck    */
 
-    /* the matrix the draw loads: head+0x1c on the i==3 arm, the else
-       arm's own neck * scene compose on every other head. */
-    int comp[12];
+    /* the matrix the draw loads: head+0x1c, on every arm. */
     const int *hm = (const int *)(head + 0x1c);
-    if (hid != 3) { m43_mul(nk, scene, comp); hm = comp; }
     const int headY = hsink_axisY(hm, b0, hs);
     const int bodyY = hsink_axisY(scene, nk, bs);
 
