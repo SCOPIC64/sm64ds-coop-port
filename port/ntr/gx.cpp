@@ -98,7 +98,13 @@ struct State {
     std::vector<GxVertex> strip;   // vertices accumulated in the current primitive
     int strip_parity = 0;
 
-    int vp_x = 0, vp_y = 0, vp_w = active_w, vp_h = active_h;
+    /* THE PRESENT RECTANGLE, not the whole extent: a scene presented at the
+       native 4:3 field draws into the centred sub-rectangle and leaves the
+       spare width as margin. present_* IS the active extent on every other
+       run, so this is the same default it always was. `g = State{}` inside
+       gx_reset re-evaluates these every frame, after configure_aspect. */
+    int vp_x = present_x(), vp_y = present_y(),
+        vp_w = present_w(), vp_h = present_h();
     /* How many VIEWPORT commands have executed since the last gx_reset. The
        default above IS a full-screen rectangle, so a sampled viewport of
        0,0 SCREEN_W x SCREEN_H cannot on its own tell a game-issued
@@ -315,8 +321,13 @@ GxVertex project(int16_t x, int16_t y, int16_t z) {
        runtime toggle off (active 512x384) this multiply is the identity and the
        4:3 field is byte-for-byte the old one -- no #ifdef needed. */
     if (g.proj.m[3] != 0.0f || g.proj.m[7] != 0.0f || g.proj.m[11] != 0.0f) {
+        /* OFF THE PRESENT RECTANGLE, which is the active extent on every run
+           that widens and the centred 256:192 sub-rectangle on a scene
+           presented natively. 256:192 is 4:3 exactly, so on that path this
+           factor is EXACTLY 1.0 and the field is the cartridge's own -- the
+           same way it is already exactly 1.0 at any 4:3 aspect. */
         const float widen =
-            (4.0f / 3.0f) * ((float)active_h / (float)active_w);
+            (4.0f / 3.0f) * ((float)present_h() / (float)present_w());
         c.x *= widen;
     }
 
@@ -933,10 +944,15 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             // this is exactly the old math.
             const int x1 = p[0] & 0xFF, y1 = (p[0] >> 8) & 0xFF;
             const int x2 = (p[0] >> 16) & 0xFF, y2 = (p[0] >> 24) & 0xFF;
-            g.vp_x = x1 * active_w / 256;
-            g.vp_y = y1 * active_h / 192;
-            g.vp_w = (x2 - x1 + 1) * active_w / 256;
-            g.vp_h = (y2 - y1 + 1) * active_h / 192;
+            /* Scaled into the PRESENT rectangle and offset by its origin, so
+               a game-issued full-screen viewport fills the picture the host is
+               presenting rather than the whole wide buffer. present_* is the
+               active extent at the origin on every other run, so this is the
+               same math as before. */
+            g.vp_x = present_x() + x1 * present_w() / 256;
+            g.vp_y = present_y() + y1 * present_h() / 192;
+            g.vp_w = (x2 - x1 + 1) * present_w() / 256;
+            g.vp_h = (y2 - y1 + 1) * present_h() / 192;
             ++g.vp_writes;
             break;
         }
@@ -2051,10 +2067,19 @@ void gx_render(Framebuffer &fb) {
         int maxx = static_cast<int>(std::ceil(std::fmax(a.x, std::fmax(b.x, c.x))));
         int miny = static_cast<int>(std::floor(std::fmin(a.y, std::fmin(b.y, c.y))));
         int maxy = static_cast<int>(std::ceil(std::fmax(a.y, std::fmax(b.y, c.y))));
-        if (minx < 0) minx = 0;
-        if (miny < 0) miny = 0;
-        if (maxx > active_w - 1) maxx = active_w - 1;
-        if (maxy > active_h - 1) maxy = active_h - 1;
+        /* CLAMPED TO THE PRESENT RECTANGLE. There is no side clip against the
+           viewport in this raster -- off-screen geometry has always been
+           bounded by the screen edge, which at every other aspect IS the
+           viewport edge. Inside a pillarbox they are different rectangles, and
+           a triangle that runs past the 4:3 edge would otherwise paint into
+           the margin. present_* is (0,0,active_w,active_h) on every other run,
+           so these are the same four compares as before. */
+        const int px0 = present_x(), py0 = present_y();
+        const int px1 = px0 + present_w() - 1, py1 = py0 + present_h() - 1;
+        if (minx < px0) minx = px0;
+        if (miny < py0) miny = py0;
+        if (maxx > px1) maxx = px1;
+        if (maxy > py1) maxy = py1;
 
         /* EVERYTHING BELOW THAT DOES NOT DEPEND ON THE PIXEL IS COMPUTED ONCE.
            The edge functions were three full expressions per pixel, each

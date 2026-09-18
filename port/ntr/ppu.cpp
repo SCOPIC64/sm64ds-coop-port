@@ -96,6 +96,49 @@ void configure_aspect(double aspect)
 #endif
 }
 
+// ---- THE PRESENT RECTANGLE (see ntr/ppu.h) ---------------------------------
+//
+// One bool of state and five derivations off it. The bool is written at SCENE
+// BOOT by hal/scene_boot.cpp's port_scene_layout_propose, from the ROM's own
+// IsMinigameActorID, and cleared at the one place a scene is replaced by the
+// adventure without a new process (tests/walk_window.cpp's fall-through).
+// Nothing else writes it and the level path never touches it, so a level run
+// is the run it always was.
+namespace {
+bool g_present_native;
+}
+
+bool present_native(void) { return g_present_native; }
+void set_present_native(bool on) { g_present_native = on; }
+
+// The uniform native scale, the same integer divide the HUD compositor calls
+// `uni`. At least 1, because a picture shorter than 192 host rows would give
+// a zero-width present rectangle and a divide-by-zero downstream.
+int present_w(void)
+{
+    if (!g_present_native) return active_w;
+    const int uni = active_h / 192 > 0 ? active_h / 192 : 1;
+    return 256 * uni;
+}
+
+int present_h(void)
+{
+    if (!g_present_native) return active_h;
+    const int uni = active_h / 192 > 0 ? active_h / 192 : 1;
+    return 192 * uni;
+}
+
+// Centred horizontally, top-anchored vertically, which is exactly where the
+// compositor's pillarbox arm and the sub-screen's pan_x0 already put a
+// full-2D minigame: `margin / 2` across, row 0 down.
+int present_x(void)
+{
+    const int w = present_w();
+    return w >= active_w ? 0 : (active_w - w) / 2;
+}
+
+int present_y(void) { return 0; }
+
 namespace {
 
 // Engine A registers start at 0x4000000, engine B at 0x4001000. Engine B has no

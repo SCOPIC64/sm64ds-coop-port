@@ -95,6 +95,31 @@ extern bool widescreen;
 // the first framebuffer use.
 void configure_aspect(double aspect);
 
+// ---- THE PRESENT RECTANGLE -------------------------------------------------
+//
+// "Where inside the active extent this run's picture is drawn." Normally the
+// whole active extent, which is what every caller computed by hand before
+// this existed. For a scene the host presents at the DS's own 4:3 field it is
+// the centred 256:192 sub-rectangle at the uniform HUD scale, so the picture
+// is pillarboxed inside the wide framebuffer instead of being widened.
+//
+// Tango's ruling, 2026-09-17: "Minigames should not get the widescreen
+// treatment." A minigame therefore presents exactly as it does at native 4:3,
+// centred, with the spare width left as margin -- the way the full-2D
+// minigame boards already presented, because the compositor's pillarbox arm
+// already put them there.
+//
+// DERIVED, NEVER STORED, so there is no second copy of the extent to go
+// stale, and at aspect 0 (active 512x384, uni 2) the rectangle IS the extent:
+// present_w 512, present_h 384, present_x 0. Every arm that reads these is
+// then the arithmetic it was before, bit for bit.
+bool present_native(void);
+void set_present_native(bool on);
+int present_w(void);
+int present_h(void);
+int present_x(void);
+int present_y(void);
+
 enum Engine { ENGINE_A = 0, ENGINE_B = 1 };
 
 struct Framebuffer {
