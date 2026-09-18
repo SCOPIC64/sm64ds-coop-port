@@ -3104,6 +3104,7 @@ extern "C" void *port_stage_boot_arg_mc(void)  { return g_boot_mc; }
 extern "C" int   port_stage_boot_arg_spawn(void) { return g_boot_spawn; }
 extern "C" void  port_stage_boot_set_result(void *o) { g_boot_result = o; }
 extern "C" void  port_stage_lifecycle_boot(void);   /* hal/stage_bridges.cpp */
+extern "C" void hal_sub_screen_level_init(void);   /* hal/sub_screen.cpp */
 extern "C" void *port_stage_boot_body(void *mc, int spawn);
 /* The scene root, and the level model loader the boot below now calls in the
    ROM's order. port_stage_object returns null before port_stage_create has
@@ -3436,6 +3437,16 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
        logic can open a text box, so it rides the new call */
     port_message_archive_seat();
     PortLvlOverlay *o = (PortLvlOverlay *)port_level_mount();
+    /* Stage::InitResources' own sub-screen bring-up, InitResources:262-351:
+       Stage::SetVramBanks, the sub DISPCNT block, the layer mask and
+       Stage::LoadGraphics2D. This is Stage::InitResources' own position for
+       it -- after the level's archive and overlay are up and data_0209f2f8
+       names the level being entered, before Stage::LoadModel (:361) and
+       Stage::LoadClsnAndObjects (:363, which spawns the Minimap) below. It
+       runs on EVERY level entry, which is the whole fix: the port used to
+       run this half once a process, from hal_sub_screen_init at boot, and a
+       level reached by a level change kept the first level's bring-up. */
+    hal_sub_screen_level_init();
 
     /* STAGE B: THE TABLES ARE BACK ON. Stage A1 zeroed the Entrance, Door and
        Exit counts in the host copy of the overlay and dropped the sub-table
