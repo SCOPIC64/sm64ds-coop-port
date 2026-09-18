@@ -1964,15 +1964,35 @@ void gx_render(Framebuffer &fb) {
        frame that submits no mode-3 polygon. */
     static uint8_t stencil[SCREEN_H][SCREEN_W];
     static uint8_t attrid[SCREEN_H][SCREEN_W];
+    /* The DS attribute word's OTHER half, the translucent one: bit 6 here says
+       this pixel has already taken a translucent fragment THIS FRAME and bits
+       0..5 are that fragment's polygon ID. The hardware refuses a translucent
+       fragment whose (flag, ID) already sits at the pixel, so a pixel takes one
+       blend per polygon ID and a figure's own overlapping surfaces never
+       compound against each other. melonDS's software renderer is the same
+       field and the same refusal: PlotTranslucentPixel builds
+       ((polyattr >> 8) & 0xFF0000) | (1<<22) and returns early when
+       (dstattr & 0x007F0000) == (attr & 0x007F0000), "skip if translucent
+       polygon IDs are equal". Without it the opening cutscene's Peach, 798
+       triangles under one polygon ID with a driven opacity, blends 1.4 times
+       per covered pixel and comes out solid and patchy where she crosses
+       herself. The flag is per frame (hardware clears it on the frame clear and
+       on any opaque write), so the clear below is the whole of its lifetime. */
+    static uint8_t tlattr[SCREEN_H][SCREEN_W];
     bool have_shadow = false;
-    for (const GxTriangle &t : g.tris)
-        if (t.mode == 3) { have_shadow = true; break; }
+    bool have_translucent = false;
+    for (const GxTriangle &t : g.tris) {
+        if (t.mode == 3) have_shadow = true;
+        if (t.translucent) have_translucent = true;
+        if (have_shadow && have_translucent) break;
+    }
     if (have_shadow) {
         std::memset(stencil, 0, sizeof stencil);
         /* 0 is the clear plane's polygon ID (CLEAR_COLOR bits 24-29 reset
            value); pixels no opaque polygon reaches keep it. */
         std::memset(attrid, 0, sizeof attrid);
     }
+    if (have_translucent) std::memset(tlattr, 0, sizeof tlattr);
 
     /* SM64DS_TEX_ONLY=<hex teximage>: draw only the polygons that were
        bound to that texture, so a material can be located on screen
@@ -2226,6 +2246,7 @@ void gx_render(Framebuffer &fb) {
             float *drow = depth[y];
             uint32_t *frow = fb.px[y];
             uint8_t *irow = attrid[y];
+            uint8_t *trow = tlattr[y];
             for (int x = minx; x <= maxx; ++x) {
                 const float px = x + 0.5f;
                 /* Coverage is decided on the undivided edge functions. The
@@ -2291,9 +2312,24 @@ void gx_render(Framebuffer &fb) {
                        shadow-free frames, and the colour above is untouched
                        either way */
                     if (have_shadow) irow[x] = t.polyid;
+                    /* an opaque write replaces the pixel, so the translucent
+                       half of its attribute word goes with it (melonDS stores
+                       polyattr & 0x3F008000 on the opaque path, bit 22 clear).
+                       Our two passes draw every opaque polygon before any
+                       translucent one, so this only ever fires for a
+                       translucent-CLASS triangle whose per-pixel alpha came out
+                       31: an A3I5 or A5I3 texel at full opacity. */
+                    if (have_translucent) trow[x] = 0;
                 } else {
                     /* translucent: blend over the framebuffer, keep depth
-                       (DS translucent polys depth-test but do not write) */
+                       (DS translucent polys depth-test but do not write).
+                       The hardware's translucent polygon-ID rule comes first: a
+                       pixel that already took a fragment of THIS polygon ID
+                       this frame refuses the next one outright. */
+                    const uint8_t tl =
+                        static_cast<uint8_t>(0x40 | t.polyid);
+                    if (trow[x] == tl) continue;
+                    trow[x] = tl;
                     const uint32_t dst = frow[x];
                     auto bl = [&](int k, int sh) {
                         const uint32_t s = ch(k, sh);
