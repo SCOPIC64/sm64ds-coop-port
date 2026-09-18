@@ -138,6 +138,7 @@
 // ===========================================================================
 
 #include "ShadowModel.h"
+#include "TextureSequence.h"
 
 extern "C" {
 
@@ -186,6 +187,13 @@ static void __fastcall texseq_d0(void *s, void *)    { _ZN15TextureSequenceD0Ev(
 /* Run link100, lane EXCEPT. THE SAME BODY, ENTERED THE OTHER WAY, for ROM
    slot 1 -- see the TEXTURESEQUENCE SLOT 1 note in the seat block above. */
 static void texseq_d0_cdecl(void *s)                 { _ZN15TextureSequenceD0Ev(s); }
+
+/* The host-only ROM slot 1 declared in include/TextureSequence.h: the
+   ROM's own deleting half, entered cdecl by the four anmModel_c
+   destructors. */
+void __cdecl TextureSequence::RomSlot1D0()
+{ _ZN15TextureSequenceD0Ev(this); }
+
 static void __fastcall matchg_d0(void *s, void *)    { _ZN15MaterialChangerD0Ev(s); }
 static void __fastcall texxfm_d0(void *s, void *)    { _ZN18TextureTransformerD0Ev(s); }
 static void __fastcall modelbase_d0(void *s, void *) { _ZN9ModelBaseD0Ev(s); }
