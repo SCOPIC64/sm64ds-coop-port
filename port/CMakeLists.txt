@@ -17292,6 +17292,11 @@ target_include_directories(walk_window PRIVATE
 target_link_libraries(walk_window PRIVATE ntr_wide_rt)
 target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
     ${PORT_REPO_ROOT_DEF}
+    # GATE STARSEL (run link100, lane STARSELENTRY): this target carries
+    # hal/input_probe.cpp, so hal/scene_boot.cpp's port_scene_tick can call
+    # port_input_probe_apply.  smoke_player does not compile input_probe.cpp
+    # (see its own source list), so the call there stays guarded off.
+    SM64DS_SCENE_PAD_PROBE=1
     # GATE 220 (run link100, lane FRAME): this target carries
     # port/slice_gate220.txt and hal/stage_frame.cpp, so _ZTV5Stage
     # slot 6 dispatches the ROM's own Stage::Behavior instead of the
@@ -17656,6 +17661,11 @@ target_include_directories(walk_window_hires PRIVATE
 target_link_libraries(walk_window_hires PRIVATE ntr_hires)
 target_compile_definitions(walk_window_hires PRIVATE SM64DS_PLATFORM_PC
     ${PORT_REPO_ROOT_DEF}
+    # GATE STARSEL (run link100, lane STARSELENTRY): this target carries
+    # hal/input_probe.cpp, so hal/scene_boot.cpp's port_scene_tick can call
+    # port_input_probe_apply.  smoke_player does not compile input_probe.cpp
+    # (see its own source list), so the call there stays guarded off.
+    SM64DS_SCENE_PAD_PROBE=1
     # GATE 220 (run link100, lane FRAME): this target carries
     # port/slice_gate220.txt and hal/stage_frame.cpp, so _ZTV5Stage
     # slot 6 dispatches the ROM's own Stage::Behavior instead of the
