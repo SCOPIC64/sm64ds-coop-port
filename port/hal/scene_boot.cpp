@@ -2410,8 +2410,18 @@ extern "C" unsigned port_l2_trap_hits(void) { return g_l2_trap_hits; }
    could be started and then nothing on it could be PICKED. Measured on this
    tree before the seat: scene 1, 2400 frames, pick -1 and verdict 0 on every
    single frame. */
-L2_UNMATCHED(func_ov007_020b8188)
-L2_UNMATCHED(func_ov007_020ba05c)
+/* func_ov007_020b8188 WAS HERE AND ITS TRAP IS RETIRED. It is the minigame results /
+   record-board text layout, eighteen rows, matched on main by 5a52e6f5b (PR #2301), and
+   src/func_ov007_020b8188.c is on slice_ov007.txt now, so a trap here would be an
+   LNK2005 against it. Called from src/func_ov007_020afc44.c. No MMIO and no geometry
+   command port, so it compiles plain.
+   Run link100 wave 12, card out/FILESEL1/card_ov7traps.md. */
+/* func_ov007_020ba05c WAS HERE AND ITS TRAP IS RETIRED. It is the ov007 manager's
+   proximity and heading gate against the last path node, matched on main by b66831c7e
+   (PR #2365), and src/func_ov007_020ba05c.c is on slice_ov007.txt now, so a trap here
+   would be an LNK2005 against it. Called from src/func_ov007_020b9640.c. Plain C, no
+   MMIO, no hostgen row.
+   Run link100 wave 12, card out/FILESEL1/card_ov7traps.md. */
 /* func_ov007_020c19cc WAS HERE, AND IT IS THE DOODLE. Run mg16 arc 2, family D.
    This is the title's bottom-screen stroke renderer, and the OWNER'S OWN TAP is
    what put it on the map: he toured the title live, tapped the face toy, and the
