@@ -2447,7 +2447,15 @@ L2_UNMATCHED(func_ov007_020ba05c)
    TRAPPED, IT RETURNED 0 AND LEFT BOTH COUNTER ARRAYS UNTOUCHED, and the fault
    that produced was a fill through a bad destination: MultiStore_Int+0x1c, an
    access violation at frame 1299, quarantined and frozen like the last one. */
-L2_UNMATCHED(func_ov007_020c368c)
+/* func_ov007_020c368c WAS HERE AND ITS TRAP IS RETIRED. It is the hardware
+   divider/square-root vector normalise, matched on main by 7dba86b5d (PR #2361), and
+   src/func_ov007_020c368c.c is on slice_ov007.txt now (through PORT_HOSTGEN_TU, so the
+   MMIO goes to ntr/io.cpp), so a trap here would be an LNK2005 against it. On the FILE
+   SELECT the cartridge calls it twice a frame -- func_ov007_020cb7c0+0x2a8 over 0x16c
+   vectors and func_ov007_020cb3dc+0xc4 over the 0xd2 grid normals the textured emitter
+   then reads -- and trapped it returned 0 over the whole screen, which is half of the
+   file select's missing water and its wrong texture coordinates.
+   Run link100 wave 12, card out/FILESEL1/card_filesel.md. */
 /* func_ov007_020c4684 WAS HERE AND IT LEFT THE SAME WAY 0x020c9688 DID, on a
    host transcription rather than a decomp. It is still unmatched on main, so it
    is still one of section 3a's fifteen; what changed is that this address now
@@ -2497,7 +2505,14 @@ L2_UNMATCHED(func_ov007_020c368c)
    on the src TU not existing). Defining the trap as well would be an LNK2005,
    and leaving the trap INSTEAD would be choosing a known-wrong answer over a
    derived one now that somebody has read the ROM at that address. */
-L2_UNMATCHED(func_ov007_020caeac)
+/* func_ov007_020caeac WAS HERE AND ITS TRAP IS RETIRED, and it is the one the OWNER'S OWN
+   SESSION found: he reached the file select, the port printed this trap's line back at
+   him, and the screen was missing its water. It is the TEXTURED strip emitter for the
+   ov007 water grid, matched on main by 726f28f24 (PR #2308), and
+   src/func_ov007_020caeac.c is on slice_ov007.txt now (and on TITEX_GX_SYMS, so its
+   geometry ports reach the engine), so a trap here would be an LNK2005 against it. Called
+   twice a frame from func_ov007_020ca5f0+0x1b8; trapped, it emitted no geometry at all.
+   Run link100 wave 12, card out/FILESEL1/card_filesel.md. */
 /* func_ov007_020cb4b0 AND func_ov007_020cb7c0 WERE HERE, AND BOTH TRAPS ARE
    RETIRED. They are the file-select / settings-page renderers, matched on the
    decomp's main via PR #1967, and run rel0215 lane prop15 brought them across
