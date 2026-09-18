@@ -173,6 +173,10 @@ extern unsigned char data_020a0dea[];   /* +2 x       */
 extern unsigned char data_020a0deb[];   /* +3 y       */
 /* Stage::CheckCameraInput's own inputs and outputs */
 void _ZN5Stage16CheckCameraInputEv(void);
+/* Stage::SetVramBanks, InitResources:262-263's own call. Ends in
+   GX::SetBankForSubBGExtPltt(0x80); cxx_aliases.cpp:3281 already carries its
+   /alternatename row, so it links with no new seat. */
+void _ZN5Stage12SetVramBanksEv(void);
 extern int data_0209f498[];      /* the Ctrl[4] block, stride 0x18 */
 extern char data_0209f49c[];     /* split: held buttons  (DS: f498 + 4) */
 extern char data_0209f49e[];     /* split: pressed       (DS: f498 + 6) */
@@ -1122,12 +1126,87 @@ void hal_sub_screen_init_hw(void *hwnd, int zoom)
     armed = 1;
 }
 
-/* The LEVEL path's bring-up: the shared half, then Stage::InitResources' own
-   sub-screen configuration. Call site and call order are unchanged, so the
-   level frame sees the identical sequence of writes it always did. */
+/* The LEVEL path's bring-up. Only the shared, process-lifetime half lives
+   here now: POWCNT1, the BG3 affine identity, OAM::EnableSubOAM, OAM::Reset
+   and port_gxbank_layout_check, all inside hal_sub_screen_init_hw. The Stage
+   half -- Stage::SetVramBanks, the sub DISPCNT block, the layer mask and
+   Stage::LoadGraphics2D -- moved to hal_sub_screen_level_init below, because
+   Stage::InitResources runs that half on EVERY level entry and this function
+   used to run it once a process. That means the first boot now reaches the
+   Stage half BEFORE the hardware half runs here, rather than after: the call
+   site is walk_window.cpp:9316, which still calls hal_sub_screen_init once at
+   boot and hal_sub_screen_level_init on every level entry afterward. Nothing
+   in the hardware half reads anything the Stage half writes, so the order
+   swap on that first boot changes nothing it depends on. */
 void hal_sub_screen_init(void *hwnd, int zoom)
 {
     hal_sub_screen_init_hw(hwnd, zoom);
+}
+
+/* Stage::InitResources' own sub-screen configuration (InitResources:262-351),
+   run from port_stage_boot_body on every level entry instead of once at
+   process start. Order matches InitResources': SetVramBanks first, then the
+   DISPCNT block, then the layer mask, then LoadGraphics2D -- so LoadGraphics2D
+   runs before Stage::LoadClsnAndObjects spawns the Minimap, the ROM's own
+   order, and the minimap's GXS::LoadBGPltt(f2, 0, 2) writes palette entry 0
+   last instead of having it overwritten afterward. */
+extern "C" void hal_sub_screen_level_init(void)
+{
+    /* Stage::SetVramBanks, InitResources:262-263. Ends in
+       GX::SetBankForSubBGExtPltt(0x80), which sets DISPCNT_B bit 30, writes
+       VRAMCNT_H = 0x82 and RECORDS 0x80 in data_020a609e. That record is what
+       Minimap::InitResources' own GXS::BeginLoadBGExtPltt / EndLoadBGExtPltt
+       round trip reads back to restore the bit after clearing it -- without
+       this call nothing is recorded, the restore passes 0, and the bit stays
+       off after the second and every later level entry. */
+    _ZN5Stage12SetVramBanksEv();
+
+    /* THE SUB ENGINE'S OWN DISPCNT, which nothing in the port was setting --
+       it read back 0, meaning "display off, no layers, no sprites".
+       Every value here is Stage::InitResources', the ROM function that puts
+       the bottom screen into gameplay shape and that the port does not run:
+
+           *p1 &= 0xFFCFFFEF        OBJ mapping 2D, tile boundary 32
+           GXS::SetGraphicsMode(3)  BG mode 3: BG0/1/2 text, BG3 EXTENDED --
+                                    which is the mode the minimap needs, and
+                                    the reason its 16-bit map entries carry a
+                                    palette field at all
+           *p1 |= 0x10000           display mode 1, the graphics display
+           data_0209d454 = 0x18     BG3 + OBJ: the minimap and the sprites
+
+       Bit 30 (BG extended palettes) is GX::SetBankForSubBGExtPltt's, reached
+       from GXS::EndLoadBGExtPltt through the VRAM bank allocator the port
+       does not host. Set here so the minimap's palettes are readable. Kept
+       as belt-and-braces behind SetVramBanks above; removing it is a
+       separate question this change does not answer. */
+    {
+        volatile unsigned *p1 = (volatile unsigned *)0x04001000;
+        *p1 &= 0xFFCFFFEFu;
+        *p1 = (*p1 & ~7u) | (unsigned)env_flag("SM64DS_SUB_BGMODE", 3);
+        *p1 |= 0x10000u;            /* display mode 1 */
+        *p1 |= 0x40000000u;         /* BG extended palettes */
+        if (!data_0209d454)
+            data_0209d454 = 0x18;   /* Stage::InitResources' own value */
+    }
+
+    /* THE LAYER MASK, and it is Stage::InitResources' own value:
+     *
+     *     data_0209d454 = 0x18;
+     *
+     * bit 3 BG3 -- the minimap -- and bit 4 OBJ -- every sprite the HUD and the
+     * minimap draw. That one line is the gameplay bottom screen, and it lives
+     * in the same ROM function this block already copies the DISPCNT words out
+     * of, which the port does not run.
+     *
+     * Nothing else was going to set the OBJ bit. Minimap::Behavior maintains
+     * bit 3 every frame -- ORs it in when it has a map id, clears it when it
+     * does not -- but no hosted path touches bit 4, so with the in-game asset
+     * set the mask came out 0x08 and the sprites were composited out of a
+     * screen they had already been drawn into.
+     *
+     * SM64DS_SUB_LAYERS still overrides, and now it is a debugging knob rather
+     * than the only way to see anything. */
+    data_0209d454 = 0x18;
 
     /* THE BOTTOM SCREEN'S OWN VRAM. Stage::LoadGraphics2D is the ROM's 2D
        asset load and it fills both screens: the sub BG character data, the
@@ -1166,51 +1245,6 @@ void hal_sub_screen_init(void *hwnd, int zoom)
         std::printf("[sub] Stage::LoadGraphics2D(0, %d) done, layer mask "
                     "data_0209d454 = %02x\n", (int)data_0209f2f8,
                     data_0209d454);
-    }
-
-    /* THE LAYER MASK, and it is Stage::InitResources' own value:
-     *
-     *     data_0209d454 = 0x18;
-     *
-     * bit 3 BG3 -- the minimap -- and bit 4 OBJ -- every sprite the HUD and the
-     * minimap draw. That one line is the gameplay bottom screen, and it lives
-     * in the same ROM function this block already copies the DISPCNT words out
-     * of, which the port does not run.
-     *
-     * Nothing else was going to set the OBJ bit. Minimap::Behavior maintains
-     * bit 3 every frame -- ORs it in when it has a map id, clears it when it
-     * does not -- but no hosted path touches bit 4, so with the in-game asset
-     * set the mask came out 0x08 and the sprites were composited out of a
-     * screen they had already been drawn into.
-     *
-     * SM64DS_SUB_LAYERS still overrides, and now it is a debugging knob rather
-     * than the only way to see anything. */
-    data_0209d454 = 0x18;
-
-    /* THE SUB ENGINE'S OWN DISPCNT, which nothing in the port was setting --
-       it read back 0, meaning "display off, no layers, no sprites".
-       Every value here is Stage::InitResources', the ROM function that puts
-       the bottom screen into gameplay shape and that the port does not run:
-
-           *p1 &= 0xFFCFFFEF        OBJ mapping 2D, tile boundary 32
-           GXS::SetGraphicsMode(3)  BG mode 3: BG0/1/2 text, BG3 EXTENDED --
-                                    which is the mode the minimap needs, and
-                                    the reason its 16-bit map entries carry a
-                                    palette field at all
-           *p1 |= 0x10000           display mode 1, the graphics display
-           data_0209d454 = 0x18     BG3 + OBJ: the minimap and the sprites
-
-       Bit 30 (BG extended palettes) is GX::SetBankForSubBGExtPltt's, reached
-       from GXS::EndLoadBGExtPltt through the VRAM bank allocator the port
-       does not host. Set here so the minimap's palettes are readable. */
-    {
-        volatile unsigned *p1 = (volatile unsigned *)0x04001000;
-        *p1 &= 0xFFCFFFEFu;
-        *p1 = (*p1 & ~7u) | (unsigned)env_flag("SM64DS_SUB_BGMODE", 3);
-        *p1 |= 0x10000u;            /* display mode 1 */
-        *p1 |= 0x40000000u;         /* BG extended palettes */
-        if (!data_0209d454)
-            data_0209d454 = 0x18;   /* Stage::InitResources' own value */
     }
 }
 
