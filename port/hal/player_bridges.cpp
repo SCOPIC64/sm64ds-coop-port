@@ -354,8 +354,13 @@ static void hal_render_head_group(char *c, char *head, unsigned hid,
     char *neck = *(char **)((char *)ma + 0x14) + 0x2d0;
     if (neck)
         m43_mul((const int *)neck, scene, (int *)(head + 0x1c));
+    /* Slot 5, not 4: VObj (src/_ZN6Player6RenderEv.cpp's shadow vtable) names
+       every slot by byte offset, so m14 is index 5, and _ZTV5Model[5] is
+       Model::Render (hal/cxxname_bridge.cpp:522). This read 4 while
+       hal_fill_model_vtable dual-filled _ZTV5Model[4] with Render, until
+       0a7f12ee9 removed the dual fill and put Virtual10 back at [4]. */
     ((void(__fastcall *)(void *, void *, const void *))(
-        ((void ***)head)[0][4]))(head, 0, c + 0x80);
+        ((void ***)head)[0][5]))(head, 0, c + 0x80);
 }
 
 /* run mg16 lane MP3: the two globals Player::Render's own gates read. The
@@ -1854,8 +1859,14 @@ void hal_render_player_body_ex(void *player, int with_head)
             if (src)
                 for (int i = 0; i < 12; ++i)
                     ((int *)(head + 0x1c))[i] = ((const int *)src)[i];
+            /* Slot 5, not 4: VObj names every slot by byte offset, so m14 is
+               index 5, and _ZTV5Model[5] is Model::Render
+               (hal/cxxname_bridge.cpp:522). This read 4 while
+               hal_fill_model_vtable dual-filled _ZTV5Model[4] with Render,
+               until 0a7f12ee9 removed the dual fill and put Virtual10 back
+               at [4]. */
             ((void(__fastcall *)(void *, void *, const void *))(
-                ((void ***)head)[0][4]))(head, 0, 0);
+                ((void ***)head)[0][5]))(head, 0, 0);
             hal_player_texseq_head(c, hid);
         }
     }
