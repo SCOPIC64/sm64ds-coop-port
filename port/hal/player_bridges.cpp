@@ -1765,10 +1765,11 @@ void hal_render_player_world(void *player)
        through SM64DS_SELFTEST_TONGUE says the gate stays 0 the whole run).
 
        Faithful now: gated on unk_700, the ROM's own two matrices, and
-       Virtual18 -- which is host slot 5 (_ZTV9ModelAnim is dtor 0, DoSetFile 1,
-       UpdateVerts 2, Virtual10 3, Render 4, Virtual18 5; see
-       hal/bob_enemy_bridges.cpp) and takes the matrix and the scale, unlike
-       Render. The bone matrix is composed through `scene` the way the head at
+       Virtual18 -- which is host slot 6 (_ZTV9ModelAnim is D1 0, D0 1,
+       Model::DoSetFile 2, UpdateVerts 3, Virtual10 4, Render 5, Virtual18 6,
+       read out of the ROM's own table at 0x0208e980) and takes the matrix and
+       the scale, unlike Render. The bone matrix is composed through `scene`
+       the way the head at
        +0x154 is, because this path renders in scene space, not the ROM's
        world space. */
     {
@@ -1808,20 +1809,24 @@ void hal_render_player_world(void *player)
                 src = (const int *)(bones + 0x2d0);
             }
             m43_mul(src, scene, composed);
-            /* Slot 5 holds hal/cxxname_bridge.cpp's ma2_virtual18, a
-               __fastcall face with a DEAD edx parameter and TWO stack
-               arguments: (self, dummy, unsigned mat, const void *scale).
-               This call used to borrow the head's three-parameter render
-               shape, which put `composed` in the dead edx and left the
-               scale to an unwritten stack slot -- so the first time the
-               gate ever opened (a wing-feather collect, or entering level
-               31 winged) the callee rendered off a garbage scale pointer
-               and popped 8 stack bytes where the caller pushed 4. The
-               fault that pointed here read address 0x9 inside the model
-               walk, three frames after SM64DS_SPAWN_ACTOR=345's feather
-               was collected at the player's feet. */
+            /* Slot 6, not 5. The ROM's _ZTV9ModelAnim at 0x0208e980 is seven slots
+               -- D1 0, D0 1, Model::DoSetFile 2, UpdateVerts 3, Virtual10 4,
+               Render 5, Virtual18 6 (0x0208e99c = 020167c4) -- and
+               src/_ZN6Player6RenderEv.cpp's own shadow names every slot by byte
+               offset, so the wing statement's m18 is byte 0x18, index 6. MSVC does
+               not fold the destructor pair for this family any more
+               (hal/cxxname_bridge.cpp:530-539), so ??_7ModelAnim@@6BModel@@@ is
+               seven slots in the same order and slot 6 is
+               ?Virtual18@ModelAnim@@UAEXIPBUVector3@@@Z. This read 5 while the
+               fold made Virtual18 the fifth slot; 0a7f12ee9 restored ROM order and
+               these dispatches were not renumbered with it. Index 5 is
+               ModelAnim::Render, which takes the scale alone and ends `ret 4`,
+               while this site pushes two stack words and cleans none -- so the
+               wrong slot also left four bytes on the stack and this function's
+               epilogue pops edi, esi and ebx before it restores the frame
+               pointer. */
             ((void(__fastcall *)(void *, void *, unsigned, const void *))(
-                ((void ***)m4)[0][5]))(m4, 0, (unsigned)(uintptr_t)composed,
+                ((void ***)m4)[0][6]))(m4, 0, (unsigned)(uintptr_t)composed,
                                        c + 0x80);
         }
     }
