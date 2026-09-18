@@ -424,6 +424,24 @@ static unsigned short g_raw_pad_bits;
 static void port_raw_pad_stash(unsigned short raw) { g_raw_pad_bits = raw; }
 static unsigned port_raw_pad_bits(void) { return g_raw_pad_bits; }
 
+/* run link100, lane INPUTRAW: the four direction bits, handed from the block
+   that computes them (still just above, unchanged) to the pad-mirror store,
+   which now lives further down the frame beside port_raw_btn_stash so it can
+   OR the direction bits together with the host's button word before either
+   one reaches data_020a0e58. A stash for the same reason g_raw_pad_bits is
+   one: the direction block's own `raw` local is out of scope long before the
+   mirror store runs. */
+static unsigned short g_raw_dir_bits;
+static void port_raw_dir_stash(unsigned short raw) { g_raw_dir_bits = raw; }
+static unsigned short port_raw_dir_bits(void) { return g_raw_dir_bits; }
+
+/* run link100, lane INPUTRAW: the level path's pad-mirror previous-word, for
+   the edge computation. File-scope for the same reason as g_raw_dir_bits --
+   the store itself moved out of the block that used to hold this as a local
+   static (`raw_prev`), so it needs to live somewhere that outlives that
+   block's closing brace. */
+static unsigned short g_pad_mirror_prev;
+
 /* run mg16 lane MPBTN: the BUTTON half of the same stash, and the reason it
    was missing is the whole of "no buttons in multiplayer". The d-pad stash
    above was the only thing comms_publish_pad ever received, so the published
@@ -7483,9 +7501,12 @@ static int scene_window_run(void)
                word is MIXED convention by construction: host_ds_buttons'
                four bits are Ctrl-convention and go through the translator;
                the d-pad, Start and Select added above are already raw DS bits
-               (0xf0, 0x08, 0x04) and pass straight through. */
-            port_host_keys_set((unsigned short)(host_btn_to_raw_keys(btn) |
-                                                (btn & 0x00fc)));
+               (0xf0, 0x08, 0x04) and pass straight through. Named (run
+               link100, lane INPUTRAW) because the pad-mirror store below
+               wants this SAME value. */
+            const unsigned short scene_raw_all =
+                (unsigned short)(host_btn_to_raw_keys(btn) | (btn & 0x00fc));
+            port_host_keys_set(scene_raw_all);
             /* SLOT 0 ONLY, AND ONLY WHEN THE ROM'S FAN-OUT IS NOT DRIVING.
                Run mg16 lane MP3, field failure 2. This publishes the LOCAL
                buttons into Ctrl slot 0's held and pressed words, which is
@@ -7506,6 +7527,30 @@ static int scene_window_run(void)
                 *(unsigned short *)(data_0209f49c + 0) = btn;
                 *(unsigned short *)(data_0209f49e + 0) =
                     (unsigned short)(btn & (unsigned short)~btn_was);
+                /* THE SCENE PATH'S PAD MIRROR (run link100, lane INPUTRAW).
+                   The scene loop has never written PadData (data_020a0e58)
+                   at all -- only the level loop did, and only its four
+                   direction bits -- so the title screen, the file select and
+                   every minigame menu had no raw source for ANY button,
+                   including the directions: src/_ZN10dScTitle_c8BehaviorEv.cpp,
+                   src/_ZN11dScMiniGm_c8BehaviorEv.cpp,
+                   src/_ZN12dScStarSel_c8BehaviorEv.cpp and
+                   src/minigames/d_s_mg_base.cpp all read data_020a0e58
+                   directly, not the Ctrl block above. scene_raw_all is the
+                   same whole raw key word port_host_keys_set was just handed;
+                   scene_raw_prev is a static LOCAL to this path (the level
+                   loop's raw_prev is a separate local in a separate scope),
+                   so it tracks frame to frame here the same way raw_prev
+                   tracks raw_all in the level loop, and the pressed halfword
+                   is a real edge rather than a stale value borrowed from the
+                   other path. */
+                static unsigned short scene_raw_prev;
+                *(unsigned short *)((char *)data_020a0e58 + 0) = scene_raw_all;
+                const unsigned short scene_edge = (unsigned short)(
+                    scene_raw_all & (unsigned short)~scene_raw_prev);
+                *(unsigned short *)((char *)data_020a0e58 + 2) = scene_edge;
+                *(unsigned short *)((char *)data_020a0e5a + 0) = scene_edge;
+                scene_raw_prev = scene_raw_all;
             }
             btn_was = btn;
         }
@@ -10211,7 +10256,6 @@ int main(void)
             if (dz < 0) raw |= 0x80;   /* down  */
             if (dx < 0) raw |= 0x20;   /* left  */
             if (dx > 0) raw |= 0x10;   /* right */
-            static unsigned short raw_prev;
             /* run mg16 lane MP3: the SAME value the pad mirror gets, stashed
                for hal/comms_conductor.cpp's key-register publish further down
                the frame. Taken HERE, at the source, because the ROM's fan-out
@@ -10221,99 +10265,13 @@ int main(void)
                into itself. Stashing the source value is what makes the
                ordering a fact rather than a comment. */
             port_raw_pad_stash(raw);
-            /* THE ROM'S FAN-OUT OWNS PadData[4] ONCE A SESSION IS UP, and this
-               line must get out of its way. Run mg16 lane MP3, field failure.
-
-               These two stores put the LOCAL pad into slot 0 of the mirror,
-               every frame, immediately before Stage::CheckInput. That is right
-               for a single-player port -- the local player IS slot 0 -- and it
-               is two separate bugs in a session:
-
-                 ON THE CHILD the local player is slot 1, so the local pad drove
-                 the HOST'S character. That is the owner's "from P2 I can move
-                 both Mario and Luigi".
-                 AND ON THE CHILD IT ALSO CLOBBERED what func_0203bc7c had just
-                 fanned out into slot 0 -- which on a child is the HOST'S record
-                 -- so the other console's presses were overwritten by the local
-                 pad before any reader saw them. That is his "nothing I do on P1
-                 shows up on P2".
-                 ON THE PARENT the same store is not destructive, and saying so
-                 is the point: slot 0 IS the parent's own record, so the write
-                 duplicates the value the fan-out would have delivered a frame
-                 later. Both defects above are the CHILD's, and an earlier
-                 version of this comment said "on both sides", which would send
-                 the next reader looking for a host-side bug that is not there.
-
-               The local pad is NOT lost by skipping this: it reaches the mirror
-               the ROM's own way, and that is the entire point of the lane.
-               port::comms_publish_pad puts it in the DS key register,
-               src/func_0203df40.c reads the register into the local comms
-               record, src/func_0203ea5c.c stages that onto the wire, and
-               src/func_0203bc7c.c fans all four records back out into
-               data_020a0e58 -- into THIS console's own slot, whichever that is.
-               A frame later, which is what lockstep means.
-
-               port/slice_comms.txt predicted this exact hand-off and named it:
-               "the port's own input path still writes TouchInfo and PadData
-               directly, and replacing that is MP2's change because that is the
-               one with a regression surface." It was never done, and the
-               regression surface is where the owner found it.
-
-               GATED, so single player is untouched: with no transport, or with
-               the fan-out off, nothing writes those records and these stores
-               stay exactly what they were. */
-            if (!(port::comms_transport() && comms_fanout_on())) {
-                /* THE LOCAL SLOT, not always slot 0. PadData strides 4 bytes per
-                   player ({u16 held, u16 pressed}); on the child data_0209f250 is
-                   1, so the local pad must land in PadData[1] or it drives the
-                   HOST's character (the ghost) and never the child's own body.
-                   Single player keeps data_0209f250 == 0, so this is unchanged
-                   there. Adventure runs with the fan-out off, which is why this
-                   direct store is the one that reaches the game. */
-                const int lo = (int)data_0209f250 * 4;
-                *(unsigned short *)((char *)data_020a0e58 + lo + 0) = raw;
-                const unsigned short edge =
-                    (unsigned short)(raw & (unsigned short)~raw_prev);
-                *(unsigned short *)((char *)data_020a0e58 + lo + 2) = edge;
-                /* ---- AND THE SPLIT SYMBOL, EVERY FRAME (run link100, lane
-                   FRAME2) -------------------------------------------------
-                   data_020a0e5a is PadData[i].pressed -- the SAME halfword the
-                   store above just wrote, at data_020a0e58 + i*4 + 2 -- and
-                   hal/auto_bss.cpp gives it separate host storage. Two ROM
-                   readers use the split spelling rather than the record:
-                   IsButtonInputValid (src/IsButtonInputValid.c) and
-                   Stage::Behavior's own pause trigger
-                   (src/_ZN5Stage8BehaviorEv.cpp:205, `data_020a0e5a + pi * 4`).
-
-                   NOTHING WROTE IT PER FRAME. hal/message_pump.cpp assigns it
-                   while a message box is up and says why -- the box could not
-                   be dismissed otherwise -- and hal/input_probe.cpp ORs a
-                   scripted edge into it. Outside those two it stayed at
-                   whatever was last OR-ed in, forever. Two things follow, and
-                   _ZTV5Stage slot 6 is what made both visible:
-
-                     * a real key press never reaches it at all, so the ROM's
-                       own pause trigger could not fire from the keyboard; and
-                     * one SM64DS_PROBE_INPUT press LATCHES. Measured on the tip
-                       before this line, port/tools/stage_pause_proof.py rung 5:
-                       a scripted START+L at f150..155 is refused for all six
-                       frames by the ROM's own L+START term, and then the pause
-                       opens at f156 -- the frame the hold ends -- off the START
-                       bit still standing in this word from f150. The same latch
-                       is why the paused run reopened the menu at f190 after
-                       closing it at f180.
-
-                   The store is an ASSIGNMENT of the same edge, at the same
-                   instant, which is exactly what the aliasing does on hardware.
-                   It is above port_input_probe_apply on purpose: the probe ORs
-                   its scripted bits into BOTH words after this, so a scripted
-                   press still arrives and still lasts exactly one frame.
-                   hal/message_pump.cpp's own publish is unchanged and still
-                   runs later in the frame; it now folds A/B onto a word that
-                   was cleared this frame instead of one that never was. */
-                *(unsigned short *)((char *)data_020a0e5a + lo) = edge;
-            }
-            raw_prev = raw;
+            /* run link100, lane INPUTRAW: the SAME direction bits, stashed
+               for the pad-mirror store, which now runs further down this
+               frame (beside port_raw_btn_stash) so it can OR the direction
+               bits together with the host's button word before either one
+               reaches data_020a0e58. `raw` itself goes out of scope at the
+               end of this block, well above that store. */
+            port_raw_dir_stash(raw);
             /* the angle FROM Mario TO the camera (what the name
                GetAngleToCamera means): the D-pad table's "up" entry is
                0x8000, so up + angle-to-camera = away from the lens.
@@ -10632,11 +10590,87 @@ int main(void)
                wire back into itself; comms_publish_pad below in this frame
                ORs it with the d-pad stash. The full raw probe word rides
                along so a scripted crouch (R) or run (Y) crosses the wire in a
-               headless proof exactly like a held key. */
-            port_raw_btn_stash((unsigned short)(
+               headless proof exactly like a held key. Named rather than
+               inlined (run link100, lane INPUTRAW) because the pad-mirror
+               store just below wants this SAME value: the mirror and the
+               comms stash must agree bit for bit. */
+            const unsigned short port_raw_bt_bits_for_mirror = (unsigned short)(
                 host_btn_to_raw_keys(btn) |
                 (menu_on ? 0 : port_input_probe_bits(
-                    port_rom_frame_checked(frame, "input-probe-raw")))));
+                    port_rom_frame_checked(frame, "input-probe-raw"))));
+            port_raw_btn_stash(port_raw_bt_bits_for_mirror);
+            /* THE PAD MIRROR (run link100, lane INPUTRAW; moved here from
+               right after `raw`'s four direction bits were computed, a few
+               hundred lines up). That earlier site only ever had the
+               direction bits to publish, and PadData (data_020a0e58) is the
+               cartridge's ENTIRE raw source -- Stage::CheckInput's mode-0
+               remap (romdata.c's data_02075650 table) reads nothing else --
+               so the eight button bits (A/B/X/Y, Start, Select, L/R) had no
+               raw source and could never reach a Ctrl reader. Publishing the
+               direction bits OR'd with the host's own button word
+               (port_raw_bt_bits_for_mirror above, the same value just handed
+               to port_raw_btn_stash) lets the ROM's own CheckInput do the
+               translation it was always going to do anyway.
+
+               raw_prev / edge now track the COMBINED word (raw_all), not
+               just the directions, so the pressed halfword is the edge of a
+               real button too. Nothing reads the mirror between the old site
+               and here except port_input_probe_apply (a few hundred lines
+               up, gated on SM64DS_PROBE_INPUT) and the game tick far below
+               both: port_input_probe_apply's own OR is now overwritten
+               rather than relied on, which is harmless because
+               port_raw_bt_bits_for_mirror already folds the same
+               port_input_probe_bits() call in above, so a scripted press
+               still reaches raw_all this frame. */
+            const unsigned short raw_all =
+                (unsigned short)(port_raw_dir_bits() | port_raw_bt_bits_for_mirror);
+            if (!(port::comms_transport() && comms_fanout_on())) {
+                /* THE LOCAL SLOT, not always slot 0. PadData strides 4 bytes per
+                   player ({u16 held, u16 pressed}); on the child data_0209f250 is
+                   1, so the local pad must land in PadData[1] or it drives the
+                   HOST's character (the ghost) and never the child's own body.
+                   Single player keeps data_0209f250 == 0, so this is unchanged
+                   there. Adventure runs with the fan-out off, which is why this
+                   direct store is the one that reaches the game. */
+                const int lo = (int)data_0209f250 * 4;
+                *(unsigned short *)((char *)data_020a0e58 + lo + 0) = raw_all;
+                const unsigned short edge =
+                    (unsigned short)(raw_all & (unsigned short)~g_pad_mirror_prev);
+                *(unsigned short *)((char *)data_020a0e58 + lo + 2) = edge;
+                /* ---- AND THE SPLIT SYMBOL, EVERY FRAME (run link100, lane
+                   FRAME2) -------------------------------------------------
+                   data_020a0e5a is PadData[i].pressed -- the SAME halfword the
+                   store above just wrote, at data_020a0e58 + i*4 + 2 -- and
+                   hal/auto_bss.cpp gives it separate host storage. Two ROM
+                   readers use the split spelling rather than the record:
+                   IsButtonInputValid (src/IsButtonInputValid.c) and
+                   Stage::Behavior's own pause trigger
+                   (src/_ZN5Stage8BehaviorEv.cpp:205, `data_020a0e5a + pi * 4`).
+
+                   NOTHING WROTE IT PER FRAME before lane FRAME2.
+                   hal/message_pump.cpp assigns it while a message box is up
+                   and says why -- the box could not be dismissed otherwise --
+                   and hal/input_probe.cpp ORs a scripted edge into it.
+                   Outside those two it stayed at whatever was last OR-ed in,
+                   forever. Two things followed, and _ZTV5Stage slot 6 is
+                   what made both visible: a real key press never reached it
+                   at all, so the ROM's own pause trigger could not fire from
+                   the keyboard; and one SM64DS_PROBE_INPUT press LATCHED
+                   (port/tools/stage_pause_proof.py rung 5).
+
+                   The store is an ASSIGNMENT of the same edge, at the same
+                   instant, which is exactly what the aliasing does on
+                   hardware. Lane INPUTRAW moved this store to run AFTER
+                   port_input_probe_apply, which is harmless rather than a
+                   regression: raw_all already folds port_input_probe_bits()
+                   in above, so a scripted press still arrives in this same
+                   store and still lasts exactly one frame; the probe's own
+                   OR just above is now overwritten, not relied on.
+                   hal/message_pump.cpp's own publish is unchanged and still
+                   runs later in the frame. */
+                *(unsigned short *)((char *)data_020a0e5a + lo) = edge;
+            }
+            g_pad_mirror_prev = raw_all;
             /* ---- THE THIRD BUTTON WRITER, AND THE ONE HIS HANDS FOUND ------
              *
              * Run mg16 lane MP4, second field re-test. This is the LEVEL path's
