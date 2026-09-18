@@ -624,6 +624,49 @@ int host_setting_net_mode(void);
    to the NetMode parse, so the number and the default are read together. */
 enum { kRollbackMaxPlayers = 8 };
 
+/* ---- FrameRate: HOW MANY PICTURES A SECOND. PRESENTATION ONLY. ----------
+   Default 0, and 0 is the ROM: one picture per game tick, exactly what the
+   port has always drawn. A NUMBER rather than a boolean for the Aspect
+   reason -- 60, 90, 120 and 144 are all real monitors and a boolean cannot
+   name them.
+
+   IT DOES NOT MOVE THE GAME'S CLOCK, and that is the whole point. The game
+   owns its own rate and writes it down: data_0208ee44 is vblanks per tick
+   (1 = 60, 2 = 30, 3 = 20) and every scene sets it in its own InitResources,
+   so the 3D levels tick 30 times a second and the minigames 60 whatever this
+   key says. What the key buys is EVEN HOLD TIMES. The port presents through a
+   plain StretchDIBits with no vsync anywhere, so a 30 Hz picture on a 144 Hz
+   display is held 5, 5, 5, 5, 4 refreshes, and the eye reads that unevenness
+   as judder on top of the 30.
+
+   ACCEPTED: 0 for native, the string "display" for the primary display's
+   refresh rate read once at boot, or a whole number of pictures a second
+   CLAMPED TO 240. Absent, unparseable, negative, and any positive value
+   BELOW 60 all read as 0. 60 is the floor because 60 is the fastest the
+   ROM's own clock ever runs (divider 1, every minigame), so a smaller number
+   would ask the port to present less often than the game ticks, which a
+   presentation layer may not do. Above 240 is CLAMPED rather than rejected,
+   the Aspect rule again: 1000 becomes 240, which is a picture, where
+   rejecting it would be a surprise.
+
+   BOOT-LATCHED, like Aspect and CustomPalette: the presentation clock's shape
+   is decided once, at the pacer's first turn, and a mid-run flip would be a
+   second code path nobody tests. The launcher's Settings row promises a
+   restart. SM64DS_FRAME_RATE overrides the file with the same grammar,
+   "display" included; an unparseable override is still an override and says
+   native, which is the answer an unparseable file value gives.
+
+   WHAT IT LEAVES ALONE, and this is the contract the vanilla proof rests on:
+   the game tick, the input sample, the geometry, the raster, the fader, the
+   sound frame and the netplay round accounting. The extra presents hand
+   Windows the SAME finished framebuffer again. NOTHING IS INTERPOLATED at
+   this rung -- with the key on, the picture repeats -- so the only thing that
+   changes is WHEN the pixels are handed over.
+
+   host_setting_frame_rate returns the target pictures per second, or 0 for
+   native. */
+int host_setting_frame_rate(void);
+
 #ifdef __cplusplus
 }
 #endif

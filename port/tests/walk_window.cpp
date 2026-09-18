@@ -2048,6 +2048,200 @@ static int port_frame_divider(void)
    instead of sprinting through several to "catch up". Catching up would mean
    running game ticks faster than the DS runs them, which is the one thing a
    pacer here must never do. */
+/* ---- THE PRESENTATION CLOCK (run link100, lane FPS1; the FrameRate key) --
+
+   WITH THE KEY ABSENT NOTHING HERE RUNS. frame_pace reaches it only when
+   host_setting_frame_rate() answered non-zero, which costs an unset run one
+   cached int compare per pacer turn -- the same shape as frame_stat's
+   `if (!trace)` and port_pace_selftest's cached read. The battery, the BMP
+   comparators, every proof run and every player who has not asked for this
+   take the identical long Sleep the pacer has always taken.
+
+   WHAT IT DOES. The pacer's whole job is to hand the rest of the budget back,
+   and today it hands all of it back in one Sleep. This spends that same slack
+   PRESENTING THE FINISHED FRAMEBUFFER AGAIN at even intervals, and then sleeps
+   whatever is left. The tick is untouched: the simulation, the input sample,
+   the geometry, the raster, the fader, the sound frame and the netplay round
+   accounting all ran once, before this call, and every extra present is the
+   same StretchDIBits over the same DIB. NOTHING IS INTERPOLATED at this rung,
+   so the extra pictures are the SAME picture. What they buy is an even HOLD
+   TIME: the port presents with no vsync anywhere, so 30 pictures a second into
+   a 144 Hz display is held 5, 5, 5, 5, 4 refreshes, and the eye reads that
+   unevenness as judder on top of the 30.
+
+   THE CLOCK IS CONTINUOUS, NOT PER TICK, and that is what makes the rate come
+   out at the key's value. A clock re-anchored to each tick would deliver
+   ceil(budget / interval) pictures every tick -- 5 per 33.3 ms at 144, which
+   is 150 a second and not 144. Advancing ONE absolute deadline by exactly one
+   interval per picture lets a tick take 4 or 5 and average 4.8.
+
+   AND THE TICK'S OWN PICTURE IS ONE OF THEM. Both loops present at the end of
+   the frame body, immediately before this call, so a slot that is already due
+   was served by that present and is consumed here rather than drawn twice.
+   Without that the key would deliver rate + tick_rate pictures a second.
+   port_rom_frame() is the ROM game loop's phase-6 step count and advances
+   exactly once per game tick, so ONE slot is consumed per tick however many
+   pacer turns a tick has -- and it has data_0208ee44 of them under
+   SM64DS_ROM_LOOP, where the pump paces one vblank per turn.
+
+   A HITCH IS NOT A DEBT, the pacer's own rule (see frame_pace's banner),
+   applied to the picture clock as well. A clock more than one interval behind
+   is pulled up to now instead of firing repeatedly to catch up. And a pacer
+   turn that is ALREADY PAST its deadline -- the tick ran over budget -- never
+   reaches this function at all, because frame_pace's overrun branch resets the
+   deadline and sleeps nothing: that tick presents once, its own picture, and
+   no catch-up burst follows it.
+
+   NEVER MORE THAN THE LAST MILLISECOND IS SPUN. port_sleep_until sleeps whole
+   milliseconds down to one millisecond out and yields the remainder, which is
+   the granularity pacer_begin's 1 ms timer resolution leaves. */
+
+static void present(void);   /* the blit, defined with the window code below */
+
+/* The key's answer, latched once. host_setting_frame_rate is itself
+   boot-latched; this caches it so the pacer's hot path never re-reads it. */
+static int port_frame_rate_target(void)
+{
+    static int rate = -1;
+    if (rate < 0) {
+        rate = host_setting_frame_rate();
+        if (rate)
+            fprintf(stderr, "[frame-pace] FrameRate %d: the finished picture "
+                    "is handed to the display %d times a second. The game tick "
+                    "is untouched and nothing is interpolated at this rung, so "
+                    "the same picture repeats.\n", rate, rate);
+    }
+    return rate;
+}
+
+/* Sleep to an absolute QPC target. Whole milliseconds through Sleep down to
+   one millisecond out, then Sleep(0) -- a yield, not a tight spin, so the core
+   is handed back on every turn -- for the last one. */
+static void port_sleep_until(long long target, long long qpf)
+{
+    for (;;) {
+        LARGE_INTEGER now;
+        QueryPerformanceCounter(&now);
+        const double ms = (target - now.QuadPart) * 1000.0 / (double)qpf;
+        if (ms <= 0.0) return;
+        if (ms > 2.0) { Sleep((DWORD)(ms - 1.0)); continue; }
+        if (ms > 1.0) { Sleep(1); continue; }
+        Sleep(0);
+    }
+}
+
+/* THE PICTURE CENSUS, and it reports PICTURES rather than frames because that
+   is the number the key is about. One [frame-pace] line per window under
+   SM64DS_TRACE_PACE=1, beside frame_stat's [fps] line, with the distribution
+   behind the rate: a mean cannot tell an even 144 from one that holds a
+   picture for three intervals every so often, and an uneven hold is the whole
+   thing this rung exists to fix. Absent the key none of this is reached, so
+   the [fps] lines of an ordinary trace run are unchanged. */
+enum { PORT_PIC_WIN = 120 };
+
+static long long g_pic_due;        /* when the next picture is due (QPC) */
+static long long g_pic_prev;       /* the previous picture's stamp */
+static long long g_pic_t0;         /* the window's first picture */
+static double    g_pic_win[PORT_PIC_WIN];
+static int       g_pic_n;
+static int       g_pic_tick;       /* pictures the loops presented */
+static int       g_pic_extra;      /* pictures this clock presented */
+static int       g_pic_late;       /* slots the clock had to be pulled up */
+static int       g_pic_frame = -1; /* the tick whose picture was counted */
+
+static int port_pic_cmp(const void *a, const void *b)
+{
+    const double x = *(const double *)a, y = *(const double *)b;
+    return x < y ? -1 : (x > y ? 1 : 0);
+}
+
+static void port_pic_note(long long at, long long qpf, int trace, int rate)
+{
+    if (!g_pic_t0) { g_pic_t0 = at; g_pic_prev = at; return; }
+    g_pic_win[g_pic_n] = (at - g_pic_prev) * 1000.0 / (double)qpf;
+    g_pic_prev = at;
+    if (++g_pic_n < PORT_PIC_WIN) return;
+    if (trace) {
+        double sorted[PORT_PIC_WIN], sum = 0.0;
+        for (int i = 0; i < PORT_PIC_WIN; ++i) {
+            sorted[i] = g_pic_win[i];
+            sum += g_pic_win[i];
+        }
+        qsort(sorted, PORT_PIC_WIN, sizeof sorted[0], port_pic_cmp);
+        const double sec = (at - g_pic_t0) / (double)qpf;
+        fprintf(stderr, "[frame-pace] target %d Hz: %d picture(s) in %.3fs = "
+                "%.2f/s (%d tick + %d extra) interval ms avg %.2f p50 %.2f "
+                "p95 %.2f max %.2f, %d pulled-up slot(s)\n",
+                rate, PORT_PIC_WIN, sec,
+                sec > 0.0 ? PORT_PIC_WIN / sec : 0.0, g_pic_tick, g_pic_extra,
+                sum / PORT_PIC_WIN, sorted[PORT_PIC_WIN / 2],
+                sorted[(PORT_PIC_WIN * 95) / 100], sorted[PORT_PIC_WIN - 1],
+                g_pic_late);
+    }
+    g_pic_t0 = at;
+    g_pic_n = 0;
+    g_pic_tick = 0;
+    g_pic_extra = 0;
+    g_pic_late = 0;
+}
+
+/* NOT static, so the linker map carries it and mapdiff shows this lane's whole
+   footprint in walk_window as one added name. Returns the milliseconds from
+   `now` to the moment it stopped waiting, which is exactly what frame_pace's
+   own [pace] line reports as `slept`. */
+extern "C" double port_present_clock(long long now, long long deadline,
+                                     long long qpf, int rate, int trace)
+{
+    const long long step = qpf / rate;
+    LARGE_INTEGER end;
+
+    if (step <= 0) {   /* a counter this coarse cannot pace anything */
+        port_sleep_until(deadline, qpf);
+        QueryPerformanceCounter(&end);
+        return (end.QuadPart - now) * 1000.0 / (double)qpf;
+    }
+
+    /* A hitch is not a debt. */
+    if (!g_pic_due || g_pic_due + step < now) {
+        if (g_pic_due) ++g_pic_late;
+        g_pic_due = now;
+    }
+
+    /* THE TICK'S OWN PICTURE, AND THE SLOT IT CONSUMES, and the advance is
+       UNCONDITIONAL. Measured 2026-09-17: making it conditional on the
+       clock already being due (`if (g_pic_due <= now)`) reads the rate
+       wrong, because the clock interval and the pacer slot are not the
+       same length -- 16.667 ms against 16.65 -- so the comparison flips
+       after a few seconds and the clock stops crediting the tick at all.
+       A key of 60 then delivered 90 pictures a second (60 from the clock
+       plus the tick's own 30) and a key of 90 delivered 120. Advancing
+       once per tick unconditionally is the accounting that holds: the
+       clock tracks wall time, so it takes `rate` steps a second, and a
+       step is either a picture this function presented or the picture the
+       loop presented. Total pictures a second is the key, exactly. */
+    const int f = port_rom_frame();
+    if (f != g_pic_frame) {
+        g_pic_frame = f;
+        ++g_pic_tick;
+        port_pic_note(now, qpf, trace, rate);
+        g_pic_due += step;
+    }
+
+    while (g_pic_due < deadline) {
+        LARGE_INTEGER at;
+        port_sleep_until(g_pic_due, qpf);
+        present();
+        ++g_pic_extra;
+        QueryPerformanceCounter(&at);
+        port_pic_note(at.QuadPart, qpf, trace, rate);
+        g_pic_due += step;
+    }
+
+    port_sleep_until(deadline, qpf);
+    QueryPerformanceCounter(&end);
+    return (end.QuadPart - now) * 1000.0 / (double)qpf;
+}
+
 static void frame_pace(void)
 {
     static LARGE_INTEGER qpf, next;
@@ -2087,11 +2281,25 @@ static void frame_pace(void)
             const double ms =
                 (next.QuadPart - now.QuadPart) * 1000.0 / (double)qpf.QuadPart;
             if (ms >= 1.0) {
-                LARGE_INTEGER a2;
-                Sleep((DWORD)ms);
-                QueryPerformanceCounter(&a2);
-                slept = (a2.QuadPart - now.QuadPart) * 1000.0 /
-                        (double)qpf.QuadPart;
+                /* THE PRESENTATION CLOCK (lane FPS1, the FrameRate key). With
+                   the key absent -- the default, and the only thing the
+                   battery, the BMP comparators and every proof run ever see --
+                   rate is 0 and the else arm below is the one long Sleep this
+                   pacer has always done, statement for statement. With the key
+                   on, the same slack is spent presenting the finished
+                   framebuffer again at even intervals and then sleeping the
+                   rest. See port_present_clock's banner. */
+                const int rate = port_frame_rate_target();
+                if (rate > 0) {
+                    slept = port_present_clock(now.QuadPart, next.QuadPart,
+                                               qpf.QuadPart, rate, trace);
+                } else {
+                    LARGE_INTEGER a2;
+                    Sleep((DWORD)ms);
+                    QueryPerformanceCounter(&a2);
+                    slept = (a2.QuadPart - now.QuadPart) * 1000.0 /
+                            (double)qpf.QuadPart;
+                }
             }
         }
     }
