@@ -6986,6 +6986,22 @@ static void stack_present_arm(const uint32_t *img, HWND hwnd)
  */
 static void host_layout_follow_scene(HWND hwnd, int two_screen, const char *what)
 {
+    /* THE FIELD FOLLOWS THE SCENE AS WELL AS THE LAYOUT, and for the same
+       reason the layout does: this is the one crossing that replaces the
+       scene under the window WITHOUT starting a process, so anything the
+       old scene latched has to be re-derived here by hand. The field is
+       latched by hal/scene_boot.cpp's port_scene_layout_propose, which has
+       a static and will not run twice, so without this line the title's
+       native 4:3 presentation would stay on through the whole adventure and
+       a level would be drawn pillarboxed inside its own wide framebuffer.
+       The one call site passes 0 -- the adventure, which is a LEVEL and the
+       only thing that keeps the wide field -- and if a future crossing ever
+       hands this function a SCENE it passes non-zero for it and gets the
+       right field from the same answer, because after the 2026-09-17 22:10
+       ruling "is a scene" and "both screens full size" are one predicate.
+       Inert at aspect 0, where the native flag changes no arithmetic. */
+    ntr::set_present_native(two_screen != 0);
+
     if (!hal_sub_screen_relatch(two_screen)) {
         /* Says the LIVE answer rather than "no change", because 0 covers two
            cases -- the mode was already what this scene wants, and the mode has

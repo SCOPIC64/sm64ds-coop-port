@@ -5569,36 +5569,79 @@ extern "C" void port_scene_layout_propose(void)
        also keeps the two reasons legible: a minigame is stacked because the
        ROM says it is a minigame, and the title is stacked because it is a
        two-screen scene. SM64DS_DUAL_SCREEN still overrides either way. */
-    const int two_screen = scene >= 0 &&
-                           (IsMinigameActorID((unsigned)scene) || scene == 1);
-    /* AND THE PRESENTATION WIDTH, decided in the same place and from the same
-       predicate, because it is the same kind of fact: a per-scene answer the
-       host has to know before the first frame.
+    /* EVERY NON-LEVEL SCENE IS STACKED UNDER A WIDE ASPECT. Tango's ruling of
+       2026-09-17 22:10, after seeing the minigame menu at 21:9 drawn with the
+       level-style corner inset: "ALL MENUS SHOULD STAY NATIVE, ONLY THE GAME
+       WORLD PART SHOULD BE WIDE AND ULTRAWIDE ... it should be menu style since
+       you need to use the touch screen."
 
-       Tango's ruling, 2026-09-17: "Minigames should not get the widescreen
-       treatment." So a minigame presents at the DS's own 4:3 field, pillarboxed
-       inside whatever wide framebuffer the Aspect setting asked for, and
-       everything else -- the title, the star select, the minigame MENU, the VS
-       menu, the game over, both boot scenes, and every level -- keeps it.
+       A menu is played with the stylus, so the bottom screen cannot be a 128x96
+       corner preview; and the wider the picture gets the worse that corner is,
+       because the inset keeps its size while the top half grows. The corner
+       inset is the port's convenience for LEVELS, where the bottom screen is a
+       minimap and the corner is doing a job.
 
-       IsMinigameActorID AND NOTHING ELSE, unlike the two_screen line above. The
-       title is a two-screen scene (that is what the banner above argues) but it
-       is not a minigame, so it keeps the wide field; the minigame MENU is scene
-       5 and the banner on its table row settles it in so many words -- "the menu
-       is NOT a minigame by the ROM's own predicate" -- so it keeps the wide
-       field too. Those two are the whole difference between this line and the
-       one below it.
+       `scene >= 0` IS THE PREDICATE "this is a scene and not a level", and it is
+       a predicate rather than a list on purpose: port_scene_env_want returns the
+       id a scene run was asked for and -1 for a level run (hal/title_entry.cpp's
+       port_boot_default_scene decides that for a bare launch), so a newly seated
+       scene is covered the day it is seated and no table here can go stale.
 
-       SM64DS_MG_WIDE=1 puts the widescreen treatment back on for minigames, for
-       one run, so the before and the after can be captured off ONE binary
-       instead of two. Unset is the ruling. */
+       AND ONLY UNDER A WIDE ASPECT. ntr::widescreen is false at aspect 0 by
+       configure_aspect's own definition, so with the setting off this expression
+       is the one it replaces, token for token, and scenes 0, 4, 5, 6, 8 and 360
+       keep the corner inset they have always had at 4:3. Whether they should be
+       stacked at 4:3 as well is Tango's call and would be these two tokens
+       coming out. The minigames and the title stay named, so they are stacked at
+       every aspect exactly as before.
+
+       SM64DS_MG_WIDE=1 puts the whole widescreen treatment back for one run --
+       both the field below and this layout term -- so the before and the after
+       can be captured off ONE binary. Unset is the ruling. */
     const bool mg_wide = [] {
         const char *e = std::getenv("SM64DS_MG_WIDE");
         return e && *e && *e != '0';
     }();
-    ntr::set_present_native(scene >= 0 && !mg_wide &&
-                            IsMinigameActorID((unsigned)scene) != 0);
+    const int two_screen = scene >= 0 &&
+                           (IsMinigameActorID((unsigned)scene) || scene == 1 ||
+                            (ntr::widescreen && !mg_wide));
+    /* AND THE PRESENTATION WIDTH, decided in the same place and from the same
+       predicate, because it is the same kind of fact: a per-scene answer the
+       host has to know before the first frame.
+
+       Tango's ruling, 2026-09-17 22:10, generalising his 20:00 one: "ALL MENUS
+       SHOULD STAY NATIVE, ONLY THE GAME WORLD PART SHOULD BE WIDE AND
+       ULTRAWIDE." So EVERY scene presents at the DS's own 4:3 field, centred
+       inside whatever wide framebuffer the Aspect setting asked for, and only
+       LEVELS -- the 51 rows of port_level_table, the game world -- keep the
+       widened field. The earlier line here read IsMinigameActorID and held the
+       title and the minigame menu out; both of them are menus, and that is the
+       whole of what changed.
+
+       THE SAME PREDICATE AS THE LAYOUT LINE ABOVE, which is the point: `scene
+       >= 0` is "this is a scene and not a level" and a level run never reaches
+       this function at all, so there is one answer and not two that can drift.
+       No gate on ntr::widescreen is needed or wanted here, because present_* IS
+       the whole active extent whenever the extent is 4:3 (present_w 512,
+       present_h 384, present_x 0 at aspect 0), so every arm that reads it
+       computes what it computed before, bit for bit, with the setting off.
+
+       SM64DS_MG_WIDE=1 puts the treatment back for one run, for both halves,
+       so the before and the after can be captured off ONE binary instead of
+       two. Unset is the ruling. */
+    ntr::set_present_native(scene >= 0 && !mg_wide);
     hal_sub_screen_set_stacked(two_screen);
+    /* Say the decision once, on the run that made it, beside the [sub] layout
+       line hal/sub_screen.cpp prints for the other half. "the wide field on a
+       menu" and "the native field on a menu" are indistinguishable in a boot
+       sweep and are the whole of what this change is about. */
+    std::fprintf(stderr, "[scene] presentation: the %s field, layout proposal "
+                 "%s (scene %d)\n",
+                 ntr::present_native() ? "DS's own 4:3, centred"
+                                       : "wide",
+                 two_screen ? "STACKED, both DS screens full size"
+                            : "corner inset panel", scene);
+    std::fflush(stderr);
 }
 
 /* How many frames the run was asked for, readable before begin() so a windowed
