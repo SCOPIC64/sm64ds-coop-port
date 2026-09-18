@@ -1864,7 +1864,44 @@ static void __cdecl l2_eb2c_s08(void *s)
    Receiver check included, l2_ea6c's, and for l2_ea6c's stated reason: a
    shape-B caller would hand these two `frames` (0x1e) as the receiver, and a
    fault on that would report nothing. */
-static int __cdecl l2_eb2c_s0c(void *s, int frames, int)
+/* THE REGRESSION: two callers, two stack conventions, one slot each.
+
+   CALLER 1, the SCENE path, dScene_c::BeforeBehavior's file-local FaderVTable
+   of plain function pointers with an explicit receiver parameter. MSVC
+   compiles that __cdecl, CALLER cleans twelve, and ECX holds the VTABLE at
+   the call (`mov ecx,[eax]` one instruction earlier), not the object:
+
+       004f801a  push 0 / push 1Eh / push eax   <- THE RECEIVER, a stack arg
+       004f801f  mov ecx,[eax]                  <- ecx = THE VTABLE
+       004f8021  mov eax,[ecx+10h] / call eax
+       004f8026  add esp,0Ch                    <- CALLER cleans twelve
+
+   CALLER 2, THE OPENING CUTSCENE, ProcessKuppaScript, __thiscall: receiver in
+   ECX, two words pushed, nothing cleaned after the call, so the CALLEE must
+   clean eight:
+
+       004cacd9  mov ecx,0x17b8038              <- ecx = THE OBJECT
+       004cace8  push eax / 004cacf4 push 1Eh
+       004cacf6  call [eax+10h]                 <- nothing cleans after this
+
+   One __cdecl signature cannot serve both. On the opening's level-change
+   frame, ProcessKuppaScript dispatches with the object in ECX; the __cdecl
+   body reads `frames` (0x1e) as its receiver, fails the check, returns 0 and
+   cleans nothing. Eight bytes stay on ProcessKuppaScript's frame and its
+   epilogue reads them back as edi/ebx, which func_02043288's behaviour
+   dispatch (ActorBase, slots 7/6/8) later reads through EBX at +0x4f and
+   faults, quarantining the Stage and parking the player. Run link100, card
+   card_fader8.md.
+
+   THE FIX: each slot keeps its body exactly as it was, renamed with C linkage
+   so a `__declspec(naked)` trampoline in front of it can name it. The
+   trampoline reads the discriminator the two callers leave behind -- caller 1
+   leaves the VTABLE in ECX, caller 2 leaves the OBJECT -- and either
+   tail-jumps into the body (cdecl, caller cleans) or rebuilds the cdecl frame
+   and returns with `ret 8` (thiscall, callee cleans). Precedent for naked
+   inline asm in port/: hal/fn_trace.cpp's _penter, for the same reason (a
+   compiler prologue would destroy the thing the function exists to read). */
+extern "C" int __cdecl l2_eb2c_s0c_body(void *s, int frames, int)
 {
     if (s == 0 || ((std::size_t)s & 3) != 0 ||
         *(void **)s != (void *)data_0208eb2c) {
@@ -1873,7 +1910,7 @@ static int __cdecl l2_eb2c_s0c(void *s, int frames, int)
     }
     l2_eb2c_note(3); return l2_eb2c_run_setter(s, (unsigned)frames, 1);
 }
-static int __cdecl l2_eb2c_s10(void *s, int frames, int)
+extern "C" int __cdecl l2_eb2c_s10_body(void *s, int frames, int)
 {
     if (s == 0 || ((std::size_t)s & 3) != 0 ||
         *(void **)s != (void *)data_0208eb2c) {
@@ -1881,6 +1918,46 @@ static int __cdecl l2_eb2c_s10(void *s, int frames, int)
         return 0;
     }
     l2_eb2c_note(4); return l2_eb2c_run_setter(s, (unsigned)frames, 0);
+}
+
+__declspec(naked) static void l2_eb2c_s0c(void)
+{
+    __asm {
+        /* caller 1 (__cdecl, dScene_c::BeforeBehavior) leaves the VTABLE in ecx;
+           caller 2 (__thiscall, ProcessKuppaScript) leaves the OBJECT in ecx. */
+        cmp  ecx, offset data_0208eb2c
+        je   shape_cdecl
+        /* __thiscall: receiver in ecx, [esp+4] frames, [esp+8] arg2, callee cleans 8 */
+        push dword ptr [esp+8]          /* arg2 */
+        push dword ptr [esp+8]          /* frames, now one push higher */
+        push ecx                        /* the receiver */
+        call l2_eb2c_s0c_body
+        add  esp, 12
+        ret  8
+    shape_cdecl:
+        /* the arguments are already the body's own cdecl frame; the caller cleans */
+        jmp  l2_eb2c_s0c_body
+    }
+}
+
+__declspec(naked) static void l2_eb2c_s10(void)
+{
+    __asm {
+        /* caller 1 (__cdecl, dScene_c::BeforeBehavior) leaves the VTABLE in ecx;
+           caller 2 (__thiscall, ProcessKuppaScript) leaves the OBJECT in ecx. */
+        cmp  ecx, offset data_0208eb2c
+        je   shape_cdecl
+        /* __thiscall: receiver in ecx, [esp+4] frames, [esp+8] arg2, callee cleans 8 */
+        push dword ptr [esp+8]          /* arg2 */
+        push dword ptr [esp+8]          /* frames, now one push higher */
+        push ecx                        /* the receiver */
+        call l2_eb2c_s10_body
+        add  esp, 12
+        ret  8
+    shape_cdecl:
+        /* the arguments are already the body's own cdecl frame; the caller cleans */
+        jmp  l2_eb2c_s10_body
+    }
 }
 
 /* +0x14, +0x18 and +0x1c. The three predicates, through the flat faces two
