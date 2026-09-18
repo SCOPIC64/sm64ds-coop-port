@@ -2135,7 +2135,16 @@ extern "C" void port_message_composite_engine_a(void *fbp)
                is the control the before/after images are taken against. */
             hx0 = (g_a[y][x].owner == 3)
                           ? x * uni + margin / 2
-                          : !shown3d
+                          /* A SCENE PRESENTED NATIVELY TAKES THE PILLARBOX ARM
+                             whether or not a 3D layer is behind it. Tango's
+                             ruling of 2026-09-17: a minigame presents exactly
+                             as it does at 4:3, so its HUD keeps its native
+                             positions, centred, at the uniform scale -- the
+                             arm the full-2D minigame boards already took by
+                             way of !shown3d. margin / 2 is ntr::present_x(),
+                             and it is the bottom panel's pan_x0 too, so all
+                             three layers line up. */
+                          : (ntr::present_native() || !shown3d)
                           ? x * uni + margin / 2
                           : !bandsplit
                           ? x * uni + hudelem::g_off[hudelem::g_lbl[y][x]]

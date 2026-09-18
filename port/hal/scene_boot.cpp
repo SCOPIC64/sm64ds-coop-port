@@ -5571,6 +5571,33 @@ extern "C" void port_scene_layout_propose(void)
        two-screen scene. SM64DS_DUAL_SCREEN still overrides either way. */
     const int two_screen = scene >= 0 &&
                            (IsMinigameActorID((unsigned)scene) || scene == 1);
+    /* AND THE PRESENTATION WIDTH, decided in the same place and from the same
+       predicate, because it is the same kind of fact: a per-scene answer the
+       host has to know before the first frame.
+
+       Tango's ruling, 2026-09-17: "Minigames should not get the widescreen
+       treatment." So a minigame presents at the DS's own 4:3 field, pillarboxed
+       inside whatever wide framebuffer the Aspect setting asked for, and
+       everything else -- the title, the star select, the minigame MENU, the VS
+       menu, the game over, both boot scenes, and every level -- keeps it.
+
+       IsMinigameActorID AND NOTHING ELSE, unlike the two_screen line above. The
+       title is a two-screen scene (that is what the banner above argues) but it
+       is not a minigame, so it keeps the wide field; the minigame MENU is scene
+       5 and the banner on its table row settles it in so many words -- "the menu
+       is NOT a minigame by the ROM's own predicate" -- so it keeps the wide
+       field too. Those two are the whole difference between this line and the
+       one below it.
+
+       SM64DS_MG_WIDE=1 puts the widescreen treatment back on for minigames, for
+       one run, so the before and the after can be captured off ONE binary
+       instead of two. Unset is the ruling. */
+    const bool mg_wide = [] {
+        const char *e = std::getenv("SM64DS_MG_WIDE");
+        return e && *e && *e != '0';
+    }();
+    ntr::set_present_native(scene >= 0 && !mg_wide &&
+                            IsMinigameActorID((unsigned)scene) != 0);
     hal_sub_screen_set_stacked(two_screen);
 }
 
@@ -7309,7 +7336,14 @@ extern "C" void port_scene_tick(int frame, int tick_game)
                banner has the three measured shapes. There is exactly one call site
                on this path, and the probe's per-frame m4c line is what keeps that
                honest -- a second call would show as a compounding m4c. */
-            if (ntr::widescreen) hal_camera_widen_frustum_scene();
+            /* AND NOT ON A SCENE PRESENTED NATIVELY. The widen exists so the
+               actors that sit just past the 4:3 edge keep behaving when the
+               field opens up; a minigame's field does not open up, so
+               widening its cull would wake actors that are not on screen and
+               make it behave differently from the 4:3 run it is supposed to
+               be identical to. */
+            if (ntr::widescreen && !ntr::present_native())
+                hal_camera_widen_frustum_scene();
             if (trace) std::fprintf(stderr, "[scene-trace] f%d clear\n", frame);
             for (int x = 0; x < ntr::active_w; ++x) fb.px[0][x] = 0xFF101820u;
             for (int y = 1; y < ntr::active_h; ++y)
