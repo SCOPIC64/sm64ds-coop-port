@@ -498,10 +498,79 @@ extern "C" unsigned port_stage_behavior_calls(void) { return g_beh_calls; }
    nothing to what Stage::Behavior does. */
 extern "C" void port_frame_ctrl_publish(void);
 
+extern "C" unsigned char data_0209f49c[], data_0209f49e[], data_0209f4a0[],
+                         data_0209f4a2[], data_0209f4a4[], data_0209f4a6[],
+                         data_0209f4ac[];
+extern "C" int data_0209f498[];
+
+/* A SECOND COPY, AND IT RUNS BEFORE Stage::Behavior, NOT AFTER.
+
+   On the cartridge Ctrl is one block, four 0x18-byte records at
+   data_0209f498, and two ROM functions clear its button words every frame
+   through that one spelling: Stage::CheckCameraInput zeroes held and
+   pressed over data_0209f21c records, and Stage::CheckInput, when it does
+   not reach main_part, walks a LITERAL FOUR records and zeroes touching,
+   delay, cnt, mag, nx, ny, ang, held and pressed in each. Stage::Behavior
+   calls both, then ProcessKuppaScript, then the actor walk -- so on
+   hardware a cutscene script writes the characters' records strictly
+   between the ROM's clear and the ROM's read, every frame.
+
+   The port does not host Ctrl as one block. Seven of its interior fields
+   are separate objects (data_0209f49c/9e/a0/a2/a4/a6/ac, declared above),
+   and port_frame_ctrl_publish -- this file's own bridge, called AFTER
+   Stage::Behavior below -- is what carries data_0209f498 out to them,
+   bounded by the live player count (data_0209f21c, which InitResources
+   sets from the ROM's own single-player byte and which SetNumPlayers only
+   raises for VS). So the ROM's clear of records 1, 2 and 3 never reached
+   the split objects: CheckInput zeroes them inside data_0209f498, but the
+   only copy out of that struct runs after Stage::Behavior, which is after
+   ProcessKuppaScript has already written the cutscene's press into the
+   split objects for this frame. Records 1..3 of the split objects were
+   therefore written by the opening's own script command
+   (src/func_ov002_020bd3a0.c, the ONLY writer of data_0209f49e in all of
+   src/) and by nothing else, ever -- one scripted press stayed set for
+   every later frame, so the driven characters kept re-entering
+   St_Jump_Init / St_PunchKick_Init instead of walking to the castle.
+
+   The existing copy below cannot simply be widened to four records where
+   it stands: it runs after ProcessKuppaScript, so a four-slot loop there
+   would immediately overwrite the script's own press with data_0209f498's
+   (still-scripted, not-yet-recleared) contents -- INPUT1 measured exactly
+   that failure shape, the puppets' split records pinned at the script's
+   values with no cartridge clear ever landing.
+
+   So this copy runs at the HEAD of the frame instead, before the ROM's own
+   Stage::Behavior (and therefore before CheckInput's clear and before
+   ProcessKuppaScript). That is equivalent to the cartridge, not a
+   deviation from it: CheckInput's clear branch writes the SAME zeros every
+   frame it fires, so priming the split objects with the previous frame's
+   already-cleared struct value carries forward a value the ROM was about
+   to write again anyway. The width is a literal four -- the ROM's own
+   Ctrl block width and the bound of CheckInput's own clear loop -- not
+   data_0209f21c, because CheckInput's clear reaches all four records
+   regardless of live player count; only the post-Behavior publish below is
+   bounded by player count, because that is the copy that feeds actors that
+   read player state. */
+static void port_frame_ctrl_prime(void)
+{
+    for (int pi = 0; pi < 4; ++pi) {
+        const char *r = (const char *)data_0209f498 + pi * 0x18;
+        const int o = pi * 0x18;
+        *(short *)(data_0209f49c + o) = *(const short *)(r + 0x04);
+        *(short *)(data_0209f49e + o) = *(const short *)(r + 0x06);
+        *(short *)(data_0209f4a0 + o) = *(const short *)(r + 0x08);
+        *(short *)(data_0209f4a2 + o) = *(const short *)(r + 0x0a);
+        *(short *)(data_0209f4a4 + o) = *(const short *)(r + 0x0c);
+        *(short *)(data_0209f4a6 + o) = *(const short *)(r + 0x0e);
+        *(unsigned char *)(data_0209f4ac + o) = *(const unsigned char *)(r + 0x14);
+    }
+}
+
 extern "C" int port_stage_rom_behavior(void *self)
 {
     stage_frame_arm();
     ++g_beh_calls;
+    port_frame_ctrl_prime();
     const int r = ((Stage *)self)->Stage::Behavior();
     port_frame_ctrl_publish();
     return r;
