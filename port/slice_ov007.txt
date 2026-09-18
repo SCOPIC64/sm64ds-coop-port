@@ -322,6 +322,15 @@ src/func_ov007_020b7a78.c
 src/func_ov007_020b7d94.c
 src/func_ov007_020b7eec.c
 src/func_ov007_020b8070.c
+# SEATED 2026-09-17 (run link100 wave 12, fixer OV7TRAPS, card
+# out/FILESEL1/card_ov7traps.md). The minigame results / record-board text layout,
+# eighteen rows, called from src/func_ov007_020afc44.c. Matched on main by 5a52e6f5b
+# (PR #2301) and enrolled at .text 0x020b8188-0x020b84e8; re-verified here against
+# extracted/overlays/overlay_0007.bin at the config base, tools/match.py MATCH at
+# 2004/b56 with strict relocs. Its L2_UNMATCHED trap in hal/scene_boot.cpp is deleted in
+# this same change: a trap and a body for one name is an LNK2005. No MMIO and no geometry
+# command port in it, so it compiles plain and needs no hostgen row.
+src/func_ov007_020b8188.c
 src/func_ov007_020b84e8.c
 src/func_ov007_020b84f4.c
 src/func_ov007_020b8500.c
@@ -352,6 +361,13 @@ src/func_ov007_020b9880.c
 src/func_ov007_020b9ca8.c
 src/func_ov007_020b9f0c.c
 src/func_ov007_020b9fc0.c
+# SEATED 2026-09-17 (run link100 wave 12, fixer OV7TRAPS, card
+# out/FILESEL1/card_ov7traps.md). The ov007 manager's proximity and heading gate against
+# the last path node, called from src/func_ov007_020b9640.c. Matched on main by b66831c7e
+# (PR #2365) and enrolled at .text 0x020ba05c-0x020ba2e0; re-verified here,
+# tools/match.py MATCH at 2004/b56 with strict relocs. Its trap is deleted in the same
+# change. Plain C, no MMIO, no hostgen row.
+src/func_ov007_020ba05c.c
 src/func_ov007_020ba2e0.c
 src/func_ov007_020ba368.c
 src/func_ov007_020ba9bc.c
@@ -526,6 +542,19 @@ src/func_ov007_020c33d0.cpp
 src/func_ov007_020c3544.c
 src/func_ov007_020c3550.c
 src/func_ov007_020c3598.c
+# SEATED 2026-09-17 (run link100 wave 12, fixer FILESEL, card out/FILESEL1/card_filesel.md).
+# The hardware divider/square-root vector normalise. Matched on main by 7dba86b5d (PR
+# #2361) and enrolled at .text 0x020c368c-0x020c39f8; re-verified here against
+# extracted/overlays/overlay_0007.bin at the config base, tools/match.py MATCH at 2004/b56
+# with strict relocs. It is called twice a frame on the FILE SELECT -- from
+# func_ov007_020cb7c0+0x2a8 over 0x16c vectors and from func_ov007_020cb3dc+0xc4 over the
+# 0xd2 grid normals at 0x022997bc, which is the array the textured emitter one row down
+# reads -- so its L2_UNMATCHED trap in hal/scene_boot.cpp was returning 0 over the whole
+# screen. That trap is deleted in this same change: a trap and a body for one name is an
+# LNK2005. Its register traffic (DIVCNT/DIV_NUMER/DIV_DENOM/DIV_RESULT/SQRTCNT/
+# SQRT_RESULT/SQRT_PARAM and IME) reaches ntr/io.cpp through hostgen, so the row is
+# SUBSTITUTED by PORT_HOSTGEN_TU in port/CMakeLists.txt.
+src/func_ov007_020c368c.c
 src/func_ov007_020c39f8.c
 src/func_ov007_020c3abc.c
 src/func_ov007_020c3ba8.c
@@ -672,6 +701,19 @@ src/func_ov007_020ca308.c
 src/func_ov007_020ca578.c
 src/func_ov007_020ca5f0.c
 src/func_ov007_020ca86c.c
+# SEATED 2026-09-17 (run link100 wave 12, fixer FILESEL, card out/FILESEL1/card_filesel.md).
+# The TEXTURED triangle-strip emitter for the ov007 water grid, sibling of
+# func_ov007_020ca86c one row up (the untextured one) and called twice a frame from
+# func_ov007_020ca5f0+0x1b8 on the FILE SELECT with the grid's vertices, its normals and
+# its two texcoord runs. Matched on main by 726f28f24 (PR #2308) and enrolled at .text
+# 0x020caeac-0x020cb3dc; re-verified here against extracted/overlays/overlay_0007.bin at
+# the config base, tools/match.py MATCH at 2004/b56 with strict relocs. Its L2_UNMATCHED
+# trap in hal/scene_boot.cpp returned 0 every call, so the strip was never emitted -- the
+# top screen's animated band (cartridge rows 128-191, measured; the port's was still) is
+# what that cost. The trap is deleted in this same change. Geometry command ports
+# (BEGIN_VTXS/END_VTXS/NORMAL/TEXCOORD/VTX_16), so the row also joins TITEX_GX_SYMS and
+# the plain entry is cut there in favour of the hostgen copy, exactly as its sibling is.
+src/func_ov007_020caeac.c
 src/func_ov007_020cb3dc.c
 src/func_ov007_020cb4b0.c
 src/func_ov007_020cb7c0.c

@@ -820,7 +820,15 @@ set(PORT_HOSTGEN_TU
     src/minigames/d_s_mg_m_carlo.cpp
     src/minigames/d_s_mg_m_carlo2.cpp
     src/minigames/d_s_mg_trampoline.cpp
-    src/minigames/d_s_mg_bsc.cpp)
+    src/minigames/d_s_mg_bsc.cpp
+    # run link100 wave 12, fixer FILESEL (card out/FILESEL1/card_filesel.md). The ov007
+    # vector normalise the FILE SELECT runs twice a frame: matched on main by 7dba86b5d
+    # (PR #2361), newly on slice_ov007.txt, and every one of its 24 register accesses is a
+    # literal-cast store or load to the DS divider, square root or IME. Plain, those latch in
+    # mapped memory and the units are never told, so the row is substituted by the hostgen
+    # copy, which routes all 24 through the NTR_MMIO proxy ntr/io.cpp emulates. No geometry
+    # command port is involved, which is why this is here and not in TITEX_GX_SYMS.
+    src/func_ov007_020c368c.c)
 
 # ---- run link100 lane SAMECLASS: THE SAME DROPPED-STORE DEFECT, ELEVEN MORE -
 #
@@ -6819,7 +6827,8 @@ set(TITEX_GX_SYMS
     func_ov007_020c4fcc    # COLOR  POLYGON_ATTR  TEXIMAGE_PARAM
     func_ov007_020ca5f0    # MTX_PUSH MTX_POP MTX_SCALE MTX_TRANS POLYGON_ATTR
                            # DIF_AMB SPE_EMI
-    func_ov007_020ca86c)   # NORMAL  VTX_16  BEGIN_VTXS  END_VTXS
+    func_ov007_020ca86c    # NORMAL  VTX_16  BEGIN_VTXS  END_VTXS
+    func_ov007_020caeac)   # TEXCOORD  NORMAL  VTX_16  BEGIN_VTXS  END_VTXS
 list(LENGTH TITEX_GX_SYMS TITEX_GX_WANT)
 if(TITEX_GX_PLAIN)
     message(STATUS "TITEX: TITEX_GX_PLAIN=ON -- ov007's ${TITEX_GX_WANT} "
