@@ -427,10 +427,25 @@ void *_ZN13SharedFilePtr9ConstructEj(void *self, unsigned id);
    carries `func_02017a24 def_n 1 / decl_n 2 INVENTS` twice, once for
    __sinit_ov006_0212f6b4 and once for __sinit_ov006_02130a08. That census is
    REPORT ONLY -- only the receiver and plain-name subsets are ratcheted -- so
-   it never failed a build. src/func_02017a24.c is now out of port/slice_mg1.txt
-   and this is the definition. */
-int func_02017a24(void *self, unsigned id)
-{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+   it never failed a build. src/func_02017a24.c was taken out of
+   port/slice_mg1.txt and this became the definition.
+
+   RETIRED, run link100 wave 15 lane SEAT15C. Everything above is why the
+   veneer was right, and it is also the reason it can go now: what PSY
+   measured was a SOURCE that spelled one parameter, and main has since
+   matched src/func_02017a24.c with both spelled --
+
+       extern void *func_02017ae4(void *self, unsigned int fileID);
+       void *func_02017a24(void *self, unsigned int fileID)
+       { func_02017ae4(self, fileID); return self; }
+
+   -- and func_02017ae4 and func_02017e48 under it are now the same shape and
+   are both on the link line, so the id reaches func_02017e0c instead of
+   becoming a return address. This row is NOT in LINK15's census: the census
+   listed its four siblings and missed this one because PSY had already moved
+   it off its slice. Seated last and alone, and gated on the whole sweep
+   exactly as the paragraph above asks, because it runs in every ov006
+   constructor. port/slice_l15fs.txt carries the row. */
 /* PORT_HOST_ABI: fileptr dtor veneer; host card seam does not refcount. */
 int func_02017ab4(int x) { return x; }   /* static-dtor veneer: no-op */
 /* RETIRED, run link100 wave 15 lane SEAT15C: src/func_02017b4c.c now spells

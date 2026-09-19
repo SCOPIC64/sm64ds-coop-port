@@ -68,4 +68,4 @@ src/func_02018e3c.c
 # that measurement (scene 389, "FATAL: fs fileID 0xf40c matches no archive
 # range") is what the whole family's evidence rests on. Its src now spells both.
 # It goes in last and alone.
-# src/func_02017a24.c
+src/func_02017a24.c
