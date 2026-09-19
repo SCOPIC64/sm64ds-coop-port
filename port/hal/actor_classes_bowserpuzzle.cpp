@@ -157,6 +157,9 @@ void _ZN6Memory10DeallocateEPvP4Heap(void *, void *);
 extern void *data_020a0eac;            /* Memory::gameHeapPtr */
 extern unsigned char _ZTV19BowserPuzzleManager[];  /* the mounted shell table (0x84) */
 int *daObjFl_Coin_c_classInit(void);  /* .c factory, installs c1d8 itself */
+/* The slot-16 face onto the matched src/_ZN19BowserPuzzleManagerD1Ev.cpp; it is
+   defined at the bottom of this file, where BowserPuzzleManager.h is included. */
+void port_bpm_d1(void *self);
 
 /* the two derived vtables, HOST arrays this file fills; 31 slots each. `int[]`
    with C linkage matches the `extern int _ZTV..[]` decls in include/decl_common.h
@@ -392,11 +395,24 @@ static int __fastcall shl_behavior(void *s, void *)
 { return _ZN19BowserPuzzleManager8BehaviorEv(s); }
 static int __fastcall shl_render(void *s, void *)
 { return ((fBase_c *)s)->fBase_c::Render(); }
+/* SLOT 16 IS THE MATCHED TU NOW (run link100 wave 14, lane SEAT14C, BATCH 2).
+   What stood here was a hand-written teardown -- store the host shell table as
+   the mid-teardown vptr, then _ZN8dActor_cD2Ev -- written while
+   src/_ZN19BowserPuzzleManagerD1Ev.cpp (ov064 0x02118bec) was unlinked. That
+   TU is on port/slice_vtd1.txt now and this thunk forwards to it through the
+   face at the bottom of this file, which is where include/BowserPuzzleManager.h
+   is in scope. The base step is the same body: faces_sync.txt:2861 faces
+   __ZN8dActor_cD2Ev onto ??1dActor_c@@UAE@XZ and the ACTORPORT bridge aliases
+   that onto ??1dActor_c@@QAE@XZ = src/_ZN8dActor_cD1Ev.cpp, which is exactly
+   what the matched destructor's own ~dActor_c() call reaches. The vptr the
+   matched destructor stores is MSVC's own ??_7BowserPuzzleManager@@6B@ rather
+   than this array; ~dActor_c overwrites it one call later and nothing
+   dispatches in between, which is the transient store hal/dtor_store_guard.py
+   rules inert. It is NOT the mounted _ZTV19BowserPuzzleManager -- those words
+   are DS addresses and still must never be dispatched. */
 static int __fastcall shl_d1(void *s, void *)
 {
-    char *st = (char *)s;
-    *(void **)st = (void *)port_bp_shell_vtable;
-    _ZN8dActor_cD2Ev(st);
+    port_bpm_d1(s);
     return (int)(size_t)s;
 }
 static int __fastcall shl_d0(void *s, void *)
@@ -494,4 +510,32 @@ int _ZN17BowserPuzzlePiece16CleanupResourcesEv(void *self)
 { return ((BowserPuzzlePiece *)self)->BowserPuzzlePiece::CleanupResources(); }
 int _ZN9JetStream13InitResourcesEv(void *self)
 { return ((JetStream *)self)->JetStream::InitResources(); }
+
+/* THE MANAGER'S SLOT-16 FACE (lane SEAT14C, BATCH 2). shl_d1 above calls this;
+   it calls the matched ov064 0x02118bec destructor, qualified so it is the
+   complete-object form and not a virtual re-dispatch. */
+void port_bpm_d1(void *self)
+{ ((BowserPuzzleManager *)self)->BowserPuzzleManager::~BowserPuzzleManager(); }
 }
+
+/* THE TWO COMPILER-VTABLE SLOTS THE MATCHED TU NEEDS, under the ACTORPORT
+   ruling (hal/actorport_dtor_bridge.cpp, section 2 of its header). Compiling
+   src/_ZN19BowserPuzzleManagerD1Ev.cpp makes MSVC emit ??_7BowserPuzzleManager@@6B@,
+   and include/BowserPuzzleManager.h spells the destructor pair as two plain
+   virtuals under _MSC_VER so that MSVC numbers the table the way mwccarm does.
+   NOTHING DISPATCHES THAT COMPILER TABLE: this overlay's objects come out of the
+   .c factories and are reseated onto the host arrays this file fills, so these
+   two only have to LINK. Destructor1 is the class's own complete-object
+   destructor, which is what ROM slot 16 holds. Destructor0 is the shared trap
+   the bridge uses, because the deleting half's free is per class and inventing
+   one generic body would be a guess; if it ever fires, something really did
+   dispatch the compiler table and that is a finding, not a crash to paper over.
+   The bridge's generator did not emit a row for this class because nothing in
+   the image referenced the pair until this batch put the TU on a slice. */
+extern "C" void __fastcall actorport_dtor_slot_trap(void *self, void *unused);
+
+void BowserPuzzleManager::Destructor1()
+{ this->BowserPuzzleManager::~BowserPuzzleManager(); }
+
+void BowserPuzzleManager::Destructor0()
+{ actorport_dtor_slot_trap(this, 0); }

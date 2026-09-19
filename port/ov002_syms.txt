@@ -500,7 +500,7 @@ g_profile_CH_ROOM:0x1c
 # 0x20-byte ones as [i*2] and [i*2+1] with i 0..3, and the three 0x50-byte
 # blocks as five 4-int rows by func_ov002_020f2f9c. No size suffix is needed
 # on any of them.
-data_ov002_021000c8 data_ov002_021000d8 data_ov002_021000e0 data_ov002_021000f0 data_ov002_02100100 data_ov002_02100110 data_ov002_02100120 data_ov002_02100130 data_ov002_02100150 data_ov002_02100160 data_ov002_02100170 data_ov002_02100190 data_ov002_021001b0 data_ov002_02100200 data_ov002_02100250
+data_ov002_021000b8 data_ov002_021000c8 data_ov002_021000d0 data_ov002_021000d8 data_ov002_021000e0 data_ov002_021000f0 data_ov002_02100100 data_ov002_02100110 data_ov002_02100120 data_ov002_02100130 data_ov002_02100150 data_ov002_02100160 data_ov002_02100170 data_ov002_02100190 data_ov002_021001b0 data_ov002_02100200 data_ov002_02100250
 
 # ---- link100 STUBADJ, gate 226 ----
 # daObjPushblock_c::InitResources (0x020b8fe0, slot 0 of _ZTV16daObjPushblock_c)
