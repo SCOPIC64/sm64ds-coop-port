@@ -7727,7 +7727,12 @@ set(SCENE_MG_SOURCES
     unmatched/MgPachinko_Dtor.cpp
     unmatched/MgPachinko_Traps.cpp
     unmatched/MgPachinko_Faces.cpp
-    unmatched/MgPachinko_OamRender.cpp
+    # RETIRED run link100 wave 15, lane SEAT15D. src/func_ov006_020fa7b8.cpp
+    # now spells `extern void* data_ov006_0213ac24;`, which is the one token
+    # this host copy existed to change, so the matched TU is taken instead --
+    # see port/slice_l15mg.txt. Put this line back only together with the
+    # slice line, or the link gets two definitions of func_ov006_020fa7b8.
+    # unmatched/MgPachinko_OamRender.cpp
     # Run mg5, lane HISCORE: the class's scoring tick, and the one argument
     # ride-through it owes. func_ov006_020fb7e0 calls the award routine
     # func_ov006_020fbb2c with two arguments where the definition takes three,
@@ -8813,7 +8818,15 @@ set(SCENE_MG_FLOWER_SOURCES
     # rather than joining it -- both are out of slice_flw.txt -- so they are
     # not optional on any target that compiles the slice.
     unmatched/MgFlower_Slot2.cpp
-    unmatched/MgFlower_InitScore.cpp
+    # unmatched/MgFlower_InitScore.cpp RETIRED run link100 wave 15, lane
+    # SEAT15D. The half of the sentence above that applies to
+    # func_ov004_020ad8b8 is no longer true: src/func_ov004_020ad8b8.c:3 now
+    # declares `extern int func_ov004_020adc3c(int* c);` and :24 passes `c`,
+    # and the TU's own header says the argument USED TO BE dropped here. The
+    # matched TU is taken instead -- see port/slice_l15mg.txt. Put this line
+    # back only together with the slice line. The OTHER half,
+    # unmatched/MgFlower_Slot2.cpp above, is untouched and still owed.
+    # unmatched/MgFlower_InitScore.cpp
     # And the class's half of the pointer-to-member wall. It exists after all,
     # in a form section 4's two silent shapes do not cover: a dispatcher that
     # open-codes the Itanium sequence in plain ints. Replaces
@@ -9246,11 +9259,16 @@ set_source_files_properties(
 # it.
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_s371.txt" SLICE_S371_LINES)
 set(SLICE_S371_SOURCES hal/scene_mg_amida.cpp
-                       unmatched/MgAmida_Faces.cpp
-                       # REPLACES src/func_ov006_020d3ba0.cpp, which is out of
-                       # the slice: a //cpp-marked TU whose extern "C" block
-                       # tentatively defines the arm9 RNG seed. One token.
-                       unmatched/MgAmida_Slot3ba0.cpp)
+                       unmatched/MgAmida_Faces.cpp)
+                       # unmatched/MgAmida_Slot3ba0.cpp RETIRED run link100
+                       # wave 15, lane SEAT15D. It REPLACED
+                       # src/func_ov006_020d3ba0.cpp because that TU's
+                       # extern "C" block tentatively defined the arm9 RNG
+                       # seed -- one token. src:34 now reads
+                       # `extern int data_0209d4b8;`, so the matched TU is
+                       # taken instead, through port/slice_l15mg.txt and the
+                       # SEAT15D block below. Put this line back only together
+                       # with the slice line.
 foreach(line IN LISTS SLICE_S371_LINES)
     string(STRIP "${line}" line)
     if(line MATCHES "^#" OR line STREQUAL "")
@@ -9277,9 +9295,11 @@ endforeach()
 # definition back.
 if("src/func_ov006_020d3ba0.cpp" IN_LIST SLICE_S371_LINES)
     message(FATAL_ERROR "slice_s371.txt lists src/func_ov006_020d3ba0.cpp, which "
-            "unmatched/MgAmida_Slot3ba0.cpp host-copies. Taking both is a "
-            "duplicate symbol; taking the src one puts a second definition of "
-            "the arm9 RNG seed data_0209d4b8 back in an ov006 object")
+            "port/slice_l15mg.txt now carries (run link100 wave 15, lane "
+            "SEAT15D: main respelled line 34 `extern int data_0209d4b8;`, so "
+            "unmatched/MgAmida_Slot3ba0.cpp is retired and the matched TU is "
+            "taken). Listing it twice is a duplicate symbol reported far from "
+            "its cause")
 endif()
 # ONE .c IN THIS SLICE IS REALLY C++, run mg10 lane F371, and the whole slice
 # was swept for the //cpp marker and for extern "C", virtual, class and
@@ -9301,6 +9321,54 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov006_020d36a4.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov006_020d27dc.c"
     PROPERTIES LANGUAGE CXX)
+
+# ---- run link100 wave 15, lane SEAT15D: LINK15 BATCH 3 -----------------------
+#
+# THREE HOST COPIES RETIRED AND THEIR MATCHED SOURCES TAKEN, because each was
+# written against a spelling in src/ that main has since fixed. The reading is
+# in port/slice_l15mg.txt, one paragraph per row, with the src line numbers as
+# they stand at 2ddf31f57; the two rows LINK15 put in the same batch that are
+# NOT here are refused there with their measured reasons.
+#
+#   unmatched/MgAmida_Slot3ba0.cpp      -> src/func_ov006_020d3ba0.cpp
+#   unmatched/MgPachinko_OamRender.cpp  -> src/func_ov006_020fa7b8.cpp
+#   unmatched/MgFlower_InitScore.cpp    -> src/func_ov004_020ad8b8.c
+#
+# Each host file keeps its banner and is marked RETIRED at the top; its
+# source-list entry above is commented out rather than deleted, so a lane that
+# has to put one back can see both halves of the swap. THE HOST LINE AND THE
+# SLICE LINE MOVE IN THE SAME COMMIT, which is the rule the S371 block states
+# in words a few lines up: taking both is a duplicate symbol reported far from
+# its cause.
+#
+# WHY THE SOURCES RIDE SLICE_S371_SOURCES rather than a variable of their own
+# on the three target source lists: those three lines are one line each, every
+# wave-15 batch has to edit them, and a list this block appends to is already
+# on all three. Nothing about the S371 slice is assumed; the append is the last
+# statement of this block and SLICE_S371_SOURCES is not read again before the
+# targets.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_l15mg.txt" SLICE_L15MG_LINES)
+set(SLICE_L15MG_SOURCES "")
+foreach(line IN LISTS SLICE_L15MG_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_L15MG_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+# A slice that silently empties would take the bodies out of the link
+# with no error until a scene dispatched one, so the count is asserted. Run
+# link100 wave 15, lane ESP3D added the fourth row (CleanupResources,
+# seated by flipping its port/faces_sync.txt row F -> R instead of a plain
+# slice-line swap), so the floor moved from three to four.
+list(LENGTH SLICE_L15MG_SOURCES l15mg_have)
+if(NOT l15mg_have EQUAL 4)
+    message(FATAL_ERROR "slice_l15mg.txt lists ${l15mg_have} sources, expected "
+            "the four LINK15 BATCH 3 rows (three from lane SEAT15D plus "
+            "CleanupResources from lane ESP3D); the retired host copies in "
+            "port/unmatched/ no longer define them")
+endif()
+list(APPEND SLICE_S371_SOURCES ${SLICE_L15MG_SOURCES})
 
 # Run mg9 lane S381: dScMgMCarlo_c, the "Pair-a-Gone" card minigame, actor id
 # 0x17d = scene 381, and the FOURTH class the port seats under
@@ -9568,9 +9636,16 @@ set_source_files_properties(
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_psy.txt" SLICE_PSY_LINES)
 set(SLICE_PSY_SOURCES hal/scene_mg_psycheout.cpp
                       unmatched/Mg3DEsp_StateDispatch.cpp
-                      # REPLACES src/_ZN12dScMg3DEsp_c16CleanupResourcesEv.cpp, which is out of
-                      # the slice: see the block below this one.
-                      unmatched/Mg3DEsp_Cleanup.cpp
+                      # unmatched/Mg3DEsp_Cleanup.cpp RETIRED run link100 wave
+                      # 15, lane ESP3D. src/_ZN12dScMg3DEsp_c16CleanupResourcesEv.cpp
+                      # is a real C++ member and is taken instead, through
+                      # port/slice_l15mg.txt; the flat Itanium name its one
+                      # caller (hal/scene_mg_psycheout.cpp) spells is now
+                      # published by the generated REVERSE face its
+                      # port/faces_sync.txt row asks for (F -> R). Put this
+                      # line back only together with the slice line, or the
+                      # link gets two definitions of the flat name.
+                      # unmatched/Mg3DEsp_Cleanup.cpp
                       # REPLACES src/_ZN15dMg3DEspModel_c8BehaviorEv.cpp, out of the slice:
                       # the EIGHTH dispatcher, and the one that reads its member
                       # pointer out of an OBJECT FIELD rather than a table. No

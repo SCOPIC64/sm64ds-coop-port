@@ -338,6 +338,96 @@ extern "C" int port_touch_forced(int *fx, int *fy)
     return 1;
 }
 
+/* ---- THE IN-PROCESS STYLUS, run link100 lane TOUCH1 -----------------------
+ *
+ * SM64DS_CLICK_TEST's driver (tests/walk_window.cpp) used to press the stylus
+ * by moving the real pointer with SetCursorPos and pushing a real button edge
+ * through SendInput, which only works while the game's window is the
+ * FOREGROUND window -- so the driver called SetForegroundWindow and the window
+ * took Tango's screen. That is the one launcher path in the port that could
+ * still do that, and it is banned.
+ *
+ * ARMING THIS IS THE BUTTON, and the point handed in is the cursor. Everything
+ * below the query -- the two layout transforms, the drag latch, the clamp, the
+ * change-edge store, the ring -- is the code a hand reaches, unchanged and not
+ * copied: poll_touch takes its own live branch with these two values in place
+ * of the OS's. So a click script still exercises the client-pixel transform
+ * (which is the whole reason SM64DS_CLICK_TEST exists beside
+ * SM64DS_TOUCH_PROBE, see that banner in tests/walk_window.cpp) without asking
+ * the OS for anything and without a window in front of anybody.
+ *
+ * IT LATCHES, because the thing it replaces latched: the OS button state stays
+ * down between the driver's call and the next poll, and the level loop's
+ * driver call happens AFTER that loop's hal_sub_screen_frame_begin. A press
+ * armed on one frame and consumed on the next is the behaviour the SendInput
+ * path already had.
+ *
+ * Host bookkeeping, deliberately not in .dsstate, for the touch probe's own
+ * reason: a save-state load must not rewind the script driving the run. */
+static int g_inj_armed;
+static int g_inj_cx, g_inj_cy;
+static unsigned g_inj_frames;     /* polls that saw the latch armed */
+static unsigned g_inj_presses;    /* arming edges */
+static unsigned g_inj_on_surface; /* of those polls, how many published a DS pixel */
+
+extern "C" void port_touch_inject_client(int cx, int cy)
+{
+    if (!g_inj_armed) ++g_inj_presses;
+    g_inj_armed = 1;
+    g_inj_cx = cx;
+    g_inj_cy = cy;
+}
+
+extern "C" void port_touch_inject_release(void)
+{
+    g_inj_armed = 0;
+}
+
+/* frames, presses, surface hits. Used by the driver's own census line. */
+extern "C" void port_touch_inject_census(unsigned *frames, unsigned *presses,
+                                         unsigned *on_surface)
+{
+    if (frames)     *frames = g_inj_frames;
+    if (presses)    *presses = g_inj_presses;
+    if (on_surface) *on_surface = g_inj_on_surface;
+}
+
+/* ---- THE PROBE'S CENSUS, ON STDOUT, run link100 lane TOUCH1 ---------------
+ *
+ * WHY STDOUT AND WHY AT ALL. Every line this probe prints goes to stderr, and
+ * on the scene path walk_window has already pointed stderr at playlog/. So a
+ * harness that captures the child's stdout (which is where the [scene] report
+ * every scene lane reads comes out) sees NOTHING from the probe, however well
+ * it worked. port/touch_map.txt section 5 recorded that trap in 2026-08 after
+ * losing four runs to it; prover CURLPROOF lost its whole measurement to the
+ * same thing tonight and reported the probe dead on the minigame path when it
+ * was writing the record correctly all along, 1492 poked frames deep.
+ *
+ * One line, on the stream the report is on, saying what the script did. Inert
+ * unless SM64DS_TOUCH_PROBE is set: the atexit is registered from inside the
+ * parser and only when the parse produced entries.
+ *
+ * PRESS EDGES ARE THE NUMBER THAT MATTERS and that is why they are counted
+ * separately from poked frames. The ROM's own producer spells byte +1 as
+ * `touch XOR previous` (src/func_0203bb60.c), so ONE held press is ONE edge,
+ * and every gate in the game that reads "touched AND changed" -- curling's
+ * func_ov006_020e1b54 is one -- can only fire on that single frame. A script
+ * that holds one long press across a scene's warm-up timer therefore delivers
+ * a press the game is structurally unable to see, and the old log gave a lane
+ * no way to tell that apart from a broken bridge. */
+static unsigned g_tp_polls, g_tp_poked, g_tp_edges, g_tp_releases;
+static int g_tp_last_x = -1, g_tp_last_y = -1;
+
+static void touch_probe_census(void)
+{
+    std::printf("[touch] probe census: %d script entr(ies), %u poll(s), %u "
+                "poked frame(s), %u press edge(s), %u release(s), last DS "
+                "(%d,%d)\n",
+                g_tp_n, g_tp_polls, g_tp_poked, g_tp_edges, g_tp_releases,
+                g_tp_last_x, g_tp_last_y);
+    std::fflush(stdout);
+}
+
 void touch_probe_parse(void)
 {
     g_tp_n = 0;
@@ -369,6 +459,8 @@ void touch_probe_parse(void)
         while (*s && *s != ',') ++s;
         if (*s == ',') ++s;
     }
+    if (g_tp_n > 0)
+        std::atexit(touch_probe_census);
 }
 
 const TouchProbeEnt *touch_probe_at(int f)
@@ -461,12 +553,27 @@ void poll_touch(void)
     static int drag_own;
     /* THE PHYSICAL BUTTON, asked once, because it is now the thing that ends a
        drag and no longer merely the thing that starts one. */
-    const int btn = !g_headless && g_on && GetAsyncKeyState_ &&
-                    (GetAsyncKeyState_(VK_LBUTTON) & 0x8000) ? 1 : 0;
+    /* run link100 lane TOUCH1: an armed in-process injection IS the button and
+       its client point IS the cursor. One branch, so everything below -- the
+       two transforms, the latch, the clamp, the store -- is the same code the
+       hand reaches. Unarmed this costs one load and nothing else. */
+    const int inj = g_inj_armed;
+    if (inj) ++g_inj_frames;
+    const int btn = inj ? 1
+                        : (!g_headless && g_on && GetAsyncKeyState_ &&
+                           (GetAsyncKeyState_(VK_LBUTTON) & 0x8000) ? 1 : 0);
     if (!btn) drag_own = 0;
-    if (btn && GetCursorPos_ && ScreenToClient_) {
+    if (btn && (inj || (GetCursorPos_ && ScreenToClient_))) {
         POINT p;
-        if (GetCursorPos_(&p) && ScreenToClient_(g_hwnd, &p)) {
+        int got;
+        if (inj) {
+            p.x = g_inj_cx;
+            p.y = g_inj_cy;
+            got = 1;
+        } else {
+            got = (GetCursorPos_(&p) && ScreenToClient_(g_hwnd, &p)) ? 1 : 0;
+        }
+        if (got) {
             /* THE TRANSFORM HAS TWO SHAPES NOW, one per layout, and which one
                runs is the only thing the mode changes about the touch.
 
@@ -498,6 +605,7 @@ void poll_touch(void)
                                    fy >= 0 && fy < ntr::SUB_H;
             /* the arming edge, and the only one there is */
             if (on_surface) drag_own = 1;
+            if (inj && on_surface) ++g_inj_on_surface;
             if (on_surface || drag_own) {
                 /* THE NEAREST POINT ON THE BOTTOM SCREEN. On the surface both
                    of these are no-ops, which is why a drag that stays on the
@@ -528,6 +636,8 @@ void poll_touch(void)
     const int f = g_tp_frame++;
     g_tp_cur = f;
     const TouchProbeEnt *tp = g_tp_n > 0 ? touch_probe_at(f) : 0;
+    if (g_tp_n > 0) ++g_tp_polls;
+    if (tp && tp->poke) ++g_tp_poked;
     unsigned char pre8 = 0, pre9 = 0, prea = 0, preb = 0;
     if (tp) {
         /* what the four names read BEFORE this poll writes anything: slot 0,
@@ -805,10 +915,12 @@ void poll_touch(void)
                 std::fprintf(stderr, "[touch] f%d PRESS (scripted probe, no "
                              "mouse) -> DS (%u,%u)\n", f, sx, sy);
             std::fflush(stderr);
+            ++g_tp_edges;
             held_from = f;
             refused_said = 0;
             off_was = 0;
         } else if (!down && down_was) {
+            ++g_tp_releases;
             std::fprintf(stderr, "[touch] f%d release after %d frame(s), last "
                          "DS (%u,%u)%s\n", f, f - held_from, last_x, last_y,
                          off_was ? ". The button came up OFF the stylus "
@@ -854,6 +966,8 @@ void poll_touch(void)
         if (down) {
             last_x = sx;
             last_y = sy;
+            g_tp_last_x = sx;
+            g_tp_last_y = sy;
         } else if (live_seen && !live_on && !refused_said) {
             /* NOT "off-picture", and not a fault. Say where it landed. */
             int fx = 0, fy = 0;
@@ -2155,6 +2269,32 @@ static void client_to_src(int cx, int cy, int *x, int *y, int *sw, int *sh)
            back out so an inside/outside answer is exact at the seam. */
         if (cx < g_pr_x) *x = -1;
         if (cy < g_pr_y) *y = -1;
+    } else if (hal_sub_screen_stacked()) {
+        /* NOTHING HAS PRESENTED AND THE STACKED IMAGE CARRIES ITS OWN SCALE,
+           so the divide below would halve a point that is already in the
+           image's own pixels. Measured (run link100 lane TOUCH1): a scene 374
+           window quiet-spawned minimized never presents at all -- the probe
+           prints "NO PRESENT RECTANGLE was ever published ... src 0x0, layout
+           stacked, image 512x832 ... bottom_y 448" after fifteen hundred
+           frames -- and the halved point lands 400 rows above the bottom
+           screen's band, so every click in that window reads as the TOP screen
+           and nothing is ever published. Minimized-never-activated is the ONLY
+           window shape allowed while Tango is present, so that is not a corner
+           case, it is the shape every click-driven proof has to run in.
+
+           1:1 IS THE IMAGE'S OWN MAPPING, not a guess: the stacked image is
+           built at 512x832 and the window's client area is sized to follow it
+           (hal/gap's "the stacked image grew 768 -> 832 rows; the window
+           client area follows"), so with no fit to invert, client pixel IS
+           image pixel. The zoom divide stays for the inset layout, where the
+           source is one framebuffer and the zoom is the window's.
+
+           IT CANNOT MOVE A RUN THAT PRESENTED. present() publishes a real
+           rectangle on its first frame and that takes the branch above; this
+           one is only reached before the first present or when there is none
+           at all. */
+        *x = cx;
+        *y = cy;
     } else {
         /* nothing has presented yet: the fixed-zoom divide this was before */
         *x = cx / (g_zoom > 0 ? g_zoom : 1);
