@@ -17,8 +17,9 @@
 //                           handoff, which is the level-independent half of
 //                           func_ov002_020e8ef0 plus func_ov002_020c94a4's
 //                           ExitLevel tail.
-//   HitDeathPlane           an ARM argument ride-through, hosted here for the
-//                           same reason as the five in hal/sdat/sound_abi.cpp.
+//   HitDeathPlane           RETIRED at run link100 wave 15: main fixed the
+//                           argument the host copy used to name, and the
+//                           matched TU runs. See the block below.
 //
 // plus a probe surface (port_course_probe_*) the harnesses drive so every
 // one of those paths can be shown moving with a log rather than asserted.
@@ -113,35 +114,29 @@ extern unsigned char data_0209d45c;   /* engine A's software layer mask; the
 }  // extern "C"
 
 // =============================================================================
-// HitDeathPlane: an ARM argument ride-through
+// HitDeathPlane: RETIRED, the matched TU runs (run link100 wave 15, SEAT15F)
 // =============================================================================
 //
-// src/HitDeathPlane.c declares `extern void SetNextLevel(void)` and calls it
-// with no arguments, while src/SetNextLevel.c defines `SetNextLevel(int arg)`.
-// That is the same shape as the five in hal/sdat/sound_abi.cpp: on ARM the
-// argument is already in r0 from HitDeathPlane's own frame and the ROM's
-// `bl` never touches it, so mwccarm reproduces the bytes with the callee
-// unnamed. On x86 cdecl nothing is pushed and SetNextLevel's `arg` reads
-// whatever the caller's stack happened to hold -- and `arg` is what lands in
-// data_0209f26c, the reason-for-leaving code the next scene reads.
+// This file used to carry a host copy of HitDeathPlane, because src/ declared
+// `extern void SetNextLevel(void)` and called it with no arguments while
+// src/SetNextLevel.c defined `SetNextLevel(int arg)`: right on ARM, where the
+// value is already in r0 and the ROM's `bl` never touches it, and wrong on
+// cdecl, where `arg` read whatever the caller's stack happened to hold -- and
+// `arg` is what lands in data_0209f26c, the reason-for-leaving code the next
+// scene reads.
 //
-// `arg` is HitDeathPlane's only live value at the call, and it is the same
-// quantity SetNextLevel's parameter already carries elsewhere: ExitLevel
-// passes 1 (course cleared) and KillPlayer passes 2 (died). So the rider is
-// named here and src is left alone. src/HitDeathPlane.c is filtered out of
-// SLICE10_CAM_SOURCES in port/CMakeLists.txt.
+// MAIN HAS SINCE FIXED IT. src/HitDeathPlane.c at 8ddff3187 declares
+// `extern void SetNextLevel(int arg);` and calls `SetNextLevel(arg)`, and its
+// other two callees (StartExitFaderWipe, dScene_c::StartSceneFade) match this
+// file's own declarations of them argument for argument. So the host copy was
+// a stand-in for a defect that no longer exists, and it is gone: the matched TU
+// is back in SLICE10_CAM_SOURCES (the filter line in port/CMakeLists.txt came
+// out with the body) and the ROM's own text runs on the death-plane path.
+//
+// The one declaration the body left behind is kept: the VS fade below still
+// calls dScene_c::StartSceneFade.
 extern "C" {
 void _ZN8dScene_c14StartSceneFadeEjjt(unsigned a, unsigned b, unsigned short c);
-
-// PORT_HOST_ABI: ARM r0 ride-through -- src calls SetNextLevel(void) with arg in r0.
-void HitDeathPlane(int arg)
-{
-    if (data_0209f2f4[0] != 0 || arg == 0)
-        SetNextLevel(arg);
-    else
-        _ZN8dScene_c14StartSceneFadeEjjt(8, 0, 0);
-    StartExitFaderWipe(6);
-}
 }  // extern "C"
 
 /* Luigi Infection (hal/luigi_infection.cpp). The pre-round countdown driver
