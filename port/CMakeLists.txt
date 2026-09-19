@@ -4713,13 +4713,13 @@ endforeach()
 # RABBIT null-this +0x5c crash, reachable once slot 19 made the rabbit swallowable)
 list(APPEND SLICE18_SOURCES
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov085_Rabbit_b8dc.cpp")
-# r0-passthrough: four LakituBro (daC_Jugem_c) state bodies -- func_ov085_
-# 0212d9b8/dd10/e310/e4a4 -- each call Actor::ClosestPlayer() with no argument,
-# relying on `this` riding ARM r0. Host copies pass each body's own receiver; src
-# lines commented out in slice_gate18.txt. e4a4 (caught/grab state) is the site
-# caught taking a leaked receiver on a level-1 run.
-list(APPEND SLICE18_SOURCES
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov085_LakituBro_ClosestPlayer.cpp")
+# RETIRED by run link100 wave 15 lane SEAT15B (LINK15 BATCH 1). The four LakituBro
+# (daC_Jugem_c) state bodies func_ov085_0212d9b8/dd10/e310/e4a4 were host-copied
+# because their matched sources called Actor::ClosestPlayer() with no argument and
+# relied on `this` riding ARM r0. All four sources PASS the receiver today (re-read
+# at 8ddff3187: `(c)` in d9b8/dd10/e310, `((void *)self)` in e4a4), so the copies
+# had nothing left to work around. unmatched/Ov085_LakituBro_ClosestPlayer.cpp is
+# deleted and the four src rows are uncommented in slice_gate18.txt.
 
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate19.txt" SLICE19_LINES)
 set(SLICE19_SOURCES "")
@@ -5092,6 +5092,21 @@ foreach(line IN LISTS SLICE_W9HARVEST_LINES)
         continue()
     endif()
     list(APPEND SLICE_W9HARVEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run link100 wave 15, lane SEAT15B -- LINK15 BATCH 1, the ClosestPlayer receiver
+# family. Matched TUs whose host copy existed only because the source dropped the
+# ClosestPlayer receiver that rides ARM r0, and whose source passes it today. The
+# per-row evidence, and the sibling rows deliberately NOT here, are in the header
+# of port/slice_l15cp.txt. Same one-owner contract as the lane slices above.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_l15cp.txt" SLICE_L15CP_LINES)
+set(SLICE_L15CP_SOURCES "")
+foreach(line IN LISTS SLICE_L15CP_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_L15CP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
 # run linkw wave 6, lane w6-D: PATH_LIFT (31) and the PathLift base branch --
@@ -10951,11 +10966,14 @@ set(GATE32_HOST_SOURCES
     # over the mounted DS addresses on both sides of __sinit_ov102_0214dfac
     unmatched/KoopaShell_States.cpp
     # r0-passthrough overlay readers: func_ov084_02129cf4 (gate 32),
-    # func_ov084_0212f204 (gate 70), func_ov094_02136024 (gate 194) and
-    # func_ov102_02149078 (gate 203) each call Actor::ClosestPlayer() with no
-    # argument (this rode ARM r0). Host copies pass each body's own receiver; src
-    # lines commented out in their slice gates. Grouped here because all four ship
-    # on the same three targets this GATE32 host set is added to.
+    # func_ov084_0212f204 (gate 70) and func_ov102_02149078 (gate 203) each call
+    # Actor::ClosestPlayer() with no argument (this rode ARM r0). Host copies pass
+    # each body's own receiver; src lines commented out in their slice gates.
+    # Grouped here because all three ship on the same three targets this GATE32
+    # host set is added to.
+    # func_ov094_02136024 (gate 194) and func_ov060_02111f08 LEFT this file at run
+    # link100 wave 15 lane SEAT15B: their sources pass the receiver now, so the
+    # matched TUs took the seats (slice_gate194.txt and port/slice_l15cp.txt).
     unmatched/Actor_ClosestPlayer_OverlayReaders.cpp)
 
 # The header/definition collisions in this gate's closure: decl_common.h
@@ -16876,7 +16894,7 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W6A_SOURCES}
-    ${SLICE_W9HARVEST_SOURCES}
+    ${SLICE_W9HARVEST_SOURCES} ${SLICE_L15CP_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W3A_SOURCES}
@@ -17163,7 +17181,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W6A_SOURCES}
-    ${SLICE_W9HARVEST_SOURCES}
+    ${SLICE_W9HARVEST_SOURCES} ${SLICE_L15CP_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W3A_SOURCES}
@@ -17560,7 +17578,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W6A_SOURCES}
-    ${SLICE_W9HARVEST_SOURCES}
+    ${SLICE_W9HARVEST_SOURCES} ${SLICE_L15CP_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W3A_SOURCES}

@@ -217,7 +217,11 @@ port/unmatched/Boo_RenderUpdate.c
 # closestplayer_guard has no quarrel with seating it.
 #port/unmatched/Boo_StateTalk.c
 src/unnamed/ov063/func_ov063_02117cdc.c
-port/unmatched/Boo_Teleport.c
+# RETIRED by run link100 wave 15 lane SEAT15B (LINK15 BATCH 1): the matched TU
+# src/unnamed/ov063/func_ov063_02117650.c passes the ClosestPlayer receiver itself
+# (src:17, `(self)`), so Boo_Teleport.c had nothing left to work around. The src row
+# is on port/slice_l15cp.txt and the host copy is deleted.
+#port/unmatched/Boo_Teleport.c
 port/unmatched/Boo_CrossNamedDispatch.c
 port/unmatched/MansionSteps_InitResources.c
 port/unmatched/Bbh_PmfDispatch.c
