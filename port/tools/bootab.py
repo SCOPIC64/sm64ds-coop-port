@@ -43,6 +43,25 @@ chooses an act and the interlude only ends at its 1800-frame backstop. press=non
 drops the variable, which is the straight-in A/B of the same row.
 Their FRAMES (argv[3]) is fixed by the arm, so a warp row is the same length on
 every binary; the SCENE rows of a sweep are untouched by both.
+
+exit=<kind> changes how a LEVEL row is LEFT, which warpin/reentry do not cover:
+they prove a course's boot after a change, and every one of them ends with the
+course still standing. Nothing else in this run has ever run a course's exit.
+  exit=void   SM64DS_VOID_DROP=200 -- below the death plane, so the cartridge's
+              own func_ov002_020c5d60 -> ST_DEAD_PIT -> HitDeathPlane -> the
+              level change back to the hub with the death reason (2)
+  exit=star   SM64DS_STAR_DROP=#0,200 plus A presses -- stand on the level's
+              first PowerStar, let its collision run the star-get sequence and
+              the course-clear exit (reason 1)
+  exit=pause  START then the fourth pause button on the touch screen -- exit
+              course (reason 0)
+All three set selftest 1200 and SM64DS_EXIT_WATCH=1, and a row is FAIL unless
+the run carries a "[lvl] change:" line WITH THE REASON THAT ARM ASKED FOR (void
+2, star 1, pause 0), which is printed in the note. Both halves are needed: an
+exit that quietly does nothing exits 0 with the level still up, and a selftest
+that walks a course for 1200 frames falls off plenty of them on its own, so a
+change with the wrong reason measured the fall and not the arm. Scene rows are
+untouched.
 """
 import os, sys, time, shutil, subprocess
 EXE = os.path.abspath(sys.argv[1]); OUT = os.path.abspath(sys.argv[2])
@@ -66,10 +85,13 @@ REENTRY = any(a == "reentry=1" for a in sys.argv[5:])
 PRESS = "200:A"
 for a in sys.argv[5:]:
     if a.startswith("press="): PRESS = a[6:]
+EXIT = ""
+for a in sys.argv[5:]:
+    if a.startswith("exit="): EXIT = a[5:]
 # the row filter is positional but the flags are not, so a run that passes only a
 # flag must not have that flag read as a filter (it would then match no prefix and
 # sweep everything by accident)
-if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=")): FILTER = ""
+if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=", "exit=")): FILTER = ""
 if FILTER.startswith("levels="):
     sel = FILTER[7:]; SCENES = ()
     if sel != "all": LEVELS = tuple(i for i in LEVELS if str(i) in sel.split(","))
@@ -103,6 +125,46 @@ def run(kind, ident, label):
                 env["SM64DS_WARP_SEQ"] = "%d@400,%d@800" % (other, int(ident))
                 env["SM64DS_WINDOW_SELFTEST"] = "1400"
             if PRESS and PRESS != "none": env["SM64DS_PROBE_INPUT"] = PRESS
+        if EXIT:
+            # LEAVING a course, which no other arm of this tool does. Each one
+            # drives the cartridge's own exit and writes nothing but a position
+            # or a pad word; walk_window.cpp's EXIT ARMS block is the whole of
+            # them. The row is graded on the level change as well as the exit
+            # code, because an exit that quietly does nothing leaves a live
+            # level behind and exits 0.
+            env["SM64DS_WINDOW_SELFTEST"] = "1200"
+            env["SM64DS_EXIT_WATCH"] = "1"
+            if EXIT == "void":
+                # the death plane: drop below it at 200 and let
+                # func_ov002_020c5d60 -> ST_DEAD_PIT -> HitDeathPlane run
+                env["SM64DS_VOID_DROP"] = "200"
+            elif EXIT == "star":
+                # stand on the level's first PowerStar and press A through the
+                # star-get prompts
+                env["SM64DS_STAR_DROP"] = "#0,200"
+                env["SM64DS_PROBE_INPUT"] = \
+                    "260:A,300:A,340:A,380:A,420:A,460:A"
+            elif EXIT == "pause":
+                # START, then the fourth pause button (exit course). The four
+                # buttons are touch boxes x 8..247, y 0x20/0x48/0x70/0x98 each
+                # 0x20 tall; the tap has to carry a press EDGE, so it is a
+                # short range, not a hold.
+                #
+                # SEVEN STARTS, NOT ONE, and that is the cartridge's doing.
+                # Stage::PS_Update case 2 (src/_ZN5Stage9PS_UpdateEv.cpp:404)
+                # forks on Player::CanPause (0x020bd828 through
+                # src/func_02029408.c), which returns 0 while the player is
+                # AIRBORNE, taking damage or under no control. A START pressed
+                # mid-stride lands in pause sub-state 0xb, which has no menu
+                # buttons at all, and the run then reads as "the pause menu
+                # ignores every tap" -- measured on 14, 15, 28, 33, 34 and
+                # thirteen more. Retrying every 60 frames finds a grounded one.
+                env["SM64DS_PROBE_INPUT"] = ",".join(
+                    "%d:START" % f for f in range(200, 620, 60))
+                env["SM64DS_TOUCH_PROBE"] = ",".join(
+                    "%d-%d:128:168" % (f, f + 1) for f in range(230, 650, 60))
+            else:
+                sys.exit("unknown exit=%s (void, star, pause)" % EXIT)
     else: env["SM64DS_SCENE_FRAMES"] = FRAMES
     env["SM64DS_FAULTS_FATAL"] = "1"; env["SM64DS_NO_FOCUS"] = "1"; env["SM64DS_VOLUME"] = "0"
     # set on level and scene rows alike: the aspect is latched at boot, before
@@ -124,6 +186,27 @@ def run(kind, ident, label):
         if key in low: note = key; break
     if rc == "TIMEOUT": note = (note + " " if note else "") + "timeout"
     elif isinstance(rc, int) and rc != 0: note = (note + " " if note else "") + "rc 0x%08x" % (rc & 0xFFFFFFFF)
+    if EXIT and kind == "SM64DS_LEVEL":
+        # an exit row that exits 0 but never left the level is a FAIL: the
+        # whole point of the arm is the change, and a course that swallows it
+        # leaves the player standing in a level he asked to leave.
+        #
+        # AND IT HAS TO BE THE RIGHT EXIT. data_0209f26c, the reason the change
+        # carries, is 2 for a death, 1 for a course cleared and 0 for anything
+        # else including exit-course. A selftest that walks a course for 1200
+        # frames falls off plenty of them by itself, so a pause row that came
+        # back with reason 2 measured a fall, not the pause menu -- eleven of
+        # the first star sweep's twenty-six "passes" were that.
+        want = {"void": 2, "star": 1, "pause": 0}.get(EXIT)
+        chg = ""
+        for line in out.splitlines():
+            if line.startswith("[lvl] change:"): chg = line.strip(); break
+        if not chg:
+            ok = False
+        elif want is not None and ("reason %d" % want) not in chg:
+            ok = False
+            chg += "  (WRONG EXIT: wanted reason %d)" % want
+        note = (note + " | " if note else "") + (chg or "NO LEVEL CHANGE")
     if not ok:
         d = os.path.join(OUT, "%s%d" % (label, ident)); os.makedirs(d, exist_ok=True)
         for a in ART:
