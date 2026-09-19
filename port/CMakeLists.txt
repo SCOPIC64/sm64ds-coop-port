@@ -21419,6 +21419,67 @@ foreach(_tl15enab walk_window walk_window_hires smoke_player)
     target_sources(${_tl15enab} PRIVATE ${SLICE_L15ENAB_SOURCES})
 endforeach()
 
+# ===========================================================================
+# R-L15B3 (run link100 wave 15, lane SEAT15A, BATCH 3): THE ov063 -> ov055
+# CROSS-OVERLAY EDGE, resolved by disassembly. The 22nd symscope crossing.
+# ===========================================================================
+#
+# THE AMBIGUITY. config/arm9/overlays/ov063/relocs.txt line 184 reads
+#     from:0x02118004 kind:arm_call to:0x02111264 module:overlays(27,55)
+# because ov027 and ov055 share one DS load window (both base 0x021111a0) and
+# both name a symbol at 0x02111264:
+#     ov027  _ZN10SlidingIce16CleanupResourcesEv  size 0x50, a __thiscall member
+#     ov055  func_ov055_02111264                  size 0x24, void(void)
+# src/unnamed/ov063/func_ov063_02117cdc.c (Boo's talk state, ov063
+# 0x02117cdc) picked the ov027 spelling: it declares
+# `extern void _ZN10SlidingIce16CleanupResourcesEv(void);` at line 25 and
+# calls it at line 148.
+#
+# IT IS ov055, read off the cartridge. extracted/overlays/overlay_0063.bin at
+# base 0x02115ee0 (never the dsd copy -- those are shifted) disassembles the
+# site as
+#     0x02117ff0  e1d000b0  ldrh  r0, [r0]
+#     0x02117ff4  e350001e  cmp   r0, #0x1e
+#     0x02117ff8  328dd01c  addlo sp, sp, #0x1c      (the early return)
+#     0x02117ffc  38bd40f0  ldmlo sp!, {r4-r7, lr}
+#     0x02118000  312fff1e  bxlo  lr
+#     0x02118004  ebffe496  bl    0x02111264
+# so at the call r0 holds a halfword that just tested >= 0x1e, not an object.
+# SlidingIce::CleanupResources takes `this` in r0 and would be handed 0x1e or
+# more as a receiver; func_ov055_02111264 takes nothing. The matched TU's own
+# call site agrees -- `if (*(u16 *)(arg0 + 0x100) < 0x1e) return;` and then a
+# call with no arguments. Two further marks in the same function's literal
+# pool: 0x02118434 holds 0x02111b6c, inside ov055's bss window
+# (0x02111b60..0x02111b80), whose reloc module column lists 55 and not 27; and
+# the function calls func_0201277c, which is the one call
+# src/func_ov055_02111264.c itself makes.
+#
+# WHAT THIS ROW DOES. A per-source rename, not an /alternatename, exactly like
+# the d_a_obj_emm_log.cpp row above (ov052/ov056, the same overlapping-base
+# name race): the ov027 name is a LIVE symbol in this build
+# (?CleanupResources@SlidingIce@@UAEHXZ plus its flat face in
+# hal/faces_sync_gen.cpp), so an alias would be defeated and would also be
+# wrong -- both names are real, they just belong to different overlays.
+# src/ is never edited; the defect is reported in out/SEAT15A/bugs.md.
+#
+# IT IS ALSO A LIVE DEFECT REMOVAL, not only a linkage row. The flat face for
+# the ov027 name is a __cdecl body that reads its receiver from the first
+# stack slot, and this caller pushes nothing, so before this row the Boo talk
+# state called SlidingIce::CleanupResources on whatever happened to be at
+# [esp+4] -- which then reads actorID off it and, on a match, calls
+# dBgW::Disable through it. Afterwards it calls the 36-byte ov055 body the
+# cartridge calls, which sets data_ov055_02111b68 to 2 and plays sound 0x179.
+#
+# It also gives src/func_ov055_02111264.c its first reference, so /OPT:REF
+# stops stripping it: port/slice_sweep2_ov055.txt has carried that TU unlinked
+# since the sweep-2 lane wrote "it becomes live the day that ov063 caller is
+# seated", and this is that day.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/unnamed/ov063/func_ov063_02117cdc.c"
+    PROPERTIES COMPILE_DEFINITIONS
+    "_ZN10SlidingIce16CleanupResourcesEv=func_ov055_02111264")
+
+
 
 
 # LANE SMOKELINK2 (run link100 wave 10 round 2): walk_window_hires ALSO NEEDS
