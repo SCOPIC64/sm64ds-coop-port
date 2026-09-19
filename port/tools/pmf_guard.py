@@ -198,11 +198,21 @@ LEDGER = [
      "tail jumps that load the pair out of the table with the receiver in "
      "[ebp+8] and leave it at [esp+4]"),
     ("ECX", r"^\?g_ukiki_cells@@",
-     "daMky_c: ?Behavior@daMky_c@@UAEHXZ +0x203 calls the TICK half with "
-     "ecx = this + delta and nothing pushed; the ENTER half is reached only "
-     "by the flat tail jumps _func_ov030_021141a8 (va 006cd080) and "
-     "_02114134, _02113324, _02113d20, _02113ff0",
-     r"^(__ZN7daMky_c11EnterState\d+Ev|__ZN7daMky_c12EnterState10Ev)$"),
+     "daMky_c: all twenty-two cells take their receiver in ecx. The eleven "
+     "TICK cells go through ?Behavior@daMky_c@@UAEHXZ +0x1f5 mov eax,"
+     "[edi+0x3a4]; +0x1fb mov ecx,[eax+0xc]; +0x1fe mov eax,[eax+8]; +0x201 "
+     "add ecx,edi; +0x203 call eax, and the flat tail jumps "
+     "_func_ov030_021141a8 and _02114134, _02113324, _02113d20, _02113ff0 "
+     "ride the receiver through while also setting ecx. The eleven ENTER "
+     "cells were excused here as __cdecl on the reading that those flat "
+     "jumps are their only readers. They are not: run link100 lane UKIKI2 "
+     "read every absolute reference into data_ov030_02115e0c back out of "
+     "the image and found ?InitResources@daMky_c@@UAEHXZ +0x1d0 and +0x205 "
+     "inline two more dispatches, `lea ecx,[ecx+this]; call dword ptr "
+     "[cell]` with nothing pushed -- the Scuttlebug shape 65deff04d fixed "
+     "at the sibling class the same night. Both the flat dispatcher and the "
+     "inlined calls set ecx, so the enter half is thunked too and this "
+     "table leaves the exception list"),
 ]
 
 

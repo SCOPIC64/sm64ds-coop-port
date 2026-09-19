@@ -541,11 +541,11 @@ static void ukiki_state3_tick(void *c) { ov30_missing_021136b0(c); }
    while the eleven tick_rom bodies below (func_ov030_* and ukiki_state3_tick)
    are matched flat cdecl bodies that read their receiver off the stack at
    [ebp+8]. This is 5ae983797's family at another class (daMip_c and
-   Scuttlebug already fixed on port/l7-pmfsweep2). The ENTER half is reached
-   only by the flat tail jumps _func_ov030_021141a8 (va 006cd080) and
-   _02114134, _02113324, _02113d20, _02113ff0, so the enter_host column below
-   is untouched -- a thunk there would be harmless but unnecessary. Each
-   thunk names its matched body, so trap T2's rule still holds. */
+   Scuttlebug already fixed on port/l7-pmfsweep2). The ENTER half is NOT
+   reached only by the flat tail jumps _func_ov030_021141a8 and _02114134,
+   _02113324, _02113d20, _02113ff0: see the UKIKI2 block below, which names
+   two more inlined readers, so the enter_host column is thunked there too.
+   Each thunk names its matched body, so trap T2's rule still holds. */
 static void __fastcall uk_02113ff0(void *self, void *)
 { func_ov030_02113ff0(self); }
 static void __fastcall uk_02113d20(void *self, void *)
@@ -569,19 +569,66 @@ static void __fastcall uk_02112400(void *self, void *)
 static void __fastcall uk_021122b0(void *self, void *)
 { func_ov030_021122b0(self); }
 
+/* ---- RUN link100 WAVE 15 LANE UKIKI2: THE ELEVEN *ENTER* CELLS TAKE THEIR
+   RECEIVER IN ECX TOO, and the block above is wrong about the readers. The
+   flat tail jumps are not the only callers into data_ov030_02115e0c:
+   ?InitResources@daMky_c@@UAEHXZ inlines two more dispatches into the same
+   runtime array, read back out of this lane's own build with
+   tmp/scan_inline_pmf.py (the HMC1 census tool):
+
+       ?InitResources@daMky_c@@UAEHXZ+0x1d0  call ECX -> record 0 enter
+       ?InitResources@daMky_c@@UAEHXZ+0x205  call ECX -> record 1 enter
+
+   both `lea ecx,[ecx+this]; call dword ptr [cell]` with NOTHING pushed --
+   the identical shape 65deff04d (fixer SBENTER, the same night) fixed at
+   Scuttlebug's nine ENTER cells. A thunk is correct at every other reader
+   too: the flat dispatcher _func_ov030_021141a8 (va 006d1320 on this
+   lane's build; the ledger's old 006cd080 was already stale before this
+   change) sets ecx as well as riding the receiver through:
+
+       +0x18  8b4a04  mov ecx, dword ptr [edx+4]     the delta
+       +0x1b  03c8    add ecx, eax                   ecx = this + delta
+       +0x1d  8b02    mov eax, dword ptr [edx]
+       +0x20  ffe0    jmp eax
+
+   so no cell regresses. Each thunk names its matched body, so trap T2's
+   rule still holds. */
+static void __fastcall uk_02114124(void *self, void *)
+{ _ZN7daMky_c11EnterState0Ev(self); }
+static void __fastcall uk_02113fd8(void *self, void *)
+{ _ZN7daMky_c11EnterState1Ev(self); }
+static void __fastcall uk_02113be8(void *self, void *)
+{ _ZN7daMky_c11EnterState2Ev(self); }
+static void __fastcall uk_02113a80(void *self, void *)
+{ _ZN7daMky_c11EnterState3Ev(self); }
+static void __fastcall uk_0211360c(void *self, void *)
+{ _ZN7daMky_c11EnterState4Ev(self); }
+static void __fastcall uk_021132d4(void *self, void *)
+{ _ZN7daMky_c11EnterState5Ev(self); }
+static void __fastcall uk_02112ff8(void *self, void *)
+{ _ZN7daMky_c11EnterState6Ev(self); }
+static void __fastcall uk_02112c14(void *self, void *)
+{ _ZN7daMky_c11EnterState7Ev(self); }
+static void __fastcall uk_02112a14(void *self, void *)
+{ _ZN7daMky_c11EnterState8Ev(self); }
+static void __fastcall uk_02112560(void *self, void *)
+{ _ZN7daMky_c11EnterState9Ev(self); }
+static void __fastcall uk_021123a4(void *self, void *)
+{ _ZN7daMky_c12EnterState10Ev(self); }
+
 static const struct { unsigned enter_rom, tick_rom; PortUkikiFn enter_host, tick_host; }
 g_ukiki_cells[11] = {
-    { 0x02114124, 0x02113ff0, (PortUkikiFn)_ZN7daMky_c11EnterState0Ev, (PortUkikiFn)(void *)uk_02113ff0 },
-    { 0x02113fd8, 0x02113d20, (PortUkikiFn)_ZN7daMky_c11EnterState1Ev, (PortUkikiFn)(void *)uk_02113d20 },
-    { 0x02113be8, 0x02113b38, (PortUkikiFn)_ZN7daMky_c11EnterState2Ev, (PortUkikiFn)(void *)uk_02113b38 },
-    { 0x02113a80, 0x021136b0, (PortUkikiFn)_ZN7daMky_c11EnterState3Ev, (PortUkikiFn)(void *)uk_021136b0 },
-    { 0x0211360c, 0x02113324, (PortUkikiFn)_ZN7daMky_c11EnterState4Ev, (PortUkikiFn)(void *)uk_02113324 },
-    { 0x021132d4, 0x02113094, (PortUkikiFn)_ZN7daMky_c11EnterState5Ev, (PortUkikiFn)(void *)uk_02113094 },
-    { 0x02112ff8, 0x02112da0, (PortUkikiFn)_ZN7daMky_c11EnterState6Ev, (PortUkikiFn)(void *)uk_02112da0 },
-    { 0x02112c14, 0x02112a84, (PortUkikiFn)_ZN7daMky_c11EnterState7Ev, (PortUkikiFn)(void *)uk_02112a84 },
-    { 0x02112a14, 0x02112578, (PortUkikiFn)_ZN7daMky_c11EnterState8Ev, (PortUkikiFn)(void *)uk_02112578 },
-    { 0x02112560, 0x02112400, (PortUkikiFn)_ZN7daMky_c11EnterState9Ev, (PortUkikiFn)(void *)uk_02112400 },
-    { 0x021123a4, 0x021122b0, (PortUkikiFn)_ZN7daMky_c12EnterState10Ev, (PortUkikiFn)(void *)uk_021122b0 },
+    { 0x02114124, 0x02113ff0, (PortUkikiFn)(void *)uk_02114124, (PortUkikiFn)(void *)uk_02113ff0 },
+    { 0x02113fd8, 0x02113d20, (PortUkikiFn)(void *)uk_02113fd8, (PortUkikiFn)(void *)uk_02113d20 },
+    { 0x02113be8, 0x02113b38, (PortUkikiFn)(void *)uk_02113be8, (PortUkikiFn)(void *)uk_02113b38 },
+    { 0x02113a80, 0x021136b0, (PortUkikiFn)(void *)uk_02113a80, (PortUkikiFn)(void *)uk_021136b0 },
+    { 0x0211360c, 0x02113324, (PortUkikiFn)(void *)uk_0211360c, (PortUkikiFn)(void *)uk_02113324 },
+    { 0x021132d4, 0x02113094, (PortUkikiFn)(void *)uk_021132d4, (PortUkikiFn)(void *)uk_02113094 },
+    { 0x02112ff8, 0x02112da0, (PortUkikiFn)(void *)uk_02112ff8, (PortUkikiFn)(void *)uk_02112da0 },
+    { 0x02112c14, 0x02112a84, (PortUkikiFn)(void *)uk_02112c14, (PortUkikiFn)(void *)uk_02112a84 },
+    { 0x02112a14, 0x02112578, (PortUkikiFn)(void *)uk_02112a14, (PortUkikiFn)(void *)uk_02112578 },
+    { 0x02112560, 0x02112400, (PortUkikiFn)(void *)uk_02112560, (PortUkikiFn)(void *)uk_02112400 },
+    { 0x021123a4, 0x021122b0, (PortUkikiFn)(void *)uk_021123a4, (PortUkikiFn)(void *)uk_021122b0 },
 };
 
 extern "C" void port_ukiki_states_seat(void)
