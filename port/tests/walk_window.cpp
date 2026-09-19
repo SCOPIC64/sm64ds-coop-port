@@ -4360,6 +4360,10 @@ static int mg_row(void)
 static const char *const PORT_RELAUNCH_CLEAR[] = {
     "SM64DS_SCENE_FRAMES", "SM64DS_SCENE_WINDOW",  "SM64DS_SCENE_NO_RENDER",
     "SM64DS_SCENE_BMP",    "SM64DS_SCENE_BMP_STACKED", "SM64DS_PAD_TEST",
+    /* SM64DS_HOST_PAD is SM64DS_PAD_TEST with the selftest gate removed (run
+       link100, lane STARSEL5), so it is the same trap and worse: it survives
+       into a child that is under a selftest too. Same entry, same reason. */
+    "SM64DS_HOST_PAD",
     /* the presented-image capture, for SCENE_BMP's reason exactly: two
        processes writing one file is not a capture; and the scripted menu,
        for SM64DS_PAD_TEST's reason -- an inherited one opens a menu in a
@@ -5422,26 +5426,91 @@ static void menu_b_swallow_spend(int pad_live, XPad *pad)
 
    Inert unless the variable is set, and it cannot reach a selftest: the
    environment is read once behind g_selftest and never read again. */
-static void pad_test_apply(int frame, int *pad_live, XPad *pad)
+/* The parser both scripted-pad variables share (run link100, lane STARSEL5).
+   Grammar: <hex>@<f0>[-<f1>][,<hex>@<f0>[-<f1>]...]. With no -<f1> the entry
+   holds for PAD_TEST_HOLD frames from <f0>, which is what SM64DS_PAD_TEST has
+   always done, so every existing fixture parses to the same mask it did. The
+   range form is new and is here because a menu that has to be WAITED for needs
+   a press held across an unknown number of frames rather than four. */
+static unsigned pad_script_mask(const char *spec, int frame)
 {
     enum { PAD_TEST_HOLD = 4 };
-    static const char *pt_env = (const char *)1;
-    if (pt_env == (const char *)1)
-        pt_env = g_selftest ? 0 : getenv("SM64DS_PAD_TEST");
-    if (!pt_env)
-        return;
     unsigned mask = 0;
-    const char *p = pt_env;
+    const char *p = spec;
     while (*p) {
         char *q;
         const unsigned m = (unsigned)strtoul(p, &q, 16);
-        long f = -1;
+        long f0 = -1, f1 = -1;
         p = q;
-        if (*p == 64 /* '@' */) f = strtol(p + 1, &q, 10), p = q;
-        if (f >= 0 && frame >= f && frame < f + PAD_TEST_HOLD)
+        if (*p == 64 /* '@' */) {
+            f0 = strtol(p + 1, &q, 10);
+            p = q;
+            f1 = f0 + PAD_TEST_HOLD - 1;
+            if (*p == 45 /* '-' */) { f1 = strtol(p + 1, &q, 10); p = q; }
+        }
+        if (f0 >= 0 && frame >= f0 && frame <= f1)
             mask |= m;
         while (*p && *p != 44 /* ',' */) ++p;
         if (*p == 44) ++p;
+    }
+    return mask;
+}
+
+/* SM64DS_HOST_PAD: SM64DS_PAD_TEST's grammar, and the ONE difference is that a
+   SELFTEST MAY USE IT (run link100, lane STARSEL5).
+ *
+ * SM64DS_PAD_TEST reads its environment behind g_selftest and SM64DS_CLICK_TEST
+ * does the same, and the only scripted route into a painting -- SM64DS_WARP_SEQ
+ * -- lives inside the level loop's `if (selftest)` block. So the three of them
+ * cannot be combined, and the one thing that could not be measured headless was
+ * the thing Tango's bug is made of: whether a press made by the HOST INPUT
+ * LAYER THE WINDOW LOOP READS reaches the star select. SM64DS_PROBE_INPUT can
+ * reach it, and that is exactly why it proves nothing here -- it is applied
+ * inside the scene frame, downstream of every duty the interlude skips.
+ *
+ * So this variable enters at the same seam a real controller does: after
+ * port_pad_poll and pad_focus_gate, into the XPad the frame is about to read,
+ * so everything downstream -- host_ds_buttons, host_btn_to_raw_keys, the Ctrl
+ * words, the PadData mirror -- is the program's own and none of it is
+ * shortcut. A press that arrives this way arrives only if the loop that polls
+ * the host ran on that frame, which is the whole question.
+ *
+ * It is INERT unless set, it is read once, and it never overrides
+ * SM64DS_PAD_TEST: both are applied, OR-ed, and outside a selftest a fixture
+ * may use either. */
+static void pad_test_apply(int frame, int *pad_live, XPad *pad)
+{
+    static const char *pt_env = (const char *)1;
+    if (pt_env == (const char *)1)
+        pt_env = g_selftest ? 0 : getenv("SM64DS_PAD_TEST");
+    static const char *hp_env = (const char *)1;
+    if (hp_env == (const char *)1) {
+        hp_env = getenv("SM64DS_HOST_PAD");
+        if (hp_env) {
+            fprintf(stderr, "[hostpad] SM64DS_HOST_PAD=%s -- scripted XInput "
+                    "buttons enter at port_pad_poll's own seam, so a press "
+                    "lands only on a frame the host input layer was polled "
+                    "on\n", hp_env);
+            fflush(stderr);
+        }
+    }
+    if (!pt_env && !hp_env)
+        return;
+    unsigned mask = 0;
+    if (pt_env) mask |= pad_script_mask(pt_env, frame);
+    if (hp_env) mask |= pad_script_mask(hp_env, frame);
+    /* THE EDGES, so a row can say on which host frames the script was actually
+       APPLIED rather than on which frames it was scheduled. The two differ by
+       exactly the bug this instrument exists for: a frame the loop never
+       polled is a frame this line never prints. Only with SM64DS_HOST_PAD set,
+       so no existing SM64DS_PAD_TEST row gains a line. */
+    if (hp_env) {
+        static unsigned last_mask;
+        if (mask != last_mask) {
+            fprintf(stderr, "[hostpad] f%d mask %04x\n", frame, mask);
+            fflush(stderr);
+            last_mask = mask;
+        }
     }
     if (mask) {
         if (!*pad_live) { memset(pad, 0, sizeof *pad); *pad_live = 1; }
