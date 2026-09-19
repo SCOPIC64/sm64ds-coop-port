@@ -1,7 +1,7 @@
 /* HOST COPIES of four overlay bodies that each call Actor::ClosestPlayer() with
  * NO argument and rely on `this` riding ARM r0:
  *
- *     src/func_ov084_02129cf4.c    (ov084 chase/aim state; receiver `c`)
+ *     [src/func_ov084_02129cf4.c RETIRED at SEAT15B -- the src passes `c`]
  *     src/actors/daPkn_c.cpp    (ov084 range cache;       receiver `r4`)
  *     [src/func_ov094_02136024.cpp RETIRED at SEAT15B -- the src passes `c`]
  *     src/func_ov102_02149078.c    (ov102 refusal test;      receiver `self`)
@@ -64,63 +64,19 @@
 /* one real one-arg (this) shape, shared by all four copies below */
 extern "C" void *_ZN8dActor_c13ClosestPlayerEv(void *self);
 
-/* ---- func_ov084_02129cf4 (receiver c) ------------------------------------- */
+/* ---- func_ov084_02129cf4 -- RETIRED, the matched TU has the seat ---------- */
+/* Run link100 wave 15 lane SEAT15B. LINK15 read this row as "owner carries a
+ * non-stale reason" and it was wrong: src/func_ov084_02129cf4.c:16 passes the
+ * ClosestPlayer receiver itself (`(c)`), exactly like the seven rows of BATCH 1.
+ * The src row is uncommented in port/slice_gate32.txt. func_ov084_0212f204 below
+ * KEEPS its copy: its matched body lives in src/actors/daPkn_c.cpp, a whole-class
+ * TU, so seating it is a different and much larger change. */
+
+/* Vec3_Dist and Vec3_HorzAngle, kept for the copies below. */
 extern "C" {
 typedef int Fix12i;
-int _ZNK10dBgCh_Actr8IsOnWallEv(void *c);
 Fix12i Vec3_Dist(const struct Vector3 *a, const struct Vector3 *b);
 short Vec3_HorzAngle(const struct Vector3 *a, const struct Vector3 *b);
-}
-
-// PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing member; the host passes c).
-extern "C" void func_ov084_02129cf4(char *c, Fix12i distThresh)
-{
-    struct Vector3 ppos;
-
-    *(void **)(c + 0x438) = _ZN8dActor_c13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
-
-    if (*(void **)(c + 0x438) == 0
-        || (Vec3_Dist((struct Vector3*)(c+0x5c), (struct Vector3*)(c+0x41c)) > distThresh
-            && *(unsigned char*)(c+0x113) >= 6)) {
-        *(short*)(c+0x400+0x5a) = Vec3_HorzAngle((struct Vector3*)(c+0x5c), (struct Vector3*)(c+0x41c));
-        *(int*)(c+0x440) = 0x61a8000;
-        return;
-    }
-
-    {
-        int *ppos_src = (int *)(int)((long long)(int)(*(char **)(c + 0x438) + 0x5c));
-        ppos.x = ppos_src[0];
-        ppos.y = ppos_src[1];
-        ppos.z = ppos_src[2];
-    }
-
-    if (*(unsigned char*)(c+0x113) < 6) {
-        if (Vec3_Dist((struct Vector3*)(c+0x5c), (struct Vector3*)(c+0x41c)) > distThresh
-            && !_ZNK10dBgCh_Actr8IsOnWallEv(c+0x1b4)) {
-            *(int*)(c+0x440) = 0x61a8000;
-            *(short*)(c+0x400+0x5a) = Vec3_HorzAngle((struct Vector3*)(c+0x5c), (struct Vector3*)(c+0x41c));
-            return;
-        }
-
-        if (Vec3_Dist((struct Vector3*)(c+0x5c), &ppos) < *(int*)(c+0x448)) {
-            *(int*)(c+0x440) = Vec3_Dist((struct Vector3*)(c+0x5c), &ppos);
-            if (*(unsigned short*)(c+0x400+0x58) != 0) {
-                *(short*)(c+0x400+0x5a) = Vec3_HorzAngle((struct Vector3*)(c+0x5c), &ppos);
-                return;
-            }
-            *(short*)(c+0x400+0x5a) = Vec3_HorzAngle(&ppos, (struct Vector3*)(c+0x5c));
-            return;
-        }
-        *(int*)(c+0x440) = 0x61a8000;
-        return;
-    }
-
-    if (Vec3_Dist((struct Vector3*)(c+0x41c), &ppos) > distThresh) {
-        *(int*)(c+0x440) = 0x61a8000;
-        return;
-    }
-    *(int*)(c+0x440) = Vec3_Dist((struct Vector3*)(c+0x5c), &ppos);
-    *(short*)(c+0x400+0x5a) = Vec3_HorzAngle((struct Vector3*)(c+0x5c), &ppos);
 }
 
 /* ---- func_ov084_0212f204 (receiver r4) ------------------------------------ */
