@@ -46,10 +46,10 @@ src/func_ov094_021357a4.c
 # 02125950.cpp, the King Bob-omb family, takes the identical local-struct
 # shape and links via the existing cxx_aliases.cpp GetTalkState bridge).
 src/func_ov094_02135c28.c
-# func_ov094_02136024: r0-passthrough. Calls Actor::ClosestPlayer() with no
-# argument (this rode ARM r0). HOST COPY passes `c` explicitly at
-# port/unmatched/Actor_ClosestPlayer_OverlayReaders.cpp. Byte-locked src unchanged.
-# src/func_ov094_02136024.cpp
+# func_ov094_02136024: SEATED by run link100 wave 15 lane SEAT15B (LINK15 BATCH 1).
+# The matched src passes the ClosestPlayer receiver itself (src:17, `(c)`), so the
+# host copy in port/unmatched/Actor_ClosestPlayer_OverlayReaders.cpp is retired.
+src/func_ov094_02136024.cpp
 src/func_ov094_02135bd4.cpp
 src/func_ov094_02135e64.cpp
 src/func_ov094_02136150.c
