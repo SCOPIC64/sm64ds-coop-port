@@ -259,6 +259,13 @@ int func_01ff99a4(int a, int b)
 int func_01ff9378(int a, int b)
 { float x, y, r; memcpy(&x, &a, 4); memcpy(&y, &b, 4); r = x + y;
   { int o; memcpy(&o, &r, 4); return o; } }
+/* PORT_HOST_ABI: ARM asm primitives (the ITCM soft-float runtime block),
+   MSVC cannot assemble -- see the block comment above. TAG REPEATED HERE, run
+   link100 wave 14, lane SHADOWS3: the tag at the foot of that comment binds to
+   func_01ff9378 on the line above and stops there, so this half of the pair
+   the comment spends forty lines deriving read as undocumented work. Same
+   ruling, same evidence, same permanence: src/func_01ffa594.c is the ROM's
+   hand-written single-precision subtract. */
 int func_01ffa594(int a, int b)
 { float x, y, r; memcpy(&x, &a, 4); memcpy(&y, &b, 4); r = x - y;
   { int o; memcpy(&o, &r, 4); return o; } }
@@ -304,6 +311,14 @@ int func_01ffabe4(int a, int b) { return b ? a / b : 0; }
    0x020994e0 (0x804 bytes, atan(i/1024) in binangs for i = 0..0x400), well
    below bss_start 0x0209b000, so it comes out of the ROM image with the
    rest: port/tools/romdata.py NAMED. */
+/* PORT_HOST_ABI: ARM asm primitive (ITCM soft-float block), MSVC cannot
+   assemble -- see the block comment above. TAG ADDED, run link100 wave 14,
+   lane SHADOWS3. Every other body in this block carries this ruling and this
+   one never did: the comment directly above it is the atan2 table's, so the
+   row read as owed work. src/func_01ff8e10.c is the toolchain's own
+   double-precision subtract, shipped as assembly, taking its operands in
+   r0:r1 and r2:r3 -- outside the C ABI for doubles, which is the other half of
+   why no C spelling of it exists. */
 double func_01ff8e10(double x, double y) { return x - y; }
 /* PORT_HOST_ABI: ARM asm primitive (ITCM soft-float block), MSVC cannot
    assemble -- see the block comment above. */

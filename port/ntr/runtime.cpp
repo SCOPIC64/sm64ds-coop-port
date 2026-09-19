@@ -27,6 +27,19 @@
 // PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mrs/msr on
 //   the CPSR I bit. See the Interrupt control block above.
 extern "C" unsigned int _ZN3IRQ7DisableEv(void) { return ntr::rt_irq_disable(); }
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mrs/msr on
+//   the CPSR I bit. See the Interrupt control block above.
+//   TAG ADDED, run link100 wave 14, lane SHADOWS3. The ruling is its
+//   neighbours' and always was; what was missing is the tag ITSELF, because
+//   linkage.py binds a reason to the FIRST code line under it and the line
+//   above took this one's. src/_ZN3IRQ6EnableEv.cpp is four ARM instructions
+//   (mrs r0,cpsr / bic r1,r0,#0x80 / msr cpsr_c,r1 / and r0,r0,#0x80) inside
+//   an `asm` block, and no x86 front end assembles them, so there is no seat
+//   to take here at any point in the future -- it is a permanent exception,
+//   not owed work. The line above this file at 340..347 already NAMED this row
+//   as the same omission ("the sibling on line 30 ... is the same shape and the
+//   same omission, but it is in neither closure, so this lane names it rather
+//   than taking it"); this lane takes it.
 extern "C" unsigned int _ZN3IRQ6EnableEv(void) { return ntr::rt_irq_enable(); }
 // PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mrs/msr on
 //   the CPSR I bit. See the Interrupt control block above.
@@ -349,6 +362,15 @@ extern "C" void _ZN4CP1516DrainWriteBufferEv(void) {}
 // PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
 //   cache maintenance. See the CP15 block above -- host memory is coherent.
 extern "C" void _ZN4CP1519InvalidateDataCacheEjj(unsigned int, unsigned int) {}
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
+//   cache maintenance. See the CP15 block above -- host memory is coherent.
+//   TAG ADDED, run link100 wave 14, lane SHADOWS3, for the reason the
+//   DrainWriteBuffer note above gives about its own missing tag: the reason on
+//   the line above binds to InvalidateDataCache and stops there, so this row
+//   read as an UNDOCUMENTED SHADOW when it is the same permanent exception its
+//   two neighbours are. src/_ZN4CP1526InvalidateInstructionCacheEjj.cpp is a
+//   five-instruction `mcr p15, 0, r0, c7, c5, 1` loop; no x86 front end
+//   assembles a coprocessor access, so no seat exists to be owed.
 extern "C" void _ZN4CP1526InvalidateInstructionCacheEjj(unsigned int, unsigned int) {}
 extern "C" void _ZN4CP1527FlushAndInvalidateDataCacheEv(void) {}
 // PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15

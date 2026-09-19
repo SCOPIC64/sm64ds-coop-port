@@ -229,6 +229,17 @@ void Scene::SetSceneToSpawn(unsigned int a, unsigned int b)
  * own header says a hand-typed constant is "a value nobody can re-derive from
  * the image". */
 
+/* PORT_HOST_ABI: ARM asm primitive (32-byte block copy), MSVC cannot assemble.
+ * TAG MOVED HERE, run link100 wave 14, lane SHADOWS3. The identical ruling is
+ * already written twenty lines up, inside the block comment, and
+ * hal/model_host.cpp carries it verbatim for this function's sibling
+ * MultiCopy32Bytes -- but linkage.py binds a reason to the first CODE line
+ * under the tag and a blank line ends the run, so the tag up there documented
+ * nothing and this row read as owed work. src/Copy32Bytes.c is seven ARM
+ * instructions (three ldmia/stmia pairs and a bx lr) in an `asm` block; there
+ * is no C form of it to seat, now or later. The arity argument above still
+ * stands unchanged: r0 and r1, one caller, src/_ZN3G3X11SetFogTableEPv.cpp,
+ * passing (src, dst) in that order. */
 extern "C" void Copy32Bytes(void *src, void *dst)
 {
     const unsigned char *s = (const unsigned char *)src;
