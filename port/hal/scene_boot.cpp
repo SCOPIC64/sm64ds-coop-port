@@ -571,6 +571,13 @@ void port_mg_results_watch(int frame);   /* lane RESULTS (mg14) lifecycle sweep 
 void hal_sub_screen_init_hw(void *hwnd, int zoom);
 void hal_sub_screen_probe(void);
 void hal_sub_screen_frame_begin(void);
+#if defined(SM64DS_SCENE_PAD_PROBE)
+/* hal/input_probe.cpp: SM64DS_PROBE_INPUT's scripted pad, so a menu scene can
+   be proved headless. Not on smoke_player's target list (input_probe.cpp is
+   only compiled into walk_window and walk_window_hires), hence the guard --
+   see port/CMakeLists.txt's SM64DS_SCENE_PAD_PROBE=1 definitions. */
+void port_input_probe_apply(int frame);
+#endif
 void hal_sub_screen_present(unsigned int *dst, int w, int h);
 /* engine B's own raster, written without re-scanning; see its note */
 int hal_sub_screen_write_bmp(const char *path);
@@ -7285,6 +7292,21 @@ extern "C" void port_scene_tick(int frame, int tick_game)
        function" rather than reflowing three dozen lines nobody changed. */
     {
         hal_sub_screen_frame_begin();
+#if defined(SM64DS_SCENE_PAD_PROBE)
+        /* THE SCRIPTED PAD, so a menu scene can be proved headless.
+           hal/input_probe.cpp's port_input_probe_apply ORs SM64DS_PROBE_INPUT's
+           bits into data_020a0e58 (held and pressed) and data_020a0e5a (the
+           split symbol IsButtonInputValid reads), and it is what the LEVEL loop
+           has called at tests/walk_window.cpp:10289 all along. A scene had no
+           way to press a button at all, so every claim about a menu rested on
+           somebody's hands. HERE because it is the same seam the touch poll
+           above occupies: after the input poll, before the scene's Behavior
+           reads the record inside port_actor_tick below.
+           INERT UNLESS THE KNOB IS SET. port_input_probe_apply returns on its
+           own first line when SM64DS_PROBE_INPUT is unset, so every existing
+           scene row is byte-identical. */
+        port_input_probe_apply(frame);
+#endif
         /* IMMEDIATELY AFTER poll_touch AND BEFORE THE GAME WORK.
            hal_sub_screen_frame_begin is what runs poll_touch, so TouchInfo is
            this frame's by the time this reads it, and dScDSMT_c::Behavior --
