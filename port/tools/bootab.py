@@ -19,6 +19,30 @@ the game clamps the ratio itself (port/hal/host_settings.cpp aspect_sanitise), s
 value this tool passes through unchanged is still sanitised before it sizes a buffer.
 CREATE_NO_WINDOW + SW_SHOWMINNOACTIVE, every inherited SM64DS_* dropped.
 Failing rows keep crash.txt + exit.txt + stdout tail under <outdir>/<kind><id>/.
+
+warpin=1 and reentry=1 change HOW a LEVEL row is entered, and nothing else. Every
+other arm of this tool boots the level directly (SM64DS_LEVEL=<id>), which is not
+how the game is played: a course is entered by a LEVEL CHANGE out of the castle,
+and state that is right on a direct boot can be wrong after a change (wave 13's
+texture, minimap and star-select bugs, and lane SEAT14B's Jolly Roger Bay fault,
+were all of that family, invisible to every direct-boot gate).
+  warpin=1  boots castle grounds (SM64DS_LEVEL=1) and warps into the row's level
+            at frame 600 with SM64DS_WARP_SEQ, selftest 1500. Row 1 is entered
+            from level 6 instead, since it cannot warp into itself.
+  reentry=1 boots the row's level, warps OUT to castle grounds at frame 400 and
+            back IN at frame 800 (SM64DS_WARP_SEQ=1@400,<id>@800), selftest 1400,
+            which is the leave-and-come-back shape SEAT14B faulted on. Row 1
+            leaves to level 6 and back.
+Both drive the game's own LoadLevelNoReturn through walk_window.cpp's warp-seq
+block, so the teardown, the level-change poll and the boot half all run for real.
+press=<spec> is the scripted pad both arms hand to SM64DS_PROBE_INPUT, default
+200:A: entering a COURSE from the castle takes the painting route, so
+hal/level_change.cpp runs the star select inline between the teardown and the
+boot half (SM64DS_STARSEL_PAINTING, default on), and without an A press nothing
+chooses an act and the interlude only ends at its 1800-frame backstop. press=none
+drops the variable, which is the straight-in A/B of the same row.
+Their FRAMES (argv[3]) is fixed by the arm, so a warp row is the same length on
+every binary; the SCENE rows of a sweep are untouched by both.
 """
 import os, sys, time, shutil, subprocess
 EXE = os.path.abspath(sys.argv[1]); OUT = os.path.abspath(sys.argv[2])
@@ -37,10 +61,15 @@ IDLE = any(a == "idle=1" for a in sys.argv[5:])
 ASPECT = ""
 for a in sys.argv[5:]:
     if a.startswith("aspect="): ASPECT = a[7:]
+WARPIN = any(a == "warpin=1" for a in sys.argv[5:])
+REENTRY = any(a == "reentry=1" for a in sys.argv[5:])
+PRESS = "200:A"
+for a in sys.argv[5:]:
+    if a.startswith("press="): PRESS = a[6:]
 # the row filter is positional but the flags are not, so a run that passes only a
 # flag must not have that flag read as a filter (it would then match no prefix and
 # sweep everything by accident)
-if FILTER == "idle=1" or FILTER.startswith("aspect="): FILTER = ""
+if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=")): FILTER = ""
 if FILTER.startswith("levels="):
     sel = FILTER[7:]; SCENES = ()
     if sel != "all": LEVELS = tuple(i for i in LEVELS if str(i) in sel.split(","))
@@ -61,6 +90,19 @@ def run(kind, ident, label):
     if kind == "SM64DS_LEVEL":
         env["SM64DS_WINDOW_SELFTEST"] = FRAMES
         if IDLE: env["SM64DS_SELFTEST_IDLE"] = "1"
+        if WARPIN or REENTRY:
+            # the row's level is REACHED, not booted: castle grounds first, then
+            # the game's own LoadLevelNoReturn. Level 1 cannot warp into itself,
+            # so it uses level 6 as the other end of the change.
+            other = 6 if int(ident) == 1 else 1
+            if WARPIN:
+                env[kind] = str(other)
+                env["SM64DS_WARP_SEQ"] = "%d@600" % int(ident)
+                env["SM64DS_WINDOW_SELFTEST"] = "1500"
+            else:
+                env["SM64DS_WARP_SEQ"] = "%d@400,%d@800" % (other, int(ident))
+                env["SM64DS_WINDOW_SELFTEST"] = "1400"
+            if PRESS and PRESS != "none": env["SM64DS_PROBE_INPUT"] = PRESS
     else: env["SM64DS_SCENE_FRAMES"] = FRAMES
     env["SM64DS_FAULTS_FATAL"] = "1"; env["SM64DS_NO_FOCUS"] = "1"; env["SM64DS_VOLUME"] = "0"
     # set on level and scene rows alike: the aspect is latched at boot, before
@@ -104,5 +146,6 @@ with open(os.path.join(OUT, "sweep.tsv"), "w") as f:
     f.write("kind\tid\tverdict\trc\tseconds\tnote\n")
     for r in rows: f.write("\t".join(str(x) for x in r) + "\n")
 lv = [r for r in rows if r[0] == "level"]; sc = [r for r in rows if r[0] == "scene"]
-print("SUMMARY exe=%s%s%s levels %d/%d scenes %d/%d" % (EXE, " idle" if IDLE else "",
+print("SUMMARY exe=%s%s%s%s levels %d/%d scenes %d/%d" % (EXE, " idle" if IDLE else "",
+      (" warpin press=%s" % (PRESS or "none")) if WARPIN else ((" reentry press=%s" % (PRESS or "none")) if REENTRY else ""),
       " aspect=" + ASPECT if ASPECT else " aspect=native", sum(r[2] == "PASS" for r in lv), len(lv), sum(r[2] == "PASS" for r in sc), len(sc)), flush=True)
