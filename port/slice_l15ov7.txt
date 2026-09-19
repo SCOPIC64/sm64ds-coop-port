@@ -9,16 +9,23 @@
 # and the sentence that was tested is quoted next to it. A row whose sentence
 # still holds is NOT here: see the REFUSED block at the bottom.
 #
-# ---- ov096 TORNADO (actor 308, daTor_c), 1 row seated of 2 ---------------
-# Tornado::Behavior, ov096 0x02137448, 284 bytes: NOT SEATED, blocked on one
-# line outside this lane's owned files. Its old banner ("the ROM carries this
-# method's receiver through r0 into three callees the source calls with no
-# arguments") is equally stale -- src is `int Tornado::Behavior()` and the
-# three state calls are member calls at :14..:16 -- but seating it duplicates
-# ?Behavior@Tornado@@UAEHXZ against the forward face facegen emits from
-# port/faces_sync.txt:3231, measured as LNK2005 on this tree. Deleting that one
-# ledger row seats the TU; the evidence is in
-# port/unmatched/Tornado_HostSites.cpp section (4).
+# ---- ov096 TORNADO (actor 308, daTor_c), 2 rows seated of 2 --------------
+# Tornado::Behavior, ov096 0x02137448, 284 bytes. Old banner ("the ROM carries
+# this method's receiver through r0 into three callees the source calls with
+# no arguments") is equally stale -- src is `int Tornado::Behavior()` and the
+# three state calls are member calls at :14..:16. SEATED run link100 wave 15,
+# lane TORNADO1: the row that blocked it was outside this file, and one
+# question settled it. port/faces_sync.txt:3231 carried a FORWARD (F) row
+# that made facegen define ?Behavior@Tornado@@UAEHXZ onto the host body, which
+# the seated TU also defines (LNK2005, measured on lane SEAT15E's tree).
+# Deleting the row was not the answer: hal/actor_classes_ov096.cpp's
+# tor_behavior thunk (the _ZTV7Tornado slot 6 host vtable fill) calls the FLAT
+# name _ZN7Tornado8BehaviorEv directly, so something still needed to define
+# it. Same shape as SHADOWS3's Flamethrower::Behavior seat (git 62fe1fd00):
+# the row flips F -> R, so facegen defines the flat name as a wrapper onto the
+# matched member instead, and the matched TU alone defines the decorated one.
+# Evidence in port/unmatched/Tornado_HostSites.cpp section (3).
+src/_ZN7Tornado8BehaviorEv.cpp
 # Tornado::State1, ov096 0x02137088, 568 bytes. Old banner: MSVC C2733, the
 # TU's own `extern "C"` declaration against include/decl_common.h:2928's
 # `extern void _ZN7Tornado6State1Ev(void);`. STALE BOTH WAYS: decl_common.h
