@@ -1246,7 +1246,27 @@ void port_scene_tick(int frame, int tick_game);   /* hal/scene_boot.cpp */
    below says why the pending id is not. */
 void port_scene_killed_reset(void);
 int  port_scene_killed(void);
+/* the live scene object and the abort's MarkForDestruction stand-in; see the
+   banner on the interlude's tail (run link100, lane STARSEL5) */
+void *port_scene_live_object(void);
+int   port_scene_force_kill(void);
+unsigned port_scene_behavior_ticks(void);
+/* PadData[4], {u16 held, u16 pressed} per player. The star select reads it
+   directly (src/_ZN12dScStarSel_c8BehaviorEv.cpp), so it is the one word that
+   says whether a press made by the host ever reached the screen. Reported on
+   the interlude's own progress line: the whole of the reported bug is that it
+   read 0 on every one of 1800 frames. */
+extern int data_020a0e58[];
 }
+
+/* THE INTERLUDE'S FRAME, filled in by tests/walk_window.cpp's main (run
+   link100, lane STARSEL5). A POINTER and not a call, because this file is on
+   the smoke targets as well and walk_window.cpp is not; with nobody to fill it
+   in -- a smoke target, a headless bring-up -- the interlude falls back to the
+   bare scene tick this loop used to make, which is what those builds had.
+   Filled in, it is the WHOLE host frame: the message pump, the host input poll
+   that ends in PadData, the scene tick, the present and the pace. */
+extern "C" int (*port_interlude_frame_hook)(int frame) = 0;
 
 /* Read by the three ROM Stage slots (hal/stage_frame.cpp's
    port_stage_rom_behavior and port_stage_rom_render, hal/stage_bridges.cpp's
@@ -1288,24 +1308,75 @@ static void port_level_scene_interlude(void)
     if (data_02092664 != 4)
         return;                     /* the ROM's own scene-3 arm: straight in */
 
-    int cap = 1800;
+    /* NO GIVE-UP TIMER IN REAL PLAY, and this is the whole of Tango's bug
+       report's first half.
+     *
+     * The 1800-frame cap was written when the interlude ran port_scene_tick and
+     * nothing else: a scene that could not be reached by any input had to be
+     * abandoned or the process would hang. Now that the frame is a real frame
+     * the cap is wrong in a session -- on the cartridge the star select waits
+     * for the player as long as the player takes, and the window can be closed
+     * -- so it is kept ONLY for a scripted run, where a row that waits forever
+     * is a lane that never finishes. cap <= 0 means "wait", which is what a
+     * player gets. SM64DS_STARSEL_FRAMES still overrides both ways, and 0
+     * through it asks a scripted run to wait too. */
+    const int selftest = std::getenv("SM64DS_WINDOW_SELFTEST") != 0;
+    int cap = selftest ? 1800 : 0;
     if (const char *e = std::getenv("SM64DS_STARSEL_FRAMES"))
         cap = std::atoi(e);
     std::fprintf(stderr, "[starsel] at the seam: pending scene %u, spawned "
                  "latch %u, level request %d -- running the star select in "
-                 "this process for up to %d frames\n",
+                 "this process %s\n",
                  (unsigned)data_02092664, (unsigned)data_02092660,
-                 (int)data_02092110, cap);
+                 (int)data_02092110,
+                 cap > 0 ? "with a scripted-run backstop" : "until it is done");
+    if (cap > 0)
+        std::fprintf(stderr, "[starsel] BACKSTOP ARMED: this run gives the star "
+                     "select %d frames and then boots the level anyway. That is "
+                     "a harness rule, not the game's: a session has no cap.\n",
+                     cap);
 
-    int f = 0, asked = -1;
+    int f = 0, asked = -1, closed = 0;
     g_interlude_live = 1;
     port_scene_killed_reset();
-    for (; f < cap; ++f) {
-        port_scene_tick(f, 1);
+    for (; cap <= 0 || f < cap; ++f) {
+        /* THE WHOLE HOST FRAME, not just the scene tick. See the hook's banner
+           above and tests/walk_window.cpp's port_interlude_frame: the outer
+           window loop is not running during the interlude, so every per-frame
+           duty it performs -- the message pump, the host input poll that ends
+           in PadData, the present, the pace -- has to be performed here or the
+           star select cannot be seen, cannot be pressed and cannot be left. */
+        if (port_interlude_frame_hook) {
+            if (port_interlude_frame_hook(f)) {
+                closed = 1;
+                std::fprintf(stderr, "[starsel] the window was closed at frame "
+                             "%d; the interlude stops\n", f);
+                break;
+            }
+        } else {
+            port_scene_tick(f, 1);
+        }
         if ((f % 300) == 0)
-            std::fprintf(stderr, "  [starsel] f%d pending %u latch %u act %d\n",
+            std::fprintf(stderr, "  [starsel] f%d pending %u latch %u act %d "
+                         "pad %04x/%04x\n",
                          f, (unsigned)data_02092664, (unsigned)data_02092660,
-                         (int)data_0209f1f0);
+                         (int)data_0209f1f0,
+                         (unsigned)((unsigned short *)data_020a0e58)[0],
+                         (unsigned)((unsigned short *)data_020a0e58)[1]);
+        /* AND EVERY EDGE OF IT, because a press held for two hundred frames in
+           the middle of a thousand is invisible on a line printed every three
+           hundred. This is the line that separates "the host was polled" from
+           "the press reached the game": the pad census is written by the frame
+           the hook just ran, before the scene's own Behavior read it. */
+        {
+            static unsigned short pad_was;
+            const unsigned short now = ((unsigned short *)data_020a0e58)[0];
+            if (now != pad_was) {
+                std::fprintf(stderr, "  [starsel] f%d PadData held %04x -> "
+                             "%04x\n", f, (unsigned)pad_was, (unsigned)now);
+                pad_was = now;
+            }
+        }
         if (data_02092664 == 3 && asked < 0) {
             asked = f;
             std::fprintf(stderr, "[starsel] the star select asked for SCENE 3 "
@@ -1341,8 +1412,58 @@ static void port_level_scene_interlude(void)
             break;
         }
     }
+    /* AND IF IT DID NOT FINISH, THE SCENE IS STILL TORN DOWN FIRST. This is the
+       second half of the report: with the interlude abandoned the star select
+       stayed in the behaviour list, so its sprite layer sat over the course on
+       both screens, and the first stylus press that reached it made it ask for
+       a scene change -- which marks the Stage and aborts at the unhosted slot
+       3. A course must never boot underneath a live star select, whatever ended
+       the interlude. The cartridge never has to abandon this screen and so has
+       no path to copy: the port sets the byte fBase_c::MarkForDestruction sets
+       and then keeps running frames until the list reaps it, loudly, because
+       this is the port standing in for a sequence the ROM does not have. */
+    const int unfinished = (asked < 0 || !port_scene_killed());
+    if (unfinished && port_scene_live_object()) {
+        std::fprintf(stderr, "[starsel] the star select is being TORN DOWN "
+                     "unfinished (asked at %d, pending %u, latch %u, "
+                     "shouldBeKilled %u, %s). The port marks it the way "
+                     "fBase_c::MarkForDestruction does and runs the frames the "
+                     "reap needs; the course must not boot under a live star "
+                     "select.\n", asked, (unsigned)data_02092664,
+                     (unsigned)data_02092660, (unsigned)port_scene_killed(),
+                     closed ? "the window was closed"
+                            : "the scripted-run backstop fired");
+        port_scene_force_kill();
+        /* 0x1e is the fade dScene_c::BeforeBehavior runs before it marks, and
+           the reap itself is one more list walk; 64 is that with slack. Not a
+           second wait for the player: the object is already marked. The stop
+           test is the ROM's own reap -- the frame on which the scene's
+           behaviour slot is no longer dispatched -- and not a pointer, which
+           never becomes null by itself. */
+        int reaped = -1;
+        unsigned beh_was = port_scene_behavior_ticks();
+        for (int k = 0; k < 64; ++k) {
+            if (port_interlude_frame_hook) {
+                if (port_interlude_frame_hook(f + k))
+                    break;
+            } else {
+                port_scene_tick(f + k, 1);
+            }
+            const unsigned beh_now = port_scene_behavior_ticks();
+            if (beh_now == beh_was) { reaped = k; break; }
+            beh_was = beh_now;
+        }
+        if (reaped >= 0)
+            std::fprintf(stderr, "[starsel] the star select was reaped out of "
+                         "the behaviour list %d frame(s) after the mark; the "
+                         "course boots with no scene over it\n", reaped + 1);
+        else
+            std::fprintf(stderr, "[starsel] WARNING: the star select was still "
+                         "being dispatched 64 frames after the mark; the course "
+                         "boots with a scene the port could not reap\n");
+    }
     g_interlude_live = 0;
-    if (f >= cap)
+    if (cap > 0 && f >= cap)
         std::fprintf(stderr, "[starsel] the star select did not finish inside "
                      "%d frames (asked at %d, pending %u, latch %u, "
                      "shouldBeKilled %u); the level boots with the act as it "

@@ -3324,12 +3324,46 @@ static void sc_gate_report(const char *which, void *s, int r)
  * reads +0x0f for its gate report, so it costs one compare on a path that runs
  * once per scene per frame, and it is the ROM's flag on the ROM's object. */
 static unsigned char g_sc_killed;
-extern "C" void port_scene_killed_reset(void) { g_sc_killed = 0; }
+/* THE LIVE SCENE, latched at the same thunk and for one caller (run link100,
+   lane STARSEL5). hal/level_change.cpp's star-select interlude can now be ended
+   by the player closing the window, and a course must never boot underneath a
+   star select that is still in the behaviour list -- that is what left the
+   select's sprite layer over the course and left a dead scene able to ask for a
+   scene change, which walks into the unhosted Stage slot 3. The abort path
+   needs the object to mark, and this is where the object is already in hand. */
+static void *g_sc_obj;
+/* AND THE PROOF THAT IT IS GONE. A latched pointer never becomes null by
+   itself, so "the scene is torn down" is measured as "the behaviour slot was
+   not dispatched on the frame just run": the ROM reaps the marked actor out of
+   the list and this thunk simply stops being reached. One increment on a path
+   that already runs once per scene per frame. */
+static unsigned g_sc_beh_ticks;
+extern "C" void port_scene_killed_reset(void) { g_sc_killed = 0; g_sc_obj = 0; }
 extern "C" int  port_scene_killed(void)       { return g_sc_killed; }
+extern "C" void *port_scene_live_object(void) { return g_sc_obj; }
+extern "C" unsigned port_scene_behavior_ticks(void) { return g_sc_beh_ticks; }
+
+/* What fBase_c::MarkForDestruction does, on the object the ROM made: set
+   shouldBeKilled at +0x0f. The cartridge reaches it through
+   dScene_c::BeforeBehavior once the installed fader is at its end; an abort has
+   no fade to run out, so the port sets the same byte directly and the caller
+   keeps ticking until the list reaps it. Loud at the call site, never silent:
+   this is the port standing in for a sequence the cartridge never has to
+   abandon. Answers 0 when there is no live scene to mark. */
+extern "C" int port_scene_force_kill(void)
+{
+    if (!g_sc_obj)
+        return 0;
+    ((unsigned char *)g_sc_obj)[0xf] = 1;
+    g_sc_killed = 1;
+    return 1;
+}
 
 static int  __fastcall sc_bbeh(void *s, void *)
 {
     int r = _ZN8dScene_c14BeforeBehaviorEv(s);
+    g_sc_obj = s;
+    ++g_sc_beh_ticks;
     if (((const unsigned char *)s)[0xf] != 0)
         g_sc_killed = 1;
     sc_gate_report("beh", s, r);
