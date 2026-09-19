@@ -58,8 +58,8 @@ src/func_02017b4c.c
 src/func_020178cc.c
 
 # ---- sub-batch B: the two spelled-callee rows ------------------------------
-# src/func_0201fc88.c
-# src/func_02018e3c.c
+src/func_0201fc88.c
+src/func_02018e3c.c
 
 # SEVENTH ROW, not in the census, found by reading the family rather than the
 # list: src/func_02017a24.c is the same shape and is also fixed now. Run mg9
