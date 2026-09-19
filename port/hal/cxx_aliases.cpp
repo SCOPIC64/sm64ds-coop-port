@@ -1913,6 +1913,35 @@ extern "C" int _ZN9dBgCh_Gnd10DetectClsnEv(void *self)
 // #pragma comment(linker, "/alternatename:?_ZN13SharedFilePtr7ReleaseEv@@YAXPAUSharedFilePtr@@@Z=__ZN13SharedFilePtr7ReleaseEv")
 #pragma comment(linker, "/alternatename:?_ZN8dActor_c15IsPlayerInRangeEi@@YAHPAXH@Z=__ZN8dActor_c15IsPlayerInRangeEi")
 #pragma comment(linker, "/alternatename:?func_ov100_02146280@@YAXXZ=_func_ov100_02146280")
+extern "C" {
+/* PORT_HOST_ABI: ARM r0 ride-through, ov100's fish release pass.
+   Fish::CleanupResources (0x02146a98) calls 0x02146280 with no argument
+   because dActor_c::FindWithID has just returned the actor in r0 and that is
+   what the helper wants; the reloc at 0x02146ae4 and the helper's own
+   `ldrb r1, [r0, #0x158]` settle it. MSVC pushes nothing for an argless call,
+   so the helper read the caller's dead frame slot instead and the level-change
+   teardown faulted at c0000005 on 0x159 (1 + 0x158) on every level that has
+   fish: 8 Jolly Roger Bay, 25 Tiny-Huge Island tiny, 30 The Secret Aquarium.
+   The same value is in the same place on this ABI -- eax at the call site,
+   measured 0x30013be0 with ecx 1 in the crash -- so the thunk pushes it and
+   the ROM's own body runs with the actor the ROM would have handed it. The
+   caller's `je` already skips the call when the lookup found nothing; the
+   test here is that same guard, not a new one. port/CMakeLists.txt renames the
+   symbol for the one TU that makes this call, so nothing else is re-routed. */
+void func_ov100_02146280(char *c);
+__declspec(naked) void hal_ov100_02146280_ridethrough(void)
+{
+    __asm {
+        test eax, eax
+        je   SHORT ride_none
+        push eax
+        call func_ov100_02146280
+        add  esp, 4
+    ride_none:
+        ret
+    }
+}
+}
 /* One TU spells ActorBase::MarkForDestruction by an ad-hoc C name rather than
    the Itanium one -- the same body either way. */
 #pragma comment(linker, "/alternatename:?ActorBase_MarkForDestruction@@YAXPAX@Z=__ZN7fBase_c18MarkForDestructionEv")

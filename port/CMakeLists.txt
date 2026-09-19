@@ -2935,6 +2935,18 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov007_020c5dec.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov007_020ba2e0.c"
     PROPERTIES COMPILE_DEFINITIONS "func_ov007_020c5dec=func_ov007_020c5dec_own")
+# PORT_HOST_ABI, run link100 lane WARP1: ov100's fish release pass, the same
+# per-context routing one more time. src/_ZN4Fish16CleanupResourcesEv.cpp calls
+# func_ov100_02146280 with no argument, which is correct ARM (dActor_c::FindWithID
+# has just left the actor in r0 and the helper reads [r0, #0x158]) and faults on
+# this ABI, where MSVC pushes nothing. Renaming the symbol FOR THAT ONE TU sends
+# its call to hal/cxx_aliases.cpp's thunk, which pushes the value eax still holds
+# and calls the ROM's own body; every other reference to func_ov100_02146280 --
+# there is no other caller in the ROM, reloc 0x02146ae4 is the only edge -- is
+# untouched, and the body itself still links under its own name.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Fish16CleanupResourcesEv.cpp"
+    PROPERTIES COMPILE_DEFINITIONS "func_ov100_02146280=hal_ov100_02146280_ridethrough")
 # R3, run linkw wave 12 (lane w12): THE SAME DISEASE, a fourth time, and this
 # one arrived from the OTHER side -- not a newly sliced body under an alias's
 # LHS but a newly MOUNTED datum under it. src/actors/Scuttlebug.cpp (Scuttlebug's
