@@ -1467,9 +1467,13 @@ def main():
     # config change is a separate, gated PR. Leaving the word unpatched leaves the
     # raw DS address the cartridge has, which is what the picture wants; nothing
     # follows it as a pointer.
+    # The last two are the BG2 TILEMAP, data_ov007_020dbdbc, an NCSC screen file:
+    # they overwrote map entries 524 to 527 of a row that otherwise runs 0x0204
+    # to 0x0214 without a break.
     FALSE_RELOC_SITES = {
         "ov007": {0x020f4530, 0x020f7cc8, 0x020f7ce0,
-                  0x020f84f8, 0x020f85bc, 0x020f8d20},
+                  0x020f84f8, 0x020f85bc, 0x020f8d20,
+                  0x020dc1fc, 0x020dc200},
     }
 
     patches = []
