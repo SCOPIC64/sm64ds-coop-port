@@ -1240,6 +1240,12 @@ extern "C" {
 extern unsigned short data_02092664;    /* Scene::SetSceneToSpawn's pending id */
 extern unsigned char  data_02092660;    /* its "already spawned" latch */
 void port_scene_tick(int frame, int tick_game);   /* hal/scene_boot.cpp */
+/* The ROM's own MarkForDestruction edge on a scene, latched in
+   hal/scene_boot.cpp's sc_bbeh off fBase_c::shouldBeKilled at +0x0f. That is
+   the frame the cartridge is FINISHED with the star select, and the banner
+   below says why the pending id is not. */
+void port_scene_killed_reset(void);
+int  port_scene_killed(void);
 }
 
 /* Read by the three ROM Stage slots (hal/stage_frame.cpp's
@@ -1291,28 +1297,58 @@ static void port_level_scene_interlude(void)
                  (unsigned)data_02092664, (unsigned)data_02092660,
                  (int)data_02092110, cap);
 
-    int f = 0;
+    int f = 0, asked = -1;
     g_interlude_live = 1;
+    port_scene_killed_reset();
     for (; f < cap; ++f) {
         port_scene_tick(f, 1);
         if ((f % 300) == 0)
             std::fprintf(stderr, "  [starsel] f%d pending %u latch %u act %d\n",
                          f, (unsigned)data_02092664, (unsigned)data_02092660,
                          (int)data_0209f1f0);
-        if (data_02092664 == 3) {
+        if (data_02092664 == 3 && asked < 0) {
+            asked = f;
             std::fprintf(stderr, "[starsel] the star select asked for SCENE 3 "
                          "at frame %d; the act it chose is data_0209f1f0 = %d "
                          "(dScStarSel_c::Behavior's own FB(this,0x115) + 1; the "
                          "port chose none of it)\n", f, (int)data_0209f1f0);
+        }
+        /* AND THE INTERLUDE DOES NOT END THERE, which is the whole of this
+           change. On the cartridge the request is the START of the scene's
+           exit, not the end of it: dScene_c::BeforeBehavior then runs the
+           installed fader forward for 0x1e frames and calls
+           MarkForDestruction, and only then is the Stage allowed back. Handing
+           the frame to the boot half on the asking frame left a star select
+           that had never faded out and had never been marked, still holding
+           the bottom screen's sprite layer over the course that booted under
+           it. Measured on the l1to6 route: the ask lands at interlude frame
+           217 and the kill flag at 249, and with those 32 frames given the
+           course's own bottom-screen capture is byte-identical to the same
+           course reached with no star select at all (sha 20e7b97397a609c9,
+           which is also fixer MAPSTAGE's own pre-interlude sha for that
+           route); without them 2171 pixels of it are the star select's
+           sprites. So the stop is the ROM's flag, read through
+           hal/scene_boot.cpp's latch, and the cap is only a backstop. */
+        if (asked >= 0 && (port_scene_killed() || data_02092660 == 0)) {
+            std::fprintf(stderr, "[starsel] the cartridge is finished with the "
+                         "star select at frame %d, %d frames after the ask: "
+                         "dScene_c::BeforeBehavior ran the installed fader's "
+                         "0x1e-frame fade-out and marked the scene for "
+                         "destruction (shouldBeKilled latched %u, latch %u). "
+                         "The boot half runs now.\n",
+                         f, f - asked, (unsigned)port_scene_killed(),
+                         (unsigned)data_02092660);
             break;
         }
     }
     g_interlude_live = 0;
     if (f >= cap)
-        std::fprintf(stderr, "[starsel] the star select did not pick inside %d "
-                     "frames (pending %u, latch %u); the level boots with the "
-                     "act as it stands rather than hanging\n", cap,
-                     (unsigned)data_02092664, (unsigned)data_02092660);
+        std::fprintf(stderr, "[starsel] the star select did not finish inside "
+                     "%d frames (asked at %d, pending %u, latch %u, "
+                     "shouldBeKilled %u); the level boots with the act as it "
+                     "stands rather than hanging\n", cap, asked,
+                     (unsigned)data_02092664, (unsigned)data_02092660,
+                     (unsigned)port_scene_killed());
     /* Whatever happened, the port has now done everything it is going to do
        about the request, so it completes Scene::SpawnIfNecessary's other half
        exactly as the poll's own tail release does. */

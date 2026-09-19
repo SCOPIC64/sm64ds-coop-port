@@ -3222,8 +3222,49 @@ static void sc_gate_report(const char *which, void *s, int r)
                 data_0209f1e4, (unsigned)data_02092664);
     std::fflush(stdout);
 }
+/* ---- THE SCENE'S OWN END, LATCHED OFF THE ROM'S OWN FLAG -------------------
+ *
+ * dScene_c::BeforeBehavior (src/_ZN8dScene_c14BeforeBehaviorEv.cpp:85-92) is
+ * what ends a scene on the cartridge. Once a next scene is pending it runs the
+ * installed fader forward for 0x1e frames and then calls MarkForDestruction:
+ *
+ *     if (data_02092664 != 0x187) {
+ *         if (fader->IsAtStart())    fader->SetForwardTime(0x1e, 0);
+ *         else if (fader->IsAtEnd()) MarkForDestruction();
+ *         return 1;
+ *     }
+ *
+ * MarkForDestruction sets fBase_c::shouldBeKilled at +0x0f (include/fBase_c.h
+ * :112), and from that frame on the scene is finished: BeforeBehavior and
+ * BeforeRender both return 0 and the actor manager is free to reap it.
+ *
+ * WHY THIS LATCH EXISTS. hal/level_change.cpp's painting interlude (level ->
+ * star select -> level) has to hand the frame back at the moment the cartridge
+ * would have destroyed the scene, and the pending id is no use for that: it
+ * turns 3 on the frame the star select ASKS, thirty-two frames earlier.
+ * Measured on the l1to6 route, with the star select's own gate reporting:
+ *     f217  the star select asked for SCENE 3
+ *     f249  GATE ren CLOSED for scene 3003A564: kill 1
+ *     f250  GATE beh CLOSED for scene 3003A564: kill 1
+ * so this reads the edge at +0x0f rather than timing the fade or waiting on
+ * data_02092660, which does not clear on that route because nothing reaps the
+ * killed actor before the level boots.
+ *
+ * It is read through the thunk that already dispatches the slot and already
+ * reads +0x0f for its gate report, so it costs one compare on a path that runs
+ * once per scene per frame, and it is the ROM's flag on the ROM's object. */
+static unsigned char g_sc_killed;
+extern "C" void port_scene_killed_reset(void) { g_sc_killed = 0; }
+extern "C" int  port_scene_killed(void)       { return g_sc_killed; }
+
 static int  __fastcall sc_bbeh(void *s, void *)
-{ int r = _ZN8dScene_c14BeforeBehaviorEv(s); sc_gate_report("beh", s, r); return r; }
+{
+    int r = _ZN8dScene_c14BeforeBehaviorEv(s);
+    if (((const unsigned char *)s)[0xf] != 0)
+        g_sc_killed = 1;
+    sc_gate_report("beh", s, r);
+    return r;
+}
 /* AfterBehavior, slot 8, and the INDEPENDENT witness that ActorBase::Process
    was entered at all. Process calls slot 7, sometimes slot 6, and ALWAYS slot
    8, so this count is "how many times was this object processed" with no gate
