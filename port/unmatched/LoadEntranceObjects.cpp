@@ -89,7 +89,31 @@ void* _ZN7dBase_c5SpawnEjP7fBase_cii(u32 id, void* base, int a, int b);
 void StartEntranceFaderWipe(int index);
 
 /* PORT_HOST_ABI: ARM argument ride-through into StartEntranceFaderWipe,
- * which the matched TU declares void(void). See the header. */
+ * which the matched TU declares void(void). See the header.
+ *
+ * RE-TESTED AND STILL HOLDING, run link100 wave 15, lane SEAT15E, against
+ * src/ at 8ddff3187. The LINK15 census (out/LINK15/rows.tsv) put this row in
+ * BATCH 4 as tract A with the T4 note "RIDE-THROUGH CLAIM STALE: every callee
+ * the src declares now takes a parameter". THAT IS WRONG FOR THIS ROW, and it
+ * is wrong on the one callee the banner is about. Read today, the matched TU
+ * src/_Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij.cpp still says
+ *
+ *     :34    void StartEntranceFaderWipe(void);
+ *     :100   StartEntranceFaderWipe();
+ *
+ * while src/engine/fader/StartEntranceFaderWipe.cpp:41 still defines
+ * `extern "C" void StartEntranceFaderWipe(int index)`. The ROM still leaves
+ * the wipe type the `< 0` test just loaded in r0 across the bl at 0x020fe850,
+ * so the defect this file exists for is unchanged and a host cdecl call would
+ * still index WIPES with an unwritten stack slot. LoadEntranceObjects is the
+ * only caller of StartEntranceFaderWipe in the tree, so nothing else can make
+ * the row true from the other side either.
+ *
+ * The row is therefore a STANDING host-ABI exception, not replacement work,
+ * and this tag is the ruling. It raises no linkage count. The row retires when
+ * the matched TU's own declaration carries the parameter -- a decomp-side
+ * change under the byte gate, the same shape as the two ov007 seams this lane
+ * did seat. */
 void _Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij(struct ObjSubTable* tbl, int p2, u32 p3)
 {
     u32 sl;
