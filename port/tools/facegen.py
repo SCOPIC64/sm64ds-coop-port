@@ -93,6 +93,7 @@ import argparse
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -992,6 +993,99 @@ def itanium_arity(params):
 
 
 _UNDNAME_EXE = []
+_UNDNAME_TRIED = []
+
+# bin\Host<host>\<arch>, newest toolset first. undname is a pure text tool --
+# it reads a decorated name and prints the C++ spelling -- so ANY of the four
+# cross combinations answers identically; the order is only which one is
+# likeliest to be installed. Hostx64 comes second because a 64-bit-only VC
+# workload has no Hostx86 tree at all, and this tool never runs the compiler.
+_UNDNAME_BINS = (("Hostx86", "x86"), ("Hostx64", "x64"),
+                 ("Hostx64", "x86"), ("Hostx86", "x64"))
+
+
+def _undname_in_toolset(toolset):
+    """undname.exe directly under one ...\\Tools\\MSVC\\<ver> directory.
+
+    The four named combinations first because they are one stat each, then a
+    walk of bin\\ as the answer to "what if a future toolset arranges its host
+    directories differently". The walk is over a few hundred files and only
+    ever runs on a toolset where the named layout already missed, so the fast
+    path stays fast and the layout is not a thing this tool has to be right
+    about.
+    """
+    for host, arch in _UNDNAME_BINS:
+        cand = os.path.join(toolset, "bin", host, arch, "undname.exe")
+        _UNDNAME_TRIED.append(cand)
+        if os.path.exists(cand):
+            return cand
+    binroot = os.path.join(toolset, "bin")
+    if os.path.isdir(binroot):
+        for base, _dirs, files in os.walk(binroot):
+            for name in files:
+                if name.lower() == "undname.exe":
+                    found = os.path.join(base, name)
+                    _UNDNAME_TRIED.append(found + "  (found by walking bin)")
+                    return found
+        _UNDNAME_TRIED.append(binroot + "  (walked, no undname.exe)")
+    return None
+
+
+def _undname_under_vc(vcroot):
+    """undname.exe under a ...\\VC directory, newest toolset first."""
+    tools = os.path.join(vcroot, "Tools", "MSVC")
+    if not os.path.isdir(tools):
+        _UNDNAME_TRIED.append(tools + "  (no such directory)")
+        return None
+    try:
+        versions = sorted(os.listdir(tools), reverse=True)
+    except OSError as exc:
+        _UNDNAME_TRIED.append("%s  (%s)" % (tools, exc))
+        return None
+    for ver in versions:
+        found = _undname_in_toolset(os.path.join(tools, ver))
+        if found:
+            return found
+    return None
+
+
+def _vs_installs():
+    """Every Visual Studio installation path vswhere reports.
+
+    The same discovery port/build-port.cmd and the Configure steps of
+    .github/workflows/port-linkage.yml use for cl.exe. vswhere itself is the
+    one fixed path Microsoft promises across versions -- it has lived in
+    %ProgramFiles(x86)%\\Microsoft Visual Studio\\Installer since 2017 -- and
+    everything else about where VS puts itself is a moving target.
+    """
+    seen, out = set(), []
+    for pf in (os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+               os.environ.get("ProgramFiles", r"C:\Program Files")):
+        exe = os.path.join(pf, "Microsoft Visual Studio", "Installer",
+                           "vswhere.exe")
+        if not os.path.exists(exe):
+            _UNDNAME_TRIED.append(exe + "  (no vswhere here)")
+            continue
+        for extra in (["-requires",
+                       "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"],
+                      ["-prerelease"]):
+            try:
+                res = subprocess.run(
+                    [exe, "-latest", "-products", "*"] + extra +
+                    ["-property", "installationPath"], capture_output=True)
+            except OSError as exc:
+                _UNDNAME_TRIED.append("%s  (%s)" % (exe, exc))
+                continue
+            for line in res.stdout.decode("latin-1", "replace").splitlines():
+                line = line.strip()
+                if line and line not in seen:
+                    seen.add(line)
+                    out.append(line)
+        _UNDNAME_TRIED.append(
+            "%s  ->  %s" % (exe, ", ".join(out) if out
+                            else "(vswhere reported no installation)"))
+        break
+    return out
 
 
 def find_undname():
@@ -1004,27 +1098,104 @@ def find_undname():
     two minutes of batch file per build is two minutes nobody gets back.
     Measured: 127s for ONE undname call through vcvars, under a second for
     1385 through the direct path. The vcvars route stays as the fallback.
+
+    WHY closure.find_vcvars IS LAST NOW, NOT FIRST (lane CIPORT1, 2026-09-19).
+    closure.VCVARS_CANDIDATES is four fixed paths, all of them
+    %ProgramFiles(x86)%\\Microsoft Visual Studio\\2022\\<edition>. GitHub's
+    windows-latest image ships Visual Studio 18 at
+    C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise -- a different
+    version folder AND the other Program Files -- so all four miss, this
+    returned None, undname_batch's fallback asked the same function and got
+    None again, and every decorated definition came back with no class, no
+    method, no parameter list and no constness. facegen --sync then refused
+    all 1926 ledger rows on the runner while the same tree derived all 1926
+    here. Run 35463216993's linkage job is the measurement: 1757 "undname
+    produced nothing" refusals, plus nine dBgW/dBgW_KcMbg/dBgW_KcMbgSclY
+    DetectClsn rule-2 rows, which are the SAME outage reaching pick_by_params
+    -- with no parameter lists to read, "0 of the 3 MSVC definitions take
+    (dBgCh_Gnd)" is true of every overload trio. So the search is the one the
+    build scripts already use for cl.exe (vswhere), plus the environment
+    vcvars itself exports, and the fixed 2022 list stays as the last resort.
+
+    THE RULE IS STILL THE RULE. Nothing here relaxes a refusal: every row
+    still has to pass the three checks of THE ADDRESS BINDING. This only
+    restores the tool those checks read their evidence from.
     """
     if _UNDNAME_EXE:
         return _UNDNAME_EXE[0]
     found = None
-    vcvars = closure.find_vcvars()
-    if vcvars:
-        vcroot = os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(vcvars))))          # ...\VC
-        tools = os.path.join(vcroot, "Tools", "MSVC")
-        if os.path.isdir(tools):
-            for ver in sorted(os.listdir(tools), reverse=True):
-                for host in ("Hostx86", "Hostx64"):
-                    cand = os.path.join(tools, ver, "bin", host, "x86",
-                                        "undname.exe")
-                    if os.path.exists(cand):
-                        found = cand
-                        break
-                if found:
-                    break
+
+    # 1. An explicit answer, for a future image move that outruns this list.
+    override = os.environ.get("SM64DS_UNDNAME")
+    if override:
+        _UNDNAME_TRIED.append("$SM64DS_UNDNAME=" + override)
+        if os.path.exists(override):
+            found = override
+
+    # 2. The toolset vcvars already selected, when this runs inside one. The
+    #    port-linkage build step is exactly that shell.
+    if not found:
+        toolset = os.environ.get("VCToolsInstallDir")
+        if toolset:
+            found = _undname_in_toolset(toolset.rstrip("\\/"))
+
+    # 3. PATH, same reason.
+    if not found:
+        onpath = shutil.which("undname")
+        _UNDNAME_TRIED.append("PATH:undname.exe" +
+                              ("" if onpath else "  (not on PATH)"))
+        if onpath:
+            found = onpath
+
+    # 4. vswhere, version-agnostic.
+    if not found:
+        for install in _vs_installs():
+            found = _undname_under_vc(os.path.join(install, "VC"))
+            if found:
+                break
+
+    # 5. The install the workflow's Configure step already discovered and
+    #    exported through GITHUB_ENV.
+    if not found:
+        vsinstall = os.environ.get("VSINSTALL")
+        if vsinstall:
+            found = _undname_under_vc(os.path.join(vsinstall, "VC"))
+
+    # 6. The fixed VS2022 list, which is what this box has.
+    if not found:
+        vcvars = closure.find_vcvars()
+        if vcvars:
+            found = _undname_under_vc(os.path.dirname(os.path.dirname(
+                os.path.dirname(os.path.abspath(vcvars)))))     # ...\VC
+        else:
+            _UNDNAME_TRIED.append(
+                "closure.find_vcvars(): none of %d fixed VS2022 paths exist"
+                % len(closure.VCVARS_CANDIDATES))
+
     _UNDNAME_EXE.append(found)
     return found
+
+
+def no_undname(exe):
+    """Stop, naming the missing tool, instead of refusing every row.
+
+    A silent {} from undname_batch is indistinguishable at the row level from
+    a thousand genuine binding failures, and that is how run 34771733335 read
+    for five days: 1512 honest-looking refusals whose real content was "the
+    demangler did not run". The refusals are still refusals when undname
+    answers and the answer disagrees; this is the case where it never spoke.
+    """
+    where = "\n".join("    " + p for p in _UNDNAME_TRIED) or "    (nowhere)"
+    sys.exit(
+        "facegen: undname.exe is not reachable%s.\n"
+        "Without it no decorated definition's class, method, parameter list "
+        "or\nconstness can be read, so every ledger row would refuse and the "
+        "faces\nwould silently leave the link. That is a missing tool, not a "
+        "binding\nfailure, and it is reported as one.\n"
+        "Install the VC x86 tools, run this inside vcvars32, or point\n"
+        "SM64DS_UNDNAME at undname.exe. Searched:\n%s"
+        % (" (found at %s, but it produced nothing)" % exe if exe else "",
+           where))
 
 
 def undname_batch(symbols):
@@ -1033,10 +1204,15 @@ def undname_batch(symbols):
         return {}
     exe = find_undname()
     if exe:
-        return _undname_direct(exe, symbols)
+        direct = _undname_direct(exe, symbols)
+        if direct:
+            return direct
+        # Found but mute: a toolset whose undname prints another shape, or one
+        # that cannot start. Try the slow route rather than report every row
+        # as unbindable on the strength of a tool that said nothing at all.
     vcvars = closure.find_vcvars()
     if vcvars is None:
-        return {}
+        no_undname(exe)
     with tempfile.TemporaryDirectory() as td:
         runner = pathlib.Path(td) / "und.cmd"
         outp = pathlib.Path(td) / "und.txt"
@@ -1058,7 +1234,11 @@ def undname_batch(symbols):
         runner.write_text("\r\n".join(lines) + "\r\n")
         subprocess.run(["cmd", "/c", str(runner)], capture_output=True)
         text = outp.read_text(errors="replace") if outp.exists() else ""
-    return _undname_parse(text)
+    parsed = _undname_parse(text)
+    if not parsed:
+        _UNDNAME_TRIED.append("vcvars route: " + vcvars + "  (no output)")
+        no_undname(exe)
+    return parsed
 
 
 def _undname_parse(text):
@@ -3257,7 +3437,28 @@ def main():
                          "the parent of the port/ directory this tool is in)")
     ap.add_argument("--lenient", action="store_true",
                     help="--sync only: report refusals without failing")
+    ap.add_argument("--where-undname", action="store_true",
+                    help="print the undname.exe this host would use, and "
+                         "every place that was looked, then exit 1 if there "
+                         "is none")
     args = ap.parse_args()
+
+    if args.where_undname:
+        # Cheap enough to run before a build, and it turns the whole class of
+        # "the demangler was not there" into one line at the top of the log
+        # instead of a thousand refusals nine minutes in.
+        exe = find_undname()
+        for place in _UNDNAME_TRIED:
+            print("  looked: %s" % place)
+        if exe:
+            print("undname: %s" % exe)
+            probe = _undname_direct(exe, ["?Behavior@BillBlaster@@UAEHXZ"])
+            for key in sorted(probe):
+                print("  probe: %s -> %s" % (key, probe[key]))
+            sys.exit(0 if probe else
+                     "undname: found but it produced nothing for the probe")
+        sys.exit("undname: NOT FOUND -- facegen --sync would refuse every "
+                 "ledger row")
 
     if args.selftest:
         sys.exit(selftest())
