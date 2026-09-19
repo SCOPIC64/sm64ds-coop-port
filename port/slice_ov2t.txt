@@ -5,13 +5,12 @@
 # 0x020ad660, the config/arm9/overlays/ov002/delinks.txt .text start) and never
 # against the dsd copies, per the sm64ds-dsd-overlay-bins-shifted note.
 #
-# THIS SLICE CARRIES NO LIVE ROW. All five of BATCH 6's rows are refused, four
-# of them on evidence gathered before any build and the fifth on a link the lane
-# actually ran and then reverted. The CMake block that reads this file is kept
-# so the file is not a dead slice (out/LINK14/bugs.md item 3) and so the next
-# lane finds the reasons where it looks for the rows.
+# TWO ROWS ARE LIVE (seated by OV2MOUNT); the other three of BATCH 6 stay
+# refused, on the same evidence SEAT14C gathered. The CMake block that reads
+# this file needed no new plumbing: the two src rows below are ordinary
+# target_sources() entries on all three hosting targets, same as slice_link21.
 #
-# SEATED, THEN REVERTED ON THE LINK -- the two nearest-miss rows on the batch
+# SEATED BY OV2MOUNT -- the two nearest-miss rows on the batch
 #
 #   src/func_ov002_020f43cc.c   0x020f43cc, 836 bytes
 #   src/func_ov002_020f5010.c   0x020f5010, 792 bytes
@@ -21,13 +20,12 @@
 #     {function, this-adjustment} records, and lane PMFB6 already seated the
 #     whole family in hal/cutscene_states_link100.cpp -- these two cells alone
 #     carried an ABORTING face (ST_FACEX) over the sentence "for which there is
-#     NO src file anywhere in the tree". THAT SENTENCE IS STALE: the main->port
-#     sync brought both TUs in after PMFB6 wrote it, and the next lane to read
-#     that header should not believe it. Turning the two cells into ordinary
-#     ST_FACE1 rows retires two of the three aborts as well as adding two rows
-#     of linkage -- it was written, built, and then reverted for the reason
-#     below. The face edit is four lines and is in the lane's report verbatim.
-#     Disassembly at the two addresses, read out of the overlay image:
+#     NO src file anywhere in the tree". THAT SENTENCE WAS STALE: the main->port
+#     sync brought both TUs in after PMFB6 wrote it. Both cells are now ordinary
+#     ST_FACE1 rows in hal/cutscene_states_link100.cpp, retiring two of the
+#     three aborts there (one, func_ov002_020f3de4, is still undecompiled and
+#     still aborts). Disassembly at the two addresses, read out of the overlay
+#     image:
 #       0x020f43cc  push {r4,r5,r6,r7,r8,sb,sl,fp,lr} / sub sp,sp,#4 /
 #                   mov r5,r1 / mov r1,#0x4c / mul r4,r5,r1 / mov sl,r0
 #       0x020f5010  push {r4,r5,r6,r7,r8,sb,lr} / sub sp,sp,#4 /
@@ -39,26 +37,40 @@
 #     (char *c, int i) signature both matched TUs declare. No cast, no
 #     adaptation.
 #
-#     WHAT STOPPED THEM, measured: both TUs compile and both LINK-FAIL on ov002
-#     DATA the port does not publish.
+#     WHAT STOPPED THEM, measured by SEAT14C: both TUs compile and both
+#     LINK-FAIL on ov002 DATA the port did not publish.
 #         func_ov002_020f43cc.c.obj : error LNK2019: unresolved external symbol
 #             _data_ov002_021000b8 referenced in function _func_ov002_020f43cc
 #         func_ov002_020f5010.c.obj : error LNK2019: unresolved external symbol
 #             _data_ov002_021000d0 referenced in function _func_ov002_020f5010
 #     (walk_window and walk_window_hires alike, LNK1120 2 unresolved.) Both are
 #     the per-slot INITIAL HEADING tables the re-arm loop at the tail of each
-#     body reads. port/ov002_syms.txt mounts that neighbourhood per symbol and
-#     publishes data_ov002_021000a0, ...a8, ...c8, ...d8, ...e0 and ...f0 while
-#     skipping exactly these two; build/port/host-src/ov002_data.c.map confirms
-#     neither name is emitted. THE ENABLER IS TWO ROWS IN port/ov002_syms.txt --
-#     one named thing, not a mechanism -- and that file is the shared ov002
-#     mount, which this batch does not own and which a seat lane must not widen
-#     unreviewed at 03:00 with no one to ask: it is a --pack list, every level
-#     loads ov002, and the packed emission is what every other ov002 row in the
-#     tree is laid out against. So the rows are reverted and handed on rather
-#     than forced. With those two symbols mounted, both rows should seat exactly
-#     as written above, +2 linkage, and two of the three aborting cells in
-#     hal/cutscene_states_link100.cpp go away with them.
+#     body reads: both src files declare them `extern unsigned short
+#     data_ov002_021000b8[]` / `..._021000d0[]` and index j 0..3, so each table
+#     is 4 shorts, 8 bytes -- NOT the 0x10 SEAT14C's note estimated for b8.
+#     config/arm9/overlays/ov002/symbols.txt names data_ov002_021000c0 between
+#     b8 and c8 (b8's real next symbol is c0, not c8), so OV2MOUNT added both
+#     names BARE, no size override: ov002_syms.txt's next-symbol-delta rule
+#     gives b8 the correct 8 bytes (to c0) and d0 the correct 8 bytes (to d8)
+#     on its own, matching the matched TUs' own array types exactly. c0 stays
+#     unmounted -- nothing in src/ or port/ references it. relocs.txt confirms
+#     no relocation source falls inside the b8..c0, c0..c8 or d0..d8 spans
+#     (plain data, not pointers), so a raw byte copy is correct.
+#     port/ov002_syms.txt mounts this neighbourhood per symbol and published
+#     data_ov002_021000a0, ...a8, ...c8, ...d8, ...e0 and ...f0 while skipping
+#     exactly these two; build/port/host-src/ov002_data.c.map confirmed neither
+#     name was emitted. THE ENABLER WAS TWO ROWS IN port/ov002_syms.txt -- one
+#     named thing, not a mechanism. SEAT14C read the mount as a --pack list and
+#     held off widening it unreviewed; it is not: the CMakeLists.txt line that
+#     mounts ov002 (`ovdata.py ov002 ... --from-list ov002_syms.txt`, no
+#     --pack) emits every symbol as its own independent host global under the
+#     shared .dsstate$mmm section, not into address-sorted packed slots, so
+#     there is no packed layout for a new entry to disturb and no ordering
+#     requirement either way. OV2MOUNT inserted both names in address order
+#     into the existing TAIL2 line purely for readability.
+#
+src/func_ov002_020f43cc.c
+src/func_ov002_020f5010.c
 #
 # REFUSED, and why
 #
@@ -108,4 +120,4 @@
 #     same cdecl fn(c), so seating it needs its own host copy" -- and a host
 #     copy is what slot 23 got, which links the HOST file and leaves the matched
 #     TU exactly as unlinked as it is now.
-# (no live row: see the block above)
+# (these three stay refused; the two live rows are in the block above)
