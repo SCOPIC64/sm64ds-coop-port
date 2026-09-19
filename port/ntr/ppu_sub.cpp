@@ -43,17 +43,21 @@
 //     is what makes dScMgCurling_c's 0x0440 light-blue shadow render. The
 //     window colour-effect bit (bit 5 of the window masks) gates it per region.
 //     SM64DS_BLEND_OFF=1 restores the old opaque path for A/B and bisection.
-//   - NOT the BLDY brightness modes (BLDCNT mode 2/3). Those are applied
-//     downstream, on top of the master brightness this file applies:
-//     ppu_compose_stacked's evy for the stacked half, and the corner panel
-//     inside walk_window's fade composite. Applying mode 2/3 here too would
-//     double them, so this unit recognises them and defers. The game writes
-//     mode 2/3 for brightness and mode 1 (alpha) for effects, so the split is
-//     clean. It is NOT only the fader that writes them: ov007's own
-//     func_ov007_020b7138 sets mode 3 EVY 16 on both engines at the opening and
-//     leaves engine B there, which is why the downstream reader has to be the
-//     SUB engine's registers (port_fader_blend_state_sub) and not the main
-//     engine's.
+//   - THE BLDY BRIGHTNESS MODES (BLDCNT mode 2/3), gated on the SAME
+//     first-target mask (BLDCNT bits 0-5) the alpha path above already reads,
+//     so only the layers the mask names are brightened or darkened; a layer
+//     left out of the mask (OBJ, on the title's star flight) rides through
+//     untouched. This used to be deferred downstream, to ppu_compose_stacked's
+//     flat per-panel darken -- correct for the master brightness this file
+//     ALSO applies (0x0400106C, whole-screen, a different register), wrong for
+//     BLDCNT/BLDY because the mask is per-layer and the downstream darken had
+//     no layer identity left to mask against. ov007's own func_ov007_020b7138
+//     sets mode 3 EVY 16 on both engines at the opening and leaves engine B
+//     there with first-target mask 0x2f (every BG and the backdrop, OBJ
+//     clear), which is why the flying star and its sparkles -- engine B OBJ --
+//     must ride through at full brightness on a black sky, and why the read
+//     has to be the SUB engine's own registers (port_fader_blend_state_sub)
+//     and not the main engine's.
 //   - EXTENDED AFFINE BITMAP BGs, both arms: 256-colour and DIRECT COLOUR.
 //     BGxCNT bit 7 in an extended-affine slot means bitmap rather than 256
 //     colours, and this file used to refuse the whole arm. It is how the
@@ -767,9 +771,9 @@ inline uint32_t apply_bright(uint32_t c, const Bright &b) {
 
 // ---- the colour special-effects unit (BLDCNT) -------------------------------
 //
-// Only ALPHA (mode 1) and the always-on semi-transparent-OBJ alpha are applied
-// here; the BLDY brightness modes 2/3 are the fade path's, see the header note.
-// Register offsets are engine-relative: BLDCNT 0x50, BLDALPHA 0x52 on this
+// ALPHA (mode 1), the always-on semi-transparent-OBJ alpha, and the BLDY
+// brightness modes (2/3) are all applied here, see the header note. Register
+// offsets are engine-relative: BLDCNT 0x50, BLDALPHA 0x52, BLDY 0x54 on this
 // engine's kRegBase. Layer ids match the window-mask bits: 0..3 BG0..BG3, 4
 // OBJ, 5 the backdrop (BD).
 
@@ -791,6 +795,7 @@ struct Blend {
     unsigned first;    // bits 0-5: 1st-target layers
     unsigned second;   // bits 8-13: 2nd-target layers
     int eva, evb;      // BLDALPHA: 1st/2nd coefficients, 0..16 in 1/16 steps
+    int evy;           // BLDY: brightness up/down coefficient, 0..16 in 1/16 steps
 };
 
 inline Blend read_blend() {
@@ -803,6 +808,7 @@ inline Blend read_blend() {
     b.second = (cnt >> 8) & 0x3F;
     b.eva = alpha & 0x1F; if (b.eva > 16) b.eva = 16;
     b.evb = (alpha >> 8) & 0x1F; if (b.evb > 16) b.evb = 16;
+    b.evy = rd16(kRegBase + 0x54) & 0x1F; if (b.evy > 16) b.evy = 16;
     return b;
 }
 
@@ -841,7 +847,27 @@ inline uint32_t blend_apply(const Blend &bl, unsigned mask, uint32_t top,
     }
     if (bl.mode == 1 && (bl.first & (1u << top_id)) && below_second)
         return blend_alpha(top, below, bl.eva, bl.evb);
-    // modes 2/3 (brightness) belong to the fade path; recognised and deferred.
+    if ((bl.mode == 2 || bl.mode == 3) && (bl.first & (1u << top_id))) {
+        // Brightness increase/decrease, gated on the first-target mask: only
+        // the layers BLDCNT bits 0-5 name are affected, one layer at a time,
+        // same as the DS. In 5-bit space, the DS's own arithmetic, the same
+        // round trip blend_alpha uses.
+        int r = ((top >> 16) & 0xFF) >> 3, g = ((top >> 8) & 0xFF) >> 3,
+            b = (top & 0xFF) >> 3;
+        if (bl.mode == 2) {
+            r += ((31 - r) * bl.evy) >> 4;
+            g += ((31 - g) * bl.evy) >> 4;
+            b += ((31 - b) * bl.evy) >> 4;
+        } else {
+            r -= (r * bl.evy) >> 4;
+            g -= (g * bl.evy) >> 4;
+            b -= (b * bl.evy) >> 4;
+        }
+        if (r > 31) r = 31; if (g > 31) g = 31; if (b > 31) b = 31;
+        return 0xFF000000u | ((uint32_t)(r << 3 | r >> 2) << 16)
+                            | ((uint32_t)(g << 3 | g >> 2) << 8)
+                            | (uint32_t)(b << 3 | b >> 2);
+    }
     return top;
 }
 
@@ -4480,7 +4506,14 @@ void ppu_compose_stacked(const uint32_t *top, const SubFramebuffer &sub,
             std::memcpy(dst + (size_t)(a_y + y) * dst_w,
                         top + (size_t)y * SCREEN_W, (size_t)active_w * 4);
 
-        /* Engine B, pillarboxed: black margins, uniform-scaled centred panel. */
+        /* Engine B, pillarboxed: black margins, uniform-scaled centred panel.
+           sub.px already carries engine B's own BLDCNT/BLDY brightness --
+           ppu_scanout_sub's blend_apply applies it per pixel, masked by
+           BLDCNT's first-target bits -- so this stage copies it verbatim
+           rather than darkening the whole panel a second time with no layer
+           identity left to mask against. evy/to_white stay live below for the
+           gap band's own seam/straddle fade, a host UI element and not part
+           of the DS raster. */
         for (int y = 0; y < active_h; ++y) {
             const int sy = y / ry;
             const uint32_t *src = sub.px[sy < SUB_H ? sy : SUB_H - 1];
@@ -4489,22 +4522,7 @@ void ppu_compose_stacked(const uint32_t *top, const SubFramebuffer &sub,
             for (int x = px0 + pw; x < active_w; ++x) out[x] = 0xFF000000u;
             for (int x = 0; x < pw; ++x) {
                 const int sx = x / ry;
-                uint32_t p = src[sx < SUB_W ? sx : SUB_W - 1];
-                if (evy) {
-                    int r = (p >> 16) & 0xff, g = (p >> 8) & 0xff, b = p & 0xff;
-                    if (to_white) {
-                        r += ((255 - r) * evy) >> 4;
-                        g += ((255 - g) * evy) >> 4;
-                        b += ((255 - b) * evy) >> 4;
-                    } else {
-                        r -= (r * evy) >> 4;
-                        g -= (g * evy) >> 4;
-                        b -= (b * evy) >> 4;
-                    }
-                    p = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) |
-                        (uint32_t)b;
-                }
-                out[px0 + x] = p;
+                out[px0 + x] = src[sx < SUB_W ? sx : SUB_W - 1];
             }
         }
 
@@ -4553,7 +4571,26 @@ void ppu_compose_stacked(const uint32_t *top, const SubFramebuffer &sub,
 
     /* ENGINE B. The ratio is a whole number at every tier the port
        builds (1, 2 and 4), and a SHIFT rather than a divide would be wrong the
-       day a tier is not a power of two, so it stays a divide. */
+       day a tier is not a power of two, so it stays a divide.
+
+       THIS STAGE NO LONGER DARKENS THE PANEL. sub.px already carries engine
+       B's own BLDCNT/BLDY brightness -- ppu_scanout_sub's blend_apply applies
+       modes 2/3 per pixel now, masked by BLDCNT's first-target bits, the same
+       per-engine read (port_fader_blend_state_sub, engine B's own 0x4001050
+       and 0x4001054) this loop used to re-apply wholesale. Re-applying it here
+       had no layer identity left to mask against, so it darkened every pixel
+       of the half alike.
+
+       THE RUN THAT EXPOSED IT. The title's opening screen, the first screen
+       filmed where the two engines disagree: func_ov007_020b7138 puts both at
+       brightness-decrease EVY 16 with engine B's first-target mask 0x2f --
+       every BG and the backdrop, OBJ clear -- and only engine A is faded back
+       in, so on hardware engine B's backgrounds go black while its OBJ layer,
+       the flying star and its sparkles, rides through at full brightness.
+       Darkening the whole panel here took the star down with the backgrounds;
+       masking it in blend_apply instead is what keeps it lit. evy/to_white
+       stay live below for the gap band's own seam/straddle fade, a host UI
+       element and not part of the DS raster. */
     const int rx = active_w / SUB_W, ry = active_h / SUB_H;
     for (int y = 0; y < active_h; ++y) {
         const int sy = ry > 0 ? y / ry : (y * SUB_H) / active_h;
@@ -4561,49 +4598,7 @@ void ppu_compose_stacked(const uint32_t *top, const SubFramebuffer &sub,
         uint32_t *out = dst + (size_t)(b_y + y) * dst_w;
         for (int x = 0; x < active_w; ++x) {
             const int sx = rx > 0 ? x / rx : (x * SUB_W) / active_w;
-            uint32_t p = src[sx < SUB_W ? sx : SUB_W - 1];
-            if (evy) {
-                /* the same expression walk_window's fade composite runs over
-                   the framebuffer, so each half fades with its own engine.
-
-                   THE QUESTION THIS USED TO LEAVE OPEN IS ANSWERED, and the
-                   answer was no. evy used to come from port_fader_blend_state,
-                   the MAIN engine's BLDCNT/BLDY at 0x4000050/0x4000054, on the
-                   reasoning that the corner panel gets that fade today -- and
-                   it does, but only because the panel is inside engine A's
-                   framebuffer when walk_window's fade loop runs over it, which
-                   is a fact about the inset and not about the DS. The blend
-                   unit is PER ENGINE. hal/sub_screen.cpp now passes
-                   port_fader_blend_state_sub, engine B's own 0x4001050 and
-                   0x4001054, and this half fades with the engine that is
-                   drawing it.
-
-                   THE RUN THAT EXERCISED IT. The title's opening screen, which
-                   is the first screen filmed where the two engines disagree:
-                   func_ov007_020b7138 puts both at brightness-decrease EVY 16
-                   and only engine A is faded back in, so engine B is fully
-                   black from frame 300 to the first stylus tap. Measured on the
-                   cartridge in melonDS (engine B BLDCNT 0x00ef mode 3 EVY 16,
-                   top screen colors=1 lit=0 at every shot from 399 to 900) and
-                   on the port's own SM64DS_PPU_AUDIT (engine B BLDY 0x0010 on
-                   all 915 samples). MASTER_BRIGHT is zero on both engines on
-                   both sides for the whole of it, so the sub engine's own
-                   0x0400106C -- which ppu_scanout_sub does apply -- is not a
-                   second fade here and there is nothing being doubled. */
-                int r = (p >> 16) & 0xff, g = (p >> 8) & 0xff, b = p & 0xff;
-                if (to_white) {
-                    r += ((255 - r) * evy) >> 4;
-                    g += ((255 - g) * evy) >> 4;
-                    b += ((255 - b) * evy) >> 4;
-                } else {
-                    r -= (r * evy) >> 4;
-                    g -= (g * evy) >> 4;
-                    b -= (b * evy) >> 4;
-                }
-                p = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) |
-                    (uint32_t)b;
-            }
-            out[x] = p;
+            out[x] = src[sx < SUB_W ? sx : SUB_W - 1];
         }
     }
 
