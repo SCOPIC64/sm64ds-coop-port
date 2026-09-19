@@ -2962,6 +2962,7 @@ extern signed char data_0209f2f8;    /* current level */
    host allocation and the ROM reads it as a byte. */
 extern unsigned char data_0209f26c;
 extern int data_0209f264[];          /* current entrance */
+extern unsigned char data_0209f268;  /* next entrance */
 extern int data_0209f220[];          /* current star filter */
 extern unsigned char *data_0209f344; /* VS star-order pointer (host: bob_enemy_bridges.cpp) */
 /* data_0209212c (world Y max) is DEFINED above, in the retirement block. Do
@@ -3556,8 +3557,18 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
        the warp-pipe pad on Bob-omb Battlefield. SM64DS_ENTRANCE picks another
        one; port_entrance_count() says how many the level has. */
     {
+        /* Stage::InitResources:228 is `data_0209f264 = data_0209f268` -- the
+           entrance the level change staged (a death stages 0xd,
+           src/SetNextLevel.c:45). Seating the current entrance from the knob
+           here instead overwrote that latch, so every change entered the
+           level at record 0. SM64DS_ENTRANCE now picks the PENDING entrance,
+           which is what a direct boot needs and what the ROM's line then
+           latches; data_0209f268 is measurably 0 on a direct boot, so an
+           unset knob leaves every direct-boot row exactly where it was. */
         const char *en = std::getenv("SM64DS_ENTRANCE");
-        data_0209f264[0] = en ? std::atoi(en) : 0;
+        if (en)
+            data_0209f268 = (unsigned char)std::atoi(en);
+        data_0209f264[0] = data_0209f268;
     }
     /* Star filter: the sub-table's group byte (kind >> 5) loads when it is 0
        or equal to this. ADVENTURE is 1, which is grp0 + grp1; SM64DS_STAR_FILTER
@@ -3850,7 +3861,11 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
        already reads 0, it is in the boot above. Inert unless SM64DS_INTRO_WATCH
        is set. */
     port_intro_watch("before LoadClsnAndObjects");
-    _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR7dBgW_Kc(o, 0, mc);
+    /* Stage::InitResources:382 passes data_0209f264, not a literal: it is
+       the entrance record index LoadEntranceObjects offsets its array by
+       (`e += p3`). The hard-coded 0 put every level change on record 0. */
+    _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR7dBgW_Kc(
+        o, (unsigned)data_0209f264[0], mc);
     port_intro_watch("after LoadClsnAndObjects");
     port_scene_canary("after LoadClsnAndObjects");
     if (!intro_seen && std::getenv("SM64DS_INTRO_UNSEEN"))
