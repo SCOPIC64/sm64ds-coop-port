@@ -51,12 +51,39 @@
 // class inherits the wrong name. Two of the four tables filled here are
 // shifted and two are not:
 //
-//   74  FloatOnLavaPlatform  bodies spelled _ZN19RotatingPlatformLll*
-//                            table  spelled _ZTV19FloatOnLavaPlatform
+//   74  FloatOnLavaPlatform  NOT SHIFTED -- corrected 09-19, lane SEAT14B.
+//                            See "THE 74 SHIFT WAS NOT A SHIFT" below.
 //   82  LavaPlank            bodies spelled _ZN19FloatingFloorLllBig*
 //                            table  spelled _ZTV9LavaPlank
 //   71  VolcanoRing          unnamed func_ov022_* bodies, unnamed table
 //   76  FloatingFloorLllSmall its own block, named correctly
+//
+// ---- THE 74 SHIFT WAS NOT A SHIFT (corrected 09-19, lane SEAT14B) ----------
+//
+// The wave-8 table above put id 74's bodies under the _ZN19RotatingPlatformLll
+// spelling, and the fill below dispatched all four of slots 0/3/6/9 into that
+// OTHER class. Read straight out of extracted/overlays/overlay_0022.bin (base
+// 0x021111a0, the DECOMPRESSED image), the two tables are disjoint and each
+// holds its own class's bodies:
+//
+//   _ZTV19FloatOnLavaPlatform 0x02113eac  RTTI at V-4 = 0x02113e68 -> 15daObjFl_Block_c
+//     [0] 0x02111870 = _ZN19FloatOnLavaPlatform13InitResourcesEv
+//     [3] 0x02111760 = _ZN19FloatOnLavaPlatform16CleanupResourcesEv
+//     [6] 0x021117cc = _ZN19FloatOnLavaPlatform8BehaviorEv
+//     [9] 0x021117a4 = _ZN19FloatOnLavaPlatform6RenderEv
+//     [16] 0x021116c4  [17] 0x02111708  [31] 0x020ee55c
+//
+//   _ZTV19RotatingPlatformLll 0x02113de8  RTTI at V-4 = 0x02113d98 -> 16daObjFl_Koma_D_c
+//     [0] 0x02111670  [3] 0x0211165c   its own two bodies
+//     [6] 0x020b6718  [9] 0x020b66f0   ov002 daObjKaitendai_c, the shared pair
+//     [16] 0x021115a8 [17] 0x021115f8
+//
+// So the ROM holds id 74's own body in every one of its four slots, and it is
+// ROTATING_PLATFORM_LLL -- a different base (daObjKaitendai_c, object 0x320)
+// from 74's (dBgActor_c, object 0x328) -- that inherits the shared pair. The
+// four thunks below now call FloatOnLavaPlatform's own methods, which is what
+// the cartridge dispatches. hal/actor_classes_ov022_w3e.cpp keeps id 80's own
+// fill, so the RotatingPlatformLll bodies lose nothing by this correction.
 //
 // The shift is settled by the vtable's own slot-0/3/6/9/16/17 relocations
 // landing inside the block that ENDS at that class's Spawn, and by the RTTI
@@ -108,7 +135,12 @@
 //    recipe. The other three factories (71, 74, 82) store their table by a
 //    real name as the FINAL write and are registered directly.
 //
-// 2. _ZN9LavaPlank16CleanupResourcesEv (id 82, slot 3) SPELLS ITS
+// 2. SUPERSEDED 09-19 (lane SEAT14B): the TU no longer spells G0/G1, so the
+//    refusal below is stale and slot 3 now dispatches the matched body. The
+//    reasoning is kept because the disassembly in it is still the evidence for
+//    the release order. See the note above lp_clean. Original text:
+//
+//    _ZN9LavaPlank16CleanupResourcesEv (id 82, slot 3) SPELLS ITS
 //    TWO SharedFilePtrs G0/G1, and hal/cxx_aliases.cpp has already bound
 //    _G0 to the GAME HEAP POINTER (data_020a0eac), ?G0@@3PAHA to SignPost's
 //    ov002 model file and _G1 to SignPost's ov002 collision file. Linking this
@@ -250,6 +282,7 @@ extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
      82  InitResources / Render                                -> methods
      82  Behavior / D1 / D0                                    -> C names */
 #include "RotatingPlatformLll.h"
+#include "FloatOnLavaPlatform.h"
 #include "LavaPlank.h"
 
 extern "C" {
@@ -287,7 +320,9 @@ void __sinit_ov022_02112d80(void);
 void __sinit_ov022_02112ec0(void);
 void __sinit_ov022_02112f78(void);
 
-/* what lp_clean has to spell out by hand (id 82, slot 3) */
+/* id 82 slot 3 used to be spelled out by hand here; the matched TU took the
+   slot in wave 14, and these stay declared because the two data names are what
+   the /alternatename pair above binds. */
 int _ZN4dBgW9IsEnabledEv(void *self);
 void _ZN4dBgW7DisableEv(void *self);
 void _ZN13SharedFilePtr7ReleaseEv(void *sfp);
@@ -498,8 +533,8 @@ extern "C" void hal_fill_volcano_ring_vtable(void)
 }
 
 // ============================================================================
-// FLOAT_ON_LAVA_PLATFORM (74) -- table 0x02113eac, the
-// _ZN19RotatingPlatformLll* bodies (THE SHIFT)
+// FLOAT_ON_LAVA_PLATFORM (74) -- table 0x02113eac, its OWN
+// _ZN19FloatOnLavaPlatform* bodies (see "THE 74 SHIFT WAS NOT A SHIFT")
 // ============================================================================
 //
 // 808-byte object; Model at +0xd4, MovingMeshCollider at +0x124. Its
@@ -520,15 +555,17 @@ DSSTATE_END
    ov022 mount defines the plain C name; data has no calling convention, so an
    alias onto the one object is exact (the hal/actor_faces_bob.cpp rule 1). */
 #pragma comment(linker, "/alternatename:?data_ov022_02114558@@3PADA=_data_ov022_02114558")
+/* Slots 0/3/6/9 are this class's OWN four bodies, read off the ROM table at
+   0x02113eac; the wave-8 spelling dispatched RotatingPlatformLll's instead. */
 static int __fastcall fl_init(void *s, void *)
-{ return ((RotatingPlatformLll *)s)->RotatingPlatformLll::InitResources(); }
+{ return ((FloatOnLavaPlatform *)s)->FloatOnLavaPlatform::InitResources(); }
 static int __fastcall fl_clean(void *s, void *)
-{ return ((RotatingPlatformLll *)s)->RotatingPlatformLll::CleanupResources(); }
+{ return ((FloatOnLavaPlatform *)s)->FloatOnLavaPlatform::CleanupResources(); }
 static int __fastcall fl_behavior(void *s, void *)
-{ return ((RotatingPlatformLll *)s)->RotatingPlatformLll::Behavior(); }
+{ return ((FloatOnLavaPlatform *)s)->FloatOnLavaPlatform::Behavior(); }
 static int __fastcall fl_render(void *s, void *)
 { port_actor_render_probe("FLOAT_ON_LAVA_PLATFORM", (char *)s + 0xd4);
-  return ((RotatingPlatformLll *)s)->RotatingPlatformLll::Render(); }
+  return ((FloatOnLavaPlatform *)s)->FloatOnLavaPlatform::Render(); }
 static int __fastcall fl_d1(void *s, void *)
 { return (int)(size_t)_ZN19FloatOnLavaPlatformD1Ev((int *)s); }
 static int __fastcall fl_d0(void *s, void *)
@@ -667,30 +704,32 @@ DSSTATE_END
 #pragma comment(linker, "/alternatename:?data_02082214@@3PAUSEnt@@A=_data_02082214")
 static int __fastcall lp_init(void *s, void *)
 { return ((LavaPlank *)s)->LavaPlank::InitResources(); }
-/* slot 3, HOST THUNK, not the matched TU: the matched
-   src/_ZN9LavaPlank16CleanupResourcesEv.cpp spells its two
-   SharedFilePtrs G0/G1, which hal/cxx_aliases.cpp has bound to the game heap
-   pointer and to SignPost's ov002 file pointers. Statement-for-statement
-   transcription of the ROM body at 0x021121cc.
-   run rel0215 wave 3 (lane w3-e) TRIED to retire this thunk with the
-   per-source -D it used on 73's and 77's identically-shaped CleanupResources,
-   and MEASURED THE REFUSAL instead: both this body's targets are declared in
-   include/decl_common.h (lines 238-239, `extern char data_ov022_02114618[]`
-   and `..._02114620[]`) while G1 is declared there too (line 396,
-   `extern int G1[]`), so -DG1=data_ov022_02114618 rewrites one into a
-   redefinition of the other with a different type -- error C2371, the same
-   wall the ov006 Mg3DEsp block at port/CMakeLists.txt:6295 already records.
-   73's and 77's targets are NOT in that header, which is why the rename works
-   there and not here. The thunk stays and the TU stays out of the slice. */
+/* slot 3, THE MATCHED TU (run link100 wave 14, lane SEAT14B). The host thunk
+   lp_clean stood here from wave 8 over a G0/G1 refusal that has since gone
+   stale. The old reason: the matched TU spelled its two SharedFilePtrs G0/G1,
+   both this body's targets are declared in include/decl_common.h (lines
+   238-239, `extern char data_ov022_02114618[]` and `..._02114620[]`) while G1
+   is declared there too (line 396, `extern int G1[]`), so the per-source
+   -DG1=data_ov022_02114618 that works on 73's and 77's identically-shaped
+   CleanupResources rewrote one into a differently-typed redeclaration of the
+   other -- C2371 (lane w3-e measured it; the same wall the ov006 Mg3DEsp block
+   at port/CMakeLists.txt records).
+   WHAT CHANGED: src/_ZN9LavaPlank16CleanupResourcesEv.cpp on this tree no
+   longer spells G0/G1 at all. It declares
+     extern int FloatingFloorLllBig_ModelFile[];   ROM 0x02114620
+     extern int FloatingFloorLllBig_ClsnFile[];    ROM 0x02114618
+   and config/arm9/overlays/ov022/symbols.txt lines 287-290 carry exactly those
+   two names at exactly those two addresses. decl_common.h does not declare
+   either, so no -D and no rename is involved: the two array names simply need
+   binding onto the plain C names port/ov022_syms.txt mounts, which is the
+   data-alias rule this file already uses for 74's 0x02114558 pair. Verified by
+   ROM address -- table 0x021141f0 (RTTI 15daObjFl_UkiKi_c) slot 3 holds
+   0x021121cc, and the TU's Release order is model (0x02114620) then collision
+   (0x02114618), the order both the ROM body and __sinit_ov022_02112f78 use. */
+#pragma comment(linker, "/alternatename:?FloatingFloorLllBig_ModelFile@@3PAHA=_data_ov022_02114620")
+#pragma comment(linker, "/alternatename:?FloatingFloorLllBig_ClsnFile@@3PAHA=_data_ov022_02114618")
 static int __fastcall lp_clean(void *s, void *)
-{
-    char *t = (char *)s;
-    if (_ZN4dBgW9IsEnabledEv(t + 0x124))
-        _ZN4dBgW7DisableEv(t + 0x124);
-    _ZN13SharedFilePtr7ReleaseEv(data_ov022_02114620);
-    _ZN13SharedFilePtr7ReleaseEv(data_ov022_02114618);
-    return 1;
-}
+{ return ((LavaPlank *)s)->LavaPlank::CleanupResources(); }
 static int __fastcall lp_behavior(void *s, void *)
 { return _ZN9LavaPlank8BehaviorEv((char *)s); }
 static int __fastcall lp_render(void *s, void *)
