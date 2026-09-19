@@ -5094,6 +5094,25 @@ foreach(line IN LISTS SLICE_W9HARVEST_LINES)
     list(APPEND SLICE_W9HARVEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run link100 wave 15, lane SEAT15E (LINK15 BATCH 4): the ov007 / ov002 / ov096
+# singles. Every row is a port/unmatched/ host copy whose banner named a defect
+# in the matched source and worked around it; the source has since been fixed
+# and nothing re-read the banner. port/slice_l15ov7.txt quotes, per row, the
+# sentence that was re-tested against src/ at 8ddff3187 and what it reads now,
+# and carries the one row of the batch whose refusal STILL holds
+# (LoadEntranceObjects) as a written refusal rather than a deletion. Same
+# one-owner reader shape as the lane slices above.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_l15ov7.txt" SLICE_L15OV7_LINES)
+set(SLICE_L15OV7_SOURCES "")
+foreach(line IN LISTS SLICE_L15OV7_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_L15OV7_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+
 # run linkw wave 6, lane w6-D: PATH_LIFT (31) and the PathLift base branch --
 # ov100's daObjPathLift_c over ov002's PathLiftActor_c over Platform, the
 # first three-level hierarchy this port hosts that is split across overlays.
@@ -17009,6 +17028,8 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     ${OV029_SOURCES}
     # ---- link100 OV ---- ids 348 (ov002, daChRoom_c) and 314 (ov039, Cloud)
     hal/actor_classes_ov_link100.cpp ${SLICE217_SOURCES}
+    # run link100 wave 15, lane SEAT15E: LINK15 BATCH 4 seats (slice_l15ov7)
+    ${SLICE_L15OV7_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -17321,6 +17342,8 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     # run linkw wave 8 (lane w8-a): the Stage class closure, first piece.
     hal/w8a_stage_storage.cpp hal/w8a_stage_faces.cpp ${SLICE_W8A_SOURCES}
     "${PORT_GITTIP_C}"
+    # run link100 wave 15, lane SEAT15E: LINK15 BATCH 4 seats (slice_l15ov7)
+    ${SLICE_L15OV7_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -17696,6 +17719,8 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     # ---- link100 OV ---- ids 348 (ov002, daChRoom_c) and 314 (ov039, Cloud)
     hal/actor_classes_ov_link100.cpp ${SLICE217_SOURCES}
     "${PORT_GITTIP_C}"
+    # run link100 wave 15, lane SEAT15E: LINK15 BATCH 4 seats (slice_l15ov7)
+    ${SLICE_L15OV7_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
