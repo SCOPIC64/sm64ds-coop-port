@@ -3565,9 +3565,22 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
            which is what a direct boot needs and what the ROM's line then
            latches; data_0209f268 is measurably 0 on a direct boot, so an
            unset knob leaves every direct-boot row exactly where it was. */
+        /* ONCE, on the first stage boot of the process, which is the direct
+           boot the knob exists for. port_stage_boot_body runs on EVERY Stage
+           init (hal/stage_bridges.cpp:355), so a knob re-applied here on the
+           boot half of a LEVEL CHANGE overwrites the entrance that change
+           staged -- the very defect the two hunks above removed, re-entered
+           through the test knob. Measured on level 37: with the knob unset the
+           walker's death prints `[lvl] change: level 37 -> 4, entrance 9,
+           reason 2` and the port then loads p3=9, slot 8, the painting entry;
+           with SM64DS_ENTRANCE=0 the same change loaded p3=0, slot 14, so the
+           sweep silently measured a different entrance than the game asked
+           for. Unset, nothing here runs at all and no row moves. */
+        static bool entrance_knob_seated = false;
         const char *en = std::getenv("SM64DS_ENTRANCE");
-        if (en)
+        if (en && !entrance_knob_seated)
             data_0209f268 = (unsigned char)std::atoi(en);
+        entrance_knob_seated = true;
         data_0209f264[0] = data_0209f268;
     }
     /* Star filter: the sub-table's group byte (kind >> 5) loads when it is 0

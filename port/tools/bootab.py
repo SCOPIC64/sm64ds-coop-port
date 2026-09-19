@@ -62,6 +62,25 @@ exit that quietly does nothing exits 0 with the level still up, and a selftest
 that walks a course for 1200 frames falls off plenty of them on its own, so a
 change with the wrong reason measured the fall and not the arm. Scene rows are
 untouched.
+
+entrance=<n|all> changes WHICH ENTRANCE RECORD a LEVEL row is entered at, which
+no other arm of this tool has ever moved: every row above enters at record 0.
+Until port/hal/level_boot.cpp was fixed (the entrance the change asked for, not
+always record 0) the port could not enter a level at any other record at all, so
+every mode in the cartridge's entry-mode table except the two that record 0
+happens to carry is code no gate in this run has executed.
+  entrance=<n>   every level row boots with SM64DS_ENTRANCE=<n>, i.e. record n
+  entrance=all   each level row is EXPANDED into one row per entrance record the
+                 cartridge gives that level, read here out of the ROM itself
+SM64DS_ENTRANCE seats data_0209f268, the PENDING entrance, and Stage's own
+`data_0209f264 = data_0209f268` then latches it, so a direct boot selects the
+record exactly the way a level change does. Rows carry the record in their own
+column and in their output directory name (level<id>_e<rec>), and a level row's
+note carries the run's `selftest: N frames, pos=(x, y, z)` line, because an
+entrance whose mode leaves the player stuck in his arrival animation exits 0 and
+is still a finding: its position barely moves under the held-forward walk while
+record 0's travels. Scene rows are untouched by the arm, and a sweep that does
+not name it is byte-identical to one from before the arm existed.
 """
 import os, sys, time, shutil, subprocess
 EXE = os.path.abspath(sys.argv[1]); OUT = os.path.abspath(sys.argv[2])
@@ -88,16 +107,77 @@ for a in sys.argv[5:]:
 EXIT = ""
 for a in sys.argv[5:]:
     if a.startswith("exit="): EXIT = a[5:]
+ENTRANCE = ""
+for a in sys.argv[5:]:
+    if a.startswith("entrance="): ENTRANCE = a[9:]
 # the row filter is positional but the flags are not, so a run that passes only a
 # flag must not have that flag read as a filter (it would then match no prefix and
 # sweep everything by accident)
-if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=", "exit=")): FILTER = ""
+if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=", "exit=", "entrance=")): FILTER = ""
 if FILTER.startswith("levels="):
     sel = FILTER[7:]; SCENES = ()
     if sel != "all": LEVELS = tuple(i for i in LEVELS if str(i) in sel.split(","))
 elif FILTER.startswith("scenes="):
     sel = FILTER[7:]; LEVELS = ()
     if sel != "all": SCENES = tuple(i for i in SCENES if str(i) in sel.split(","))
+def entrance_counts(root):
+    """How many entrance records each level has, read off the cartridge.
+
+    The walk is the ROM's own and the same one port/tools/ov_places.py uses for
+    object tables: data_020758c8[level] is the level's object overlay id,
+    data_02092208[level] its LVL_Overlay; the LVL_Overlay's misc table is at +4
+    and its sub-table array at +0x10 with the count at +0x14; every 8-byte
+    sub-table entry is {descriptor, count, pad2, records} and the descriptor's
+    low five bits are the sub-loader index, of which 1 is LOADER_ENTRANCE.
+    """
+    import re, struct, pathlib
+    rt = pathlib.Path(root)
+    rng = {}
+    for p in sorted((rt / "config/arm9/overlays").glob("ov*/delinks.txt")):
+        ov = int(re.search(r"ov(\d+)", str(p)).group(1))
+        t = p.read_text()
+        s = [int(x, 16) for x in re.findall(r"start:(0x[0-9a-fA-F]+)", t)]
+        rng[ov] = min(s)
+    arm9 = (rt / "extracted/arm9_dec.bin").read_bytes()
+    a32 = lambda x: struct.unpack_from("<I", arm9, x - 0x02004000)[0]
+    out = {}
+    for lvl in range(52):
+        ovid = a32(0x020758C8 + lvl * 4)
+        lo = a32(0x02092208 + lvl * 4)
+        f = rt / ("extracted/overlays/overlay_%04d.bin" % ovid)
+        if ovid not in rng or not f.exists():
+            continue
+        base = rng[ovid]; d = f.read_bytes()
+        has = lambda a, n=1: base <= a and a + n <= base + len(d)
+        u8 = lambda a: d[a - base]
+        u16 = lambda a: struct.unpack_from("<H", d, a - base)[0]
+        u32 = lambda a: struct.unpack_from("<I", d, a - base)[0]
+        if not has(lo, 0x18):
+            continue
+        tables = [u32(lo + 4)]
+        subs = u32(lo + 0x10); nsub = u8(lo + 0x14)
+        if has(subs, nsub * 0xC):
+            tables += [u32(subs + s * 0xC) for s in range(nsub)]
+        n_ent = 0
+        for t in tables:
+            if not t or not has(t, 8):
+                continue
+            n = u16(t); ents = u32(t + 4)
+            if not has(ents, n * 8):
+                continue
+            for j in range(n):
+                e = ents + j * 8
+                if (u8(e) & 0x1F) != 1:
+                    continue
+                cnt = u8(e + 1)
+                if has(u32(e + 4), cnt * 0x10):
+                    n_ent += cnt
+        if n_ent:
+            out[lvl] = n_ent
+    return out
+
+
+ENTCOUNT = entrance_counts(ROOT) if ENTRANCE == "all" else {}
 ART = ("crash.txt", "exit.txt")
 def clear():
     for a in ART:
@@ -105,10 +185,14 @@ def clear():
         if os.path.exists(p):
             try: os.remove(p)
             except OSError: pass
-def run(kind, ident, label):
+def run(kind, ident, label, ent=None):
     clear()
     env = dict(base_env)
     env[kind] = str(ident)
+    if ent is not None:
+        # the PENDING entrance; Stage's own latch copies it to the current one
+        # and level_boot passes that to LoadClsnAndObjects as the record index
+        env["SM64DS_ENTRANCE"] = str(ent)
     if kind == "SM64DS_LEVEL":
         env["SM64DS_WINDOW_SELFTEST"] = FRAMES
         if IDLE: env["SM64DS_SELFTEST_IDLE"] = "1"
@@ -207,8 +291,18 @@ def run(kind, ident, label):
             ok = False
             chg += "  (WRONG EXIT: wanted reason %d)" % want
         note = (note + " | " if note else "") + (chg or "NO LEVEL CHANGE")
+    if ent is not None and kind == "SM64DS_LEVEL":
+        # how far the held-forward walk actually got. An entrance whose mode
+        # wedges the player in his arrival animation exits 0 with a position
+        # that barely left the record's own spawn point, which no return code
+        # can show.
+        for line in out.splitlines():
+            if line.startswith("selftest:"):
+                note = (note + " | " if note else "") + line.strip(); break
     if not ok:
-        d = os.path.join(OUT, "%s%d" % (label, ident)); os.makedirs(d, exist_ok=True)
+        d = os.path.join(OUT, "%s%d%s" % (label, ident,
+                                          "" if ent is None else "_e%d" % ent))
+        os.makedirs(d, exist_ok=True)
         for a in ART:
             p = os.path.join(EXEDIR, a)
             if os.path.exists(p): shutil.copy2(p, d)
@@ -222,13 +316,29 @@ rows = []
 plan = [("SM64DS_LEVEL", LEVELS, "level"), ("SM64DS_SCENE", SCENES, "scene")]
 for kind, ids, label in plan:
     for i in ids:
-        ok, rc, dt, note = run(kind, i, label)
-        rows.append((label, i, "PASS" if ok else "FAIL", rc, dt, note))
-        print("%-5s %-3d %-4s rc=%-12s %6.1fs %s" % (label, i, "PASS" if ok else "FAIL", rc, dt, note), flush=True)
+        if ENTRANCE and kind == "SM64DS_LEVEL":
+            recs = list(range(ENTCOUNT.get(i, 0))) if ENTRANCE == "all" else [int(ENTRANCE)]
+        else:
+            recs = [None]
+        for ent in recs:
+            ok, rc, dt, note = run(kind, i, label, ent)
+            verdict = "PASS" if ok else "FAIL"
+            if ENTRANCE:
+                rows.append((label, i, "" if ent is None else ent, verdict, rc, dt, note))
+            else:
+                rows.append((label, i, verdict, rc, dt, note))
+            print("%-5s %-3d %-4s %-4s rc=%-12s %6.1fs %s"
+                  % (label, i, "" if ent is None else "e%d" % ent, verdict, rc, dt, note)
+                  if ENTRANCE else
+                  "%-5s %-3d %-4s rc=%-12s %6.1fs %s" % (label, i, verdict, rc, dt, note),
+                  flush=True)
 with open(os.path.join(OUT, "sweep.tsv"), "w") as f:
-    f.write("kind\tid\tverdict\trc\tseconds\tnote\n")
+    f.write("kind\tid\tentrance\tverdict\trc\tseconds\tnote\n" if ENTRANCE
+            else "kind\tid\tverdict\trc\tseconds\tnote\n")
     for r in rows: f.write("\t".join(str(x) for x in r) + "\n")
 lv = [r for r in rows if r[0] == "level"]; sc = [r for r in rows if r[0] == "scene"]
-print("SUMMARY exe=%s%s%s%s levels %d/%d scenes %d/%d" % (EXE, " idle" if IDLE else "",
+V = 3 if ENTRANCE else 2   # the entrance arm puts the record between the id and the verdict
+print("SUMMARY exe=%s%s%s%s%s levels %d/%d scenes %d/%d" % (EXE, " idle" if IDLE else "",
       (" warpin press=%s" % (PRESS or "none")) if WARPIN else ((" reentry press=%s" % (PRESS or "none")) if REENTRY else ""),
-      " aspect=" + ASPECT if ASPECT else " aspect=native", sum(r[2] == "PASS" for r in lv), len(lv), sum(r[2] == "PASS" for r in sc), len(sc)), flush=True)
+      " entrance=" + ENTRANCE if ENTRANCE else "",
+      " aspect=" + ASPECT if ASPECT else " aspect=native", sum(r[V] == "PASS" for r in lv), len(lv), sum(r[V] == "PASS" for r in sc), len(sc)), flush=True)
