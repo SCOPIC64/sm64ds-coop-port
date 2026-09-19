@@ -181,16 +181,17 @@ LEDGER = [
      r"021181b4)"),
 
     ("ECX", r"^\?g_scuttlebug_sources@@",
-     "Scuttlebug: the nine MAIN cells are dispatched inline by a member with "
-     "nothing pushed -- ?Behavior@Scuttlebug@@UAEHXZ +0x2 mov esi,ecx; +0x10 "
-     "mov eax,[esi+0x380]; +0x19 mov ecx,[eax+0xc]; +0x1c mov eax,[eax+8]; "
-     "+0x1f add ecx,esi; +0x21 call eax -- and that is the ONLY "
-     "pointer-to-member dispatch taking its receiver from ecx in the 37 "
-     "Scuttlebug bodies in this image. The nine ENTER cells named below are "
-     "reached only by _Scuttlebug_SetState (va 005ea900), a flat f(self, idx) "
-     "that tail jumps with the receiver still at [esp+4]",
-     r"^_func_ov071_(02120130|0211ff84|02120200|0211f6f8|0211f8d0|0211fb0c"
-     r"|0211fbf4|0211fcd4|0211fe38)$"),
+     "Scuttlebug: all eighteen cells take their receiver in ecx. The nine MAIN "
+     "cells go through ?Behavior@Scuttlebug@@UAEHXZ +0x1 mov esi,ecx; +0x10 mov "
+     "eax,[esi+0x380]; +0x19 mov ecx,[eax+0xc]; +0x1c mov eax,[eax+8]; +0x1f add "
+     "ecx,esi; +0x21 call eax. The nine ENTER cells were excused here as __cdecl "
+     "on the reading that the flat _Scuttlebug_SetState (va 005eb460) is their "
+     "only reader. It is not, and this file's own docstring says why: /O2 inlines "
+     "that dispatcher into fourteen sites in the same TU, thirteen of them `lea "
+     "ecx,[ecx+this]; call dword ptr [cell]` with nothing pushed. Run link100 lane "
+     "HMC1 read every absolute reference into data_ov071_02122fa8 back out of the "
+     "image and thunked the enter half too; both flat dispatchers set ecx as well "
+     "as leaving the receiver on the stack, so they are unaffected"),
     ("CDECL", r"^\?g_crate_states@@",
      "Crate: the readers are _Crate_SetState (va 0052ce50, +0x21 jmp eax) and "
      "_func_ov098_02138b70 (va 0052ce80, +0x1e jmp eax), both flat f(self) "
