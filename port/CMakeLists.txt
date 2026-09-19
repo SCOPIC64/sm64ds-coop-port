@@ -16997,7 +16997,14 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     # ---- link100 SCENE ---- the two arm9-resident scene classes, gate 218
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
-    unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
+    unmatched/KnockDownPlank_Behavior.cpp
+    # unmatched/FallBlockWf_InitVeneer.cpp RETIRED (run link100 wave 15, lane
+    # SEAT15A): it held ONE body, func_ov098_0213a794, under a PORT_HOST_ABI tag
+    # saying MSVC C2733 rejects the matched TU's second extern-C declaration of
+    # itself. Re-measured on this tree with the port's own command line,
+    # src/func_ov098_0213a794.cpp compiles clean and emits the same flat cdecl
+    # name, so the tag was stale and the file had no reason left. The TU is on
+    # port/slice_l15enab.txt, which carries the measurement.
     # run rel0215 wave 1 (lane cast-sweep1): the six small-cast overlays
     ${SWEEP1_SOURCES}
     # run rel0215 wave 2 (lane cast-sweep2): the four-overlay cast sweep
@@ -17286,7 +17293,14 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/scene_link100_mb.cpp ${SLICE218_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
-    unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
+    unmatched/KnockDownPlank_Behavior.cpp
+    # unmatched/FallBlockWf_InitVeneer.cpp RETIRED (run link100 wave 15, lane
+    # SEAT15A): it held ONE body, func_ov098_0213a794, under a PORT_HOST_ABI tag
+    # saying MSVC C2733 rejects the matched TU's second extern-C declaration of
+    # itself. Re-measured on this tree with the port's own command line,
+    # src/func_ov098_0213a794.cpp compiles clean and emits the same flat cdecl
+    # name, so the tag was stale and the file had no reason left. The TU is on
+    # port/slice_l15enab.txt, which carries the measurement.
     # run rel0215 wave 1 (lane cast-sweep1): the six small-cast overlays
     ${SWEEP1_SOURCES}
     # run rel0215 wave 2 (lane cast-sweep2): the four-overlay cast sweep
@@ -17683,7 +17697,14 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/scene_link100_mb.cpp ${SLICE218_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
-    unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
+    unmatched/KnockDownPlank_Behavior.cpp
+    # unmatched/FallBlockWf_InitVeneer.cpp RETIRED (run link100 wave 15, lane
+    # SEAT15A): it held ONE body, func_ov098_0213a794, under a PORT_HOST_ABI tag
+    # saying MSVC C2733 rejects the matched TU's second extern-C declaration of
+    # itself. Re-measured on this tree with the port's own command line,
+    # src/func_ov098_0213a794.cpp compiles clean and emits the same flat cdecl
+    # name, so the tag was stale and the file had no reason left. The TU is on
+    # port/slice_l15enab.txt, which carries the measurement.
     # run rel0215 wave 1 (lane cast-sweep1): the six small-cast overlays
     ${SWEEP1_SOURCES}
     # run rel0215 wave 2 (lane cast-sweep2): the four-overlay cast sweep
@@ -21362,6 +21383,42 @@ endforeach()
 foreach(_tl15stale walk_window walk_window_hires smoke_player)
     target_sources(${_tl15stale} PRIVATE ${SLICE_L15STALE_SOURCES})
 endforeach()
+
+# ===========================================================================
+# SLICE L15ENAB (run link100 wave 15, lane SEAT15A, BATCH 2)
+# ===========================================================================
+#
+# THE NAMED-ENABLER ROWS. One slice row, one reference fix, and one enabler
+# that turned out not to exist:
+#
+#   src/func_ov098_0213a794.cpp   ov098 0x0213a794. The host copy
+#     unmatched/FallBlockWf_InitVeneer.cpp existed only because of a claimed
+#     MSVC C2733 on the matched TU's second extern-C declaration. Re-measured
+#     with this build's own command line the TU compiles clean, so the host
+#     file is retired (its three target rows above are now comments) and the
+#     matched TU rides here.
+#
+#   The ov006 dokan RestoreInitial row is NOT on this slice: it is already on
+#   port/slice_smb.txt and only needed a reference, which hal/scene_mg.cpp's
+#   smb_dok_s2 thunk now makes. Listing it twice would be LNK2005.
+#
+# port/slice_l15enab.txt carries both measurements, the symbol dumps and the
+# reason the flat dokan name is still not defined anywhere.
+#
+# ALL THREE HOSTING TARGETS, because the retired host file was on all three.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_l15enab.txt" SLICE_L15ENAB_LINES)
+set(SLICE_L15ENAB_SOURCES "")
+foreach(line IN LISTS SLICE_L15ENAB_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_L15ENAB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+foreach(_tl15enab walk_window walk_window_hires smoke_player)
+    target_sources(${_tl15enab} PRIVATE ${SLICE_L15ENAB_SOURCES})
+endforeach()
+
 
 
 # LANE SMOKELINK2 (run link100 wave 10 round 2): walk_window_hires ALSO NEEDS
