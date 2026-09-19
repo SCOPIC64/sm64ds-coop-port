@@ -23,10 +23,21 @@
 #
 # ONE STATE FUNCTION IS UNMATCHED. Record index 5's function is
 # func_ov080_021261f4 (0x2f8 bytes, no src, not in nearmiss) -- the render half
-# a painting with mi=3 would run. The seat installs a loud trap over it, the
+# a painting with mi=3 would run. The seat installed a loud trap over it, the
 # rabbit's 0x0212b8dc treatment: measured, no level-2 painting reaches it (all
 # six run 300 frames fault-free), and a painting that did would abort by name
 # rather than jump into the overlay image.
+#
+# THE TRAP IS RETIRED (run link100 wave 17, lane PAINT5). A painting DID reach
+# it the moment a level change stopped entering every level at entrance record
+# 0: level 37's exit to level 4 entrance 9 is entry mode 0x08, coming out of a
+# painting, and the trap aborted the process. The cell now dispatches a HOST
+# TRANSCRIPTION, port/unmatched/Painting_StateRender_021261f4.cpp -- the 0x2f8
+# bytes statement for statement out of extracted/overlays/overlay_0080.bin at
+# base 0x02123740, every callee already linked, every ROM address range in the
+# margin. It is not a byte match and does not claim to be one; when a match
+# lands in src/ the file retires and src/func_ov080_021261f4.c joins the list
+# below. The function stays named here because it is still unmatched code.
 
 # ---- the seven own vtable slots plus their closure (28 funcs) --------------
 src/_ZN8PaintingD1Ev.cpp

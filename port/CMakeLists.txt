@@ -17125,6 +17125,14 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     # did not, so it joins all three rather than the symbol being defined a
     # second time next to the one that already exists.
     hal/w8a_stage_storage.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/message_gen_text.cpp hal/message_compositor.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_slot30_seat.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/sub_actors.cpp hal/stage_bridges.cpp "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN5Stage16OnPendingDestroyEv.cpp" hal/level_change.cpp hal/title_entry.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
+    # Run link100 wave 17, lane PAINT5. The PAINTING's twelfth state body,
+    # ov080 0x021261f4, which has no src TU and no near-miss draft and was a
+    # named trap in hal/actor_overlays.cpp's g_painting_states until now. It
+    # rides EVERY target that compiles hal/actor_overlays.cpp and is optional
+    # on none of them: that file's pt_f_021261f4 face calls
+    # func_ov080_021261f4 by name, so a target that takes the seat and not
+    # this file fails the link on that symbol.
+    unmatched/Painting_StateRender_021261f4.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${MODELFAMILY_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
@@ -17403,6 +17411,14 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     # did not, so it joins all three rather than the symbol being defined a
     # second time next to the one that already exists.
     hal/w8a_stage_storage.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_slot30_seat.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/stage_bridges.cpp hal/level_change.cpp hal/title_entry.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
+    # Run link100 wave 17, lane PAINT5. The PAINTING's twelfth state body,
+    # ov080 0x021261f4, which has no src TU and no near-miss draft and was a
+    # named trap in hal/actor_overlays.cpp's g_painting_states until now. It
+    # rides EVERY target that compiles hal/actor_overlays.cpp and is optional
+    # on none of them: that file's pt_f_021261f4 face calls
+    # func_ov080_021261f4 by name, so a target that takes the seat and not
+    # this file fails the link on that symbol.
+    unmatched/Painting_StateRender_021261f4.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${MODELFAMILY_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
@@ -17800,6 +17816,14 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     # did not, so it joins all three rather than the symbol being defined a
     # second time next to the one that already exists.
     hal/w8a_stage_storage.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_slot30_seat.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/stage_bridges.cpp "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN5Stage16OnPendingDestroyEv.cpp" hal/level_change.cpp hal/title_entry.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
+    # Run link100 wave 17, lane PAINT5. The PAINTING's twelfth state body,
+    # ov080 0x021261f4, which has no src TU and no near-miss draft and was a
+    # named trap in hal/actor_overlays.cpp's g_painting_states until now. It
+    # rides EVERY target that compiles hal/actor_overlays.cpp and is optional
+    # on none of them: that file's pt_f_021261f4 face calls
+    # func_ov080_021261f4 by name, so a target that takes the seat and not
+    # this file fails the link on that symbol.
+    unmatched/Painting_StateRender_021261f4.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${MODELFAMILY_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
