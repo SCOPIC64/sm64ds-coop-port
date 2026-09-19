@@ -17216,7 +17216,14 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     # ---- link100 SCENE ---- the two arm9-resident scene classes, gate 218
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
-    unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
+    unmatched/KnockDownPlank_Behavior.cpp
+    # unmatched/FallBlockWf_InitVeneer.cpp RETIRED (run link100 wave 15, lane
+    # SEAT15A): it held ONE body, func_ov098_0213a794, under a PORT_HOST_ABI tag
+    # saying MSVC C2733 rejects the matched TU's second extern-C declaration of
+    # itself. Re-measured on this tree with the port's own command line,
+    # src/func_ov098_0213a794.cpp compiles clean and emits the same flat cdecl
+    # name, so the tag was stale and the file had no reason left. The TU is on
+    # port/slice_l15enab.txt, which carries the measurement.
     # run rel0215 wave 1 (lane cast-sweep1): the six small-cast overlays
     ${SWEEP1_SOURCES}
     # run rel0215 wave 2 (lane cast-sweep2): the four-overlay cast sweep
@@ -17506,7 +17513,14 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/scene_link100_mb.cpp ${SLICE218_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
-    unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
+    unmatched/KnockDownPlank_Behavior.cpp
+    # unmatched/FallBlockWf_InitVeneer.cpp RETIRED (run link100 wave 15, lane
+    # SEAT15A): it held ONE body, func_ov098_0213a794, under a PORT_HOST_ABI tag
+    # saying MSVC C2733 rejects the matched TU's second extern-C declaration of
+    # itself. Re-measured on this tree with the port's own command line,
+    # src/func_ov098_0213a794.cpp compiles clean and emits the same flat cdecl
+    # name, so the tag was stale and the file had no reason left. The TU is on
+    # port/slice_l15enab.txt, which carries the measurement.
     # run rel0215 wave 1 (lane cast-sweep1): the six small-cast overlays
     ${SWEEP1_SOURCES}
     # run rel0215 wave 2 (lane cast-sweep2): the four-overlay cast sweep
@@ -17904,7 +17918,14 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/scene_link100_mb.cpp ${SLICE218_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
-    unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
+    unmatched/KnockDownPlank_Behavior.cpp
+    # unmatched/FallBlockWf_InitVeneer.cpp RETIRED (run link100 wave 15, lane
+    # SEAT15A): it held ONE body, func_ov098_0213a794, under a PORT_HOST_ABI tag
+    # saying MSVC C2733 rejects the matched TU's second extern-C declaration of
+    # itself. Re-measured on this tree with the port's own command line,
+    # src/func_ov098_0213a794.cpp compiles clean and emits the same flat cdecl
+    # name, so the tag was stale and the file had no reason left. The TU is on
+    # port/slice_l15enab.txt, which carries the measurement.
     # run rel0215 wave 1 (lane cast-sweep1): the six small-cast overlays
     ${SWEEP1_SOURCES}
     # run rel0215 wave 2 (lane cast-sweep2): the four-overlay cast sweep
@@ -21607,6 +21628,140 @@ endforeach()
 foreach(_tlink21 walk_window walk_window_hires smoke_player)
     target_sources(${_tlink21} PRIVATE ${SLICE_LINK21_SOURCES})
 endforeach()
+
+# ===========================================================================
+# SLICE L15STALE (run link100 wave 15, lane SEAT15A, BATCH 1)
+# ===========================================================================
+#
+# THE STALE-BANNER HARVEST, ROUND 2. Two port host copies whose own banners
+# said "no matched TU of this name exists" while src/ on this tip has one.
+# Same shape as the SLICE_W9HARVEST block above, one sync later:
+#
+#   src/func_ov060_021140c0.c            ov060 0x021140c0  matched 83691debd
+#     retires unmatched/Ov060_StateDispatch.cpp's HOST COPY 7
+#   src/_ZN13TreasureChest6State0Ev.cpp  ov064 0x0211a4c4  from 6e10cbbd1
+#     retires unmatched/Ov064_TreasureChest.cpp's transcription; the flat name
+#     stays in that file as a receiver face, because the matched TU is a
+#     __thiscall member and the seat's thunk calls the flat C name
+#
+# port/slice_l15stale.txt carries the per-row derivation, the extern closure
+# checked against this tree's own map before the edit, and the reach argument
+# for each (a seat row that takes the body's address, in both cases).
+#
+# ALL THREE HOSTING TARGETS, like the SLICE_LINK21 block above: both host
+# files are on walk_window's, walk_window_hires's and smoke_player's source
+# lists, so a definition retired on one target and not the others would leave
+# the other two asking for a name nothing defines.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_l15stale.txt" SLICE_L15STALE_LINES)
+set(SLICE_L15STALE_SOURCES "")
+foreach(line IN LISTS SLICE_L15STALE_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_L15STALE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+foreach(_tl15stale walk_window walk_window_hires smoke_player)
+    target_sources(${_tl15stale} PRIVATE ${SLICE_L15STALE_SOURCES})
+endforeach()
+
+# ===========================================================================
+# SLICE L15ENAB (run link100 wave 15, lane SEAT15A, BATCH 2)
+# ===========================================================================
+#
+# THE NAMED-ENABLER ROWS. One slice row, one reference fix, and one enabler
+# that turned out not to exist:
+#
+#   src/func_ov098_0213a794.cpp   ov098 0x0213a794. The host copy
+#     unmatched/FallBlockWf_InitVeneer.cpp existed only because of a claimed
+#     MSVC C2733 on the matched TU's second extern-C declaration. Re-measured
+#     with this build's own command line the TU compiles clean, so the host
+#     file is retired (its three target rows above are now comments) and the
+#     matched TU rides here.
+#
+#   The ov006 dokan RestoreInitial row is NOT on this slice: it is already on
+#   port/slice_smb.txt and only needed a reference, which hal/scene_mg.cpp's
+#   smb_dok_s2 thunk now makes. Listing it twice would be LNK2005.
+#
+# port/slice_l15enab.txt carries both measurements, the symbol dumps and the
+# reason the flat dokan name is still not defined anywhere.
+#
+# ALL THREE HOSTING TARGETS, because the retired host file was on all three.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_l15enab.txt" SLICE_L15ENAB_LINES)
+set(SLICE_L15ENAB_SOURCES "")
+foreach(line IN LISTS SLICE_L15ENAB_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_L15ENAB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+foreach(_tl15enab walk_window walk_window_hires smoke_player)
+    target_sources(${_tl15enab} PRIVATE ${SLICE_L15ENAB_SOURCES})
+endforeach()
+
+# ===========================================================================
+# R-L15B3 (run link100 wave 15, lane SEAT15A, BATCH 3): THE ov063 -> ov055
+# CROSS-OVERLAY EDGE, resolved by disassembly. The 22nd symscope crossing.
+# ===========================================================================
+#
+# THE AMBIGUITY. config/arm9/overlays/ov063/relocs.txt line 184 reads
+#     from:0x02118004 kind:arm_call to:0x02111264 module:overlays(27,55)
+# because ov027 and ov055 share one DS load window (both base 0x021111a0) and
+# both name a symbol at 0x02111264:
+#     ov027  _ZN10SlidingIce16CleanupResourcesEv  size 0x50, a __thiscall member
+#     ov055  func_ov055_02111264                  size 0x24, void(void)
+# src/unnamed/ov063/func_ov063_02117cdc.c (Boo's talk state, ov063
+# 0x02117cdc) picked the ov027 spelling: it declares
+# `extern void _ZN10SlidingIce16CleanupResourcesEv(void);` at line 25 and
+# calls it at line 148.
+#
+# IT IS ov055, read off the cartridge. extracted/overlays/overlay_0063.bin at
+# base 0x02115ee0 (never the dsd copy -- those are shifted) disassembles the
+# site as
+#     0x02117ff0  e1d000b0  ldrh  r0, [r0]
+#     0x02117ff4  e350001e  cmp   r0, #0x1e
+#     0x02117ff8  328dd01c  addlo sp, sp, #0x1c      (the early return)
+#     0x02117ffc  38bd40f0  ldmlo sp!, {r4-r7, lr}
+#     0x02118000  312fff1e  bxlo  lr
+#     0x02118004  ebffe496  bl    0x02111264
+# so at the call r0 holds a halfword that just tested >= 0x1e, not an object.
+# SlidingIce::CleanupResources takes `this` in r0 and would be handed 0x1e or
+# more as a receiver; func_ov055_02111264 takes nothing. The matched TU's own
+# call site agrees -- `if (*(u16 *)(arg0 + 0x100) < 0x1e) return;` and then a
+# call with no arguments. Two further marks in the same function's literal
+# pool: 0x02118434 holds 0x02111b6c, inside ov055's bss window
+# (0x02111b60..0x02111b80), whose reloc module column lists 55 and not 27; and
+# the function calls func_0201277c, which is the one call
+# src/func_ov055_02111264.c itself makes.
+#
+# WHAT THIS ROW DOES. A per-source rename, not an /alternatename, exactly like
+# the d_a_obj_emm_log.cpp row above (ov052/ov056, the same overlapping-base
+# name race): the ov027 name is a LIVE symbol in this build
+# (?CleanupResources@SlidingIce@@UAEHXZ plus its flat face in
+# hal/faces_sync_gen.cpp), so an alias would be defeated and would also be
+# wrong -- both names are real, they just belong to different overlays.
+# src/ is never edited; the defect is reported in out/SEAT15A/bugs.md.
+#
+# IT IS ALSO A LIVE DEFECT REMOVAL, not only a linkage row. The flat face for
+# the ov027 name is a __cdecl body that reads its receiver from the first
+# stack slot, and this caller pushes nothing, so before this row the Boo talk
+# state called SlidingIce::CleanupResources on whatever happened to be at
+# [esp+4] -- which then reads actorID off it and, on a match, calls
+# dBgW::Disable through it. Afterwards it calls the 36-byte ov055 body the
+# cartridge calls, which sets data_ov055_02111b68 to 2 and plays sound 0x179.
+#
+# It also gives src/func_ov055_02111264.c its first reference, so /OPT:REF
+# stops stripping it: port/slice_sweep2_ov055.txt has carried that TU unlinked
+# since the sweep-2 lane wrote "it becomes live the day that ov063 caller is
+# seated", and this is that day.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/unnamed/ov063/func_ov063_02117cdc.c"
+    PROPERTIES COMPILE_DEFINITIONS
+    "_ZN10SlidingIce16CleanupResourcesEv=func_ov055_02111264")
+
+
+
 
 # LANE SMOKELINK2 (run link100 wave 10 round 2): walk_window_hires ALSO NEEDS
 # THESE DEFINITIONS, and it has needed them since the 09-14 sync.

@@ -2824,8 +2824,43 @@ static void smb_ball_s1(void *s)  SMB_OBJ(_ZN19cMgSmartball_ball_c6UpdateEv(s))
 static void smb_ball_s2(void *s)  SMB_OBJ(_ZN19cMgSmartball_ball_c14RestoreInitialEv(s))
 static void smb_dok_s0(void *s)   SMB_OBJ(_ZN20cMgSmartball_dokan_c12SaveSnapshotEv(s))
 static void smb_dok_s1(void *s)   SMB_OBJ(_ZN20cMgSmartball_dokan_c6UpdateEv(s))
-/* the veneer: dispatch its target, with the receiver the veneer rides through */
-static void smb_dok_s2(void *s)   SMB_OBJ(_ZN21cMgSmartball_object_c14RestoreInitialEv(s))
+/* THE VENEER, THROUGH ITS OWN MATCHED TU (run link100 wave 15, lane SEAT15A,
+   enabler E2 of out/LINK15/BATCHES.md). This thunk used to call the veneer's
+   TARGET, _ZN21cMgSmartball_object_c14RestoreInitialEv, and skip the veneer.
+   That was right on behaviour and it left the ROM's own 0xc-byte body dead:
+   src/_ZN20cMgSmartball_dokan_c14RestoreInitialEv.cpp is on
+   port/slice_smb.txt and compiles, but nothing in the image referenced
+   ?RestoreInitial@cMgSmartball_dokan_c@@UAEXXZ, so /OPT:REF discarded it.
+
+   The reference is now the ROM's own: cMgSmartball_dokan_c's vtable at ov006
+   0x0213ecac holds 02110a20 / 02110928 / 02110bb4, this array is the port's
+   fill for those three words, and 0x02110bb4 IS the matched body.
+
+   A QUALIFIED CALL, so it is a direct call and not a vtable dispatch -- the
+   same point the matched TU's own header comment makes about the ROM's
+   qualification, for the same reason (an unqualified call here would recurse
+   through slot 2). The receiver is carried: the matched body is a __thiscall
+   member and takes it in ecx.
+
+   THE FLAT NAME IS STILL NOT DEFINED ANYWHERE. ov002 and ov006 share a DS
+   overlay load window, hal/cxx_aliases.cpp routes the sibling slot_c name at
+   0x02110154 into ov002, and alternatename_guard.py has refused a flat
+   definition in that window once already (out/SEAT14E/bugs.md item 1). This
+   reference is the MSVC member mangle, which is what the matched TU emits.
+
+   The class is re-declared locally because this file includes no game
+   headers; three virtuals in ROM slot order, which is what
+   include/cMgSmartball_dokan_c.h declares. MSVC's mangle for a member does
+   not encode the base list, and the class adds no fields over
+   cMgSmartball_object_c (allocation is _Znwj(0x34), exactly the base's
+   size), so the receiver needs no adjustment. */
+struct cMgSmartball_dokan_c {
+    virtual void SaveSnapshot();    /* slot 0 -- ROM 0x02110a20 */
+    virtual void Update();          /* slot 1 -- ROM 0x02110928 */
+    virtual void RestoreInitial();  /* slot 2 -- ROM 0x02110bb4, the veneer */
+};
+static void smb_dok_s2(void *s)
+    SMB_OBJ(((cMgSmartball_dokan_c *)s)->cMgSmartball_dokan_c::RestoreInitial())
 static void smb_pro_s0(void *s)   SMB_OBJ(_ZN24cMgSmartball_propeller_c12SaveSnapshotEv(s))
 static void smb_pro_s1(void *s)   SMB_OBJ(_ZN24cMgSmartball_propeller_c6UpdateEv(s))
 static void smb_pro_s2(void *s)   SMB_OBJ(_ZN24cMgSmartball_propeller_c14RestoreInitialEv(s))

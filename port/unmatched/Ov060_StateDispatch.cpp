@@ -93,22 +93,19 @@
  * pointer, so they are RIGHT as matched src and stay in the slice.  They still
  * need the seat: the words they call are DS code addresses.
  *
- * ==== ONE NAMED HOLE IS A VERIFIED HOST COPY; THE OTHER IS REAL DECOMP ======
+ * ==== BOTH NAMED HOLES ARE REAL DECOMP NOW =================================
  *
  * w7a wrote host copies of BOTH named holes on the reading that neither had a
- * matched TU.  That reading was true for func_ov060_021140c0 and FALSE for
- * func_ov060_02116d78, and the reason it read true here is that this branch
- * forked from main at 7b2f913fe (2026-08-04) and cannot see what main has
- * matched since: src/func_ov060_02116d78.c landed on main in PR #1150
- * (817be2263, 2026-08-07), three days after the fork and four days before
- * w7a's host copy of it shipped.  Run linkw wave 9, lane w9-harvest, checked
- * out that TU and retired the host copy.
+ * matched TU.  That reading was true of the tree w7a could see and it is false
+ * of both rows today, for the same reason twice over: this branch forked from
+ * main at 7b2f913fe (2026-08-04) and each TU landed after the check that said
+ * it did not exist.
  *
- *   func_ov060_021140c0 (BOWSER state 9)        VERIFIED HOST COPY 7, below.
- *     Still genuinely unmatched: main has no TU of this name either (checked
- *     against origin/main at bc93fa767).  Not an abort stub -- the span was
- *     re-derived from the overlay image and transcribed instruction for
- *     instruction; the verification record is in its own banner below.
+ *   func_ov060_021140c0 (BOWSER state 9)        src/func_ov060_021140c0.c.
+ *     Matched in 83691debd (2026-09-13), which is AFTER the "main has no TU of
+ *     this name either (checked against origin/main at bc93fa767)" line this
+ *     header used to carry.  Carried by port/slice_l15stale.txt (run link100
+ *     wave 15, lane SEAT15A).  HOST COPY 7 is retired below.
  *   func_ov060_02116d78 (BOWSER FIRE state 5)   src/func_ov060_02116d78.c.
  *     Byte-matched decomp, carried by port/slice_w9harvest.txt.  The host
  *     copy that used to sit below HOST COPY 7 is gone.
@@ -243,14 +240,12 @@ void func_ov060_02117624(char *c);
 }  /* extern "C" */
 
 /* ============ THE TWO FORMERLY-NAMED HOLES ===============================
- * ONE body follows (HOST COPY 7, func_ov060_021140c0): a host copy
- * transcribed instruction for instruction from the overlay image, NOT matched
- * src and NOT a guess.  When the decomp banks the real TU it retires for the
- * slice line, which is exactly what happened to the other hole --
- * func_ov060_02116d78's host copy stood here until wave 9 replaced it with
- * main's src/func_ov060_02116d78.c.  Its span derivation is kept below
- * because it is what the retired host copy was checked against and it still
- * pins the 0x1fc the slice TU has to fill.
+ * NO body follows.  Both holes are matched src on slice lines now: 0x02116d78
+ * went to port/slice_w9harvest.txt at wave 9 and 0x021140c0 went to
+ * port/slice_l15stale.txt at wave 15, each when the decomp banked the real TU
+ * and the port's banner had not been re-read since.  The span derivations are
+ * kept below because they are what the two retired host copies were checked
+ * against and they still pin the byte counts the slice TUs have to fill.
  *
  * ---- SPANS, RE-DERIVED (the old header's 0x1f4 / 0x1fc were CARRIED) ------
  * Bytes read from extracted/overlays/overlay_0060.bin at base 0x02111900
@@ -419,99 +414,28 @@ void ov60_ran(const char *what, const void *who)
 }
 }
 
-/* ============ VERIFIED HOST COPY 7: func_ov060_021140c0 ===================
- * BOWSER state 9 -- record data_ov060_0211a5a0 (overlay words 021140c0 /
- * 00000000), which __sinit_ov060_021195dc copies to
- * data_ov060_0211aed4 + 0x48, i.e. 8-byte record 9 of the twenty-record table
- * func_ov060_021128c0 indexes with *(s32 *)(c + 0x40c).  Reached from
- * src/func_ov060_021150d0.cpp and src/func_ov060_021151d4.c, both of which
- * pick it on a RandomIntInternal draw.
+/* ============ HOST COPY 7 IS RETIRED =====================================
+ * run link100 wave 15, lane SEAT15A -- the stale-banner harvest, round 2.
  *
- * ROM 0x021140c0, 0x1f4 bytes, 116 instructions + 9 literals.
+ * The 0x1f4-byte transcription that stood here carried the banner
+ * "PORT_HOST_ABI: none -- this is a plain cdecl body; it is a host copy only
+ * because no matched TU of this name exists", and this file's header said the
+ * hole was "Still genuinely unmatched: main has no TU of this name either
+ * (checked against origin/main at bc93fa767)".  Both were true when written.
+ * src/func_ov060_021140c0.c landed later, in 83691debd ("Match
+ * func_ov060_021140c0 (ov060, 0x021140c0, 500 bytes)", 2026-09-13): plain
+ * matched C, ten externs, no NONMATCHING banner, no asm hatch, no
+ * ROM-address literal.  It is on port/slice_l15stale.txt now, which carries
+ * the whole derivation, and the seat row "aed4[9]" below takes ITS address.
  *
- * CALLS (all 7 confirmed in relocs.txt, in order of first appearance):
- *   0x021140e8 -> 0x020bf548 overlay(2)  _ZN6Player9GetHealthEv
- *   0x021140f8 -> 0x0203b990 main       RandomIntInternal
- *   0x02114160 -> 0x02015a98 main       _ZNK9Animation12WillHitFrameEi
- *   0x02114204 -> 0x020102b0 main       Actor::SpawnFireball
- *   0x02114210 -> 0x02012694 main       func_02012694
- *   0x02114218 -> 0x02115a30 overlay(60) Bowser_IsAnimAtLastFrame
- *   0x02114278 -> 0x02111cc0 overlay(60) func_ov060_02111cc0
- * RELOCATED LOADS (all 3): 0x0209e650, 0x0211abe0, 0x02082214.
- * PLAIN LITERALS (6): cccccccd, 0000000a, aaaaaaab, 00000003, 00000122,
- *   00000423 -- none of them in relocs.txt, so none of them is an address.
- * OFFSETS: 0x3fc(=0x300+0xfc) 0x3a0 0x428 0x134 0x124 0x5c 0x60 0x64 0x8c
- *   0x8e 0x90 0x74 0x423 0x40c 0x12c.
- * IMMEDIATES: 4, 16(shift), 10, 3, 1, 5, 0xe8, 0x58000, 0x1000, 0x1e000,
- *   0xa000, 0, 0x122, 0x14.
- * BRANCHES: bne 0x2114144 (skip the volley pick), beq 0x21140f4 + ble
- *   0x211413c (the `||` short circuit and its else), b 0x2114144, bne/beq
- *   0x2114214 (the two anim guards), the conditional epilogue at 0x02114220,
- *   bne 0x211426c and b 0x211427c.  Every one is reproduced structurally.
- * PORT_HOST_ABI: none -- this is a plain cdecl body; it is a host copy only
- * because no matched TU of this name exists. */
-extern "C" void func_ov060_021140c0(char *r4)
-{
-    ov60_ran("BOWSER state 9 (021140c0)", r4);
-
-    /* 0x021140cc..0x02114140 -- on the first frame of the state (the
-       dispatcher zeroes +0x3fc on every state change) pick how many volleys
-       this pass fires: 3 when the player is hurt, else 1 + rand%10%3. */
-    if (*(unsigned short *)((r4 + 0x300) + 0xfc) == 0) {
-        if (*(void **)(r4 + 0x3a0) == 0 ||
-            _ZN6Player9GetHealthEv(*(void **)(r4 + 0x3a0)) > 4) {
-            unsigned rv = (unsigned)RandomIntInternal(&data_0209e650) >> 0x10;
-            *(unsigned char *)(r4 + 0x428) = (unsigned char)(rv % 10 % 3 + 1);
-        } else {
-            *(unsigned char *)(r4 + 0x428) = 3;
-        }
-    }
-
-    /* 0x02114144..0x02114210 -- while the 0x36c animation is the one loaded,
-       spit a fireball on the frame the animation crosses frame 5. */
-    if (*(int *)(r4 + 0x134) == data_ov060_0211abe0[1]) {
-        if (_ZNK9Animation12WillHitFrameEi(r4 + 0x124, 5) != 0) {
-            Ov60Vec3 pos;
-            Ov60Vec3_16 rot;
-            int i;
-            pos.x = *(int *)(r4 + 0x5c);
-            pos.y = *(int *)(r4 + 0x60);
-            pos.z = *(int *)(r4 + 0x64);
-            rot.y = *(unsigned short *)(r4 + 0x8e);
-            rot.x = *(unsigned short *)(r4 + 0x8c);
-            rot.z = *(unsigned short *)(r4 + 0x90);
-            i = rot.y >> 4;
-            pos.x = data_02082214[i * 2] * 0xe8 + *(int *)(r4 + 0x5c);
-            pos.z = data_02082214[i * 2 + 1] * 0xe8 + *(int *)(r4 + 0x64);
-            pos.y = *(int *)(r4 + 0x60) + 0x58000;
-            rot.x = 0x1000;
-            _ZN8dActor_c13SpawnFireballERK7Vector3PK10Vector3_165Fix12IiES7_j(
-                r4, &pos, &rot, 0x1e000, 0xa000, 0);
-            func_02012694(0x122, r4 + 0x74);
-            ov60_ran("BOWSER state 9 SPIT (SpawnFireball branch)", r4);
-        }
-    }
-
-    /* 0x02114214..0x02114228 -- everything past here waits for the animation
-       to reach its last frame. */
-    if (!Bowser_IsAnimAtLastFrame(r4))
-        return;
-
-    /* 0x0211422c..0x02114278 -- count the volley off; when the count reaches
-       the number picked above, drop back to state 0.  If the spit animation
-       is NOT the one loaded, load it (index 0x14) instead. */
-    if (*(int *)(r4 + 0x134) == data_ov060_0211abe0[1]) {
-        *(unsigned char *)(r4 + 0x423) =
-            (unsigned char)(*(unsigned char *)(r4 + 0x423) + 1);
-        if (*(unsigned char *)(r4 + 0x423) >= *(unsigned char *)(r4 + 0x428))
-            *(int *)(r4 + 0x40c) = 0;
-    } else {
-        func_ov060_02111cc0(r4, 0x14, 0);
-    }
-
-    /* 0x0211427c..0x0211428c */
-    *(int *)(r4 + 0x12c) = 0;
-}
+ * Same shape, same file, one wave later than HOST COPY 8
+ * (func_ov060_02116d78, run linkw wave 9's w9-harvest lane).
+ *
+ * ALL TEN EXTERNS were checked in this tree's own build/port/walk_window.map
+ * before the retirement and every one is present.  The ov60_ran("BOWSER state
+ * 9") trace call leaves with the host copy: the ROM's body carries no trace.
+ */
+extern "C" void func_ov060_021140c0(char *c);
 
 /* ============ HOST COPY 1: func_ov060_02112434 ============================
  * BOWSER's per-frame target/flag pass, called from Bowser::Behavior.  Line for

@@ -1,23 +1,30 @@
 /* HOST COPIES for TREASURE_CHEST (13, ov064, "11daObjTbox_c"), run rel0215
- * wave 3, lane w3-c -- the two pointer-to-member dispatchers, the ONE ROM body
- * the decomp does not have, and the seat of the six SOURCE records.
+ * wave 3, lane w3-c -- the two pointer-to-member dispatchers, the receiver
+ * face for state 0's tick, and the seat of the six SOURCE records.
  *
- * ================= THE BODY THE DECOMP DOES NOT HAVE =====================
+ * ================= THE BODY THE DECOMP DID NOT HAVE ======================
  *
- * hal/actor_classes_ov064_w12.cpp's header (run linkw wave 12) declined this
- * class and gave the measurement: "one of the six records, _ZN13TreasureChest6State0Ev
- * (state 0's tick, 540 bytes at 0x0211a4c4), HAS NO MATCHED TU anywhere in src/
- * and is in no port host copy. State 0 is the state its InitResources leaves
- * the chest in, so that body runs on the first frame a chest exists.
- * Registering the class without it would seat a DS code address in a live
- * dispatch table." Both halves of that re-verified on this tip:
+ * It has it now, and this header's own measurement is the half that went
+ * stale.  What it said (run rel0215 wave 3, repeating run linkw wave 12's
+ * hal/actor_classes_ov064_w12.cpp): "one of the six records,
+ * _ZN13TreasureChest6State0Ev (state 0's tick, 540 bytes at 0x0211a4c4), HAS
+ * NO MATCHED TU anywhere in src/ and is in no port host copy", supported by
+ * "config/arm9/overlays/ov064/delinks.txt has NO block for it -- the TU
+ * before it, src/_ZN13TreasureChest10InitState1Ev.cpp, ends at 0x0211a4c4 and
+ * the next, src/_ZN13TreasureChest10InitState0Ev.cpp, starts at 0x0211a6e0."
  *
- *   - config/arm9/overlays/ov064/symbols.txt names _ZN13TreasureChest6State0Ev
- *     kind:function(arm,size=0x21c) addr:0x0211a4c4, and
- *     config/arm9/overlays/ov064/delinks.txt has NO block for it -- the TU
- *     before it, src/_ZN13TreasureChest10InitState1Ev.cpp, ends at 0x0211a4c4 and the next,
- *     src/_ZN13TreasureChest10InitState0Ev.cpp, starts at 0x0211a6e0. Nothing in src/ or in
- *     port/ defines the symbol.
+ * RE-MEASURED at run link100 wave 15 (lane SEAT15A) on this tip:
+ *   - src/_ZN13TreasureChest6State0Ev.cpp EXISTS, from 6e10cbbd1 ("Migrate
+ *     TreasureChest states to real C++ class form", PR #1805), a real C++
+ *     method body on include/TreasureChest.h like its five siblings.
+ *   - config/arm9/overlays/ov064/delinks.txt line 475 DOES carry its block.
+ *   - config/arm9/overlays/ov064/symbols.txt still names it
+ *     kind:function(arm,size=0x21c) addr:0x0211a4c4, unchanged.
+ * So the transcription below is retired for the matched TU, which rides
+ * port/slice_l15stale.txt, and what stays here is the receiver face the seat
+ * needs.  The rest of this header's ROM derivation is untouched and still
+ * true: it is what the retired transcription was checked against.
+ *
  *   - the ONLY reference to 0x0211a4c4 anywhere in ov064's relocs is the data
  *     word at 0x0211c4bc, one of the six { function, 0 } source pairs, and
  *     __sinit_ov064_0211b59c's own disassembly stores that pair at DEST+0x08 --
@@ -26,27 +33,29 @@
  *     chest's idx (this+0x16c) is bss zero until something sets it. So it is
  *     state 0's tick and it is on the first Behavior frame of every chest.
  *
- * A LOUD FACE IS NOT AVAILABLE HERE and that is why this body is transcribed
- * rather than declined. The tree has a precedent for facing a missing state
- * body -- GOOMBOSS (198, ov074, func_ov074_021201f0) is seated with the class
- * registered and quarantines on its first Behavior frame, carried by a
- * tools/battery.py LEVEL_SKIPS row. This lane may not take that route: the
- * campaign plan's step 15 says a lane that needs a skip has not finished, and
- * this one would need a skip on THREE levels (8, 9 and 18, the levels whose
- * spawn lists carry id 13).
+ * A LOUD FACE WAS NOT AVAILABLE when the transcription was written, which is
+ * why it existed rather than the class being declined. The tree has a
+ * precedent for facing a missing state body -- GOOMBOSS (198, ov074,
+ * func_ov074_021201f0) is seated with the class registered and quarantines on
+ * its first Behavior frame, carried by a tools/battery.py LEVEL_SKIPS row.
+ * That route would have needed a skip on THREE levels (8, 9 and 18, the
+ * levels whose spawn lists carry id 13), and the campaign plan's step 15 says
+ * a lane that needs a skip has not finished. The matched TU closes the
+ * question: there is no skip and no transcription.
  *
- * TRANSCRIBED FROM THE ROM, INSTRUCTION BY INSTRUCTION, out of
+ * THE RETIRED TRANSCRIPTION was taken instruction by instruction out of
  * extracted/overlays/overlay_0064.bin at base 0x02115ee0 (T4 -- ov064 is
  * compressed:true and the dsd export is the wrong image). 135 instructions,
  * 0x0211a4c4..0x0211a6e0. Every call it makes is resolved through
- * config/arm9/overlays/ov064/relocs.txt and every one of the nine is ALREADY
- * in build/port/walk_window.map before this lane -- the external closure gap
- * for this body is zero, which is checked rather than assumed:
+ * config/arm9/overlays/ov064/relocs.txt and every one of the nine was ALREADY
+ * in build/port/walk_window.map, checked rather than assumed:
  *     0x0203adbc DecIfAbove0_Short          0x02012790 func_02012790
  *     0x02010f3c Actor::FindWithID          0x0203b7ac Vec3_HorzAngle
  *     0x0203b0e8 AngleDiff                  0x02010ef0 Actor::FindWithActorID
  *     0x0200f97c Actor::SpawnSoundObj       0x02012694 func_02012694
  *     0x020d5a1c Player::Shock              0x0211a6ec (this file, below)
+ * The matched TU calls the same nine through their MSVC member mangles, and
+ * those were re-checked in this tree's map before the swap.
  *
  * WHAT IT IS. The chest-order puzzle -- four chests on level 8, three on level
  * 18, one on level 9. Each chest carries an order number in this+0x172 (the low
@@ -178,83 +187,39 @@ void Actor::UntrackAndSpawnStar(signed char &trackStarID, unsigned starID,
    with their relocations, every adjustment word ROM zero. */
 extern "C" void _ZN13TreasureChest8SetStateEi(void *self, int i);
 
-/* PORT_HOST_ABI: the ROM body at ov064 0x0211a4c4 (0x21c bytes), state 0's
-   tick. No matched TU exists anywhere in the tree; this is transcribed from the
-   overlay image. See this file's header for the derivation and for why a loud
-   face is not an option for this particular slot. */
+/* ============ THE TRANSCRIBED BODY IS RETIRED ==============================
+   run link100 wave 15, lane SEAT15A -- the stale-banner harvest, round 2.
+
+   The 0x21c-byte transcription that stood here was tagged "No matched TU
+   exists anywhere in the tree; this is transcribed from the overlay image",
+   and this file's header carried the measurement behind it: "delinks.txt has
+   NO block for it".  Both were true when written.  On this tip
+   src/_ZN13TreasureChest6State0Ev.cpp exists (6e10cbbd1, "Migrate
+   TreasureChest states to real C++ class form", PR #1805) and
+   config/arm9/overlays/ov064/delinks.txt line 475 DOES carry its block.  The
+   TU is on port/slice_l15stale.txt now, which holds the whole derivation.
+
+   WHAT REPLACES IT IS A RECEIVER FACE, NOT AN ALIAS.  MSVC compiles the
+   matched TU to ?State0@TreasureChest@@QAEXXZ, a __thiscall member taking the
+   receiver in ecx.  The seat's thunk tc_st0_pmf below calls the FLAT C name
+   with the receiver on the stack, exactly as it does for the other five
+   records, and those five are answered by hal/faces_sync_gen.cpp's generated
+   flat faces (port/faces_sync.txt rows 979-985).  An /alternatename between
+   the two names would be the ecx-versus-stack fault this file's
+   UntrackAndSpawnStar note already measures, so this is the same generated
+   shape written out by hand: the class is re-declared locally because this
+   file includes no headers, and `State0` is public and non-virtual in
+   include/TreasureChest.h, which is what fixes the Q-and-AE mangle.
+
+   THE `if (fn)` GUARD DOES NOT COME BACK.  The seat still verifies all six
+   ROM words and aborts on wrong bytes; what changes is that record 0's tick
+   is now the ROM's own body rather than a transcription of it. */
+struct TreasureChest {
+    public: void State0();
+};
 extern "C" int _ZN13TreasureChest6State0Ev(void *self)
 {
-    char *c = (char *)self;
-
-    DecIfAbove0_Short((unsigned short *)(c + 0x170));
-    if (*(unsigned short *)(c + 0x170) == 0x58)
-        func_02012790(0xe);
-
-    /* not linked to anything yet, or the arming timer is still running */
-    if (*(unsigned int *)(c + 0x15c) == 0)
-        return 0;
-    if (*(unsigned short *)(c + 0x170) != 0)
-        return 0;
-
-    char *other = (char *)_ZN8dActor_c10FindWithIDEj(*(unsigned int *)(c + 0x15c));
-    if (other == 0)
-        return 0;
-    if (*(unsigned short *)(other + 0xc) != 0xbf)   /* must be a PLAYER */
-        return 0;
-
-    {
-        PortVec3 pv;
-        pv.x = *(int *)(other + 0x5c);
-        pv.y = *(int *)(other + 0x60);
-        pv.z = *(int *)(other + 0x64);
-        if (AngleDiff(Vec3_HorzAngle(c + 0x5c, &pv),
-                      *(short *)(c + 0x8e)) >= 0x4000)
-            return 0;
-    }
-
-    /* walk every id-13 actor: total, and how many OTHERS are open (state 1|2) */
-    int opened = 0;
-    int total = 0;
-    char *it = (char *)_ZN8dActor_c15FindWithActorIDEjPS_(0xd, 0);
-    while (it != 0) {
-        ++total;
-        if (it != c) {
-            int st = *(int *)(it + 0x16c);
-            if (st == 1 || st == 2)
-                ++opened;
-        }
-        it = (char *)_ZN8dActor_c15FindWithActorIDEjPS_(0xd, it);
-    }
-
-    unsigned order = *(unsigned char *)(c + 0x172);
-    if ((unsigned)(opened + 1) == order) {
-        if ((unsigned)total == order) {
-            _ZN8dActor_c13SpawnSoundObjEj(c, 0);
-            *(unsigned char *)(c + 0x173) = 1;
-        } else {
-            func_02012790(0x26);
-        }
-        if (*(unsigned char *)(other + 0x706) != 0)
-            func_02012694(0x22, c + 0x74);
-        else
-            func_02012694(0x20, c + 0x74);
-        _ZN13TreasureChest8SetStateEi(c, 1);
-        return 0;
-    }
-
-    /* wrong chest: re-arm, shock the player, reset every OTHER chest */
-    *(unsigned short *)(c + 0x170) = 0x5a;
-    if (*(unsigned char *)(other + 0x6f9) != 0)
-        _ZN6Player5ShockEj(other, 0);
-    else
-        _ZN6Player5ShockEj(other, 1);
-    {
-        char *r = 0;
-        while ((r = (char *)_ZN8dActor_c15FindWithActorIDEjPS_(0xd, r)) != 0) {
-            if (r != c)
-                _ZN13TreasureChest8SetStateEi(r, 0);
-        }
-    }
+    ((TreasureChest *)self)->TreasureChest::State0();
     return 0;
 }
 
