@@ -1912,6 +1912,214 @@ static void port_exit_place(char *ex, char *player, int z, int beside)
     MulVec3Mat4x3(local, inv, player + 0x5c);
 }
 
+/* ---- THE DOOR ARM (run link100, lane DOOR1) -----------------------------
+
+   SM64DS_DOOR_PROBE=1 dumps the level's plain DOOR actors once the level is
+   up, then prints one line per door per frame carrying the cartridge's own
+   entry test, term by term, and one [door-open] line the frame a door's
+   callback node moves.
+
+   SM64DS_DOOR_DROP=#<n>[,<frame>[,<dist>]] stands the Player in front of the
+   n-th door of that dump, facing it, and holds him there until the door
+   takes him.  SM64DS_DOOR_DROP=<x>,<y>,<z>,<yaw>[,<frame>] is the same arm
+   with the placement spelled out (world units, yaw in binangs), for a door
+   whose index is not known ahead of the run.
+
+   NOTHING HERE OPENS A DOOR, and that is the point of the shape. The
+   cartridge's own test is func_ov100_021452e4 (ov100 0x021452e4), reached
+   every frame from Door::Behavior (0x02145550, vtable slot 6 of _ZTV4Door at
+   0x02148188):
+
+     Door::Behavior            func_ov100_02145370 (0x02145370) writes THE
+                               PLAYER'S POSITION IN DOOR-LOCAL SPACE into the
+                               door's own +0x80/+0x84/+0x88 -- Vec3_Sub then
+                               Vec3_RotateYAndTranslate by -mAngleY -- and
+                               then dispatches the door's callback node's
+                               +8 half on the Door with the Player.
+
+     func_ov100_02144cf8       the idle half of node data_ov100_021488b4.
+     (0x02144cf8)              Its whole gate is func_ov100_021452e4:
+
+                                 |local x| <= 0x4b000   ( 75.0 units)
+                                 |local y| <= 0x32000   ( 50.0 units)
+                                 |local z| <= 0x6e000   (110.0 units)
+                                 AngleDiff(door->mAngleY
+                                           + (local z >= 0 ? 0x8000 : 0),
+                                           player->mAngleY) < 0x2000 (45 deg)
+
+                               Past it, an unlocked door falls to L240 and
+                               calls func_ov100_021451c4 (0x021451c4) with
+                               node data_ov100_021488f4 (or data_ov100_02148904
+                               when the door carries a key model), and that
+                               call is the player half:
+
+     Player::CanEnterDoor      ov002 0x020ca5cc. Refuses unless the Player is
+                               in one of ST_WAIT (0x02110154), 0x0211013c,
+                               0x0211022c or 0x0211043c; then sets mStateStep
+                               to the side and runs
+                               Player::SetNoControlState(7, -1, 1), which is
+                               the door-opening state. The door's node then
+                               carries func_ov100_02144950 / func_ov100_02144730
+                               -- the open animation, which ends in ChangeArea.
+
+   So the cartridge asks for proximity, facing and an ordinary player state,
+   and for NO BUTTON AND NO STICK: the selftest's held-forward stick was
+   never the missing piece, the placement was. This arm therefore writes the
+   Player's position, his mAngleY and his three speed words and nothing else.
+   It never calls into the door, never calls CanEnterDoor, and never writes a
+   State: the door opens because the ROM's own test passes. Inert with the
+   two variables unset. */
+extern "C" void *_ZTV4Door[31];   /* hal/actor_classes.cpp, ov100 0x02148188 */
+extern "C" int func_ov100_021452e4(char *door, char *player);
+extern "C" void Vec3_RotateYAndTranslate(int *out, int *in, short angle,
+                                         int *src);
+
+static char *port_door_nth(int idx)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(void ***)o != _ZTV4Door)
+            continue;
+        if (n++ == idx)
+            return o;
+    }
+    return 0;
+}
+
+/* The nine callback nodes __sinit_ov100_02147698 builds, so the log names the
+   door's state instead of printing a bare address. */
+extern "C" {
+extern int data_ov100_021488a4[], data_ov100_021488b4[],
+    data_ov100_021488c4[], data_ov100_021488d4[], data_ov100_021488e4[],
+    data_ov100_021488f4[], data_ov100_02148904[], data_ov100_02148914[],
+    data_ov100_02148924[];
+}
+
+static const char *port_door_node_name(const void *n)
+{
+    if (!n) return "none";
+    if (n == (const void *)data_ov100_021488a4) return "88a4";
+    if (n == (const void *)data_ov100_021488b4) return "88b4 idle";
+    if (n == (const void *)data_ov100_021488c4) return "88c4 message";
+    if (n == (const void *)data_ov100_021488d4) return "88d4 talk";
+    if (n == (const void *)data_ov100_021488e4) return "88e4 keydoor";
+    if (n == (const void *)data_ov100_021488f4) return "88f4 OPENING";
+    if (n == (const void *)data_ov100_02148904) return "8904 OPENING(key)";
+    if (n == (const void *)data_ov100_02148914) return "8914 boot";
+    if (n == (const void *)data_ov100_02148924) return "8924";
+    return "?";
+}
+
+/* The DOOR half of the proof: the first door whose callback node has reached
+   one of the two opening nodes, whose +8 half is func_ov100_02144730 -- the
+   open animation, which advances the door's own Animation and ends in
+   ChangeArea. Returns 0 while every door is still idle. */
+static char *port_door_opening(void)
+{
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(void ***)o != _ZTV4Door)
+            continue;
+        void *cb = *(void **)(o + 0x140);
+        if (cb == (void *)data_ov100_021488f4 ||
+            cb == (void *)data_ov100_02148904)
+            return o;
+    }
+    return 0;
+}
+
+/* One line per door. The local columns are the door's own +0x80/+0x84/+0x88,
+   written by func_ov100_02145370 inside the Door::Behavior that ran earlier
+   in THIS frame's port_actor_tick, and `cond` is the cartridge's own
+   func_ov100_021452e4 asked again on the same words. */
+static void port_door_watch(int frame, char *c)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(void ***)o != _ZTV4Door)
+            continue;
+        void *cb = *(void **)(o + 0x140);
+        fprintf(stderr, "[door] f%d #%d p1=%u pos(%d,%d,%d) yaw %04x "
+                "local(%d,%d,%d) cond %d node %s | player(%d,%d,%d) yaw %04x "
+                "state %p step %u nocontrol %u\n",
+                frame, n, *(unsigned *)(o + 8),
+                *(int *)(o + 0x5c) >> 12, *(int *)(o + 0x60) >> 12,
+                *(int *)(o + 0x64) >> 12,
+                (unsigned short)*(short *)(o + 0x8e),
+                *(int *)(o + 0x80) >> 12, *(int *)(o + 0x84) >> 12,
+                *(int *)(o + 0x88) >> 12,
+                c ? func_ov100_021452e4(o, c) : -1,
+                port_door_node_name(cb),
+                c ? *(int *)(c + 0x5c) >> 12 : 0,
+                c ? *(int *)(c + 0x60) >> 12 : 0,
+                c ? *(int *)(c + 0x64) >> 12 : 0,
+                c ? (unsigned short)*(short *)(c + 0x8e) : 0,
+                c ? *(void **)(c + 0x370) : 0,
+                c ? *(unsigned char *)(c + 0x6e3) : 0,
+                c ? *(unsigned char *)(c + 0x709) : 0);
+        ++n;
+    }
+}
+
+static void port_door_dump(void)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(void ***)o != _ZTV4Door)
+            continue;
+        fprintf(stderr, "[door] %2d actorID %u param1 %u at (%d,%d,%d) "
+                "yaw %04x  key model %d  node %s\n", n,
+                *(unsigned short *)(o + 0xc), *(unsigned *)(o + 8),
+                *(int *)(o + 0x5c) >> 12, *(int *)(o + 0x60) >> 12,
+                *(int *)(o + 0x64) >> 12,
+                (unsigned short)*(short *)(o + 0x8e),
+                (int)*(signed char *)(o + 0x144),
+                port_door_node_name(*(void **)(o + 0x140)));
+        ++n;
+    }
+    fprintf(stderr, "[door] %d door(s) on this level\n", n);
+}
+
+/* Stand the Player at door-local (0, 0, side*dist) facing the door, the way
+   the cartridge's own test wants him: the placement is the INVERSE of
+   func_ov100_02145370's transform, taken with the ROM's own
+   Vec3_RotateYAndTranslate rather than a hand-rolled rotation, and the yaw is
+   the exact value func_ov100_021452e4's AngleDiff term is measured against,
+   so the term reads 0. */
+static void port_door_place(char *door, char *c, int side, int dist)
+{
+    const short dyaw = *(short *)(door + 0x8e);
+    int local[3];
+    local[0] = 0;
+    local[1] = 0;
+    local[2] = (side < 0 ? -dist : dist) << 12;
+    Vec3_RotateYAndTranslate((int *)(c + 0x5c), (int *)(door + 0x5c), dyaw,
+                             local);
+    *(short *)(c + 0x8e) = (short)(dyaw + (side < 0 ? 0 : 0x8000));
+    *(int *)(c + 0xa4) = 0;
+    *(int *)(c + 0xa8) = 0;
+    *(int *)(c + 0xac) = 0;
+    *(int *)(c + 0x98) = 0;   /* mHorzSpeed: stop him walking off the mark */
+}
+
+/* Set while the arm holds the Player on his mark, read by the selftest's own
+   stick so the hold is not fighting a held-forward walk. */
+static int g_door_hold;
+
+static int port_door_watch_on(void)
+{
+    static int on = -1;
+    if (on < 0) on = getenv("SM64DS_DOOR_PROBE") != 0;
+    return on;
+}
+
 #ifdef NTR_HIRES
 static const int ZOOM = 1;
 #elif defined(NTR_HIRES2) || defined(NTR_WIDE_RT)
@@ -9972,6 +10180,11 @@ int main(void)
                input that reaches the boost multiply in the walk core, which
                is why every other probe here looked clean. */
             if (decel_probe == 4 && frame < DASH_CHARGE_UNTIL) dz = 0;
+            /* SM64DS_DOOR_DROP holds him on his mark: a held-forward stick
+               would turn him off the door's facing term within two frames
+               and walk him out of its box. Released the instant the door's
+               callback node moves, so the open animation gets a live pad. */
+            if (g_door_hold) { dx = 0; dz = 0; }
         }
         /* the walk keys, both halves of each pair (settings.json KeyUp and
            KeyUpAlt and their siblings; W/A/S/D and the arrows by default) */
@@ -11421,6 +11634,97 @@ int main(void)
                             (*(unsigned *)((char *)data_0209f318 + 0x154)
                              & 0x10) ? "  LOCKED (LookAtExit)" : "");
             }
+
+            /* ---- SM64DS_DOOR_PROBE / SM64DS_DOOR_DROP (the arm's whole
+               reading is in its banner beside port_door_place). Placed where
+               the exit arm is placed, before port_actor_tick, so the mark
+               written here is the one Door::Behavior reads this same frame. */
+            static int dr_parsed, dr_mode, dr_idx, dr_frame = 60, dr_dist = 60;
+            static int dr_x, dr_y, dr_z, dr_yaw, dr_dumped, dr_side = 1;
+            static int dr_started, dr_fired;
+            if (!dr_parsed) {
+                const char *e = getenv("SM64DS_DOOR_DROP");
+                dr_parsed = 1;
+                if (e && *e == 35) {          /* '#' -- the n-th door form */
+                    if (sscanf(e + 1, "%d,%d,%d", &dr_idx, &dr_frame,
+                               &dr_dist) >= 1)
+                        dr_mode = 1;
+                } else if (e) {
+                    if (sscanf(e, "%d,%d,%d,%d,%d", &dr_x, &dr_y, &dr_z,
+                               &dr_yaw, &dr_frame) >= 4)
+                        dr_mode = 2;
+                }
+                if (dr_dist <= 0) dr_dist = 60;
+            }
+            if (!dr_dumped && frame == 30 &&
+                (getenv("SM64DS_DOOR_PROBE") || dr_mode)) {
+                dr_dumped = 1;
+                port_door_dump();
+            }
+            if (dr_mode && player && frame >= dr_frame && !dr_fired) {
+                char *dr = dr_mode == 1 ? port_door_nth(dr_idx) : 0;
+                if (dr_mode == 1 && !dr_started && dr) {
+                    /* KEEP HIM ON THE SIDE HE IS ALREADY ON. The door's own
+                       +0x88 is his local z as of the last Door::Behavior, and
+                       the far side of a castle door is usually inside the
+                       wall. */
+                    dr_side = *(int *)(dr + 0x88) < 0 ? -1 : 1;
+                }
+                if (dr_mode == 1 && dr) {
+                    port_door_place(dr, c, dr_side, dr_dist);
+                    g_door_hold = 1;
+                } else if (dr_mode == 2) {
+                    *(int *)(c + 0x5c) = dr_x << 12;
+                    *(int *)(c + 0x60) = dr_y << 12;
+                    *(int *)(c + 0x64) = dr_z << 12;
+                    *(short *)(c + 0x8e) = (short)dr_yaw;
+                    *(int *)(c + 0xa4) = 0;
+                    *(int *)(c + 0xa8) = 0;
+                    *(int *)(c + 0xac) = 0;
+                    *(int *)(c + 0x98) = 0;
+                    g_door_hold = 1;
+                }
+                if (!dr_started && (dr || dr_mode == 2)) {
+                    dr_started = frame;
+                    fprintf(stderr, "[door] f%d arm on: mode %d door %d "
+                            "side %d dist %d -> player (%d,%d,%d) yaw %04x\n",
+                            frame, dr_mode, dr_idx, dr_side, dr_dist,
+                            *(int *)(c + 0x5c) >> 12,
+                            *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0x64) >> 12,
+                            (unsigned short)*(short *)(c + 0x8e));
+                }
+                if (!dr_started && frame == dr_frame)
+                    fprintf(stderr, "[door] f%d arm found no door %d; "
+                            "SM64DS_DOOR_PROBE=1 lists them\n", frame, dr_idx);
+                /* Give up holding after eight seconds rather than pinning him
+                   there for the whole run: a door that has not taken him by
+                   then is a finding, not a slow one. */
+                if (dr_started && frame > dr_started + 240) {
+                    dr_fired = 2;
+                    g_door_hold = 0;
+                    fprintf(stderr, "[door] f%d arm timed out after 240 "
+                            "frames on the mark, releasing\n", frame);
+                }
+            }
+            if (dr_mode && !dr_fired) {
+                char *op = port_door_opening();
+                if (op) {
+                    dr_fired = 1;
+                    g_door_hold = 0;
+                    fprintf(stderr, "[door-open] f%d door at (%d,%d,%d) node "
+                            "%s | player state %p step %u nocontrol %u "
+                            "ctrl_disabled %u\n", frame,
+                            *(int *)(op + 0x5c) >> 12,
+                            *(int *)(op + 0x60) >> 12,
+                            *(int *)(op + 0x64) >> 12,
+                            port_door_node_name(*(void **)(op + 0x140)),
+                            *(void **)(c + 0x370),
+                            *(unsigned char *)(c + 0x6e3),
+                            *(unsigned char *)(c + 0x709),
+                            *(unsigned char *)(c + 0x6f6));
+                }
+            }
         }
 
         /* ---- THE LEVEL HANDOFF (gate 31) -------------------------------
@@ -12096,6 +12400,13 @@ int main(void)
                 if (rb_probe_mode()) rb_note(RB_ACTOR_TICK, rb_now_ms() - rb_t);
             }
             port_vs_stars_probe(frame);        /* TEMPORARY: SM64DS_VS_STARS */
+            /* SM64DS_DOOR_PROBE's per-frame line, HERE rather than beside the
+               arm's placement above, because the door-local columns it reads
+               are written by func_ov100_02145370 inside the Door::Behavior
+               that port_actor_tick has just run. Above the tick they would be
+               one frame stale. */
+            if (port_door_watch_on())
+                port_door_watch(frame, c);
         } else if (*(void **)(c + 0x370)) {
             hal_player_behavior(player);
         } else {
