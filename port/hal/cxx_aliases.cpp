@@ -380,12 +380,10 @@ int _ZNK9Animation12WillHitFrameEi(void *self, int f)
    through a tail call the C decl never names (the ride-through catalog).
    Host spells out both args and routes to the HAL Construct. */
 void *_ZN13SharedFilePtr9ConstructEj(void *self, unsigned id);
-/* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
-int func_02017acc(void *self, unsigned id)
-{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
-/* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
-int SharedFilePtr_Construct_TexSeq(void *self, unsigned id)
-{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+/* RETIRED, run link100 wave 15 lane SEAT15C: src/func_02017acc.c now spells
+   both arguments, so the matched TU carries this row. See port/slice_l15fs.txt. */
+/* RETIRED, run link100 wave 15 lane SEAT15C: src/SharedFilePtr_Construct_TexSeq.c
+   now spells both arguments. See port/slice_l15fs.txt. */
 /* PORT_HOST_ABI: ARM r1 fileID ride-through, run mg9 lane PSY. THE FIFTH
    MEMBER OF THIS CATALOG AND THE ONE THAT WAS MISSING. func_02017a24 is the
    same veneer as its four siblings above and below -- ROM 0x02017a24 is
@@ -435,17 +433,15 @@ int func_02017a24(void *self, unsigned id)
 { _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
 /* PORT_HOST_ABI: fileptr dtor veneer; host card seam does not refcount. */
 int func_02017ab4(int x) { return x; }   /* static-dtor veneer: no-op */
-/* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
-int func_02017b4c(void *self, unsigned id)
-{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
-/* PORT_HOST_ABI: ARM r1 fileID ride-through, gate 50 (ov080's PAINTING). The
-   third ov080 sinit constructs its SharedFilePtrs through func_020178cc, the
-   same one-arg veneer chain as func_02017acc (both end at func_02017e0c), so
-   the same host spell-out serves it. func_020178b4 is the matching dtor-chain
-   callback the sinit registers by address -- a host no-op like func_02017ab4,
-   because the card seam does not refcount. */
-int func_020178cc(void *self, unsigned id)
-{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+/* RETIRED, run link100 wave 15 lane SEAT15C: src/func_02017b4c.c now spells
+   both arguments. See port/slice_l15fs.txt. */
+/* RETIRED, run link100 wave 15 lane SEAT15C: src/func_020178cc.c now spells
+   both arguments. gate 50 (ov080's PAINTING): the third ov080 sinit constructs
+   its SharedFilePtrs through func_020178cc, the same veneer chain as
+   func_02017acc, and both chains end at func_02017e0c, which is where
+   hal/fs.cpp's Construct ends too. func_020178b4 below is the matching
+   dtor-chain callback the sinit registers by address and stays a host no-op,
+   because the card seam does not refcount. See port/slice_l15fs.txt. */
 /* PORT_HOST_ABI: fileptr dtor callback the third ov080 sinit registers by
    address; host card seam does not refcount, so the body is a no-op. */
 int func_020178b4(int x) { return x; }   /* fileptr dtor callback: host no-op */
