@@ -6234,10 +6234,30 @@ foreach(line IN LISTS SLICE_OV007_LINES)
     # no longer shipped -- the exact failure RT1 caught in PC2's predicate,
     # arriving a third time. The cut therefore sets its own DISPLACED flag and
     # the predicate reads both, which is the shape the be980 block already had.
+    # RETIRED, run link100 wave 15, lane SEAT15E. THE DISPLACEMENT IS GONE AND
+    # THE MATCHED TU IS BACK: src/func_ov007_020add3c.c opens
+    #     extern int func_ov007_020ae558(char *self);
+    # and calls it `int r = func_ov007_020ae558(c);` on its own incoming
+    # argument, and src/func_ov007_020ae558.c defines
+    # `int func_ov007_020ae558(char *self)` with that one parameter. The value
+    # this frame used to destroy is passed now, so there is nothing left for a
+    # stack ABI to lose and nothing for the host copy to spell out. The rest of
+    # the host body was the same source's statement list line for line.
+    #
+    # THE FLAG STAYS AND THE `continue()` GOES, for the reason the be980 block
+    # above gives: the RT1 marker block below reads RT1_ADD3C_IN_SLICE and
+    # AE1_ADD3C_DISPLACED as a pair, and only the pair tells "the seam is
+    # seated" apart from "the TU vanished and the link is about to fail". The
+    # marker retires by its own predicate in the same configure, because the
+    # `(void)` declaration of func_ov007_020ae558 it greps for is gone.
+    #
+    # port/tools/tailjump_guard.py's Class A row 1 comes back off RETIRED in
+    # this build, because its `tu` (src/func_ov007_020add3c.c) is now what the
+    # build really compiles. The row requires this frame to emit a REAL CALL
+    # and forbids a tail jump; the seated body is twenty statements, so the
+    # required form is what MSVC has to emit.
     if(line MATCHES "^src/func_ov007_020add3c\\.c$")
         set(RT1_ADD3C_IN_SLICE TRUE)
-        set(AE1_ADD3C_DISPLACED TRUE)
-        continue()
     endif()
     # run link60 Stage 5 lane TS1: THE THIRD DISPLACEMENT IN THIS SLICE, and
     # the same frame shape as the two above.
@@ -6382,20 +6402,13 @@ endforeach()
 # three implicit-argument defects in a row (020c78b0, 020cc600, the
 # 02013edc/02042fe4 veneer pair) recovered with the byte match intact, which is
 # what made this worth re-attempting rather than assuming settled.
-if(AE1_ADD3C_DISPLACED)
-    list(APPEND SLICE_OV007_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_ImplicitR0_020add3c.cpp")
-elseif(NOT RT1_ADD3C_IN_SLICE)
-    # Same two opposite states the be980 branch below distinguishes, and for
-    # the same reason: the slice line is the only thing that puts the matched
-    # TU in the build, so if the line is gone the host copy must not be added
-    # blind. Two bodies for one address is an LNK2005 and none is a silent
-    # undefined symbol.
-    message(STATUS "AE1: slice_ov007.txt no longer lists "
-                   "src/func_ov007_020add3c.c, so the implicit-r0 host copy is "
-                   "NOT added and the link will fail on it. Restore the line: "
-                   "this block does the cutting, not the slice file")
-endif()
+# RETIRED, run link100 wave 15, lane SEAT15E: the implicit-r0 host copy is no
+# longer appended, because the cut above no longer happens and the matched TU is
+# in SLICE_OV007_SOURCES as itself.
+# port/unmatched/Ov007_ImplicitR0_020add3c.cpp keeps its derivation -- the
+# 54-instruction capstone reading, the eight-arm jump table, and the measured
+# save-versus-argument listing at 0042A310 that settled the class -- and carries
+# no body, so it can never become a second definition of 0x020add3c.
 # RETIRED, run mg16 arc 4. src/func_ov007_020c2b9c.c now SPELLS the return its two
 # matched callers already declare -- `void*` and `return r;` -- and STILL
 # byte-matches at 2004/b56 (23 words, 0 MISMATCH). The matched TU is in the build
