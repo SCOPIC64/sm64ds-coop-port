@@ -17,14 +17,17 @@
 # other way round, by taking the file's filter line back out of
 # SLICE10_CAM_SOURCES, so slice 10 compiles it itself.
 
-# PathPtr::FromID IS NOT HERE. It is a real C++ member now and the host copy's
-# struct-return reason is stale, but seating it needs ONE hunk in a file this
-# lane does not own: unmatched/Klepto_PathPtrFaces.cpp:61 already defines
-# `void PathPtr::FromID(unsigned int)` as a __thiscall forwarder, so the
-# matched TU is LNK2005 against it (measured, build_seat15f_a.log). The fix is
-# the one already applied to the constructor in that same file at ALIAS2:
-# wrap the body in `#if 0` with the note. Recorded for the fold, not taken
-# here.
+# PathPtr::FromID. It is a real C++ member now and the host copy's
+# struct-return reason is stale. Seating it needed one hunk in a file this
+# lane did not own: unmatched/Klepto_PathPtrFaces.cpp:61 already defined
+# `void PathPtr::FromID(unsigned int)` as a __thiscall forwarder (LNK2005,
+# measured build_seat15f_a.log); PATHPTR2 (wave 15) retired that forwarder
+# the way its sibling constructor face was retired at ALIAS2, and turned
+# unmatched/PathPtr_FromID.cpp into a flat-name bridge into this member
+# instead of deleting it -- about 28 object files call the flat cdecl name
+# directly and never go through the member (PATHPTR1 measured LNK1120 across
+# that set when the flat body was deleted instead of bridged).
+src/_ZN7PathPtr6FromIDEj.cpp
 
 # MSL memset and its fill. func_0206e2f8 declares all three arguments now and
 # returns dst, which is what include/decl_common.h:2101 says it does; the fill
