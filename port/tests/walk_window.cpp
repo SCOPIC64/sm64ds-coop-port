@@ -837,6 +837,17 @@ extern unsigned char data_0209f1f8;  /* view-object count */
 extern signed char data_0209f2f8;    /* level/sublevel id (weather select) */
 extern int data_0209f32c[];          /* water level */
 extern int data_0209f20c[], data_0209f294[], data_0209f2c4[];
+/* THE PAUSE MENU'S OWN WORDS (run link100, lane EXITS1, the exit-course arm).
+   Stage::PS_Update (src/_ZN5Stage9PS_UpdateEv.cpp) runs a switch on
+   data_0209f248, copies data_0209f1ec into it at the top of every call, and
+   RETURNS OUT OF THE WHOLE FUNCTION while data_0209f22c is nonzero. A menu that
+   is up and will not answer a tap is one of those three, and this is how a log
+   says which. Flat names: all four are unsigned char[4] host arrays
+   (hal/auto_bss.cpp, hal/w8a_stage_storage.cpp). */
+extern "C" unsigned char data_0209f248[];  /* the pause sub-state that RAN */
+extern "C" unsigned char data_0209f1ec[];  /* the pause sub-state asked for */
+extern "C" unsigned char data_0209f22c[];  /* the whole-function cooldown */
+extern "C" unsigned char data_0209f2b4[];  /* how many menu buttons are up */
 /* the fader CURRENTLY IN MOTION (run link100, lane FRAME: read by the
    SM64DS_PAUSE_WATCH line). hal/cxx_aliases.cpp defines it as an int[8];
    its first word is the installed fader or 0, which is the term
@@ -11807,6 +11818,11 @@ int main(void)
                 }
             }
 
+            /* The pause menu's own words, for the third exit. PS_Update
+               (src/_ZN5Stage9PS_UpdateEv.cpp) runs on data_0209f248, takes its
+               next sub-state from data_0209f1ec, and RETURNS OUT OF THE WHOLE
+               FUNCTION at the top while data_0209f22c is nonzero, so a menu
+               that never answers a tap says which of the three it is. */
             {
                 static int ew = -1;
                 static unsigned long long ew_last = ~0ull;
@@ -11822,6 +11838,12 @@ int main(void)
                     const int latched = (int)data_0209f2fc[0];
                     const unsigned step = *(unsigned char *)(c + 0x6e3);
                     void *st = *(void **)(c + 0x370);
+                    const int pz = data_0209f2c4[0];
+                    const int psub = data_0209f248[0];
+                    const int pnext = data_0209f1ec[0];
+                    const int pcool = data_0209f22c[0] |
+                                      (data_0209f22c[1] << 8);
+                    const int pbtn = data_0209f2b4[0];
                     unsigned long long key =
                         ((unsigned long long)(unsigned)(size_t)st << 32) ^
                         ((unsigned long long)(unsigned)lvl << 24) ^
@@ -11831,20 +11853,25 @@ int main(void)
                         ((unsigned long long)(unsigned)nsub << 8) ^
                         ((unsigned long long)(unsigned)ent << 4) ^
                         ((unsigned long long)(unsigned)(why * 16 + latched)) ^
-                        ((unsigned long long)step << 40);
+                        ((unsigned long long)step << 40) ^
+                        ((unsigned long long)(unsigned)
+                            (((pz * 16 + psub) * 16 + pnext) * 16 + pbtn) << 44)
+                        ^ (unsigned long long)(unsigned)(pcool != 0);
                     if (key != ew_last) {
                         ew_last = key;
                         fprintf(stderr, "[exitwatch] f%d level=%d hp=%d "
                                 "lives=%d stars=%d next-sublevel=%d entrance=%d"
                                 " why=%d latched=%d state=%p step=%u "
-                                "hpword=%04x,%04x,%04x,%04x local=%d\n",
+                                "hpword=%04x,%04x,%04x,%04x local=%d "
+                                "pause=%d sub=%d next=%d cool=%d buttons=%d\n",
                                 frame, lvl, hp, lives, stars, nsub, ent, why,
                                 latched, st, step,
                                 (unsigned short)data_02092144[0],
                                 (unsigned short)data_02092144[1],
                                 (unsigned short)data_02092144[2],
                                 (unsigned short)data_02092144[3],
-                                (int)data_0209f250);
+                                (int)data_0209f250,
+                                pz, psub, pnext, pcool, pbtn);
                     }
                 }
             }

@@ -56,9 +56,12 @@ course still standing. Nothing else in this run has ever run a course's exit.
   exit=pause  START then the fourth pause button on the touch screen -- exit
               course (reason 0)
 All three set selftest 1200 and SM64DS_EXIT_WATCH=1, and a row is FAIL unless
-the run carries a "[lvl] change:" line, which is printed in the note: an exit
-that quietly does nothing exits 0 with the level still up and would otherwise
-read as a pass. Scene rows are untouched.
+the run carries a "[lvl] change:" line WITH THE REASON THAT ARM ASKED FOR (void
+2, star 1, pause 0), which is printed in the note. Both halves are needed: an
+exit that quietly does nothing exits 0 with the level still up, and a selftest
+that walks a course for 1200 frames falls off plenty of them on its own, so a
+change with the wrong reason measured the fall and not the arm. Scene rows are
+untouched.
 """
 import os, sys, time, shutil, subprocess
 EXE = os.path.abspath(sys.argv[1]); OUT = os.path.abspath(sys.argv[2])
@@ -144,14 +147,22 @@ def run(kind, ident, label):
             elif EXIT == "pause":
                 # START, then the fourth pause button (exit course). The four
                 # buttons are touch boxes x 8..247, y 0x20/0x48/0x70/0x98 each
-                # 0x20 tall (src/_ZN5Stage9PS_UpdateEv.cpp case 1); the tap has
-                # to carry a press EDGE, so it is a short range, not a hold.
-                env["SM64DS_PROBE_INPUT"] = "200:START"
-                # four taps, not one: the menu refuses input while it is still
-                # coming up (PS_Update case 1 returns on data_0209f300), and
-                # how long that takes is per level
-                env["SM64DS_TOUCH_PROBE"] = ("260-261:128:168,320-321:128:168,"
-                                             "380-381:128:168,440-441:128:168")
+                # 0x20 tall; the tap has to carry a press EDGE, so it is a
+                # short range, not a hold.
+                #
+                # SEVEN STARTS, NOT ONE, and that is the cartridge's doing.
+                # Stage::PS_Update case 2 (src/_ZN5Stage9PS_UpdateEv.cpp:404)
+                # forks on Player::CanPause (0x020bd828 through
+                # src/func_02029408.c), which returns 0 while the player is
+                # AIRBORNE, taking damage or under no control. A START pressed
+                # mid-stride lands in pause sub-state 0xb, which has no menu
+                # buttons at all, and the run then reads as "the pause menu
+                # ignores every tap" -- measured on 14, 15, 28, 33, 34 and
+                # thirteen more. Retrying every 60 frames finds a grounded one.
+                env["SM64DS_PROBE_INPUT"] = ",".join(
+                    "%d:START" % f for f in range(200, 620, 60))
+                env["SM64DS_TOUCH_PROBE"] = ",".join(
+                    "%d-%d:128:168" % (f, f + 1) for f in range(230, 650, 60))
             else:
                 sys.exit("unknown exit=%s (void, star, pause)" % EXIT)
     else: env["SM64DS_SCENE_FRAMES"] = FRAMES
@@ -178,11 +189,23 @@ def run(kind, ident, label):
     if EXIT and kind == "SM64DS_LEVEL":
         # an exit row that exits 0 but never left the level is a FAIL: the
         # whole point of the arm is the change, and a course that swallows it
-        # leaves the player standing in a level he asked to leave
+        # leaves the player standing in a level he asked to leave.
+        #
+        # AND IT HAS TO BE THE RIGHT EXIT. data_0209f26c, the reason the change
+        # carries, is 2 for a death, 1 for a course cleared and 0 for anything
+        # else including exit-course. A selftest that walks a course for 1200
+        # frames falls off plenty of them by itself, so a pause row that came
+        # back with reason 2 measured a fall, not the pause menu -- eleven of
+        # the first star sweep's twenty-six "passes" were that.
+        want = {"void": 2, "star": 1, "pause": 0}.get(EXIT)
         chg = ""
         for line in out.splitlines():
             if line.startswith("[lvl] change:"): chg = line.strip(); break
-        if not chg: ok = False
+        if not chg:
+            ok = False
+        elif want is not None and ("reason %d" % want) not in chg:
+            ok = False
+            chg += "  (WRONG EXIT: wanted reason %d)" % want
         note = (note + " | " if note else "") + (chg or "NO LEVEL CHANGE")
     if not ok:
         d = os.path.join(OUT, "%s%d" % (label, ident)); os.makedirs(d, exist_ok=True)
