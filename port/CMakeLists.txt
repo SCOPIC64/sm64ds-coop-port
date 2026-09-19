@@ -21300,6 +21300,38 @@ target_sources(walk_window PRIVATE ${SLICE_INT4_SOURCES})
 
 
 # ===========================================================================
+# SLICE VTD1 (run link100 wave 14, lane SEAT14C, BATCH 2)
+# ===========================================================================
+#
+# Vtable-held destructor pairs in small overlays. port/slice_vtd1.txt carries
+# the per-row derivation, including the two rows of BATCH 2 that are REFUSED
+# there rather than seated (daObjMaruta_c ov080 and daObjFallBlock_c ov098:
+# both class tables are raw per-symbol data mounts whose slot-16 word is a DS
+# code address, so there is no port slot to seat and no honest reference to
+# give the body).
+#
+# ALL THREE HOSTING TARGETS, the slice_link21 shape and not slice_int4's.
+# Measured, not assumed: hal/actor_classes_bowserpuzzle.cpp is compiled into
+# port_slice_shared, which every one of the three executables links, so the
+# slot-16 thunk's reference to ??1BowserPuzzleManager@@QAE@XZ appears on all
+# three link lines. Seating the TU on walk_window alone built walk_window fine
+# and broke walk_window_hires with LNK2019 on exactly that name (the first
+# build of this batch, tmp/b2_build.log line 262).
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_vtd1.txt" SLICE_VTD1_LINES)
+set(SLICE_VTD1_SOURCES "")
+foreach(line IN LISTS SLICE_VTD1_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_VTD1_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+foreach(_tvtd1 walk_window walk_window_hires smoke_player)
+    target_sources(${_tvtd1} PRIVATE ${SLICE_VTD1_SOURCES})
+endforeach()
+
+
+# ===========================================================================
 # SLICE LINK21 (run link100 wave 9c, lane LINK21, the last lane before the link)
 # ===========================================================================
 #
