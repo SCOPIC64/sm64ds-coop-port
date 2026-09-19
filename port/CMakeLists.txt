@@ -21332,6 +21332,34 @@ endforeach()
 
 
 # ===========================================================================
+# SLICE OV2T (run link100 wave 14, lane SEAT14C, BATCH 6)
+# ===========================================================================
+#
+# ov002 data-table roots. port/slice_ov2t.txt carries the per-row derivation
+# and the three rows of BATCH 6 that are refused there rather than seated.
+# The two rows here are CUTSCENE_OBJECT pointer-to-member state cells whose
+# faces in hal/cutscene_states_link100.cpp were ST_FACEX aborts written when
+# neither had a src file; both do now.
+#
+# ALL THREE HOSTING TARGETS, the slice_link21 shape and for the same reason as
+# the slice_vtd1 block above: hal/cutscene_states_link100.cpp is compiled into
+# port_slice_shared, so the two faces' references appear on every one of the
+# three link lines.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_ov2t.txt" SLICE_OV2T_LINES)
+set(SLICE_OV2T_SOURCES "")
+foreach(line IN LISTS SLICE_OV2T_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_OV2T_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+foreach(_tov2t walk_window walk_window_hires smoke_player)
+    target_sources(${_tov2t} PRIVATE ${SLICE_OV2T_SOURCES})
+endforeach()
+
+
+# ===========================================================================
 # SLICE LINK21 (run link100 wave 9c, lane LINK21, the last lane before the link)
 # ===========================================================================
 #
