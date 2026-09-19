@@ -122,12 +122,6 @@ int _ZTV13UpDownLiftBbh[32];
 #pragma comment(linker, "/alternatename:?data_ov095_02136f68@@3PAPAXA=_data_ov095_02136f68")
 #pragma comment(linker, "/alternatename:?data_ov095_02136f74@@3PAPAXA=_data_ov095_02136f74")
 
-/* InitResources takes the ADDRESS of MeshColliderBase::UpdatePosWithTransform
-   through `extern int X;` -- a SCALAR int at C++ linkage, so a third spelling
-   (@@3HA) beside SeesawBob's @@3PAHA and cxx_aliases' C name, all one static
-   method. */
-#pragma comment(linker, "/alternatename:?_ZN4dBgW22UpdatePosWithTransformERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_@@3HA=?UpdatePosWithTransform@dBgW@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")
-
 // ---- the trap --------------------------------------------------------------
 static void udl_trap_report(void *self, int slot)
 {

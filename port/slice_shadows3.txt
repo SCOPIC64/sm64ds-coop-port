@@ -143,13 +143,15 @@ src/game/actors/daTrs_c/_ZN7daTrs_c8BehaviorEv.cpp
 src/game/actors/daTrsTrap_c/_ZN11daTrsTrap_c13InitResourcesEv.cpp
 src/_ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr.cpp
 src/_ZN12Flamethrower8BehaviorEv.cpp
+src/_ZN6Coffin13InitResourcesEv.cpp
 
-# ---- ONE ROW REVERTED, AND WHY ---------------------------------------------
+# ---- ONE ROW RE-SEATED, AND WHY (fixer COFFIN1) ----------------------------
 #
-# src/_ZN6Coffin13InitResourcesEv.cpp was seated for one build and taken back
-# out. It COMPILES AND LINKS: the C2761 reason its mirror was written for is
-# genuinely stale. What stopped it is alternatename_guard, one row, and the
-# fix is in a file this lane does not own:
+# src/_ZN6Coffin13InitResourcesEv.cpp was seated once, taken back out over an
+# alternatename_guard refusal, and is seated again here. It COMPILES AND
+# LINKS: the C2761 reason its mirror (port/unmatched/Coffin_InitResources.cpp)
+# was written for is genuinely stale. What stopped the first attempt was
+# alternatename_guard, one row, in a file this lane did not own:
 #
 #   alternatename_guard: FAIL -- 1 NEW defeated alias(es), not in the baseline
 #     hal/actor_classes_updownlift.cpp:129
@@ -159,20 +161,22 @@ src/_ZN12Flamethrower8BehaviorEv.cpp
 #       LHS at 0001:00148a60, RHS NOT IN MAP
 #
 # READ THE TWO SPELLINGS SIDE BY SIDE AND THE ROW EXPLAINS ITSELF. The alias
-# names its target with the PRE-SYNC parameter types, PAUActor and
-# AAUClsnResult; the sync renamed those classes, and what this build's map
-# actually carries at 0x00148a60 is
+# named its target with the PRE-SYNC parameter types, PAUActor and
+# AAUClsnResult; the sync renamed those classes, and what the seated build's
+# map actually carries at that address is
 #   ?UpdatePosWithTransform@dBgW@@SAXAAU1@PAUdActor_c@@AAUdBgPi@@AAUVector3@@
 #   PAUVector3_16@@4@Z
 # from src/_ZN4dBgW22UpdatePosWithTransform...cpp.obj, which publishes the
 # @@3HA data spelling and the flat C name at that SAME address. So the alias
-# is dead twice over: its target no longer exists under that name, and the
-# name it was meant to redirect is already the right address. Nothing is
+# was dead twice over: its target no longer existed under that name, and the
+# name it was meant to redirect was already the right address. Nothing was
 # mis-bound -- the Coffin body takes the address it means to take -- but the
-# guard is a ratchet and it is right to refuse a pragma that cannot fire.
+# guard is a ratchet and was right to refuse a pragma that could not fire.
 #
-# THE FIX IS THE GUARD'S OWN AND IT IS ONE LINE: delete the dead
-# /alternatename at hal/actor_classes_updownlift.cpp:129. That file is not this
-# lane's, so the row stops here rather than being forced. Whoever owns it can
-# take this seat (+1) with that deletion and a rebuild; the TU itself needs
-# nothing.
+# THE FIX WAS THE GUARD'S OWN AND WAS ONE LINE: the dead /alternatename at
+# hal/actor_classes_updownlift.cpp:129 (and its now-stale explanatory comment)
+# is deleted. No port/faces_sync.txt row exists or is needed for Coffin: the
+# host copy already published the MSVC name ?InitResources@Coffin@@QAEHXZ
+# directly (an MSVC-NAME shadow, not a flat-Itanium-name face), and the
+# matched TU publishes the identical MSVC name, so nothing calls through a
+# flat C name here.

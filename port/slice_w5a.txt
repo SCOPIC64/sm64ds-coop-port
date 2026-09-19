@@ -335,9 +335,9 @@ src/_ZN11CrazedCrate13OnTurnIntoEggER6Player.cpp
 # The two PMF dispatchers (func_ov071_021223c8/02122414) are host copies in
 # Bbh_PmfDispatch.c.
 src/d_a_obj_casket.c
-# _ZN6Coffin13InitResourcesEv.cpp: five file-scope member redeclarations
-# are C2761 under MSVC; mirrored minus those lines:
-port/unmatched/Coffin_InitResources.cpp
+# _ZN6Coffin13InitResourcesEv.cpp IS NOT IN THIS LIST -- the mirror
+# port/unmatched/Coffin_InitResources.cpp is retired; the matched TU is
+# seated from port/slice_shadows3.txt instead (see that file's note).
 src/_ZN6Coffin16CleanupResourcesEv.cpp
 src/_ZN6Coffin6RenderEv.cpp
 src/_ZN6Coffin8BehaviorEv.cpp
