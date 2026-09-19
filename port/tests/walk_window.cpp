@@ -11630,6 +11630,206 @@ int main(void)
                         (int)data_0209f268, (int)data_0209f26c);
             }
 
+            /* ---- THE EXIT ARMS (run link100, lane EXITS1) ------------------
+
+               Every gate this run has proves how a course is ENTERED. These
+               three prove how one is LEFT, which is code no direct boot and no
+               warp-in ever reaches.
+
+               SM64DS_VOID_DROP=<frame>[,<y>] drops the Player straight down to
+               y (default -31000) at his own x/z with no carried speed, and
+               NOTHING ELSE. From there the CARTRIDGE decides: Player::Behavior
+               runs func_ov002_020c5d60 (ov002 0x020c5d60) every frame, whose
+               whole test is
+
+                   player y >= 0xf8ad0000  ->  return          (-29952.0)
+                   IsState(ST_SWIM_...)    ->  return
+                   mStateFlags2 |= 0x400; func_ov002_020c5dec(this, 1)
+
+               and func_ov002_020c5dec puts him in ST_DEAD_PIT with step 1,
+               where St_DeadPit_Init case 1 calls HitDeathPlane(2) (0 if he is
+               standing on surface type 5). So nothing here writes a state: the
+               difference between this and SM64DS_SELFTEST_OOB above is that
+               OOB writes the state and the step by hand, and this drives the
+               cartridge's own test and lets it write them. Both are kept --
+               OOB proves the second half (the teardown and the re-entry) on a
+               level with no void at all, this one proves the first half too.
+
+               THE DEFAULT IS BELOW THE PLANE ON PURPOSE. -29000 was measured
+               first and is 952 units ABOVE it: the level takes the player back
+               to its own entrance on the next frame with no death, no life and
+               no level change (measured on 6, 7, 22 and 28, run link100 lane
+               EXITS1), and a run that reads that as "the death plane does
+               nothing" has measured the wrong side of the test. The plane is
+               the only term, so any y below -29952 does it.
+               SM64DS_VOID_DROP=<x>,<y>,<z>[,<frame>] is the same arm with the
+               position spelled out, for stepping off a named ledge.
+
+               SM64DS_STAR_PROBE=1 dumps the level's PowerStar actors (class
+               178) with their positions and states once the level is up.
+               SM64DS_STAR_DROP=#<n>[,<frame>] puts the Player at the n-th of
+               them. It writes the position and nothing else: the star's own
+               PowerStar::Behavior collision fires the collect, the star-get
+               sequence, the save and the exit to the castle, all of it the
+               cartridge's own. The dump's state column is why the index
+               matters -- a course's act-1 star sits in state 4 or 8, a VS
+               arena's four table stars park in state 9 and collect nothing.
+
+               SM64DS_EXIT_WATCH=1 prints one line whenever any word of the
+               leaving-a-course machinery moves: the level, the health, the
+               lives, the star total, the three staged next-level words and the
+               player's state and step. It writes nothing. It is how a run says
+               WHICH half of an exit stopped, instead of only that the process
+               lived. Inert unset, all four. */
+            {
+                static int vd_read, vd_on, vd_abs, vd_fired;
+                static int vd_frame = 60, vd_x, vd_y = -31000, vd_z;
+                if (!vd_read) {
+                    vd_read = 1;
+                    const char *e = getenv("SM64DS_VOID_DROP");
+                    if (e) {
+                        int a = 0, b = 0, cc = 0, d = 0;
+                        const int n = sscanf(e, "%d,%d,%d,%d", &a, &b, &cc, &d);
+                        if (n >= 3) {
+                            vd_abs = 1; vd_x = a; vd_y = b; vd_z = cc;
+                            if (n >= 4) vd_frame = d;
+                        } else if (n >= 1) {
+                            vd_frame = a;
+                            if (n >= 2) vd_y = b;
+                        }
+                        vd_on = n >= 1;
+                    }
+                }
+                if (vd_on && !vd_fired && frame == vd_frame && player) {
+                    vd_fired = 1;
+                    if (vd_abs) {
+                        *(int *)(c + 0x5c) = vd_x << 12;
+                        *(int *)(c + 0x64) = vd_z << 12;
+                    }
+                    *(int *)(c + 0x60) = vd_y << 12;
+                    *(int *)(c + 0xa4) = 0;   /* no carried speed, as TREE_DROP */
+                    *(int *)(c + 0xa8) = 0;
+                    *(int *)(c + 0xac) = 0;
+                    fprintf(stderr, "[void] f%d drop to (%d,%d,%d); the plane "
+                            "func_ov002_020c5d60 tests is -29952 and the "
+                            "level's own is player+0x644 = %d\n", frame,
+                            *(int *)(c + 0x5c) >> 12, vd_y,
+                            *(int *)(c + 0x64) >> 12,
+                            *(int *)(c + 0x644) >> 12);
+                }
+                if (vd_on && vd_fired && frame <= vd_frame + 200)
+                    fprintf(stderr, "[void] f%d y=%d vy=%d state=%p step=%u\n",
+                            frame, *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0xa8) >> 12, *(void **)(c + 0x370),
+                            (unsigned)*(unsigned char *)(c + 0x6e3));
+            }
+
+            {
+                static int sp_read, sp_on, sp_dumped, sd_fired;
+                static int sd_idx = -1, sd_frame = 60;
+                if (!sp_read) {
+                    sp_read = 1;
+                    sp_on = getenv("SM64DS_STAR_PROBE") != 0;
+                    const char *e = getenv("SM64DS_STAR_DROP");
+                    if (e) {
+                        const char *p = (*e == '#') ? e + 1 : e;
+                        sd_idx = atoi(p);
+                        const char *comma = strchr(e, ',');
+                        if (comma) sd_frame = atoi(comma + 1);
+                    }
+                }
+                if ((sp_on || sd_idx >= 0) && !sp_dumped && frame == 30) {
+                    int n = 0;
+                    sp_dumped = 1;
+                    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+                         node = (int *)(size_t)node[1]) {
+                        char *o = (char *)(size_t)node[2];
+                        if (!o || *(unsigned short *)(o + 0xc) != 178)
+                            continue;
+                        fprintf(stderr, "[star] %2d at (%d,%d,%d) state %d "
+                                "param1 %08x\n", n, *(int *)(o + 0x5c) >> 12,
+                                *(int *)(o + 0x60) >> 12,
+                                *(int *)(o + 0x64) >> 12,
+                                *(int *)(o + 0x440), *(unsigned *)(o + 8));
+                        ++n;
+                    }
+                    fprintf(stderr, "[star] %d PowerStar actor(s) on this "
+                            "level at frame %d\n", n, frame);
+                }
+                if (sd_idx >= 0 && !sd_fired && frame == sd_frame && player) {
+                    int n = 0;
+                    char *star = 0;
+                    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+                         node = (int *)(size_t)node[1]) {
+                        char *o = (char *)(size_t)node[2];
+                        if (!o || *(unsigned short *)(o + 0xc) != 178)
+                            continue;
+                        if (n++ == sd_idx) { star = o; break; }
+                    }
+                    sd_fired = 1;
+                    if (!star) {
+                        fprintf(stderr, "[star] f%d no PowerStar #%d on this "
+                                "level (%d seen)\n", frame, sd_idx, n);
+                    } else {
+                        *(int *)(c + 0x5c) = *(int *)(star + 0x5c);
+                        *(int *)(c + 0x60) = *(int *)(star + 0x60);
+                        *(int *)(c + 0x64) = *(int *)(star + 0x64);
+                        *(int *)(c + 0xa4) = 0;
+                        *(int *)(c + 0xa8) = 0;
+                        *(int *)(c + 0xac) = 0;
+                        fprintf(stderr, "[star] f%d player placed on PowerStar "
+                                "#%d at (%d,%d,%d) state %d -- the star's own "
+                                "collision takes it from here\n", frame, sd_idx,
+                                *(int *)(star + 0x5c) >> 12,
+                                *(int *)(star + 0x60) >> 12,
+                                *(int *)(star + 0x64) >> 12,
+                                *(int *)(star + 0x440));
+                    }
+                }
+            }
+
+            {
+                static int ew = -1;
+                static unsigned long long ew_last = ~0ull;
+                if (ew < 0) ew = getenv("SM64DS_EXIT_WATCH") ? 1 : 0;
+                if (ew) {
+                    const int lvl = (int)data_0209f2f8;
+                    const int hp = port_course_health();
+                    const int lives = (int)data_0209f2f4[0];
+                    const int stars = (int)NumStars();
+                    const int nsub = port_course_next_sublevel();
+                    const int ent = (int)data_0209f268;
+                    const int why = (int)data_0209f26c;
+                    const int latched = (int)data_0209f2fc[0];
+                    const unsigned step = *(unsigned char *)(c + 0x6e3);
+                    void *st = *(void **)(c + 0x370);
+                    unsigned long long key =
+                        ((unsigned long long)(unsigned)(size_t)st << 32) ^
+                        ((unsigned long long)(unsigned)lvl << 24) ^
+                        ((unsigned long long)(unsigned)hp << 20) ^
+                        ((unsigned long long)(unsigned)lives << 16) ^
+                        ((unsigned long long)(unsigned)stars << 12) ^
+                        ((unsigned long long)(unsigned)nsub << 8) ^
+                        ((unsigned long long)(unsigned)ent << 4) ^
+                        ((unsigned long long)(unsigned)(why * 16 + latched)) ^
+                        ((unsigned long long)step << 40);
+                    if (key != ew_last) {
+                        ew_last = key;
+                        fprintf(stderr, "[exitwatch] f%d level=%d hp=%d "
+                                "lives=%d stars=%d next-sublevel=%d entrance=%d"
+                                " why=%d latched=%d state=%p step=%u "
+                                "hpword=%04x,%04x,%04x,%04x local=%d\n",
+                                frame, lvl, hp, lives, stars, nsub, ent, why,
+                                latched, st, step,
+                                (unsigned short)data_02092144[0],
+                                (unsigned short)data_02092144[1],
+                                (unsigned short)data_02092144[2],
+                                (unsigned short)data_02092144[3],
+                                (int)data_0209f250);
+                    }
+                }
+            }
+
             /* ---- SM64DS_EXIT_PROBE / SM64DS_EXIT_ENTER (see the top of the
                file). The dump waits for the level to be up; the entry is the
                two frames a walk into the painting produces. Once it has
