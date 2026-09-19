@@ -282,101 +282,17 @@ extern unsigned int data_ov091_021354e0[];   /* three records, 157/144 */
  * ADDRESS alone could have picked the ov004 body instead, which is a different
  * function of a different size.
  * ==========================================================================*/
-extern "C" void func_ov091_021339fc(char *c)
-{
-    char *a;
-    u32 fl;
-    u32 id = *(u32 *)(c + 0x134);
-
-    if (id == 0)
-        return;
-    a = (char *)_ZN8dActor_c10FindWithIDEj(id);
-    if (*(u32 *)(c + 0x374) == 0) {
-        fl = *(u32 *)(c + 0x130);
-        if ((fl & 0x40000) != 0) {
-            *(u32 *)(c + 0x10c) = 4;
-            func_ov002_020aea30(c, a, 0);
-            return;
-        }
-        if ((fl & 0x2000) != 0) {
-            _ZN8dActor_c8PoofDustEv(c);
-            _ZN7fBase_c18MarkForDestructionEv(c);
-            return;
-        }
-        {
-            int b = (int)(*(u16 *)(a + 0xc) == 0xbf);
-            if (b == 0)
-                return;
-        }
-        if (*(u8 *)(a + 0x6f9) == 1) {
-            _ZN8dActor_c8PoofDustEv(c);
-            _ZN7fBase_c18MarkForDestructionEv(c);
-            return;
-        }
-        if ((fl & 0x10) == 0)
-            return;
-        _ZN8dActor_c8PoofDustEv(c);
-        _ZN12dEnemyBase_c22SpawnMegaCharParticlesER8dActor_cPc(c, a, 0);
-        _ZN6Player16IncMegaKillCountEv(a);
-        func_02012694(0x1d, c + 0x74);
-        _ZN7fBase_c18MarkForDestructionEv(c);
-        return;
-    }
-
-    {
-        int b = (int)(*(u16 *)(a + 0xc) == 0xbf);
-        if (b == 0)
-            return;
-    }
-    if (*(u8 *)(a + 0x6f9) != 0)
-        return;
-    if (*(u8 *)(a + 0x703) != 0)
-        return;
-    if (_ZN6Player15IsCollectingCapEv(a) != 0)
-        return;
-    _ZN6Player8BlowAwayEs(a, *(s16 *)(c + 0x94));
-    {
-        u8 capFlag = *(u8 *)(a + 0x6ff);
-        u8 hat = *(u8 *)(a + 0x6d9);
-        if (capFlag != 0)
-            return;
-        if (*(u8 *)(a + 0x6fd) != 0)
-            return;
-        {
-            u32 cur = *(u32 *)(a + 8);
-            u32 param = 1;
-            if (hat != cur) {
-                _ZN6Player18SetNewHatCharacterEjjb(a, hat, 0, 0);
-            } else {
-                if (_ZN8SaveData16HasPlayerLostCapEv() != 0)
-                    return;
-                _ZN8SaveData13PlayerLoseCapEv();
-            }
-            {
-                u32 curHat1 = *(u32 *)(a + 8);
-                Vector3_16 rot;
-                void *spawned;
-                rot.x = 0;
-                rot.y = 0;
-                rot.z = 0;
-                rot.y = *(s16 *)(c + 0x94);
-                param = param | (curHat1 << 8);
-                /* (short *)&rot: this tree recovered Spawn's fourth parameter
-                   as `short *` and main as `Vector3_16 *`, which is the same
-                   three consecutive s16 under two spellings -- the ROM passes
-                   one pointer either way. The narrow fifth and sixth arguments
-                   promote to int under cdecl, which is why this tree's `ii`
-                   mangling is ABI-identical to main's `as`. */
-                spawned = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
-                    0x10d, param, (Vector3 *)(c + 0x5c), (short *)&rot,
-                    *(s8 *)(c + 0xcc), -1);
-                if (spawned == 0)
-                    return;
-                *(u32 *)((char *)spawned + 0x98) = 0x32000;
-                *(u32 *)((char *)spawned + 0xa4) = 0;
-                *(u32 *)((char *)spawned + 0xa8) = 0x14000;
-                *(u32 *)((char *)spawned + 0xac) = 0;
-            }
-        }
-    }
-}
+/* RETIRED (run link100 wave 14, lane SHADOWS3). The body that stood here is
+ * gone and src/func_ov091_021339fc.c is on port/slice_shadows3.txt in its
+ * place. The whole refusal above was one measurement -- "WHAT THIS TREE HAS AT
+ * 0x021339fc IS STALE", a NONMATCHING banner and an ARM asm hatch MSVC cannot
+ * parse -- and that measurement no longer holds: the src blob on this tree is
+ * 31897fa47d0d96862ba8ea690ed7060a3b80c507, which is the clean main blob this
+ * note itself names, with no banner and no hatch. So the re-gate recorded
+ * above (match.py 2004/b56 --strict-relocs --module ov091 against
+ * extracted/overlays/overlay_0091.bin at 0x02130f00, 155 instructions and one
+ * pool word MATCHING) is a re-gate of the text that now links, and the five
+ * bridged names are no longer bridged at all: every one of the ten externals
+ * the TU declares, INCLUDING the `as` spelling of dActor_c::Spawn that this
+ * note flagged as the disagreement, is defined at its own address in this
+ * build's map. Checked before the seat, not after. */

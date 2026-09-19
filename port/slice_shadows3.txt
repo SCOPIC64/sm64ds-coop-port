@@ -1,0 +1,104 @@
+# Gate SHADOWS3 (run link100, wave 14). The rows of the shadow queue whose host
+# stand-in was written because NO matched TU existed at that ROM address, and
+# where the main-to-port sync has since landed one. Every row below was
+# re-measured on this tree, not inherited from the SHADOWS2 line:
+#
+#   * the host file's own banner is quoted where it names the condition it set
+#     for its own retirement ("when the decomp banks the real TU, this body
+#     retires for the slice line");
+#   * the matched TU's provenance is the commit that landed it, read with
+#     `git log -1 -- <file>` on THIS tree, not from a summary;
+#   * every external the TU declares was checked against this build's
+#     walk_window.map before the seat was written, so the link wave is empty.
+#
+# ---- RUNG 1 ---------------------------------------------------------------
+#
+# src/func_ov091_021339fc.c -- FWOOSH's per-frame player interaction, ov091
+#   0x021339fc, 0x270 bytes. port/unmatched/Ov091_HostSites.cpp section (3)
+#   refused it for ONE reason: this tree's src copy was NONMATCHING-bannered
+#   and carried an ARM `asm { ldr curHat0,[a,#8]; mov newHat,#1 }` hatch that
+#   MSVC's x86 inline assembler cannot parse (eight errors, C2065..C2181), and
+#   port/slice_w3f2.txt section (3) recorded the same measurement. BOTH ARE
+#   STALE ON THIS TREE. The blob here is 31897fa47d0d96862ba8ea690ed7060a3b80c507,
+#   which is the blob that host file names as origin/main's clean one: no
+#   banner, no hatch, the two hoisted byte loads main used to crack the wall.
+#   The host file's own re-gate (match.py, 2004/b56, --strict-relocs, --module
+#   ov091, 155 instructions and one pool word MATCHING) is therefore a re-gate
+#   of exactly this text. All ten externals it declares resolve in this build's
+#   map, including _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as -- the `as`
+#   spelling, which this tree now defines and which the host file's bridge
+#   table was written against the OLD `ii` spelling for.
+#
+# src/func_ov006_02115248.cpp -- dScMgSmartball_c's ball spawn, ov006
+#   0x02115248, 0x238 bytes. port/unmatched/MgSmartball_Traps.cpp's closing
+#   section calls this "a genuine hole in config/arm9/overlays/ov006/
+#   delinks.txt" and "NOT AVAILABLE ON main EITHER", and seats a named
+#   self-reporting trap instead. The hole was filled since: PR #2351
+#   (a47bdc18a) "Match the ov006 Smartball ball spawn". The trap's own
+#   signature reading -- (int a, int *p) from the single call site in
+#   src/func_ov006_02111b90.c, `void` return from the single epilogue -- agrees
+#   with the matched TU's (dScMgSmartball_c *self, int *origin) under C
+#   linkage, so the one call site needs nothing.
+#
+# src/func_ov006_020e1dc8.cpp -- dScMgCurling_c stone separation, ov006
+#   0x020e1dc8, 756 bytes. hal/scene_mg_faces.cpp's "SEATED, run link60 lane
+#   CUR2" section says "neither address has a delink block ... and neither has
+#   a src TU" and forwards to port_mg_curling_collide_020e1dc8, a host
+#   transcription carrying a port_ name precisely so nothing claimed a
+#   decompilation that did not exist. One of the two now exists: PR #2328
+#   (ba6e1eef3). Its SIBLING func_ov006_020e20bc still does not, so only the
+#   one face is retired and the host transcription of the sibling stays exactly
+#   where it is.
+#
+# src/func_ov065_02118838.cpp -- Dorrie's per-frame neck/segment placement,
+#   ov065 0x02118838, 0x414 bytes. port/unmatched/Dorrie_Behavior.cpp names its
+#   own retirement condition in one line: "HOST COPY, not matched src: when the
+#   decomp banks the real TU, this body retires for the slice line." PR #2363
+#   (5dfb50c26) banked it. Dorrie_Behavior.cpp keeps its OTHER body
+#   (_ZN6Dorrie8BehaviorEv, which is a state-dispatch remodel and not a
+#   stand-in), so the file stays and only the one function is cut.
+#
+# src/func_ov016_02111c40.c -- Unagi's per-frame body-segment matrix chain,
+#   ov016 0x02111c40. port/unmatched/Unagi_BodyChain.cpp is explicit that it is
+#   a permuter draft standing in until a byte-match lands ("So the draft is
+#   dropped in verbatim as the port body, out of the slice, until the decomp
+#   lands a byte-match"). PR #2289 (d01c61f09) landed it. The host file holds
+#   nothing else, so it is retired whole.
+#
+# ---- RUNG 2 ---------------------------------------------------------------
+#
+# src/func_ov063_021166ac.cpp -- the Boo pack's post-behavior visual update,
+#   ov063 0x021166ac, 0x318 bytes. port/unmatched/Boo_RenderUpdate.c says "NOT
+#   matched in src/" and carries an abverify'd hand transcription with ten
+#   divergences. PR #2301 (5a52e6f5b) matched it.
+#
+# src/func_ov071_021211e0.c -- Mr. I's state 1 MAIN, ov071 0x021211e0, 0x314
+#   bytes. port/unmatched/MrI_StateMains.cpp says "for 0x021211e0 there is
+#   still nothing to slice", measured as a set difference against origin/main
+#   at bc93fa767. PR #2290 (f128981ac) closed that difference. The file keeps
+#   its other contents; only this body is cut.
+#
+# src/game/actors/daTrs_c/_ZN7daTrs_c8BehaviorEv.cpp -- the Boo's per-frame
+#   state spine, ov063 0x0211b0a4, 0x7e4 bytes, vtable slot 6 of _ZTV7daTrs_c
+#   (Boo 209 and BigBoo 210). port/unmatched/Boo_Behavior.c: "NOT matched in
+#   src/ (no TU of this name exists on cons or main as of 2026-08-13) ... When
+#   the decomp lands a byte match for 0x0211b0a4, that TU replaces this file
+#   via slice_w5a.txt." It does now.
+#
+# src/game/actors/daTrsTrap_c/_ZN11daTrsTrap_c13InitResourcesEv.cpp -- vtable
+#   slot 0 of _ZTV12MansionSteps, ov063 0x0211cf00, 0x370 bytes, the one table
+#   the four furniture ids share. port/unmatched/MansionSteps_InitResources.c:
+#   "NOT matched in src/ (the other six slots all are)". It is now.
+#
+# src/_ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr.cpp -- the eaten actor's
+#   state machine inside Yoshi's mouth, ov002 0x020ade78, 0x3cc bytes.
+#   port/unmatched/Enemy_UpdateYoshiEat.cpp ruled it "UNMATCHED and ... NOT
+#   MATCHABLE in this lane: 241 of 243 instructions are byte-exact and the
+#   residual is exactly the 6o ordering floor". The floor was crossed: PR #2369
+#   (adf091af7) "Match the star select render and the enemy Yoshi-eat update".
+#
+src/func_ov091_021339fc.c
+src/func_ov006_02115248.cpp
+src/func_ov006_020e1dc8.cpp
+src/func_ov065_02118838.cpp
+src/func_ov016_02111c40.c

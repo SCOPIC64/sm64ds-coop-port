@@ -191,11 +191,15 @@ unsigned port_mg_smartball_trap_mask(void)
  * exists to refuse. The trap says which address was entered and returns.
  *
  * DECOMPILING IT IS A BYTE-GATED-TREE JOB, routed and not taken: 0x238 bytes
- * inside a delink hole that has to be split first. */
-void func_ov006_02115248(int, int *)
-{
-    smb_trap(2, "func_ov006_02115248",
-             "reached from func_ov006_02111b90, kinoko Update closure");
-}
+ * inside a delink hole that has to be split first.
+ *
+ * IT WAS TAKEN, AND THIS TRAP IS RETIRED (run link100 wave 14, lane SHADOWS3).
+ * PR #2351 (a47bdc18a, "Match the ov006 Smartball ball spawn") split the delink
+ * hole and banked src/func_ov006_02115248.cpp; it is on
+ * port/slice_shadows3.txt now and this trap is gone. The signature this note
+ * measured off the single call site and the single epilogue -- r0 live, one
+ * stacked pointer, nothing writing r0 on the way out -- is what the matched TU
+ * carries, spelled (dScMgSmartball_c *self, int *origin), and under C linkage
+ * the one call site in src/func_ov006_02111b90.c needs no change. */
 
 }  /* extern "C" */

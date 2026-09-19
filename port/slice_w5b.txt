@@ -18,9 +18,13 @@
 #   src/_ZN6Dorrie8BehaviorEv.cpp     16-byte PMF stride over 8-byte records
 #   src/actors/daYurei_Mucho_c.cpp       16-byte PMF over the whole table
 #   src/func_ov065_02117944.cpp       same
-# ONE MORE IS ABSENT BECAUSE src/ NEVER BANKED IT: func_ov065_02118838
+# ONE MORE WAS ABSENT BECAUSE src/ NEVER BANKED IT: func_ov065_02118838
 # (Dorrie's neck chain, 0x414 bytes) -- hosted in
-# port/unmatched/Dorrie_Behavior.cpp until the decomp matches it.
+# port/unmatched/Dorrie_Behavior.cpp until the decomp matched it. IT IS
+# MATCHED NOW (PR #2363, 5dfb50c26) and src/func_ov065_02118838.cpp is on
+# port/slice_shadows3.txt; the host file held nothing else once lane FWD
+# retired Dorrie::Behavior, so it is deleted and its line below with it
+# (run link100 wave 14, lane SHADOWS3).
 # src/func_ov065_02116364 exists TWICE (.c and .cpp); the .c is the
 # delinks-bound TU (config/arm9/overlays/ov065/delinks.txt) and is the one
 # sliced.
@@ -159,5 +163,4 @@ port/hal/actor_classes_ov065.cpp
 port/unmatched/Ov065_StateDispatch.cpp
 port/unmatched/Snufit_Behavior.cpp
 port/unmatched/Swoop_Behavior.cpp
-port/unmatched/Dorrie_Behavior.cpp
 port/unmatched/WorkElevator_Mtx.cpp

@@ -708,11 +708,18 @@ void func_ov004_020b2220(int x, int y, int num, int a3, int a4,
  * either and cannot have one -- it ratchets guessed bodies in src/, and these
  * are host copies in port/unmatched/ carrying provenance banners.
  */
-void func_ov006_020e1dc8(char *self, int idx)
-{
-    port_mg_curling_collide_020e1dc8(self, idx);
-}
-
+/* AND ONE OF THE TWO IS RETIRED AGAIN, this time for the ROM's own body (run
+ * link100 wave 14, lane SHADOWS3). The paragraph above is exact about why the
+ * host transcription was written -- "neither address has a delink block ... and
+ * neither has a src TU" -- and that is no longer true of 0x020e1dc8: PR #2328
+ * (ba6e1eef3) matched it, src/func_ov006_020e1dc8.cpp is on
+ * port/slice_shadows3.txt, and this forwarder is gone. The seat changes nothing
+ * about the signature the note above insists on: the matched TU is
+ * (dScMgCurling_c *self, int idx), the two arguments the callers already pass.
+ * ITS SIBLING func_ov006_020e20bc IS STILL A HOLE -- no delink block, no src TU
+ * -- so the forwarder below and port_mg_curling_collide_020e20bc stay exactly
+ * as they are, and so does port_mg_curling_collide_020e1dc8's own file: this
+ * lane owns the face, not the transcription beneath it. */
 void func_ov006_020e20bc(char *self, int idx)
 {
     port_mg_curling_collide_020e20bc(self, idx);
