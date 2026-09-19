@@ -566,8 +566,16 @@ static void port_frame_ctrl_prime(void)
     }
 }
 
+/* THE STAR-SELECT INTERLUDE HAS NO STAGE, and these two slots are the
+   ROM's own Stage bodies, so they must not run while it is live.
+   hal/level_change.cpp's port_level_scene_interlude carries the whole
+   derivation and the two measured faults. */
+extern "C" int port_level_interlude_live(void);   /* hal/level_change.cpp */
+
 extern "C" int port_stage_rom_behavior(void *self)
 {
+    if (port_level_interlude_live())
+        return 1;
     stage_frame_arm();
     ++g_beh_calls;
     port_frame_ctrl_prime();
@@ -605,6 +613,8 @@ extern "C" unsigned port_stage_render_calls(void) { return g_ren_calls; }
 
 extern "C" int port_stage_rom_render(void *self)
 {
+    if (port_level_interlude_live())
+        return 1;
     stage_frame_arm();
     ++g_ren_calls;
     port_stage_anims_load(self);

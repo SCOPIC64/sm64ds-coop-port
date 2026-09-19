@@ -533,8 +533,23 @@ static int  __fastcall st_bclean(void *s, void *)
 { return _ZN8dScene_c22BeforeCleanupResourcesEv(s); }
 static void __fastcall st_aclean(void *s, void *, unsigned a)
 { _ZN8dScene_c21AfterCleanupResourcesEj(s, a); }
+/* SLOT 7 IS THE ONE THAT DESTROYS THE STAGE, and during the star-select
+   interlude a scene is pending by construction, so it would fire every
+   frame: dScene_c::BeforeBehavior (src/_ZN8dScene_c14BeforeBehaviorEv.cpp
+   :85-92) calls MarkForDestruction once the installed fader is at its end,
+   and slot 3 is the deliberate abort documented below. On the cartridge
+   that destruction is CORRECT; on this port it is fatal, because one Stage
+   is kept alive across every level change. Declining for the interlude is
+   the same statement slots 6 and 9 make in hal/stage_frame.cpp, and 1 is
+   the value the ROM's own normal path returns. */
+extern "C" int port_level_interlude_live(void);   /* hal/level_change.cpp */
+
 static int  __fastcall st_bbeh(void *s, void *)
-{ return _ZN8dScene_c14BeforeBehaviorEv(s); }
+{
+    if (port_level_interlude_live())
+        return 1;
+    return _ZN8dScene_c14BeforeBehaviorEv(s);
+}
 static void __fastcall st_abeh(void *s, void *, unsigned a)
 { port_scene_after_behavior(s, a); }
 static int  __fastcall st_bren(void *s, void *)
