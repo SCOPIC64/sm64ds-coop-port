@@ -5308,6 +5308,50 @@ static int g_ct_down;            /* is the synthetic button currently down */
 static POINT g_ct_restore;       /* where the pointer was before the first press */
 static int g_ct_restore_ok;
 
+/* ---- CLICKQUIET, run link100 lane TOUCH1 ----------------------------------
+ *
+ * THE DRIVER NO LONGER FRONTS THE WINDOW. The banner above is still the
+ * derivation for what a click test has to exercise -- the client pixel, the
+ * present rectangle, both layout transforms -- and none of that changes. What
+ * changes is the delivery: instead of moving the real pointer and pushing a
+ * real button edge through the OS input queue (which only lands while this
+ * window is the foreground one, hence the SetForegroundWindow call this
+ * replaces), the driver hands hal/sub_screen.cpp the same client point and the
+ * same button, in process. poll_touch then takes its OWN live branch with
+ * those two values: same transform, same drag latch, same clamp, same
+ * change-edge store, same ring. Nothing is copied here and nothing downstream
+ * can tell the difference.
+ *
+ * WHY: Tango's standing rule is that no game window may ever take his screen,
+ * and every other launcher in port/tools already starts the game minimized,
+ * never activated and muted. This driver was the one path that undid that from
+ * the inside, and the window he saw on top of his screen during the minigame
+ * runs was this call.
+ *
+ * WHAT IS LOST, said plainly: the WndProc half. A real OS press also produced
+ * a genuine WM_LBUTTONDOWN, and the injected one does not. Nothing in the game
+ * consumes that message -- walk_window's own handler publishes into
+ * g_mouse_click_*, which nothing reads, and the stylus is poll_touch -- so the
+ * half that was load bearing is the half that still runs. A reviewer who wants
+ * the OS path back for a hand test sets SM64DS_CLICK_FRONT=1; no tool in this
+ * tree sets it. */
+static int click_front(void)
+{
+    static int v = -1;
+    if (v < 0) {
+        const char *e = getenv("SM64DS_CLICK_FRONT");
+        v = e ? (atoi(e) != 0) : 0;
+    }
+    return v;
+}
+
+/* hal/sub_screen.cpp: the in-process stylus poll_touch consumes in its own
+   live branch, and the census the finish line below prints. */
+extern "C" void port_touch_inject_client(int cx, int cy);
+extern "C" void port_touch_inject_release(void);
+extern "C" void port_touch_inject_census(unsigned *frames, unsigned *presses,
+                                         unsigned *on_surface);
+
 static void click_test_parse(void)
 {
     g_ct_n = 0;
@@ -5414,7 +5458,7 @@ static void click_test_apply(HWND h, int frame)
         click_test_parse();
         if (g_ct_n > 0)
             atexit(click_test_finish);
-        if (g_ct_n > 0 && W.SetForegroundWindow_) {
+        if (g_ct_n > 0 && click_front() && W.SetForegroundWindow_) {
             /* the window has to be the foreground one or the WndProc half of
                the press is delivered somewhere else entirely. poll_touch would
                still see it (GetAsyncKeyState is machine-global) which is
@@ -5436,7 +5480,9 @@ static void click_test_apply(HWND h, int frame)
                 W.SetWindowPos_(h, (HWND)-1, 0, 0, 0, 0, 0x0001u | 0x0002u);
         }
     }
-    if (g_ct_n <= 0 || !W.SetCursorPos_ || !W.ClientToScreen_)
+    if (g_ct_n <= 0)
+        return;
+    if (click_front() && (!W.SetCursorPos_ || !W.ClientToScreen_))
         return;
 
     const ClickTestEnt *e = 0;
@@ -5445,7 +5491,12 @@ static void click_test_apply(HWND h, int frame)
 
     if (!e) {
         if (g_ct_down) {
-            click_test_button(0);
+            if (click_front()) {
+                click_test_button(0);
+            } else {
+                port_touch_inject_release();
+                g_ct_down = 0;
+            }
             fprintf(stderr, "[click] f%d release\n", frame);
             fflush(stderr);
         }
@@ -5459,6 +5510,22 @@ static void click_test_apply(HWND h, int frame)
         cx = e->x0 + (e->x1 - e->x0) * (frame - e->f0) / span;
         cy = e->y0 + (e->y1 - e->y0) * (frame - e->f0) / span;
     }
+    /* THE QUIET PATH, and it is the default. The client point goes straight to
+       poll_touch's live branch, so the press needs no pointer, no button and
+       no foreground window. It latches: the level loop calls this driver AFTER
+       its own hal_sub_screen_frame_begin, and a press armed on one frame and
+       read on the next is exactly what the OS button state did here before. */
+    if (!click_front()) {
+        port_touch_inject_client(cx, cy);
+        if (!g_ct_down) {
+            g_ct_down = 1;
+            fprintf(stderr, "[click] f%d press client(%d,%d) in process, no "
+                    "window fronted\n", frame, cx, cy);
+            fflush(stderr);
+        }
+        return;
+    }
+
     POINT p;
     p.x = cx;
     p.y = cy;
@@ -5546,12 +5613,36 @@ static void click_test_finish(void)
        A spurious LEFTUP when nothing is held costs nothing. A missed one
        contaminates every run that follows. So: always send it. */
     const int was_down = g_ct_down;
-    click_test_button(0);
-    fprintf(stderr, "[click] release at exit%s\n",
-            was_down ? "" : " (button was not marked down; released anyway)");
-    if (g_ct_restore_ok && W.SetCursorPos_)
-        W.SetCursorPos_(g_ct_restore.x, g_ct_restore.y);
+    if (click_front()) {
+        click_test_button(0);
+        fprintf(stderr, "[click] release at exit%s\n",
+                was_down ? "" : " (button was not marked down; released "
+                                "anyway)");
+        if (g_ct_restore_ok && W.SetCursorPos_)
+            W.SetCursorPos_(g_ct_restore.x, g_ct_restore.y);
+    } else {
+        /* Nothing of ours outlives the process on the quiet path: the latch is
+           a variable in this address space, not a desktop-wide button. The
+           release is still unconditional, for the reason above and because the
+           scene loop calls this by hand before its captures. */
+        port_touch_inject_release();
+        g_ct_down = 0;
+    }
     fflush(stderr);
+
+    /* THE CENSUS, ON STDOUT ON PURPOSE. stderr is the playlog on every scene
+       path, so a harness reading the child's stdout -- which is where the
+       [scene] report it grades comes out -- would never see this line. It is
+       the whole proof this lane owes: fronted=0 says no window was brought to
+       the foreground, and on-surface says the injected points actually
+       resolved onto the stylus surface and were published as DS pixels. */
+    {
+        unsigned ifr = 0, ipr = 0, ion = 0;
+        port_touch_inject_census(&ifr, &ipr, &ion);
+        printf("[clickquiet] fronted=%d injected=%u held=%u on-surface=%u\n",
+               click_front() ? 1 : 0, ipr, ifr, ion);
+        fflush(stdout);
+    }
 }
 #endif  /* !PORT_ROM_CLEAN: end of SM64DS_CLICK_TEST synthetic-stylus driver */
 
@@ -6480,10 +6571,15 @@ static int nofocus_mode(void)
     const char *e = getenv("SM64DS_NO_FOCUS");
     v = e ? (atoi(e) != 0) : 0;
 #ifndef PORT_ROM_CLEAN
-    if (v && getenv("SM64DS_CLICK_TEST")) {
+    /* run link100 lane TOUCH1: the override is now the exception, not the
+       rule. The click driver delivers its stylus in process and needs no
+       foreground window, so SM64DS_NO_FOCUS survives a click script exactly
+       the way it survives SM64DS_TOUCH_PROBE. Only SM64DS_CLICK_FRONT=1, the
+       explicit opt-in back to the OS input path, still needs the window. */
+    if (v && click_front() && getenv("SM64DS_CLICK_TEST")) {
         v = 0;
         fprintf(stderr, "[win] SM64DS_NO_FOCUS is OVERRIDDEN by "
-                "SM64DS_CLICK_TEST: that driver pushes a real button edge "
+                "SM64DS_CLICK_FRONT: that path pushes a real button edge "
                 "through the OS and needs the foreground window. This run "
                 "takes focus.\n");
         fflush(stderr);
