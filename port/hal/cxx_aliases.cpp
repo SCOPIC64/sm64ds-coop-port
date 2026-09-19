@@ -395,12 +395,10 @@ int _ZNK9Animation12WillHitFrameEi(void *self, int f)
    through a tail call the C decl never names (the ride-through catalog).
    Host spells out both args and routes to the HAL Construct. */
 void *_ZN13SharedFilePtr9ConstructEj(void *self, unsigned id);
-/* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
-int func_02017acc(void *self, unsigned id)
-{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
-/* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
-int SharedFilePtr_Construct_TexSeq(void *self, unsigned id)
-{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+/* RETIRED, run link100 wave 15 lane SEAT15C: src/func_02017acc.c now spells
+   both arguments, so the matched TU carries this row. See port/slice_l15fs.txt. */
+/* RETIRED, run link100 wave 15 lane SEAT15C: src/SharedFilePtr_Construct_TexSeq.c
+   now spells both arguments. See port/slice_l15fs.txt. */
 /* PORT_HOST_ABI: ARM r1 fileID ride-through, run mg9 lane PSY. THE FIFTH
    MEMBER OF THIS CATALOG AND THE ONE THAT WAS MISSING. func_02017a24 is the
    same veneer as its four siblings above and below -- ROM 0x02017a24 is
@@ -444,23 +442,36 @@ int SharedFilePtr_Construct_TexSeq(void *self, unsigned id)
    carries `func_02017a24 def_n 1 / decl_n 2 INVENTS` twice, once for
    __sinit_ov006_0212f6b4 and once for __sinit_ov006_02130a08. That census is
    REPORT ONLY -- only the receiver and plain-name subsets are ratcheted -- so
-   it never failed a build. src/func_02017a24.c is now out of port/slice_mg1.txt
-   and this is the definition. */
-int func_02017a24(void *self, unsigned id)
-{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+   it never failed a build. src/func_02017a24.c was taken out of
+   port/slice_mg1.txt and this became the definition.
+
+   RETIRED, run link100 wave 15 lane SEAT15C. Everything above is why the
+   veneer was right, and it is also the reason it can go now: what PSY
+   measured was a SOURCE that spelled one parameter, and main has since
+   matched src/func_02017a24.c with both spelled --
+
+       extern void *func_02017ae4(void *self, unsigned int fileID);
+       void *func_02017a24(void *self, unsigned int fileID)
+       { func_02017ae4(self, fileID); return self; }
+
+   -- and func_02017ae4 and func_02017e48 under it are now the same shape and
+   are both on the link line, so the id reaches func_02017e0c instead of
+   becoming a return address. This row is NOT in LINK15's census: the census
+   listed its four siblings and missed this one because PSY had already moved
+   it off its slice. Seated last and alone, and gated on the whole sweep
+   exactly as the paragraph above asks, because it runs in every ov006
+   constructor. port/slice_l15fs.txt carries the row. */
 /* PORT_HOST_ABI: fileptr dtor veneer; host card seam does not refcount. */
 int func_02017ab4(int x) { return x; }   /* static-dtor veneer: no-op */
-/* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
-int func_02017b4c(void *self, unsigned id)
-{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
-/* PORT_HOST_ABI: ARM r1 fileID ride-through, gate 50 (ov080's PAINTING). The
-   third ov080 sinit constructs its SharedFilePtrs through func_020178cc, the
-   same one-arg veneer chain as func_02017acc (both end at func_02017e0c), so
-   the same host spell-out serves it. func_020178b4 is the matching dtor-chain
-   callback the sinit registers by address -- a host no-op like func_02017ab4,
-   because the card seam does not refcount. */
-int func_020178cc(void *self, unsigned id)
-{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+/* RETIRED, run link100 wave 15 lane SEAT15C: src/func_02017b4c.c now spells
+   both arguments. See port/slice_l15fs.txt. */
+/* RETIRED, run link100 wave 15 lane SEAT15C: src/func_020178cc.c now spells
+   both arguments. gate 50 (ov080's PAINTING): the third ov080 sinit constructs
+   its SharedFilePtrs through func_020178cc, the same veneer chain as
+   func_02017acc, and both chains end at func_02017e0c, which is where
+   hal/fs.cpp's Construct ends too. func_020178b4 below is the matching
+   dtor-chain callback the sinit registers by address and stays a host no-op,
+   because the card seam does not refcount. See port/slice_l15fs.txt. */
 /* PORT_HOST_ABI: fileptr dtor callback the third ov080 sinit registers by
    address; host card seam does not refcount, so the body is a no-op. */
 int func_020178b4(int x) { return x; }   /* fileptr dtor callback: host no-op */
@@ -474,28 +485,23 @@ DSSTATE_BEGIN
 void *data_020aa3f0;                     /* MSL global-dtor chain head */
 DSSTATE_END
 
-/* PORT_HOST_ABI: the OBJECT-message box-open ride-through.
+/* RETIRED, run link100 wave 15 lane SEAT15C: the OBJECT-message box-open
+ * ride-through, and the veneer is no longer what expresses it.
  *
  * St_Talk_Main opens a sign/NPC box (mStateWork==0) by calling
  * func_0201fc88(mAttachOffsetY) -- the raw object-message id. On the DS that
  * 0x24-byte function leaves the id in r0 across a call to
  * ObjectMessageIDToActualMessageID, which reads r0 and remaps the object id to
- * a real text id, then tail-calls func_0201f32c(text id) to raise the box. The
- * matched src func_0201fc88.c spells BOTH callees argumentless to mirror that
- * ride-through, so under MSVC the id is dropped: ObjectMessageIDToActualMessageID
- * reads a stale register, remaps garbage, and the box opens on an invalid id
- * and never activates (data_0209d660 stays 0). The plain-text path
- * (func_0201f32c, mStateWork==1) that the message probe uses is unaffected,
- * which is why the probe's box shows and a real sign's never did. This host
- * veneer spells the id through both calls; src/func_0201fc88.c is dropped from
- * slice_gate10 so this definition of _func_0201fc88 is the one that links, and
- * the existing /alternatename maps St_Talk_Main's mangled call onto it. */
-extern "C" int ObjectMessageIDToActualMessageID(int id);
-extern "C" void func_0201f32c(int msgID);
-extern "C" void func_0201fc88(short id)
-{
-    func_0201f32c((short)ObjectMessageIDToActualMessageID(id));
-}
+ * a real text id, then tail-calls func_0201f32c(text id) to raise the box.
+ * This veneer existed because the matched src spelled BOTH callees
+ * argumentless to mirror that ride-through, so under MSVC the id was dropped
+ * and the box opened on an invalid id. src/func_0201fc88.c today declares
+ * `ObjectMessageIDToActualMessageID(s32)` and `func_0201f32c(s16)` and passes
+ * the id through both, which is the same statement pair this veneer held, so
+ * the matched TU carries the row: port/slice_l15fs.txt.
+ *
+ * The /alternatename below at the ?func_0201fc88@@YAXF@Z row still resolves:
+ * the matched TU defines the same flat _func_0201fc88 this veneer defined. */
 
 /* PORT_HOST_ABI: SDK memset asm primitive (func_0205a588) -- the edge-preserving
    RMW byte-fill the FS/decompress path uses. No C to compile under MSVC, so the

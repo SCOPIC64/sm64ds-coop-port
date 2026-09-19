@@ -21699,6 +21699,38 @@ target_sources(smoke_player PRIVATE
 # out/SMOKELINK5B/bugs.md carries this finding with the measured call list.
 
 
+# ===========================================================================
+# SLICE L15FS (run link100 wave 15, lane SEAT15C, LINK15 BATCH 2)
+# ===========================================================================
+#
+# The arm9 SharedFilePtr / FS veneer family. port/slice_l15fs.txt carries the
+# per-row re-read: every one of these was host-copied over an ARM register
+# ride-through the matched source could not then spell, and every one of those
+# sources now spells both arguments. The retired host bodies were in
+# hal/cxx_aliases.cpp and hal/fs_names.cpp.
+#
+# ALL THREE HOSTING TARGETS, and it is measured rather than assumed. Both
+# retired host files are on all three source lists -- hal/cxx_aliases.cpp is
+# named literally in smoke_player's, walk_window's and walk_window_hires's, and
+# hal/fs_names.cpp reaches the same three through NFS_NAMES_SOURCES -- and the
+# call sites are the ov006 and ov080 static initialisers in SLICE_MG1_SOURCES,
+# which is on all three as well. Seating the matched TUs on walk_window alone
+# would take the flat names away from two targets that still reference them,
+# which is exactly the shape the SMOKELINK2 banner above describes.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_l15fs.txt" SLICE_L15FS_LINES)
+set(SLICE_L15FS_SOURCES "")
+foreach(line IN LISTS SLICE_L15FS_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_L15FS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+foreach(_tl15fs walk_window walk_window_hires smoke_player)
+    target_sources(${_tl15fs} PRIVATE ${SLICE_L15FS_SOURCES})
+endforeach()
+
+
 # MOVED BACK TO LAST IN THE FILE at the wave-9c fold (lane INT4). Its own banner
 # below says every port_read_lines call has to be above it, and two blocks had
 # landed underneath: lane FACES4's slice_faces4 block and this fold's slice_int4
