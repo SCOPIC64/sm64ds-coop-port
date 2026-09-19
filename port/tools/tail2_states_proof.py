@@ -66,6 +66,7 @@ def main():
         "SM64DS_NO_AUDIO": "1",
         "SM64DS_VOLUME": "0",
         "SM64DS_NO_FOCUS": "1",
+        "SM64DS_MINIMIZED": "1",
         "SM64DS_SKIP_MENU": "1",
         "SM64DS_SCENE_WINDOW": "1",
         "SM64DS_SCENE_FRAMES": "100000",
@@ -77,8 +78,19 @@ def main():
     })
     log = out / "run.log"
     with log.open("wb") as f:
+        # The quiet spawner every other launcher in port/tools uses (battery.py's
+        # run(), bootab.py): minimized, never activated, no console. NO_FOCUS and
+        # VOLUME alone still put a visible window on the screen for the whole run.
+        si = None
+        flags = 0
+        if os.name == "nt":
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            si.wShowWindow = 7  # SW_SHOWMINNOACTIVE
+            flags = subprocess.CREATE_NO_WINDOW
         rc = subprocess.call([str(exe)], stdout=f, stderr=subprocess.STDOUT,
-                             env=e, cwd=str(root))
+                             env=e, cwd=str(root), startupinfo=si,
+                             creationflags=flags)
     text = log.read_text(encoding="utf-8", errors="replace")
 
     armed = "the opening is ARMED for this entry" in text
