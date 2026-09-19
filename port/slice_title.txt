@@ -64,7 +64,7 @@ src/_ZN10dScTitle_cD1Ev.cpp
 # slot 0  InitResources -- 0x020ada9c
 src/_ZN10dScTitle_c13InitResourcesEv.cpp
 # slot 6  Behavior -- 0x020ad814, the level/entrance picker state machine
-#                                   (SUB-BATCH 3, added last and alone)
+src/_ZN10dScTitle_c8BehaviorEv.cpp
 #
 # ---- the class's own closure ----------------------------------------------
 # 0x020ad6ec is named by InitResources and by Behavior and by nothing else in

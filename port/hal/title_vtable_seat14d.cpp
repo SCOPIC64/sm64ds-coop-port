@@ -29,7 +29,7 @@
  * hal/dtor_forwarders_gen.cpp makes for the same reason.
  *
  * NOTHING HERE IS A LINK ROOT. Every face is reached only from the eighteen
- * words hal/scene_boot.cpp's scene_fill_title() writes into
+ * words hal/scene_boot.cpp's scene_fill_dbgsel() writes into
  * data_ov003_020b1650, which is the table dScTitle_c_classInit installs and
  * the table the ROM's own vtable at 0x020b1650 is. No /include:, no alias, no
  * keep-alive reference.
@@ -113,13 +113,48 @@ DSSTATE_END
  * Both are __cdecl, no arguments, returning a pointer in eax, so the two names
  * describe the SAME ABI and the alias is a spelling bridge, not a conversion.
  * It is NOT a keep-alive: the ROM's InitResources really does call this
- * function, and the matched TU it resolves to has been compiled and
- * /OPT:REF-dropped on every build since port/slice_scene1.txt enrolled it,
- * for want of exactly this caller.
+ * function, and the matched TU it resolves to is in the binary already --
+ * walk_window.map has all three spellings at ONE address in
+ * _ZN2G212GetBG0ScrPtrEv.cpp.obj, the YAPAXXZ definition, the YAPAFXZ bridge
+ * the block at the top of hal/scene_boot.cpp already carried for a third
+ * caller's `short *` spelling, and this one. So the port had this exact
+ * defect twice over before this lane met it a third time.
+ * (port/slice_scene1.txt:89 says this TU is /OPT:REF-dropped. It is NOT, and
+ * has not been since some later gate gave it a caller; that line is stale.)
  *
  * The honest fix is one word in src/_ZN10dScTitle_c13InitResourcesEv.cpp's
  * declaration, and W14_COMMON forbids this lane from touching src/. */
 #pragma comment(linker, "/alternatename:?GetBG0ScrPtr@G2@@YAPAGXZ=?GetBG0ScrPtr@G2@@YAPAXXZ")
+
+/* THREE C-NAMED GLOBALS DECLARED AT C++ LINKAGE, shape 1 of the block at the
+ * top of hal/scene_boot.cpp ("THE LINKAGE FACES ov003's OWN SOURCES NEED").
+ * src/_ZN10dScTitle_c8BehaviorEv.cpp declares eight of its globals outside an
+ * extern "C" block, so MSVC mangles the references while the definitions are
+ * the port's ordinary C-named hosted globals. FIVE of the eight already
+ * resolve, because scene_boot.cpp's block carries the same spelling for
+ * dScStarSel_c's Behavior or decl_common.h declares them with C linkage.
+ * These three are the ones left, and each is the SAME ADDRESS under a
+ * different local type name -- closed by address, the way that block closes
+ * its nine:
+ *
+ *   ?data_0209f5bc@@3PAUVObj@@A   this TU's local `struct VObj *`. The linker's
+ *                                 own hint lists ?data_0209f5bc@@3PAUObj@@A
+ *                                 (the star select's name for it),
+ *                                 ?data_0209f5bc@@3PAUUnkVis@@A and
+ *                                 _data_0209f5bc at that address: one word,
+ *                                 three local struct spellings.
+ *   ?data_0209b2f4@@3IA           `u32` here, `int` in the two other dScTitle_c
+ *                                 TUs. This is the word hosted at the top of
+ *                                 THIS file.
+ *   ?data_0209f5e8@@3PAGA         `u16 []` here; the hint names
+ *                                 ?data_0209f5e8@@3UFaderColor@@A at the same
+ *                                 address.
+ *
+ * Every one binds the mangled spelling to the flat C definition. No new
+ * storage, no second object, nothing kept alive. */
+#pragma comment(linker, "/alternatename:?data_0209f5bc@@3PAUVObj@@A=_data_0209f5bc")
+#pragma comment(linker, "/alternatename:?data_0209b2f4@@3IA=_data_0209b2f4")
+#pragma comment(linker, "/alternatename:?data_0209f5e8@@3PAGA=_data_0209f5e8")
 
 // The deallocation the ROM's D0 body makes and the heap pointer word it reads,
 // both under the ROM's own flat names -- what the cartridge's relocations name
@@ -140,49 +175,46 @@ extern void *GAME_HEAP_PTR;
    seat established. D2 ONLY: D0 deallocates the object, so reading it back
    after that one would be a use-after-free. */
 extern "C" {
-unsigned g_ti_hits[18];
-void *g_ti_vptr_after_d2;
+unsigned g_dbgsel_hits[18];
+void *g_dbgsel_vptr_after_d2;
 }
 
-/* SLOT 0 AND SLOT 6 ARE STAGED, and these two lines are the staging.
+/* SLOT 0 AND SLOT 6 WERE STAGED, and the staging is GONE at this commit.
  * out/LINK14/BATCHES.md calls this the highest-risk batch of the night, so the
- * seat lands in three commits and each one is a RUNNABLE state: a registry row
- * puts scene 2 into port/tools/bootab.py's scenes=all set, and a null slot 0
- * would fault on the first thing the scene does. Sub-batch 1 seats slots
- * 3/9/12/16/17 from the matched bodies and gives 0 and 6 a stub that does
- * nothing and says it did; sub-batch 2 replaces the slot-0 stub with
- * dScTitle_c::InitResources; sub-batch 3 replaces the slot-6 stub with
- * dScTitle_c::Behavior. NEITHER STUB SURVIVES TO THE TIP and neither ever
- * raises the linkage count: they are here so an intermediate commit is not a
- * crash, and the final commit has none. */
+ * seat landed in three commits and each one was a RUNNABLE state: a registry
+ * row puts scene 2 into port/tools/bootab.py's scenes=all set, and a null slot
+ * 0 would fault on the first thing the scene does. Sub-batch 1 seated slots
+ * 3/9/12/16/17 from the matched bodies and gave 0 and 6 a stub that returned
+ * the ROM bodies' own value; sub-batch 2 replaced the slot-0 stub with
+ * dScTitle_c::InitResources; sub-batch 3 replaced the slot-6 stub with
+ * dScTitle_c::Behavior. Every one of the eighteen words is now either the
+ * matched body or the shared Scene half, and no stub survives. */
 extern "C" int __fastcall port_title_init(void *s, void *)
-{ ++g_ti_hits[0];  return ((dScTitle_c *)s)->dScTitle_c::InitResources(); }
+{ ++g_dbgsel_hits[0];  return ((dScTitle_c *)s)->dScTitle_c::InitResources(); }
 
 extern "C" int __fastcall port_title_clean(void *s, void *)
-{ ++g_ti_hits[3];  return ((dScTitle_c *)s)->dScTitle_c::CleanupResources(); }
+{ ++g_dbgsel_hits[3];  return ((dScTitle_c *)s)->dScTitle_c::CleanupResources(); }
 
-/* SUB-BATCH 1 STUB -- src/_ZN10dScTitle_c8BehaviorEv.cpp is not on
-   port/slice_title.txt yet. Returns the ROM body's own return value, 1. */
-extern "C" int __fastcall port_title_beh(void *, void *)
-{ ++g_ti_hits[6];  return 1; }
+extern "C" int __fastcall port_title_beh(void *s, void *)
+{ ++g_dbgsel_hits[6];  return ((dScTitle_c *)s)->dScTitle_c::Behavior(); }
 
 extern "C" int __fastcall port_title_render(void *s, void *)
-{ ++g_ti_hits[9];  return ((dScTitle_c *)s)->dScTitle_c::Render(); }
+{ ++g_dbgsel_hits[9];  return ((dScTitle_c *)s)->dScTitle_c::Render(); }
 
 extern "C" int __fastcall port_title_pdes(void *s, void *)
-{ ++g_ti_hits[12]; ((dScTitle_c *)s)->dScTitle_c::OnPendingDestroy(); return 0; }
+{ ++g_dbgsel_hits[12]; ((dScTitle_c *)s)->dScTitle_c::OnPendingDestroy(); return 0; }
 
 extern "C" void *__fastcall port_title_d2(void *s, void *)
 {
-    ++g_ti_hits[16];
+    ++g_dbgsel_hits[16];
     ((dScTitle_c *)s)->dScTitle_c::~dScTitle_c();
-    g_ti_vptr_after_d2 = *(void **)s;
+    g_dbgsel_vptr_after_d2 = *(void **)s;
     return s;
 }
 
 extern "C" void *__fastcall port_title_d0(void *s, void *)
 {
-    ++g_ti_hits[17];
+    ++g_dbgsel_hits[17];
     ((dScTitle_c *)s)->dScTitle_c::~dScTitle_c();
     _ZN6Memory10DeallocateEPvP4Heap(s, GAME_HEAP_PTR);
     return s;

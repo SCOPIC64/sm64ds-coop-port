@@ -427,8 +427,14 @@ int   __fastcall port_title_render(void *self, void *dummy); /* slot 9  */
 int   __fastcall port_title_pdes(void *self, void *dummy);   /* slot 12 */
 void *__fastcall port_title_d2(void *self, void *dummy);     /* slot 16 */
 void *__fastcall port_title_d0(void *self, void *dummy);     /* slot 17 */
-extern unsigned g_ti_hits[18];                   /* the witness */
-extern void *g_ti_vptr_after_d2;
+/* THE WITNESS, and its name is NOT g_ti_hits. This file already has one of
+   those at :3709 -- dScDSMT_c's, ov007, scene id 1 -- and `ti` there is TItle.
+   An extern of that name here would have been declared before a later static
+   definition of it, which MSVC accepts silently while the liveness check at
+   :7405 reads `g_ti_hits[6]`. The class this lane seats is the DEBUG LEVEL
+   SELECT, so its counters are named for that and the two cannot be confused. */
+extern unsigned g_dbgsel_hits[18];
+extern void *g_dbgsel_vptr_after_d2;
 
 /* THE TABLE-WORD PROOF's three host arrays, declared here only so the census
    at the end of port_scene_run can print their addresses. _ZTV7dBase_c is
@@ -7887,6 +7893,20 @@ extern "C" int port_scene_finish(int frames_run)
            what D2 actually left behind, or 0 if no teardown was reached on
            this run; a run that reports d2 0 reports 0 here and claims
            nothing. */
+        /* THE DEBUG LEVEL SELECT CENSUS, run link100 wave 14 lane SEAT14D.
+           Printed on EVERY scene run for the reason the game over block above
+           gives: "the seat is linked and nothing dispatched it" is exactly as
+           much of a reading as a live count, and a line that only appeared on
+           id 2 would make the silent case unreadable. The last field is the
+           object's +0 word read back after D2, or 0 if no teardown was reached
+           on this run, in which case this line claims nothing about it. */
+        std::printf("[dbglvlsel] slot hits: init %u, behavior %u, render %u, "
+                    "cleanup %u, pending-destroy %u, d2 %u, d0 %u  "
+                    "table %p  object+0 after D2 %p\n",
+                    g_dbgsel_hits[0], g_dbgsel_hits[6], g_dbgsel_hits[9],
+                    g_dbgsel_hits[3], g_dbgsel_hits[12], g_dbgsel_hits[16],
+                    g_dbgsel_hits[17], (void *)data_ov003_020b1650,
+                    g_dbgsel_vptr_after_d2);
         std::printf("[gameover] host words: table %p  ActorDerived %p  "
                     "dBase(trap, NOT it) %p  Scene %p  object+0 after D2 %p\n",
                     (void *)data_ov003_020b179c, (void *)data_0208e4b8,
