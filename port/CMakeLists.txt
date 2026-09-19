@@ -11130,10 +11130,13 @@ foreach(src IN LISTS SLICE10_SOURCES)
        OR src MATCHES "/func_0203d974\\.c$")
         continue()
     endif()
-    # gate 35: HitDeathPlane is that shape one more time -- it calls
-    # SetNextLevel with the argument riding in r0 across a call its own
-    # declaration spells `(void)`. hal/star_flow.cpp names the rider.
-    # func_0203d974 comes out with it (it is listed in both slice 10 and slice
+    # gate 35. HitDeathPlane USED TO BE FILTERED HERE, for calling SetNextLevel
+    # with the argument riding in r0 across a call its own declaration spelled
+    # `(void)`. Main fixed that: src/HitDeathPlane.c declares
+    # `extern void SetNextLevel(int arg);` and passes `arg`, so the filter line
+    # and hal/star_flow.cpp's host copy both came out at run link100 wave 15
+    # (lane SEAT15F) and the matched TU compiles here again.
+    # func_0203d974 stays out (it is listed in both slice 10 and slice
     # 14): its 0x027ffc40 console-type read is in no region ntr maps, and the
     # course sound boot is its first caller.
     # ...and CollectStar, the WRITE half of the s8/int argument-width
@@ -11142,8 +11145,7 @@ foreach(src IN LISTS SLICE10_SOURCES)
     # in a four-byte slot). It goes through hostgen's ARG_WIDTH patch, listed
     # in GATE35_SYMS below, which retypes the one parameter; the host copy
     # that used to carry the retype is deleted (lane shadow-A).
-    if(src MATCHES "/HitDeathPlane\\.c$"
-       OR src MATCHES "/func_0203d974\\.c$"
+    if(src MATCHES "/func_0203d974\\.c$"
        OR src MATCHES "/CollectStar\\.c$"
     # ...and func_02049018, the 3D sound distance function, which drives the
     # DS square-root unit through raw cast-derefs and so has to go through
@@ -11191,6 +11193,25 @@ endforeach()
 list(APPEND SLICE10_CAM_SOURCES
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_SwimMain.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/InitCrashScreen_ResetVeneer.cpp")
+
+# run link100 wave 15, LINK15 BATCH 6 (lane SEAT15F): the arm9 miscellaneous
+# singles whose host copies recorded an ARM ride-through that main has since
+# fixed in src/. Each line of slice_l15arm9.txt names the row it seats and the
+# file whose host body came out for it.
+#
+# APPENDED TO SLICE10_CAM_SOURCES rather than given a list of its own, for the
+# reason the conductor line under SLICE_COMMS_SOURCES states: the three
+# add_executable lines that take slice 10 (smoke_player, walk_window,
+# walk_window_hires) are exactly the three that link the host files these TUs
+# replace, so one variable cannot go out of step with another.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_l15arm9.txt" SLICE_L15ARM9_LINES)
+foreach(line IN LISTS SLICE_L15ARM9_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE10_CAM_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
 
 # run mg15 lane MP1: THE RADIO SEAM AND THE COMMS CLOSURE.
 #

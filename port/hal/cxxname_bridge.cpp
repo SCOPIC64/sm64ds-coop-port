@@ -269,8 +269,8 @@ extern "C" void _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(
 }
 
 // operator new support: the game heap pointer for actors (the smoke seeds
-// it with the root heap), and the zero-fill veneer -- its DS chain rides
-// arguments through registers, so the host supplies the semantics direct.
+// it with the root heap). The zero-fill veneer that used to sit here with it
+// is retired -- see the block below the storage.
 //
 // DELIBERATELY OUTSIDE .dsstate: this is the real storage behind the game
 // heap word data_020a0eac (the two /alternatename lines below), so it IS a
@@ -288,16 +288,18 @@ void *data_020a0eac_c;
 }
 #pragma comment(linker, "/alternatename:?data_020a0eac@@3PAUHeap@@A=_data_020a0eac_c")
 #pragma comment(linker, "/alternatename:_data_020a0eac=_data_020a0eac_c")
-/* C linkage since main's mangled-declaration sweep: ActorBase::operator new
-   now spells this plain, so the definition has to be the plain name. The
-   alias below still catches any TU that kept the old C++ mangling.
-   PORT_HOST_ABI: ARM r0/r1/r2 ride-through -- src veneer (int x) forwards p/v/n
-   through registers to the actual fill; host spells the args out. */
-extern "C" void func_0206e2f8(void *p, int v, unsigned n)
-{
-    unsigned char *b = (unsigned char *)p;
-    for (unsigned i = 0; i < n; ++i) b[i] = (unsigned char)v;
-}
+/* func_0206e2f8 (MSL memset) RETIRED at run link100 wave 15, lane SEAT15F.
+   This file used to carry a host fill loop for it, because the src veneer was
+   written `(int x)` and forwarded p/v/n to the real fill through r0/r1/r2.
+   Main fixed that: src/func_0206e2f8.c is now
+   `void *func_0206e2f8(void *dst, int val, unsigned int n)` forwarding all
+   three arguments to func_0206e330 and returning dst, which is memset's own
+   contract and is exactly what include/decl_common.h:2101 declares. Both TUs
+   are on port/slice_l15arm9.txt: func_0206e330 is the MSL byte-head /
+   32-byte-block / word-tail fill and is plain portable C, so the port now runs
+   the cartridge's fill instead of a rewritten one.
+   The alias below stays: it still catches any TU that kept the old C++
+   mangling, and now resolves to the matched TU's definition. */
 #pragma comment(linker, "/alternatename:?func_0206e2f8@@YAXPAXHI@Z=_func_0206e2f8")
 extern "C" void hal_m43_roty(void *m, int a);
 void Matrix4x3_FromRotationY(void *m, int a) { hal_m43_roty(m, a); }
