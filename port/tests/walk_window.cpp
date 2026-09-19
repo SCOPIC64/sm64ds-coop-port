@@ -885,6 +885,11 @@ void port_scene_tick(int frame, int tick_game);
 int port_scene_finish(int frames_run);
 int port_scene_frames_wanted(void);
 const void *port_scene_framebuffer(void);
+/* hal/level_change.cpp's star-select interlude asks for its frame through this
+   pointer; main fills it in with port_interlude_frame below. A pointer and not
+   a direct call because level_change.cpp is on the smoke targets and this file
+   is not. (run link100, lane STARSEL5.) */
+extern int (*port_interlude_frame_hook)(int frame);
 /* THE TITLE-TO-ADVENTURE BRIDGE (hal/title_entry.cpp), behind
    SM64DS_TITLE_ENTRY=1 and only on SM64DS_SCENE=1. Picking a save file drives
    the ROM's own StartFile, which stages a level and asks for scene 3 -- the
@@ -4371,6 +4376,10 @@ static int mg_row(void)
 static const char *const PORT_RELAUNCH_CLEAR[] = {
     "SM64DS_SCENE_FRAMES", "SM64DS_SCENE_WINDOW",  "SM64DS_SCENE_NO_RENDER",
     "SM64DS_SCENE_BMP",    "SM64DS_SCENE_BMP_STACKED", "SM64DS_PAD_TEST",
+    /* SM64DS_HOST_PAD is SM64DS_PAD_TEST with the selftest gate removed (run
+       link100, lane STARSEL5), so it is the same trap and worse: it survives
+       into a child that is under a selftest too. Same entry, same reason. */
+    "SM64DS_HOST_PAD",     "SM64DS_HOST_CLICK",
     /* the presented-image capture, for SCENE_BMP's reason exactly: two
        processes writing one file is not a capture; and the scripted menu,
        for SM64DS_PAD_TEST's reason -- an inherited one opens a menu in a
@@ -5433,26 +5442,91 @@ static void menu_b_swallow_spend(int pad_live, XPad *pad)
 
    Inert unless the variable is set, and it cannot reach a selftest: the
    environment is read once behind g_selftest and never read again. */
-static void pad_test_apply(int frame, int *pad_live, XPad *pad)
+/* The parser both scripted-pad variables share (run link100, lane STARSEL5).
+   Grammar: <hex>@<f0>[-<f1>][,<hex>@<f0>[-<f1>]...]. With no -<f1> the entry
+   holds for PAD_TEST_HOLD frames from <f0>, which is what SM64DS_PAD_TEST has
+   always done, so every existing fixture parses to the same mask it did. The
+   range form is new and is here because a menu that has to be WAITED for needs
+   a press held across an unknown number of frames rather than four. */
+static unsigned pad_script_mask(const char *spec, int frame)
 {
     enum { PAD_TEST_HOLD = 4 };
-    static const char *pt_env = (const char *)1;
-    if (pt_env == (const char *)1)
-        pt_env = g_selftest ? 0 : getenv("SM64DS_PAD_TEST");
-    if (!pt_env)
-        return;
     unsigned mask = 0;
-    const char *p = pt_env;
+    const char *p = spec;
     while (*p) {
         char *q;
         const unsigned m = (unsigned)strtoul(p, &q, 16);
-        long f = -1;
+        long f0 = -1, f1 = -1;
         p = q;
-        if (*p == 64 /* '@' */) f = strtol(p + 1, &q, 10), p = q;
-        if (f >= 0 && frame >= f && frame < f + PAD_TEST_HOLD)
+        if (*p == 64 /* '@' */) {
+            f0 = strtol(p + 1, &q, 10);
+            p = q;
+            f1 = f0 + PAD_TEST_HOLD - 1;
+            if (*p == 45 /* '-' */) { f1 = strtol(p + 1, &q, 10); p = q; }
+        }
+        if (f0 >= 0 && frame >= f0 && frame <= f1)
             mask |= m;
         while (*p && *p != 44 /* ',' */) ++p;
         if (*p == 44) ++p;
+    }
+    return mask;
+}
+
+/* SM64DS_HOST_PAD: SM64DS_PAD_TEST's grammar, and the ONE difference is that a
+   SELFTEST MAY USE IT (run link100, lane STARSEL5).
+ *
+ * SM64DS_PAD_TEST reads its environment behind g_selftest and SM64DS_CLICK_TEST
+ * does the same, and the only scripted route into a painting -- SM64DS_WARP_SEQ
+ * -- lives inside the level loop's `if (selftest)` block. So the three of them
+ * cannot be combined, and the one thing that could not be measured headless was
+ * the thing Tango's bug is made of: whether a press made by the HOST INPUT
+ * LAYER THE WINDOW LOOP READS reaches the star select. SM64DS_PROBE_INPUT can
+ * reach it, and that is exactly why it proves nothing here -- it is applied
+ * inside the scene frame, downstream of every duty the interlude skips.
+ *
+ * So this variable enters at the same seam a real controller does: after
+ * port_pad_poll and pad_focus_gate, into the XPad the frame is about to read,
+ * so everything downstream -- host_ds_buttons, host_btn_to_raw_keys, the Ctrl
+ * words, the PadData mirror -- is the program's own and none of it is
+ * shortcut. A press that arrives this way arrives only if the loop that polls
+ * the host ran on that frame, which is the whole question.
+ *
+ * It is INERT unless set, it is read once, and it never overrides
+ * SM64DS_PAD_TEST: both are applied, OR-ed, and outside a selftest a fixture
+ * may use either. */
+static void pad_test_apply(int frame, int *pad_live, XPad *pad)
+{
+    static const char *pt_env = (const char *)1;
+    if (pt_env == (const char *)1)
+        pt_env = g_selftest ? 0 : getenv("SM64DS_PAD_TEST");
+    static const char *hp_env = (const char *)1;
+    if (hp_env == (const char *)1) {
+        hp_env = getenv("SM64DS_HOST_PAD");
+        if (hp_env) {
+            fprintf(stderr, "[hostpad] SM64DS_HOST_PAD=%s -- scripted XInput "
+                    "buttons enter at port_pad_poll's own seam, so a press "
+                    "lands only on a frame the host input layer was polled "
+                    "on\n", hp_env);
+            fflush(stderr);
+        }
+    }
+    if (!pt_env && !hp_env)
+        return;
+    unsigned mask = 0;
+    if (pt_env) mask |= pad_script_mask(pt_env, frame);
+    if (hp_env) mask |= pad_script_mask(hp_env, frame);
+    /* THE EDGES, so a row can say on which host frames the script was actually
+       APPLIED rather than on which frames it was scheduled. The two differ by
+       exactly the bug this instrument exists for: a frame the loop never
+       polled is a frame this line never prints. Only with SM64DS_HOST_PAD set,
+       so no existing SM64DS_PAD_TEST row gains a line. */
+    if (hp_env) {
+        static unsigned last_mask;
+        if (mask != last_mask) {
+            fprintf(stderr, "[hostpad] f%d mask %04x\n", frame, mask);
+            fflush(stderr);
+            last_mask = mask;
+        }
     }
     if (mask) {
         if (!*pad_live) { memset(pad, 0, sizeof *pad); *pad_live = 1; }
@@ -5575,6 +5649,26 @@ static void click_test_parse(void)
 {
     g_ct_n = 0;
     const char *s = g_selftest ? 0 : getenv("SM64DS_CLICK_TEST");
+    /* SM64DS_HOST_CLICK: the same script, and a SELFTEST MAY USE IT (run
+       link100, lane STARSEL5), for SM64DS_HOST_PAD's reason exactly. The star
+       select's grid is stylus-only when the level being entered is a course:
+       src/_ZN12dScStarSel_c8BehaviorEv.cpp:139 takes its button arm only when
+       SublevelToLevel(data_02092110) > 0xe, so every painting entry into one of
+       the fifteen courses is picked with the stylus and with nothing else. A
+       row that presses a button therefore cannot prove a painting entry at all,
+       and the only scripted route into a painting lives inside the level loop's
+       own "if (selftest)" block. Consumed in-process by poll_touch's own live
+       branch, never through SendInput: no window is fronted, no cursor is
+       moved. */
+    if (!s) {
+        s = getenv("SM64DS_HOST_CLICK");
+        if (s) {
+            fprintf(stderr, "[hostclick] SM64DS_HOST_CLICK=%s -- the scripted "
+                    "stylus enters at the window loop's own click seam, so a "
+                    "press lands only on a frame that seam was reached on\n", s);
+            fflush(stderr);
+        }
+    }
     if (!s)
         return;
     while (*s && g_ct_n < CLICK_TEST_MAX) {
@@ -7621,6 +7715,284 @@ static int port_scene_want_window(void)
 static HWND g_entry_hwnd;
 static HDC  g_entry_hdc;
 
+/* ---- ONE COPY OF THE SCENE PATH'S PER-FRAME HOST DUTIES ------------------
+ * (run link100, lane STARSEL5.)
+ *
+ * This was the body of scene_window_run's loop, from the message pump down to
+ * the pad publish, and it is a function now because a SECOND caller needs
+ * exactly it: hal/level_change.cpp's star-select interlude, which runs a scene
+ * inside a level change and until now called port_scene_tick and nothing else.
+ * Everything below -- the message pump, the focus edge, the fullscreen key, the
+ * pad poll and the scripted pads, the stylus, the debug menu's input and the DS
+ * keypad publish that ends in PadData -- is a duty the outer loop performs once
+ * per frame, and the interlude performed none of them. dScStarSel_c::Behavior
+ * reads PadData (data_020a0e58) directly, so with none of this running no key,
+ * no pad button and no stylus press could reach the star select at all, and a
+ * painting entry in a real session sat there until the interlude's backstop
+ * gave up and booted the course underneath a live star select.
+ *
+ * COPIED NOWHERE. The alternative was to service the window inside the
+ * interlude's own loop, which is a second frame loop to keep in step with this
+ * one forever; two of those already exist in this file and the cost of the
+ * second one is written up all over it. There is one copy, it is here, and both
+ * callers pass their own frame number and their own pad.
+ *
+ * Returns 1 when the window asked to close (WM_QUIT), 0 otherwise. The caller
+ * decides what closing means; the interlude stops, and scene_window_run breaks
+ * its loop exactly as it did when this code was inline. */
+static int scene_host_input_frame(HWND hwnd, int frame, XPad *pad,
+                                  int *focus_was)
+{
+    MSG msg;
+    while (W.PeekMessageA_(&msg, 0, 0, 0, PM_REMOVE)) {
+        if (msg.message == WM_QUIT) return 1;
+        W.TranslateMessage_(&msg);
+        W.DispatchMessageA_(&msg);
+    }
+    /* the focus edge, read once a frame BEFORE any key is. Coming back,
+       every key starts stale; going away needs no work, because key_live
+       is already returning released. */
+    {
+        const int now = hal_window_focused();
+        if (now && !*focus_was) memset(key_stale, 1, sizeof key_stale);
+        *focus_was = now;
+    }
+    {
+        static int fs_edge;
+        const int now = key_live(VK_F12) || key_live(VK_F11);
+        if (now && !fs_edge) fullscreen_toggle(hwnd);
+        fs_edge = now;
+    }
+
+    int pad_live = port_pad_poll(pad);
+    pad_focus_gate(&pad_live, pad);
+    pad_test_apply(frame, &pad_live, pad);
+    /* the pad layout learn flow, the same call the level loop makes;
+       inert unless the menu's row armed it */
+    padlearn_frame(&pad_live);
+#ifndef PORT_ROM_CLEAN
+    /* SM64DS_CLICK_TEST: the scripted stylus, driven BEFORE the tick that
+       polls it, so a press is in the OS's button state by the time
+       hal_sub_screen_frame_begin reads it on this same frame. */
+    click_test_apply(hwnd, frame);
+#endif
+
+    /* THE DEBUG MENU, the same block main runs. g_menu_host is left zeroed
+       on this path, which is what makes the four rows that need a Player
+       refuse in words instead of writing through a null -- and what leaves
+       the MINIGAME row working, because a relaunch needs nothing from the
+       loop it was started in. */
+    menu_input(pad_live, pad);
+    menu_b_swallow_spend(pad_live, pad);
+
+    /* THE DS KEYPAD, written every frame so a release is a release. The
+       four shared bits plus the d-pad, Start and Select.
+
+       THE LEVEL PATH HAS NEVER NEEDED THOSE LAST THREE and that is why
+       they are here rather than in host_ds_buttons: a level walks off the
+       analog stick, and the d-pad and Start are what a minigame's own
+       menus are built on. Select is keyboard-only (backspace) because
+       every free pad button is already spoken for -- BACK opens the debug
+       menu, and a Select that also opened the menu would be a trap.
+
+       Zeroed while the menu is open: enter and A belong to the menu, not
+       to the scene, exactly as the level loop zeroes it. */
+    {
+        static unsigned short btn_was;
+        unsigned short btn = 0;
+        if (!menu_on) {
+            btn = host_ds_buttons(pad_live, pad);
+            /* the DS d-pad off the bound walk keys, either half of each
+               pair (settings.json KeyRight / KeyRightAlt and siblings).
+               ONE DELIBERATE CHANGE FROM THE LITERALS THIS REPLACED: the
+               arrows alone used to drive a minigame's d-pad and W/A/S/D
+               did not. Now both defaults do, because "the walk keys" is
+               one binding with two halves and a player who moved it to
+               IJKL should not find the minigames still want the arrows. */
+            if (key_act(HOST_KEY_RIGHT) || key_act(HOST_KEY_RIGHT_ALT))
+                btn |= 0x10;
+            if (key_act(HOST_KEY_LEFT)  || key_act(HOST_KEY_LEFT_ALT))
+                btn |= 0x20;
+            if (key_act(HOST_KEY_UP)    || key_act(HOST_KEY_UP_ALT))
+                btn |= 0x40;
+            if (key_act(HOST_KEY_DOWN)  || key_act(HOST_KEY_DOWN_ALT))
+                btn |= 0x80;
+            if (key_act(HOST_KEY_START))  btn |= 0x08;   /* enter     */
+            if (key_act(HOST_KEY_SELECT)) btn |= 0x04;   /* backspace */
+            if (pad_live) {
+                if (pad->buttons & 0x0008) btn |= 0x10;   /* d-pad right */
+                if (pad->buttons & 0x0004) btn |= 0x20;   /* d-pad left  */
+                if (pad->buttons & 0x0001) btn |= 0x40;   /* d-pad up    */
+                if (pad->buttons & 0x0002) btn |= 0x80;   /* d-pad down  */
+                if (pad_act(pad, HOST_PAD_START))  btn |= 0x08; /* START */
+                if (pad_act(pad, HOST_PAD_SELECT)) btn |= 0x04; /* none
+                                                 by default; see header */
+            }
+        }
+        /* run mg16 lane MPBTN: the host key word for the scene path's
+           publisher (hal/scene_boot.cpp's port_scene_comms_publish),
+           refreshed every frame from the SAME host state the store below
+           uses -- so the title's key word comes from the keyboard and the
+           pad, never from a record something else may be filling. This
+           word is MIXED convention by construction: host_ds_buttons'
+           four bits are Ctrl-convention and go through the translator;
+           the d-pad, Start and Select added above are already raw DS bits
+           (0xf0, 0x08, 0x04) and pass straight through. Named (run
+           link100, lane INPUTRAW) because the pad-mirror store below
+           wants this SAME value. */
+        const unsigned short scene_raw_all =
+            (unsigned short)(host_btn_to_raw_keys(btn) | (btn & 0x00fc));
+        port_host_keys_set(scene_raw_all);
+        /* SLOT 0 ONLY, AND ONLY WHEN THE ROM'S FAN-OUT IS NOT DRIVING.
+           Run mg16 lane MP3, field failure 2. This publishes the LOCAL
+           buttons into Ctrl slot 0's held and pressed words, which is
+           right for a single-player port and is the crouch bleed in a
+           session: on the CHILD it put the child's own buttons into the
+           HOST's Ctrl record, so crouch pressed in the child's window
+           crouched MARIO in the child's world -- and only in that world,
+           because the host was never told. Same shape as the PadData[0]
+           clobber and gated the same way.
+
+           With a transport up, these words come from the ROM's own path
+           instead: the key register, the local comms record, the wire, the
+           fan-out into all four PadData slots, Stage::CheckInput into all
+           four Ctrl records, and the per-player split-symbol copy further
+           down this file. The local player's buttons still arrive -- into
+           the slot this console actually is. */
+        if (!(port::comms_transport() && comms_fanout_on())) {
+            *(unsigned short *)(data_0209f49c + 0) = btn;
+            *(unsigned short *)(data_0209f49e + 0) =
+                (unsigned short)(btn & (unsigned short)~btn_was);
+            /* THE SCENE PATH'S PAD MIRROR (run link100, lane INPUTRAW).
+               The scene loop has never written PadData (data_020a0e58)
+               at all -- only the level loop did, and only its four
+               direction bits -- so the title screen, the file select and
+               every minigame menu had no raw source for ANY button,
+               including the directions: src/_ZN10dScTitle_c8BehaviorEv.cpp,
+               src/_ZN11dScMiniGm_c8BehaviorEv.cpp,
+               src/_ZN12dScStarSel_c8BehaviorEv.cpp and
+               src/minigames/d_s_mg_base.cpp all read data_020a0e58
+               directly, not the Ctrl block above. scene_raw_all is the
+               same whole raw key word port_host_keys_set was just handed;
+               scene_raw_prev is a static LOCAL to this path (the level
+               loop's raw_prev is a separate local in a separate scope),
+               so it tracks frame to frame here the same way raw_prev
+               tracks raw_all in the level loop, and the pressed halfword
+               is a real edge rather than a stale value borrowed from the
+               other path. */
+            static unsigned short scene_raw_prev;
+            *(unsigned short *)((char *)data_020a0e58 + 0) = scene_raw_all;
+            const unsigned short scene_edge = (unsigned short)(
+                scene_raw_all & (unsigned short)~scene_raw_prev);
+            *(unsigned short *)((char *)data_020a0e58 + 2) = scene_edge;
+            *(unsigned short *)((char *)data_020a0e5a + 0) = scene_edge;
+            scene_raw_prev = scene_raw_all;
+        }
+        btn_was = btn;
+    }
+    return 0;
+}
+
+/* The other half of the same extraction: the scene path's per-frame PICTURE.
+ * One copy, two callers, for scene_host_input_frame's reason.
+ *
+ * THE STACKED IMAGE IS BUILT BEFORE THE OVERLAYS, and the order is the whole of
+ * an earlier lane's change on this path. Every line before this one that writes
+ * a pixel writes it into fb -- the raster, the engine-A composite -- and the
+ * stacked image is a copy of the finished fb with the bottom screen under it,
+ * so the compose still runs on a finished frame. The MENU and the TOAST are
+ * host UI and belong to the UPPER PHYSICAL SCREEN; painting them into fb gave
+ * them engine A's affinity instead, which the display swap then carried into
+ * the wrong half. Nothing happens in the inset layout: the compose returns 0,
+ * the surface falls back to fb and present() keeps reading fb. */
+static void scene_host_present_frame(HWND hwnd, int stacked,
+                                     ntr::Framebuffer &fb)
+{
+    uint32_t *stack_img = stacked
+            ? hal_sub_screen_stacked_image(&fb.px[0][0]) : 0;
+    const OvlSurface surf =
+        stacked ? ovl_surface_stacked(stack_img, fb) : ovl_surface(fb);
+
+    if (menu_on) menu_draw(surf);
+    if (!rb_skip_render())
+        toast_draw(surf);
+
+    if (stacked && !rb_skip_render())
+        stack_present_arm(stack_img, hwnd);
+    present();
+    /* the click flag is true for exactly the frame it landed on; the hold
+       in g_mouse_left_down is what outlives it */
+    g_mouse_click_new = 0;
+}
+
+/* ---- THE STAR-SELECT INTERLUDE'S FRAME (run link100, lane STARSEL5) -------
+ *
+ * hal/level_change.cpp runs the star select between the teardown half and the
+ * boot half of a painting entry, and it ran it by calling port_scene_tick and
+ * nothing else. On the cartridge the star select is an ORDINARY SCENE with the
+ * ordinary frame loop around it, so the port's interlude has to be an ordinary
+ * frame too. This is that frame, and it is the same two functions
+ * scene_window_run calls: nothing here is a copy.
+ *
+ * WHAT THIS RESTORES, in the order the player notices it:
+ *   - host input. The pad, the keyboard and the stylus are polled and published
+ *     into PadData, which is what dScStarSel_c::Behavior reads. Without this no
+ *     press of any kind could reach the screen, so the select could not be
+ *     made at all.
+ *   - the picture. present() blits g_present_fb, and on the level path that is
+ *     the LEVEL's framebuffer, so even a present during the interlude would
+ *     have shown the frozen course. For the interlude's duration the present
+ *     path points at the scene's own framebuffer -- the one port_scene_tick
+ *     rasterises into -- and is put back afterwards. The bottom screen already
+ *     came from hal_sub_screen_present inside the tick.
+ *   - the window. Messages are pumped, so the window stays responsive, can be
+ *     moved, and can be CLOSED: a WM_QUIT here returns 1 and the interlude
+ *     stops instead of holding the process for the length of its backstop.
+ *   - the pace. frame_pace under the same condition the host frame pump uses,
+ *     so a select takes as long as it takes on hardware rather than going by
+ *     in a few unpaced milliseconds.
+ *
+ * WHAT IT DELIBERATELY DOES NOT DO is port_rom_frame_phase6. The ROM frame
+ * counter and the level loop's own frame number are cross-checked every frame
+ * (port_rom_frame_checked), the interlude sits INSIDE one level frame, and
+ * stepping the ROM counter here would make every check after the crossing fail.
+ * The interlude did not step it before this change either; this says so rather
+ * than leaving it to be noticed.
+ *
+ * The frame number handed to the scripted pad and the scripted stylus continues
+ * the level loop's own count (port_last_frame + f), so a fixture numbers the
+ * interlude's frames the way it numbers every other frame of the session. */
+extern "C" int port_interlude_frame(int f)
+{
+    static XPad ipad;
+    static int ifocus = 1;
+    if (!g_present_hwnd) {
+        /* no window: a headless bring-up, the smoke targets, or a window that
+           refused to open. The scene frame is still owed. */
+        port_scene_tick(f, 1);
+        return 0;
+    }
+    const int stacked = hal_sub_screen_stacked();
+    ntr::Framebuffer &sfb = *(ntr::Framebuffer *)port_scene_framebuffer();
+    const ntr::Framebuffer *was = g_present_fb;
+    g_present_fb = &sfb;
+    int quit = scene_host_input_frame(g_present_hwnd, port_last_frame + f,
+                                      &ipad, &ifocus);
+    if (!quit) {
+        port_scene_tick(f, !menu_on);
+        scene_host_present_frame(g_present_hwnd, stacked, sfb);
+        /* the paused frames' sound, scene_window_run's rule exactly: the game's
+           frames were pumped inside the tick, the paused ones are pumped here,
+           and no frame is pumped twice */
+        if (menu_on) sdat_host_tick();
+        frame_stat();
+        if ((!rb_replaying() || rb_presented_frame()) &&
+            (!g_selftest_frames || port_pace_selftest())) frame_pace();
+    }
+    g_present_fb = was;
+    return quit;
+}
+
 static int scene_window_run(void)
 {
     /* THE LAYOUT FIRST, because the window has to be sized for the picture it
@@ -7713,193 +8085,23 @@ static int scene_window_run(void)
        plays a scene and then falls through into a level reports two frame
        accounts rather than one blurred one. */
     port_rom_frame_begin("scene loop");
-    MSG msg;
     static XPad pad;
     while (!quit) {
         if (scene_menu_at >= 0 &&
             port_rom_frame_checked(frame, "scene-menu-at") == scene_menu_at)
             menu_on = 1;
-        while (W.PeekMessageA_(&msg, 0, 0, 0, PM_REMOVE)) {
-            if (msg.message == WM_QUIT) { quit = 1; break; }
-            W.TranslateMessage_(&msg);
-            W.DispatchMessageA_(&msg);
-        }
-        if (quit)
+        if (scene_host_input_frame(
+                hwnd, port_rom_frame_checked(frame, "scene-host-input"),
+                &pad, &focus_was)) {
+            quit = 1;
             break;
-        /* the focus edge, read once a frame BEFORE any key is. Coming back,
-           every key starts stale; going away needs no work, because key_live
-           is already returning released. */
-        {
-            const int now = hal_window_focused();
-            if (now && !focus_was) memset(key_stale, 1, sizeof key_stale);
-            focus_was = now;
-        }
-        {
-            static int fs_edge;
-            const int now = key_live(VK_F12) || key_live(VK_F11);
-            if (now && !fs_edge) fullscreen_toggle(hwnd);
-            fs_edge = now;
-        }
-
-        int pad_live = port_pad_poll(&pad);
-        pad_focus_gate(&pad_live, &pad);
-        pad_test_apply(port_rom_frame_checked(frame, "scene-pad-test"),
-                       &pad_live, &pad);
-        /* the pad layout learn flow, the same call the level loop makes;
-           inert unless the menu's row armed it */
-        padlearn_frame(&pad_live);
-#ifndef PORT_ROM_CLEAN
-        /* SM64DS_CLICK_TEST: the scripted stylus, driven BEFORE the tick that
-           polls it, so a press is in the OS's button state by the time
-           hal_sub_screen_frame_begin reads it on this same frame. */
-        click_test_apply(hwnd,
-                         port_rom_frame_checked(frame, "scene-click-test"));
-#endif
-
-        /* THE DEBUG MENU, the same block main runs. g_menu_host is left zeroed
-           on this path, which is what makes the four rows that need a Player
-           refuse in words instead of writing through a null -- and what leaves
-           the MINIGAME row working, because a relaunch needs nothing from the
-           loop it was started in. */
-        menu_input(pad_live, &pad);
-        menu_b_swallow_spend(pad_live, &pad);
-
-        /* THE DS KEYPAD, written every frame so a release is a release. The
-           four shared bits plus the d-pad, Start and Select.
-
-           THE LEVEL PATH HAS NEVER NEEDED THOSE LAST THREE and that is why
-           they are here rather than in host_ds_buttons: a level walks off the
-           analog stick, and the d-pad and Start are what a minigame's own
-           menus are built on. Select is keyboard-only (backspace) because
-           every free pad button is already spoken for -- BACK opens the debug
-           menu, and a Select that also opened the menu would be a trap.
-
-           Zeroed while the menu is open: enter and A belong to the menu, not
-           to the scene, exactly as the level loop zeroes it. */
-        {
-            static unsigned short btn_was;
-            unsigned short btn = 0;
-            if (!menu_on) {
-                btn = host_ds_buttons(pad_live, &pad);
-                /* the DS d-pad off the bound walk keys, either half of each
-                   pair (settings.json KeyRight / KeyRightAlt and siblings).
-                   ONE DELIBERATE CHANGE FROM THE LITERALS THIS REPLACED: the
-                   arrows alone used to drive a minigame's d-pad and W/A/S/D
-                   did not. Now both defaults do, because "the walk keys" is
-                   one binding with two halves and a player who moved it to
-                   IJKL should not find the minigames still want the arrows. */
-                if (key_act(HOST_KEY_RIGHT) || key_act(HOST_KEY_RIGHT_ALT))
-                    btn |= 0x10;
-                if (key_act(HOST_KEY_LEFT)  || key_act(HOST_KEY_LEFT_ALT))
-                    btn |= 0x20;
-                if (key_act(HOST_KEY_UP)    || key_act(HOST_KEY_UP_ALT))
-                    btn |= 0x40;
-                if (key_act(HOST_KEY_DOWN)  || key_act(HOST_KEY_DOWN_ALT))
-                    btn |= 0x80;
-                if (key_act(HOST_KEY_START))  btn |= 0x08;   /* enter     */
-                if (key_act(HOST_KEY_SELECT)) btn |= 0x04;   /* backspace */
-                if (pad_live) {
-                    if (pad.buttons & 0x0008) btn |= 0x10;   /* d-pad right */
-                    if (pad.buttons & 0x0004) btn |= 0x20;   /* d-pad left  */
-                    if (pad.buttons & 0x0001) btn |= 0x40;   /* d-pad up    */
-                    if (pad.buttons & 0x0002) btn |= 0x80;   /* d-pad down  */
-                    if (pad_act(&pad, HOST_PAD_START))  btn |= 0x08; /* START */
-                    if (pad_act(&pad, HOST_PAD_SELECT)) btn |= 0x04; /* none
-                                                     by default; see header */
-                }
-            }
-            /* run mg16 lane MPBTN: the host key word for the scene path's
-               publisher (hal/scene_boot.cpp's port_scene_comms_publish),
-               refreshed every frame from the SAME host state the store below
-               uses -- so the title's key word comes from the keyboard and the
-               pad, never from a record something else may be filling. This
-               word is MIXED convention by construction: host_ds_buttons'
-               four bits are Ctrl-convention and go through the translator;
-               the d-pad, Start and Select added above are already raw DS bits
-               (0xf0, 0x08, 0x04) and pass straight through. Named (run
-               link100, lane INPUTRAW) because the pad-mirror store below
-               wants this SAME value. */
-            const unsigned short scene_raw_all =
-                (unsigned short)(host_btn_to_raw_keys(btn) | (btn & 0x00fc));
-            port_host_keys_set(scene_raw_all);
-            /* SLOT 0 ONLY, AND ONLY WHEN THE ROM'S FAN-OUT IS NOT DRIVING.
-               Run mg16 lane MP3, field failure 2. This publishes the LOCAL
-               buttons into Ctrl slot 0's held and pressed words, which is
-               right for a single-player port and is the crouch bleed in a
-               session: on the CHILD it put the child's own buttons into the
-               HOST's Ctrl record, so crouch pressed in the child's window
-               crouched MARIO in the child's world -- and only in that world,
-               because the host was never told. Same shape as the PadData[0]
-               clobber and gated the same way.
-
-               With a transport up, these words come from the ROM's own path
-               instead: the key register, the local comms record, the wire, the
-               fan-out into all four PadData slots, Stage::CheckInput into all
-               four Ctrl records, and the per-player split-symbol copy further
-               down this file. The local player's buttons still arrive -- into
-               the slot this console actually is. */
-            if (!(port::comms_transport() && comms_fanout_on())) {
-                *(unsigned short *)(data_0209f49c + 0) = btn;
-                *(unsigned short *)(data_0209f49e + 0) =
-                    (unsigned short)(btn & (unsigned short)~btn_was);
-                /* THE SCENE PATH'S PAD MIRROR (run link100, lane INPUTRAW).
-                   The scene loop has never written PadData (data_020a0e58)
-                   at all -- only the level loop did, and only its four
-                   direction bits -- so the title screen, the file select and
-                   every minigame menu had no raw source for ANY button,
-                   including the directions: src/_ZN10dScTitle_c8BehaviorEv.cpp,
-                   src/_ZN11dScMiniGm_c8BehaviorEv.cpp,
-                   src/_ZN12dScStarSel_c8BehaviorEv.cpp and
-                   src/minigames/d_s_mg_base.cpp all read data_020a0e58
-                   directly, not the Ctrl block above. scene_raw_all is the
-                   same whole raw key word port_host_keys_set was just handed;
-                   scene_raw_prev is a static LOCAL to this path (the level
-                   loop's raw_prev is a separate local in a separate scope),
-                   so it tracks frame to frame here the same way raw_prev
-                   tracks raw_all in the level loop, and the pressed halfword
-                   is a real edge rather than a stale value borrowed from the
-                   other path. */
-                static unsigned short scene_raw_prev;
-                *(unsigned short *)((char *)data_020a0e58 + 0) = scene_raw_all;
-                const unsigned short scene_edge = (unsigned short)(
-                    scene_raw_all & (unsigned short)~scene_raw_prev);
-                *(unsigned short *)((char *)data_020a0e58 + 2) = scene_edge;
-                *(unsigned short *)((char *)data_020a0e5a + 0) = scene_edge;
-                scene_raw_prev = scene_raw_all;
-            }
-            btn_was = btn;
         }
 
         /* the scene's own frame; the menu's pause is its second argument, the
            same switch the level loop's game_ticked is */
         port_scene_tick(port_rom_frame_checked(frame, "scene-tick"), !menu_on);
 
-        /* THE STACKED IMAGE IS BUILT BEFORE THE OVERLAYS, and the order is the
-           whole of this lane's change on this path. Every line ABOVE this one
-           that writes a pixel writes it into fb -- the raster, the engine-A
-           composite -- and the stacked image is a copy of the finished fb with
-           the bottom screen under it, so the compose still runs on a finished
-           frame. What moved is the MENU and the TOAST: they are host UI and
-           they belong to the UPPER PHYSICAL SCREEN, and painting them into fb
-           gave them engine A's affinity instead, which the display swap then
-           carried into the wrong half. Nothing happens in the inset layout; the
-           compose returns 0, the surface falls back to fb and present() keeps
-           reading fb, exactly as before. */
-        uint32_t *stack_img = stacked
-                ? hal_sub_screen_stacked_image(&fb.px[0][0]) : 0;
-        const OvlSurface surf =
-            stacked ? ovl_surface_stacked(stack_img, fb) : ovl_surface(fb);
-
-        if (menu_on) menu_draw(surf);
-        if (!rb_skip_render())
-            toast_draw(surf);
-
-        if (stacked && !rb_skip_render())
-            stack_present_arm(stack_img, hwnd);
-        present();
-        /* the click flag is true for exactly the frame it landed on; the hold
-           in g_mouse_left_down is what outlives it */
-        g_mouse_click_new = 0;
+        scene_host_present_frame(hwnd, stacked, fb);
         /* THE HOSTED ARM7, EXACTLY ONCE A FRAME -- and port_scene_tick above
            has already done it on every frame that ticked the game, so this
            call is only for the frames that did not.
@@ -9751,6 +9953,13 @@ int main(void)
     g_present_hdc = hdc;
     g_present_bi = &g_bi;
     g_present_fb = &fb;
+    /* THE STAR-SELECT INTERLUDE'S FRAME, handed to hal/level_change.cpp here
+       and not linked to it directly: level_change.cpp is on the smoke targets
+       too and this file is not, so the interlude asks through a pointer and
+       falls back to a bare scene tick when nobody filled it in. Set at the same
+       point the present path is armed, because the frame it runs needs both.
+       (run link100, lane STARSEL5.) */
+    port_interlude_frame_hook = port_interlude_frame;
     MSG msg;
     /* THE DS'S POWER-ON INTERRUPT STATE, standing in for src/func_0201a054.c,
        the game's own IRQ init, which is in no slice. The ROM's arming
