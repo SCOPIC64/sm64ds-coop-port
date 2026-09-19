@@ -21327,6 +21327,43 @@ foreach(_tlink21 walk_window walk_window_hires smoke_player)
     target_sources(${_tlink21} PRIVATE ${SLICE_LINK21_SOURCES})
 endforeach()
 
+# ===========================================================================
+# SLICE L15STALE (run link100 wave 15, lane SEAT15A, BATCH 1)
+# ===========================================================================
+#
+# THE STALE-BANNER HARVEST, ROUND 2. Two port host copies whose own banners
+# said "no matched TU of this name exists" while src/ on this tip has one.
+# Same shape as the SLICE_W9HARVEST block above, one sync later:
+#
+#   src/func_ov060_021140c0.c            ov060 0x021140c0  matched 83691debd
+#     retires unmatched/Ov060_StateDispatch.cpp's HOST COPY 7
+#   src/_ZN13TreasureChest6State0Ev.cpp  ov064 0x0211a4c4  from 6e10cbbd1
+#     retires unmatched/Ov064_TreasureChest.cpp's transcription; the flat name
+#     stays in that file as a receiver face, because the matched TU is a
+#     __thiscall member and the seat's thunk calls the flat C name
+#
+# port/slice_l15stale.txt carries the per-row derivation, the extern closure
+# checked against this tree's own map before the edit, and the reach argument
+# for each (a seat row that takes the body's address, in both cases).
+#
+# ALL THREE HOSTING TARGETS, like the SLICE_LINK21 block above: both host
+# files are on walk_window's, walk_window_hires's and smoke_player's source
+# lists, so a definition retired on one target and not the others would leave
+# the other two asking for a name nothing defines.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_l15stale.txt" SLICE_L15STALE_LINES)
+set(SLICE_L15STALE_SOURCES "")
+foreach(line IN LISTS SLICE_L15STALE_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_L15STALE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+foreach(_tl15stale walk_window walk_window_hires smoke_player)
+    target_sources(${_tl15stale} PRIVATE ${SLICE_L15STALE_SOURCES})
+endforeach()
+
+
 # LANE SMOKELINK2 (run link100 wave 10 round 2): walk_window_hires ALSO NEEDS
 # THESE DEFINITIONS, and it has needed them since the 09-14 sync.
 #
