@@ -11667,8 +11667,10 @@ int main(void)
 
                SM64DS_STAR_PROBE=1 dumps the level's PowerStar actors (class
                178) with their positions and states once the level is up.
-               SM64DS_STAR_DROP=#<n>[,<frame>] puts the Player at the n-th of
-               them. It writes the position and nothing else: the star's own
+               SM64DS_STAR_DROP=#<n>[,<frame>[,<hold>]] puts the Player at the
+               n-th of them and HOLDS him there for <hold> frames (default 60),
+               because one frame on a star is a coin toss. It writes the
+               position and nothing else: the star's own
                PowerStar::Behavior collision fires the collect, the star-get
                sequence, the save and the exit to the castle, all of it the
                cartridge's own. The dump's state column is why the index
@@ -11726,7 +11728,7 @@ int main(void)
 
             {
                 static int sp_read, sp_on, sp_dumped, sd_fired;
-                static int sd_idx = -1, sd_frame = 60;
+                static int sd_idx = -1, sd_frame = 60, sd_hold = 60;
                 if (!sp_read) {
                     sp_read = 1;
                     sp_on = getenv("SM64DS_STAR_PROBE") != 0;
@@ -11735,7 +11737,11 @@ int main(void)
                         const char *p = (*e == '#') ? e + 1 : e;
                         sd_idx = atoi(p);
                         const char *comma = strchr(e, ',');
-                        if (comma) sd_frame = atoi(comma + 1);
+                        if (comma) {
+                            sd_frame = atoi(comma + 1);
+                            const char *c2 = strchr(comma + 1, ',');
+                            if (c2) sd_hold = atoi(c2 + 1);
+                        }
                     }
                 }
                 if ((sp_on || sd_idx >= 0) && !sp_dumped && frame == 30) {
@@ -11756,7 +11762,8 @@ int main(void)
                     fprintf(stderr, "[star] %d PowerStar actor(s) on this "
                             "level at frame %d\n", n, frame);
                 }
-                if (sd_idx >= 0 && !sd_fired && frame == sd_frame && player) {
+                if (sd_idx >= 0 && frame >= sd_frame &&
+                    frame <= sd_frame + sd_hold && player) {
                     int n = 0;
                     char *star = 0;
                     for (int *node = (int *)(size_t)data_020a4b78[0]; node;
@@ -11766,25 +11773,37 @@ int main(void)
                             continue;
                         if (n++ == sd_idx) { star = o; break; }
                     }
-                    sd_fired = 1;
                     if (!star) {
-                        fprintf(stderr, "[star] f%d no PowerStar #%d on this "
-                                "level (%d seen)\n", frame, sd_idx, n);
+                        if (!sd_fired)
+                            fprintf(stderr, "[star] f%d no PowerStar #%d on "
+                                    "this level (%d seen)\n", frame, sd_idx, n);
                     } else {
+                        /* HELD, not placed once. One frame on the star is a
+                           coin toss: the teleport leaves him falling, and
+                           whether the star's own sphere test sees him depends
+                           on where in its own state the star is that frame.
+                           Twelve courses read as "the star does not collect"
+                           on a single-frame placement and collect on this one.
+                           It is still the star's collision that decides; this
+                           writes a position and a zero speed, which is what
+                           standing under a star is. */
                         *(int *)(c + 0x5c) = *(int *)(star + 0x5c);
                         *(int *)(c + 0x60) = *(int *)(star + 0x60);
                         *(int *)(c + 0x64) = *(int *)(star + 0x64);
                         *(int *)(c + 0xa4) = 0;
                         *(int *)(c + 0xa8) = 0;
                         *(int *)(c + 0xac) = 0;
-                        fprintf(stderr, "[star] f%d player placed on PowerStar "
-                                "#%d at (%d,%d,%d) state %d -- the star's own "
-                                "collision takes it from here\n", frame, sd_idx,
-                                *(int *)(star + 0x5c) >> 12,
-                                *(int *)(star + 0x60) >> 12,
-                                *(int *)(star + 0x64) >> 12,
-                                *(int *)(star + 0x440));
+                        if (!sd_fired)
+                            fprintf(stderr, "[star] f%d player held on "
+                                    "PowerStar #%d at (%d,%d,%d) state %d for "
+                                    "%d frames -- the star's own collision "
+                                    "takes it from here\n", frame, sd_idx,
+                                    *(int *)(star + 0x5c) >> 12,
+                                    *(int *)(star + 0x60) >> 12,
+                                    *(int *)(star + 0x64) >> 12,
+                                    *(int *)(star + 0x440), sd_hold);
                     }
+                    sd_fired = 1;
                 }
             }
 

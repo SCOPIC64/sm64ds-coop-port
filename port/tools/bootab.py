@@ -147,7 +147,11 @@ def run(kind, ident, label):
                 # 0x20 tall (src/_ZN5Stage9PS_UpdateEv.cpp case 1); the tap has
                 # to carry a press EDGE, so it is a short range, not a hold.
                 env["SM64DS_PROBE_INPUT"] = "200:START"
-                env["SM64DS_TOUCH_PROBE"] = "260-262:128:168"
+                # four taps, not one: the menu refuses input while it is still
+                # coming up (PS_Update case 1 returns on data_0209f300), and
+                # how long that takes is per level
+                env["SM64DS_TOUCH_PROBE"] = ("260-261:128:168,320-321:128:168,"
+                                             "380-381:128:168,440-441:128:168")
             else:
                 sys.exit("unknown exit=%s (void, star, pause)" % EXIT)
     else: env["SM64DS_SCENE_FRAMES"] = FRAMES
