@@ -32,3 +32,15 @@
 # retired for the pair.
 src/func_0206e2f8.c
 src/func_0206e330.c
+
+# The MSL array-delete chain. unmatched/func_02073244_hostcopy.c's copy of
+# func_02073244 named two reasons and BOTH are stale: src/func_02073244.c
+# passes the element destructor as a declared fourth argument now, and
+# func_02073300 is no longer an asm hatch -- src/func_02073300.cpp is the real
+# array-destroy-with-rethrow helper, exceptions and all, which is what the
+# cartridge's .exceptix record at 0x02073994 is there for. func_020731fc is
+# that one's terminate hop. The host file keeps func_0203cbc0 (its own reason
+# is NOT stale) and hosts the one global the chain reads.
+src/func_02073244.c
+src/func_02073300.cpp
+src/func_020731fc.c
