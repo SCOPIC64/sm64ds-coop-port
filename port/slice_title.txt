@@ -61,13 +61,15 @@ src/_ZN10dScTitle_cD1Ev.cpp
 # ROM's destructor variants into ONE symbol, so only one of a class's two
 # per-function destructor TUs can be compiled. Listing both is LNK2005.
 #src/_ZN10dScTitle_cD0Ev.cpp
-# slot 0  InitResources -- 0x020ada9c  (SUB-BATCH 2, added after sub-batch 1 gates)
+# slot 0  InitResources -- 0x020ada9c
+src/_ZN10dScTitle_c13InitResourcesEv.cpp
 # slot 6  Behavior -- 0x020ad814, the level/entrance picker state machine
 #                                   (SUB-BATCH 3, added last and alone)
 #
 # ---- the class's own closure ----------------------------------------------
 # 0x020ad6ec is named by InitResources and by Behavior and by nothing else in
-# this build, so it is a real gain rather than a re-count.  (SUB-BATCH 2)
+# this build, so it is a real gain rather than a re-count.
+src/func_ov003_020ad6ec.c
 #
 # THREE RIDERS ARE NOT LISTED HERE ON PURPOSE. src/func_ov003_020adc74.cpp,
 # src/func_ov003_020adcbc.cpp and src/_ZN2G212GetBG0ScrPtrEv.cpp are ALREADY

@@ -108,6 +108,16 @@ NAMED = [
     # .dsstate is a change to every row here and is not this lane's to make.
     "data_0208a170", "data_0208a174",
     "data_0208a178", "data_0208c178",
+    # Run link100 wave 14 (lane SEAT14D): the OBJ char blob the debug level
+    # select loads, `GX::LoadOBJ(data_0208c378, 0, 0x2000)` in
+    # src/_ZN10dScTitle_c13InitResourcesEv.cpp. It is the exact sibling of the
+    # BG char blob one row up: 0x0208c378 to the next config symbol
+    # (data_0208e378) is 0x2000, which is the length the call itself reads, it
+    # sits below BSS_START so real bytes are behind it, and config/arm9/
+    # relocs.txt has ZERO relocations from anywhere inside the span. Hosting it
+    # as zeroed HAL storage instead would have been a fabrication: the scene
+    # would load 8 KB of blank tiles and look like it worked.
+    "data_0208c378",
     "data_0208e504", "data_0208e538", "data_0208e548", "data_0208e54c",
     "data_0208e55c", "data_0208e56c", "data_0208e57c", "data_0208e58c",
     "data_0208e59c", "data_0208e5b0", "data_0208e5c0", "data_0208e5d4",

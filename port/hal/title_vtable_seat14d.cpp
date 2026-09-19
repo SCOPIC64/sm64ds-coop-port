@@ -98,6 +98,29 @@ int data_0209b2f8;
 }
 DSSTATE_END
 
+/* ONE RETURN-TYPE SPELLING BRIDGE, and it is a DECOMP DEFECT this port cannot
+ * fix in src/ (reported in out/SEAT14D/bugs.md item 1).
+ *
+ * src/_ZN2G212GetBG0ScrPtrEv.cpp defines `void *G2::GetBG0ScrPtr(void)`.
+ * src/_ZN10dScTitle_c13InitResourcesEv.cpp:29 declares the same function
+ * `unsigned short *G2::GetBG0ScrPtr()`. Under mwccarm both spell
+ * _ZN2G212GetBG0ScrPtrEv, because the Itanium mangling does not carry the
+ * return type, so the cartridge build never saw it. MSVC's does:
+ *
+ *   definition   ?GetBG0ScrPtr@G2@@YAPAXXZ    (read out of the built object)
+ *   this caller  ?GetBG0ScrPtr@G2@@YAPAGXZ    (LNK2019)
+ *
+ * Both are __cdecl, no arguments, returning a pointer in eax, so the two names
+ * describe the SAME ABI and the alias is a spelling bridge, not a conversion.
+ * It is NOT a keep-alive: the ROM's InitResources really does call this
+ * function, and the matched TU it resolves to has been compiled and
+ * /OPT:REF-dropped on every build since port/slice_scene1.txt enrolled it,
+ * for want of exactly this caller.
+ *
+ * The honest fix is one word in src/_ZN10dScTitle_c13InitResourcesEv.cpp's
+ * declaration, and W14_COMMON forbids this lane from touching src/. */
+#pragma comment(linker, "/alternatename:?GetBG0ScrPtr@G2@@YAPAGXZ=?GetBG0ScrPtr@G2@@YAPAXXZ")
+
 // The deallocation the ROM's D0 body makes and the heap pointer word it reads,
 // both under the ROM's own flat names -- what the cartridge's relocations name
 // and what this port already resolves. Same block hal/dtor_forwarders_gen.cpp
@@ -132,10 +155,8 @@ void *g_ti_vptr_after_d2;
  * dScTitle_c::Behavior. NEITHER STUB SURVIVES TO THE TIP and neither ever
  * raises the linkage count: they are here so an intermediate commit is not a
  * crash, and the final commit has none. */
-/* SUB-BATCH 1 STUB -- src/_ZN10dScTitle_c13InitResourcesEv.cpp is not on
-   port/slice_title.txt yet. Returns the ROM body's own return value, 1. */
-extern "C" int __fastcall port_title_init(void *, void *)
-{ ++g_ti_hits[0];  return 1; }
+extern "C" int __fastcall port_title_init(void *s, void *)
+{ ++g_ti_hits[0];  return ((dScTitle_c *)s)->dScTitle_c::InitResources(); }
 
 extern "C" int __fastcall port_title_clean(void *s, void *)
 { ++g_ti_hits[3];  return ((dScTitle_c *)s)->dScTitle_c::CleanupResources(); }
