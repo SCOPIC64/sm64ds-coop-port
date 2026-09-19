@@ -266,6 +266,11 @@ void func_ov080_021269b8(void *); void func_ov080_02126120(void *);
 void func_ov080_02125fd0(void *); void func_ov080_0212677c(void *);
 void func_ov080_021265ec(void *); void func_ov080_02125f00(void *);
 void func_ov080_021264ec(void *);
+/* The twelfth body is the host transcription in
+   port/unmatched/Painting_StateRender_021261f4.cpp, not a src/ TU. It is
+   declared with the char* receiver its own definition uses rather than the
+   void* the nine above take, so the two spellings cannot drift. */
+void func_ov080_021261f4(char *);
 
 /* ov102: QUESTION_BLOCK (and the bob-omb, the koopa shell, the warp pipe and
    the rest of the level-furniture set other levels name). Its CODE has been
@@ -1312,19 +1317,55 @@ static void port_princess_peach_states_seat(void)
     }
 }
 
-/* ov080 0x021261f4 IS NOT HOSTED, and it is the one hole in the painting. It
-   is state record index 5's function -- the Render half a painting at spawn
-   flag mi=3 would reach (Render reads +0x10 off the object's +0x1a4 dispatch
+/* ov080 0x021261f4 WAS THE ONE HOLE IN THE PAINTING, and it is filled.
+   HISTORY, kept because it is the measurement that named the hole: this is
+   state record index 5's function -- the Render half a painting at spawn flag
+   mi=3 would reach (Render reads +0x10 off the object's +0x1a4 dispatch
    pointer, which lands two records past the seated one). 0x2f8 bytes of it
-   have no C in src/ and no draft in nearmiss/db.jsonl. Measured: all six of
-   level 2's paintings run 300 frames fault-free without touching it, so the
-   class is registered and this seat names the function instead of jumping into
-   the overlay image -- what a hole should do. */
-static void __fastcall port_painting_state_021261f4(void *, void *)
+   have no C in src/ and no draft in nearmiss/db.jsonl, so this cell held a
+   trap that named the address and aborted. All six of level 2's paintings ran
+   300 frames fault-free without touching it, which is why the trap looked
+   harmless for as long as it did.
+
+   WHAT REACHED IT (run link100 wave 17, lane HEALTH1 and fixer ENTRANCE):
+   once a level change entered a level at the entrance it actually asked for,
+   level 37's exit to level 4 entrance 9 (param 0x0409 -> slot 8 -> entry mode
+   0x08, COMING OUT OF A PAINTING) ran the painting's emergence and the state
+   machine reached this cell. The trap aborted the process and level 37 went
+   PASS -> FAIL on levels=all, warpin=1 and reentry=1.
+
+   IT IS NOW A HOST TRANSCRIPTION, not a guess:
+   port/unmatched/Painting_StateRender_021261f4.cpp carries the 0x2f8 bytes
+   statement for statement out of a capstone listing of
+   extracted/overlays/overlay_0080.bin at base 0x02123740, with every ROM
+   address range in the margin. It is not a byte match and does not claim to
+   be one; when a match lands in src/ the file retires per the port rule. */
+static void __fastcall port_painting_state_021261f4(void *s, void *)
 {
-    std::fprintf(stderr, "FATAL: Painting state 5's Render (ov080 "
-                 "0x021261f4) is UNMATCHED -- no host body exists\n");
-    std::abort();
+    /* SM64DS_PAINT_STATE5=1: one line entering and one leaving. DEFAULT OFF.
+       It exists because "the painting drew" and "the painting's state 5 was
+       entered" are different claims and a capture cannot tell them apart: the
+       grid counts it walks are invisible in a frame, and a strip count of one
+       draws nothing at all while still running the whole body. */
+    static int trace = -1;
+    if (trace < 0) {
+        const char *e = std::getenv("SM64DS_PAINT_STATE5");
+        trace = (e && *e && *e != '0') ? 1 : 0;
+    }
+    if (trace) {
+        std::fprintf(stderr, "[paint5] enter 021261f4: obj=%p buf=%p n=%u "
+                     "strips=%u pairs=%u\n", s,
+                     *(void **)((char *)s + 0x1a0),
+                     *(unsigned short *)((char *)s + 0x1b8),
+                     *(unsigned char *)((char *)s + 0x1ba),
+                     *(unsigned char *)((char *)s + 0x1bb));
+        std::fflush(stderr);
+    }
+    func_ov080_021261f4((char *)s);
+    if (trace) {
+        std::fprintf(stderr, "[paint5] leave 021261f4: obj=%p\n", s);
+        std::fflush(stderr);
+    }
 }
 
 /* THE FACES, run link100 lane UNMATCH, and the Painting is the one member-
