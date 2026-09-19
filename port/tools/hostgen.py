@@ -1125,6 +1125,28 @@ VIRTUAL_CALL = {
         ("if (ret) func_02017060(file);",
          "if (ret && port_model_shrink_enabled()) func_02017060(file);"),
     ],
+    # Lane TEX2. THE SAME HOST SEAM ON THE OTHER MODEL PATH. Model::LoadFile's
+    # numRefs==1 branch ends in ptr.ReallocateModelFile(), which is the ROM's
+    # shrink-to-fit (func_02017060 -> Heap::Reallocate) returning the texel
+    # payload LoadTexAndPal has just uploaded to the heap. On the cartridge that
+    # is safe because the payload is never read again: every model is loaded
+    # fresh on the next level, so the array and the refcounts move together. On
+    # the host they do not. A level change runs the ROM's
+    # CleanCommonModelDataArr (hal/level_change.cpp) but does NOT release the
+    # model files, so the next Model::SetFile -> Model::DoSetFile re-enters
+    # AddToCommonModelDataArr on a file the emptied array no longer knows and
+    # LoadTexAndPal uploads the freed block's HEAP HEADER instead of texels --
+    # stars, coins, Yoshi's egg and the completed Bob-omb painting come out
+    # black with scattered pixels. Declining the shrink is what the port already
+    # does on the func_02016ff4 path above; this puts the two paths back on one
+    # switch, and SM64DS_MODEL_SHRINK=1 is the A/B for both.
+    "_ZN5Model8LoadFileER13SharedFilePtr": [
+        ('#include "Model.h"',
+         '#include "Model.h"\n'
+         'extern "C" int port_model_shrink_enabled(void);'),
+        ("ptr.ReallocateModelFile();",
+         "if (port_model_shrink_enabled()) ptr.ReallocateModelFile();"),
+    ],
     # Lane shadow-A: two of the four ActorBase::Process wrappers. Each passes
     # three mwcc pointer-to-member-functions, static {vtable byte offset, 1}
     # records at 0x02099e74..0x02099ecc, into

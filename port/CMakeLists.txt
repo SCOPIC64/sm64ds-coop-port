@@ -1671,6 +1671,43 @@ foreach(line IN LISTS SLICE4B_LINES)
     list(APPEND SLICE4B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Lane TEX2: ONE ROW OF slice_gate4b IS SERVED FROM host-src, for three targets only.
+#
+# src/_ZN5Model8LoadFileER13SharedFilePtr.cpp ends its numRefs==1 branch in
+# ptr.ReallocateModelFile(), the ROM's heap shrink-to-fit (func_02017060 ->
+# Heap::Reallocate), which hands the texel payload Model::LoadTexAndPal has just
+# uploaded back to the allocator. The port declines that shrink on its OTHER
+# model path already -- port_model_shrink_enabled in hal/level_boot.cpp, applied
+# to src/func_02016ff4.cpp by hostgen's VIRTUAL_CALL table -- and has to decline
+# it here for the same reason, one level deeper: a level change runs the ROM's
+# CleanCommonModelDataArr but does not release the model files, so the next
+# Model::SetFile -> Model::DoSetFile re-enters AddToCommonModelDataArr on a file
+# the emptied array no longer knows, and LoadTexAndPal uploads the freed block's
+# heap header instead of texels. Stars, coins, Yoshi's egg and the completed
+# Bob-omb painting come out black with scattered pixels after a level change and
+# are correct on a direct boot; measured in out/TEX2/card_texshrink.md.
+#
+# WHY THE GATE IS AT THE CALL AND NOT AT THE NAME. A host body under
+# ?ReallocateModelFile@SharedFilePtr@@QAEXXZ would stop the matched TU being
+# referenced and cost a linked TU, which is the shadow SHADOWS2 retired in
+# a731fbdc7. Gating the CALL through hostgen keeps the ROM body referenced and
+# linked, and linkage stays at 7953.
+#
+# WHY A FILTERED LIST. slice_gate4b.txt is taken by FOURTEEN targets and only
+# three of them (smoke_player, walk_window, walk_window_hires) take GATE35_GEN,
+# so commenting the row out of the slice -- the way slice_gate16.txt does for
+# func_02016ff4 -- would pull the TU out of the eleven smoke targets as well.
+# This is the same shape SLICE10_CAM_SOURCES already uses for HitDeathPlane,
+# func_0203d974, CollectStar and func_02049018: a filtered copy of the list,
+# consumed only by the targets that also take the generated row.
+set(SLICE4B_HOSTGEN_SOURCES "")
+foreach(src IN LISTS SLICE4B_SOURCES)
+    if(src MATCHES "/_ZN5Model8LoadFileER13SharedFilePtr\\.cpp$")
+        continue()
+    endif()
+    list(APPEND SLICE4B_HOSTGEN_SOURCES "${src}")
+endforeach()
+
 # ROM constants (sine table, default matrices): generated locally from the
 # extracted arm9 image so Nintendo bytes never enter the repo.
 # ROM-CLEAN (2026-08-10): when ON, romdata.py / ovdata.py emit ZEROED arrays and
@@ -10866,8 +10903,13 @@ set_source_files_properties(
 # wrappers func_0204335c / func_02043288 (VIRTUAL_CALL). Their src lines stay
 # skipped where the slices list them (func_0204335c in the gate-10 camera
 # filter below).
+# ...and lane TEX2 rides a fifth through the same loop:
+# _ZN5Model8LoadFileER13SharedFilePtr (VIRTUAL_CALL, the shrink switch on
+# the second model path). Its src row is filtered out of
+# SLICE4B_HOSTGEN_SOURCES above rather than commented out of
+# slice_gate4b.txt, because eleven smoke targets still take the plain row.
 set(GATE35_SYMS func_02049018 CollectStar func_02016ff4 func_0204335c
-    func_02043288)
+    func_02043288 _ZN5Model8LoadFileER13SharedFilePtr)
 set(GATE35_GEN "")
 foreach(sym IN LISTS GATE35_SYMS)
     if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
@@ -16826,7 +16868,7 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     # PORT_HOST_ABI bodies, the four C-name faces, two 4-byte arm9 BSS words
     # and the data_02075720 alias; the slice holds the ROM's own TUs.
     hal/stage_slot0.cpp ${SLICE_S4_SLOT0_SOURCES}
-    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
+    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_HOSTGEN_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE_COMMS_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
@@ -17113,7 +17155,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     # the seven-argument OAM::Render has two decorated names in this link,
     # differing only in return type, and one file can declare one of them.
     hal/slot9_oam_face.cpp
-    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
+    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_HOSTGEN_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE_COMMS_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
@@ -17505,7 +17547,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     # the seven-argument OAM::Render has two decorated names in this link,
     # differing only in return type, and one file can declare one of them.
     hal/slot9_oam_face.cpp
-    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
+    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_HOSTGEN_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE_COMMS_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
