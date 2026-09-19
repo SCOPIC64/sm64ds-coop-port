@@ -6187,10 +6187,25 @@ foreach(line IN LISTS SLICE_OV007_LINES)
     # delete this if-block to put the TU back and the marker re-arms in that
     # configure, unasked, because the same edit that restores the body clears
     # the flag that retires the marker.
+    # RETIRED, run link100 wave 15, lane SEAT15E. THE DISPLACEMENT IS GONE AND
+    # THE MATCHED TU IS BACK: src/func_ov007_020be980.c today is
+    #     void func_ov007_020be980(char *r0, int i, int a2)
+    #     { func_ov007_020bc3dc(*(void**)(r0+4), i, a2); ... }
+    # -- three parameters declared, three passed, into a callee
+    # src/func_ov007_020bc3dc.c defines as (void *, int, int). Nothing rides r1
+    # or r2 through a frame that does not name them any more, so the reason this
+    # block cut the line is measurably gone. The four arm_call rows landing on
+    # 0x020be980 in config/arm9/overlays/ov007/relocs.txt all pass three
+    # arguments, so the arity the source now spells is the ROM's own.
+    #
+    # THE FLAG STAYS AND THE `continue()` GOES, which is the whole edit. The PC2
+    # marker block below reads RT1_BE980_IN_SLICE and RT1_BE980_DISPLACED as a
+    # pair, and its three-way message only tells the truth while the "is the
+    # line in the slice" half keeps saying yes. Dropping the flag with the cut
+    # would print "not in the slice at all ... the link fails before scene 1 can
+    # be judged" over a tree where the seam is seated and scene 1 runs.
     if(line MATCHES "^src/func_ov007_020be980\\.c$")
         set(RT1_BE980_IN_SLICE TRUE)
-        set(RT1_BE980_DISPLACED TRUE)
-        continue()
     endif()
     # run link60 lane AE1: THE SECOND DISPLACEMENT IN THIS SLICE, and the
     # OPPOSITE FRAME from the one above.
@@ -6403,29 +6418,12 @@ elseif(NOT TS1_B6EB4_IN_SLICE)
                    "NOT added and the link will fail on it. Restore the line: "
                    "this block does the cutting, not the slice file")
 endif()
-if(RT1_BE980_DISPLACED)
-    list(APPEND SLICE_OV007_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_RideThrough_020be980.cpp")
-elseif(NOT RT1_BE980_IN_SLICE)
-    # The slice line is the only thing that puts the matched TU in the build,
-    # so if it is gone the host copy must not be added blind: two bodies for
-    # one address is an LNK2005, and none is a silent undefined symbol. Say
-    # which state the tree is in rather than guessing.
-    #
-    # THE LIKELY WAY TO LAND HERE is following the port's OTHER idiom for this.
-    # unmatched/Actor_ClosestPlayerWrappers.cpp answers the same defect class by
-    # COMMENTING the src line out of slice_gate16.txt and slice_gate89.txt and
-    # appending its host copy unconditionally; gate 10's and gate 14's
-    # displacements instead leave the line and filter it here. Both are in the
-    # tree and neither is wrong. This seam uses the filter because the marker
-    # predicate below has to read whether the TU is in the build, and a flag set
-    # by the cut itself is the only form of that which cannot drift. If you
-    # commented the line out, put it back and let this filter do the cutting.
-    message(STATUS "RT1: slice_ov007.txt no longer lists "
-                   "src/func_ov007_020be980.c, so the ride-through host copy is "
-                   "NOT added and the link will fail on it. Restore the line: "
-                   "this block does the cutting, not the slice file")
-endif()
+# RETIRED, run link100 wave 15, lane SEAT15E: the ride-through host copy is no
+# longer appended, because the cut above no longer happens and the matched TU is
+# in SLICE_OV007_SOURCES as itself. port/unmatched/Ov007_RideThrough_020be980.cpp
+# keeps its derivation -- the capstone reading at the config-aligned base, the
+# four-call-site arity sweep, the r1/r2 liveness correction -- and carries no
+# body, so it can never become a second definition of 0x020be980.
 
 # run link60 Stage 5 lane T2: THE HARDWARE DIVIDER'S LAST RAW CALLER.
 #
