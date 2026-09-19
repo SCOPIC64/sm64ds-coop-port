@@ -99,6 +99,39 @@
 #   residual is exactly the 6o ordering floor". The floor was crossed: PR #2369
 #   (adf091af7) "Match the star select render and the enemy Yoshi-eat update".
 #
+# ---- RUNG 3 ---------------------------------------------------------------
+#
+# src/_ZN12Flamethrower8BehaviorEv.cpp -- slot 6 of _ZTV12Flamethrower, ov095
+#   0x021368f0, 0x470 bytes. port/unmatched/Flamethrower_Behavior.c gave TWO
+#   measured reasons for staying and BOTH are stale on this tree. The first was
+#   that main's TU does not compile against this branch's headers, cl.exe's own
+#   "error C2039: 'Behavior': is not a member of 'Flamethrower'" -- and
+#   include/Flamethrower.h line 48 now reads `virtual int Behavior();`, because
+#   the branch that was 626 commits behind main has since taken the sync. The
+#   second was the mangling: the recovered method publishes
+#   ?Behavior@Flamethrower@@UAEHXZ and the vtable slot calls the flat Itanium
+#   name. That is a real fact and it is not a blocker, it is a DIRECTION: the
+#   port/faces_sync.txt row for this name was a FORWARD row (the face defining
+#   the member, calling the host copy's flat name) and is a REVERSE row now, so
+#   the generated face defines the flat name and calls the matched member. Same
+#   flip as the three rung-2 rows. All fifteen externals it declares resolve in
+#   the pre-seat map.
+#
+# src/_ZN6Coffin13InitResourcesEv.cpp -- REVERTED, see the note at the foot of
+#   this file. Kept here because the measurement is worth the next lane's time.
+#   ov071 Coffin (BBH), an MSVC-NAME
+#   shadow: the host object published ?InitResources@Coffin@@QAEHXZ and no _ZN
+#   for the stem join to see. port/unmatched/Coffin_InitResources.cpp is a
+#   MIRROR of the matched TU with exactly five lines deleted -- file-scope
+#   out-of-class member redeclarations, which mwcc accepts and MSVC refuses
+#   with C2761. THE SYNC REWROTE THE TU and those five lines are gone: a grep
+#   of the current src for a file-scope `Type Class::method(...);` finds ZERO.
+#   What replaced them is a local typedef (Fix12Raw) and one mangled extern for
+#   dBgW_KcMbg::SetFile, neither of which MSVC minds. The two decorated names
+#   the body now calls as real methods are both in this build's map already
+#   (?SetFile@ModelBase@@ in two spellings at one address, ?LoadFile@Model@@
+#   likewise), so the mirror is retired for the TU itself and no face changes.
+#
 src/func_ov091_021339fc.c
 src/func_ov006_02115248.cpp
 src/func_ov006_020e1dc8.cpp
@@ -109,3 +142,37 @@ src/func_ov071_021211e0.c
 src/game/actors/daTrs_c/_ZN7daTrs_c8BehaviorEv.cpp
 src/game/actors/daTrsTrap_c/_ZN11daTrsTrap_c13InitResourcesEv.cpp
 src/_ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr.cpp
+src/_ZN12Flamethrower8BehaviorEv.cpp
+
+# ---- ONE ROW REVERTED, AND WHY ---------------------------------------------
+#
+# src/_ZN6Coffin13InitResourcesEv.cpp was seated for one build and taken back
+# out. It COMPILES AND LINKS: the C2761 reason its mirror was written for is
+# genuinely stale. What stopped it is alternatename_guard, one row, and the
+# fix is in a file this lane does not own:
+#
+#   alternatename_guard: FAIL -- 1 NEW defeated alias(es), not in the baseline
+#     hal/actor_classes_updownlift.cpp:129
+#       /alternatename:?_ZN4dBgW22UpdatePosWithTransformERS_P8dActor_cR5dBgPi
+#       R7Vector3P10Vector3_16S8_@@3HA=?UpdatePosWithTransform@dBgW@@SAXAAU1@
+#       PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z
+#       LHS at 0001:00148a60, RHS NOT IN MAP
+#
+# READ THE TWO SPELLINGS SIDE BY SIDE AND THE ROW EXPLAINS ITSELF. The alias
+# names its target with the PRE-SYNC parameter types, PAUActor and
+# AAUClsnResult; the sync renamed those classes, and what this build's map
+# actually carries at 0x00148a60 is
+#   ?UpdatePosWithTransform@dBgW@@SAXAAU1@PAUdActor_c@@AAUdBgPi@@AAUVector3@@
+#   PAUVector3_16@@4@Z
+# from src/_ZN4dBgW22UpdatePosWithTransform...cpp.obj, which publishes the
+# @@3HA data spelling and the flat C name at that SAME address. So the alias
+# is dead twice over: its target no longer exists under that name, and the
+# name it was meant to redirect is already the right address. Nothing is
+# mis-bound -- the Coffin body takes the address it means to take -- but the
+# guard is a ratchet and it is right to refuse a pragma that cannot fire.
+#
+# THE FIX IS THE GUARD'S OWN AND IT IS ONE LINE: delete the dead
+# /alternatename at hal/actor_classes_updownlift.cpp:129. That file is not this
+# lane's, so the row stops here rather than being forced. Whoever owns it can
+# take this seat (+1) with that deletion and a rebuild; the TU itself needs
+# nothing.

@@ -16973,7 +16973,7 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp
     hal/actor_classes_montymole.cpp ${SLICE174_SOURCES} unmatched/MontyMole_StateDispatch.cpp unmatched/MontyMole_1Up.cpp
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
-    hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
+    hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES}
     ${SLICE_W8FACES_SOURCES}
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp
@@ -17262,7 +17262,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp
     hal/actor_classes_montymole.cpp ${SLICE174_SOURCES} unmatched/MontyMole_StateDispatch.cpp unmatched/MontyMole_1Up.cpp
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
-    hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
+    hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES}
     ${SLICE_W8FACES_SOURCES}
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp
@@ -17659,7 +17659,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp
     hal/actor_classes_montymole.cpp ${SLICE174_SOURCES} unmatched/MontyMole_StateDispatch.cpp unmatched/MontyMole_1Up.cpp
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
-    hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
+    hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES}
     ${SLICE_W8FACES_SOURCES}
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp

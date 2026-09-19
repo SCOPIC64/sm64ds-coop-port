@@ -349,7 +349,7 @@ __ZN8FireballD1Ev                                                        ??1Fire
 
 __ZN4Fish16OnPendingDestroyEv                                            ?OnPendingDestroy@Fish@@UAEXXZ                                   0x02146b00 R
 
-__ZN12Flamethrower8BehaviorEv                                            ?Behavior@Flamethrower@@UAEHXZ                                   0x021368f0 F
+__ZN12Flamethrower8BehaviorEv                                            ?Behavior@Flamethrower@@UAEHXZ                                   0x021368f0 R
 __ZN12FlamethrowerD1Ev                                                   ??1Flamethrower@@UAE@XZ                                          0x0213682c R
 
 __ZN19FloatOnLavaPlatformD1Ev                                            ??1FloatOnLavaPlatform@@UAE@XZ                                   0x021116c4 R
