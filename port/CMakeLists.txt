@@ -9313,12 +9313,16 @@ foreach(line IN LISTS SLICE_L15MG_LINES)
     endif()
     list(APPEND SLICE_L15MG_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
-# A slice that silently empties would take the three bodies out of the link
-# with no error until a scene dispatched one, so the count is asserted.
+# A slice that silently empties would take the bodies out of the link
+# with no error until a scene dispatched one, so the count is asserted. Run
+# link100 wave 15, lane ESP3D added the fourth row (CleanupResources,
+# seated by flipping its port/faces_sync.txt row F -> R instead of a plain
+# slice-line swap), so the floor moved from three to four.
 list(LENGTH SLICE_L15MG_SOURCES l15mg_have)
-if(NOT l15mg_have EQUAL 3)
+if(NOT l15mg_have EQUAL 4)
     message(FATAL_ERROR "slice_l15mg.txt lists ${l15mg_have} sources, expected "
-            "the three LINK15 BATCH 3 rows; the retired host copies in "
+            "the four LINK15 BATCH 3 rows (three from lane SEAT15D plus "
+            "CleanupResources from lane ESP3D); the retired host copies in "
             "port/unmatched/ no longer define them")
 endif()
 list(APPEND SLICE_S371_SOURCES ${SLICE_L15MG_SOURCES})
@@ -9589,9 +9593,16 @@ set_source_files_properties(
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_psy.txt" SLICE_PSY_LINES)
 set(SLICE_PSY_SOURCES hal/scene_mg_psycheout.cpp
                       unmatched/Mg3DEsp_StateDispatch.cpp
-                      # REPLACES src/_ZN12dScMg3DEsp_c16CleanupResourcesEv.cpp, which is out of
-                      # the slice: see the block below this one.
-                      unmatched/Mg3DEsp_Cleanup.cpp
+                      # unmatched/Mg3DEsp_Cleanup.cpp RETIRED run link100 wave
+                      # 15, lane ESP3D. src/_ZN12dScMg3DEsp_c16CleanupResourcesEv.cpp
+                      # is a real C++ member and is taken instead, through
+                      # port/slice_l15mg.txt; the flat Itanium name its one
+                      # caller (hal/scene_mg_psycheout.cpp) spells is now
+                      # published by the generated REVERSE face its
+                      # port/faces_sync.txt row asks for (F -> R). Put this
+                      # line back only together with the slice line, or the
+                      # link gets two definitions of the flat name.
+                      # unmatched/Mg3DEsp_Cleanup.cpp
                       # REPLACES src/_ZN15dMg3DEspModel_c8BehaviorEv.cpp, out of the slice:
                       # the EIGHTH dispatcher, and the one that reads its member
                       # pointer out of an OBJECT FIELD rather than a table. No

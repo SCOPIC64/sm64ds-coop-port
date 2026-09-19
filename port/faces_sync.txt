@@ -1300,7 +1300,7 @@ __ZN7dScMB_cD1Ev                                                         ??1dScM
 
 __ZN12dScMg3DEsp_c13InitResourcesEv                                      ?InitResources@dScMg3DEsp_c@@UAEHXZ                              0x020e9e70 R
 __ZN12dScMg3DEsp_c13OnYoshiTryEatEi                                      ?OnYoshiTryEat@dScMg3DEsp_c@@UAEXH@Z                             0x020e9c20 R
-__ZN12dScMg3DEsp_c16CleanupResourcesEv                                   ?CleanupResources@dScMg3DEsp_c@@UAEHXZ                           0x020e9cec F
+__ZN12dScMg3DEsp_c16CleanupResourcesEv                                   ?CleanupResources@dScMg3DEsp_c@@UAEHXZ                           0x020e9cec R
 __ZN12dScMg3DEsp_c6RenderEv                                              ?Render@dScMg3DEsp_c@@UAEHXZ                                     0x020e9d1c R
 __ZN12dScMg3DEsp_c8BehaviorEv                                            ?Behavior@dScMg3DEsp_c@@UAEHXZ                                   0x020e9e00 R
 __ZN12dScMg3DEsp_c9Virtual50Ev                                           ?Virtual50@dScMg3DEsp_c@@UAEXXZ                                  0x020e9c10 R

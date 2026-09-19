@@ -38,8 +38,8 @@
 #       the TU's own header says so in the past tense ("THE ARGUMENT IS THE
 #       FRAMEWORK OBJECT AND IT USED TO BE DROPPED HERE").
 #
-# THE TWO ROWS LINK15 PUT IN THIS BATCH THAT ARE NOT HERE, and why, so the
-# next census does not find them again:
+# THE ONE ROW LINK15 PUT IN THIS BATCH THAT IS STILL NOT HERE, and why, so the
+# next census does not find it again:
 #
 #   src/func_ov006_020d8408.c     REFUSED, the defect still holds. The census
 #       tested callee ARITY and src:4 does declare
@@ -53,16 +53,18 @@
 #       func_ov006_020d66c4+0xc reading 0x3879cf6c. An arity check over
 #       declarations cannot see a cast at a call site.
 #
-#   src/_ZN12dScMg3DEsp_c16CleanupResourcesEv.cpp   REFUSED, out of this
-#       batch's ownership. The matched TU is a real C++ member
-#       (`s32 dScMg3DEsp_c::CleanupResources()`), so it does NOT define the
-#       flat C name the port calls; port/faces_sync.txt:1303 carries the row as
-#       F and build/port/host-src/faces_sync_gen.cpp:5281 already DEFINES
-#       dScMg3DEsp_c::CleanupResources() as a forwarder into the flat name.
-#       Taking the src TU is an LNK2005 against that generated face. The seat
-#       is a one-row F->R flip in port/faces_sync.txt plus this slice line, and
-#       port/faces_sync.txt is not BATCH 3's to touch.
+#   src/_ZN12dScMg3DEsp_c16CleanupResourcesEv.cpp   SEATED, run link100 wave
+#       15, lane ESP3D, off SEAT15D's REFUSED note above (kept here for the
+#       record: it was out of BATCH 3's ownership because the matched TU is a
+#       real C++ member, `s32 dScMg3DEsp_c::CleanupResources()`, so it does
+#       NOT define the flat C name the port calls). The seat is exactly the
+#       one-row fix SEAT15D named: port/faces_sync.txt:1303 flips F -> R, so
+#       facegen now generates the REVERSE face -- it defines the flat Itanium
+#       name and calls the matched member -- instead of a forwarder that would
+#       have collided with this TU (LNK2005). port/unmatched/Mg3DEsp_Cleanup.cpp
+#       is retired the way SEAT15D retired its three.
 #
 src/func_ov006_020d3ba0.cpp
 src/func_ov006_020fa7b8.cpp
 src/func_ov004_020ad8b8.c
+src/_ZN12dScMg3DEsp_c16CleanupResourcesEv.cpp
