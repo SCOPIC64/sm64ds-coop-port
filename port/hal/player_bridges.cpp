@@ -1687,7 +1687,32 @@ void hal_render_player_world(void *player)
        against the body's real matrix rather than a stand-in. */
     int scene[12];
     for (int i = 0; i < 12; ++i) scene[i] = ((const int *)&ma->mat4x3)[i];
-    ma->ModelAnim::UpdateVerts();
+    /* NO RE-POSE AT DRAW TIME, because the cartridge does not have one, and
+       the second pose is not the same pose. src/_ZN6Player6RenderEv.cpp's body
+       draw is a bare Model::Render and poses nothing; the ROM's ONE per-frame
+       body pose is func_ov002_020e4768, in the behaviour pass:
+
+           func_020167a4(body)                  ModelComponents::UpdateBones,
+                                                bone records from the animation
+           func_ov002_020e640c(self)            THE HEAD AND NECK LOOK ANGLES,
+                                                written into the body's BMD bone
+                                                records at bones+0x1ba/0x1bc/0x1be
+                                                and +0x326/0x328/0x32a out of
+                                                Player +0x742 and +0x75c..0x766
+           UpdateVertsUsingBones(body+8)        transforms[] from those records
+           if (i == 3) head->Virtual10(bones+0x2d0)   Yoshi's head root
+
+       ModelAnim::UpdateVerts is UpdateBones + UpdateVertsUsingBones with the
+       middle step MISSING, so calling it here rewrote the bone records from the
+       raw animation, threw the look angles away and re-skinned. The head had
+       already been rooted at the look-corrected neck by the behaviour pass, so
+       the two disagreed. Measured with SM64DS_HSINK_PROBE=1 as the head anchor
+       minus the body neck, Fix12 in scene units: castle grounds as Yoshi, 55 of
+       118 head draws nonzero, worst 4430 at the walk-to-idle change; castle
+       interior, 228 of 257. Both go to 0 with this call gone, and btris stays
+       258 on every frame, which is the witness that the behaviour pass poses the
+       body by itself. A write watch on the neck bone showed it written twice a
+       frame with two different answers (out/HEAD3/bugs.md sections 1 and 2). */
     hal_player_vs_palette(c, (char *)ma);
     /* see-through, last before the draw so the per-frame material rebuild
        (UpdateVerts, the palette stamp) is already done and the alpha is what
