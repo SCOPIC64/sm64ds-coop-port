@@ -206,8 +206,15 @@ src/func_02011d14.c
 src/func_02048ed4.c
 
 # ---- host copies (banners carry the byte-verification numbers) -------------
-port/unmatched/Boo_Behavior.c
-port/unmatched/Boo_RenderUpdate.c
+# RETIRED (run link100 wave 14, lane SHADOWS3): both host copies named their
+# own retirement condition and the decomp met it. Boo_Behavior.c stood in for
+# _ZN7daTrs_c8BehaviorEv ("When the decomp lands a byte match for 0x0211b0a4,
+# that TU replaces this file via slice_w5a.txt") and Boo_RenderUpdate.c for
+# func_ov063_021166ac ("NOT matched in src/"). Both are on
+# port/slice_shadows3.txt now and both files are deleted. daTrs_c::Behavior is
+# recovered as a real C++ method, so the flat Itanium name its vtable face
+# calls is published by the generated reverse face its port/faces_sync.txt row
+# now asks for (F -> R).
 # RETIRED at the main->port sync (lane SYNC7, wave 9): main recovered this
 # body. src/unnamed/ov063/func_ov063_02117cdc.c owns ov063 .text
 # 0x02117cdc..0x02118458 in the merged delinks, which is the 0x77c bytes the
@@ -219,7 +226,13 @@ port/unmatched/Boo_RenderUpdate.c
 src/unnamed/ov063/func_ov063_02117cdc.c
 port/unmatched/Boo_Teleport.c
 port/unmatched/Boo_CrossNamedDispatch.c
-port/unmatched/MansionSteps_InitResources.c
+# RETIRED with them: MansionSteps_InitResources.c stood in for
+# _ZN11daTrsTrap_c13InitResourcesEv ("NOT matched in src/ (the other six
+# slots all are)"); it is matched now and on port/slice_shadows3.txt. Because
+# the matched TU recovers it as a real C++ method, the flat Itanium name the
+# registry's face calls is published by the generated reverse face its
+# port/faces_sync.txt row now asks for (the row was a FORWARD row while the
+# host copy owned the flat name; it is an R row now).
 port/unmatched/Bbh_PmfDispatch.c
 port/unmatched/Bbh_MethodFaces.cpp
 

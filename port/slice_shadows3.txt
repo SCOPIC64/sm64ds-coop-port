@@ -54,9 +54,9 @@
 #   ov065 0x02118838, 0x414 bytes. port/unmatched/Dorrie_Behavior.cpp names its
 #   own retirement condition in one line: "HOST COPY, not matched src: when the
 #   decomp banks the real TU, this body retires for the slice line." PR #2363
-#   (5dfb50c26) banked it. Dorrie_Behavior.cpp keeps its OTHER body
-#   (_ZN6Dorrie8BehaviorEv, which is a state-dispatch remodel and not a
-#   stand-in), so the file stays and only the one function is cut.
+#   (5dfb50c26) banked it. Dorrie_Behavior.cpp's OTHER body was already
+#   retired by lane FWD, so this was the last thing in it and the file is
+#   deleted with its slice line.
 #
 # src/func_ov016_02111c40.c -- Unagi's per-frame body-segment matrix chain,
 #   ov016 0x02111c40. port/unmatched/Unagi_BodyChain.cpp is explicit that it is
@@ -75,8 +75,10 @@
 # src/func_ov071_021211e0.c -- Mr. I's state 1 MAIN, ov071 0x021211e0, 0x314
 #   bytes. port/unmatched/MrI_StateMains.cpp says "for 0x021211e0 there is
 #   still nothing to slice", measured as a set difference against origin/main
-#   at bc93fa767. PR #2290 (f128981ac) closed that difference. The file keeps
-#   its other contents; only this body is cut.
+#   at bc93fa767. PR #2290 (f128981ac) closed that difference. Lane
+#   w9-harvest had already retired the file's other body (state 2 MAIN), so
+#   this was the last one and the file is deleted with its three CMake
+#   entries.
 #
 # src/game/actors/daTrs_c/_ZN7daTrs_c8BehaviorEv.cpp -- the Boo's per-frame
 #   state spine, ov063 0x0211b0a4, 0x7e4 bytes, vtable slot 6 of _ZTV7daTrs_c
@@ -102,3 +104,8 @@ src/func_ov006_02115248.cpp
 src/func_ov006_020e1dc8.cpp
 src/func_ov065_02118838.cpp
 src/func_ov016_02111c40.c
+src/func_ov063_021166ac.cpp
+src/func_ov071_021211e0.c
+src/game/actors/daTrs_c/_ZN7daTrs_c8BehaviorEv.cpp
+src/game/actors/daTrsTrap_c/_ZN11daTrsTrap_c13InitResourcesEv.cpp
+src/_ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr.cpp

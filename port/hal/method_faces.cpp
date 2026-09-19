@@ -1177,3 +1177,20 @@ void port_texseq_prepare_r1(void *self, void *bmd)
  * battery, its eight proofs and its level-1 capture all ran with the shrink
  * live. hostgen's own switch is untouched and is the A/B for the other half. */
 #pragma comment(linker, "/alternatename:?ReallocateModelFile@SharedFilePtr@@QAEXXZ=?ReallocateModelFile@SharedFilePtr@@QAEIXZ")
+
+/* ---- gate shadows3 -----------------------------------------------------
+   Run link100 wave 14, lane SHADOWS3 seated three rows whose recovered form
+   is a REAL C++ METHOD -- daTrs_c::Behavior, daTrsTrap_c::InitResources and
+   dEnemyBase_c::UpdateYoshiEat -- so the flat Itanium name their callers and
+   registry faces spell stopped being defined when the host copies went away.
+   THE FORWARDERS ARE NOT WRITTEN HERE. They were, for one build, and that
+   build named the reason not to: port/faces_sync.txt already carried all
+   three names as FORWARD rows -- the face DEFINING the member and calling the
+   host copy under its flat C name -- so a hand-written reverse face collided
+   with the generated one (LNK2005 on ?Behavior@daTrs_c@@UAEHXZ and its two
+   siblings, from faces_sync_gen.cpp.obj) and, worse, the pair would have
+   forwarded to each other. The ledger owns the direction, so the three rows
+   are flipped F -> R there instead: the generated face now defines the flat
+   name and makes the qualified call into the matched TU's member, which is
+   the same one-line body this file would have held, derived and re-checked
+   at every build by facegen.py --sync rather than typed once. */

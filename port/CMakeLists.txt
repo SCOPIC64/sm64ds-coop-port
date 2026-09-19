@@ -11376,7 +11376,13 @@ set(LEVELBOOT_HOST_SOURCES
     # residual is the 6o ordering floor, not matchable in this lane -- see the
     # file header). Retires the constant-0 stub that hal/actor_vtables.cpp used
     # to carry. It rides this slice, next to the enemy Behaviors that call it.
-    unmatched/Enemy_UpdateYoshiEat.cpp
+    # RETIRED (run link100 wave 14, lane SHADOWS3). The 6o ordering floor this
+    # file's header called unmatchable was crossed by PR #2369 (adf091af7);
+    # src/_ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr.cpp is on
+    # port/slice_shadows3.txt and the flat Itanium name its callers use is
+    # published by the generated reverse face its port/faces_sync.txt row now
+    # asks for (that row was a FORWARD row while this host copy owned the flat
+    # name; it is an R row now).
     # gate 16: two more mwcc pointer-to-member dispatches, both in actor
     # classes the registry carries. MSVC forms a PMF over an INCOMPLETE class
     # as the four-word general representation, which doubles the stride of the
@@ -16970,7 +16976,7 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
     ${SLICE_W8FACES_SOURCES}
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
-    hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp unmatched/MrI_StateMains.cpp
+    hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp
     # unmatched/MrI_Render.cpp RETIRED (run link100, lane EXCEPT): its own
     # header said "If _ZTV9ModelAnim ever gains a ROM-order view, this
     # retires", and SLOT5F gave it one. src/_ZN3MrI6RenderEv.cpp is on
@@ -17259,7 +17265,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
     ${SLICE_W8FACES_SOURCES}
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
-    hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp unmatched/MrI_StateMains.cpp
+    hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp
     # unmatched/MrI_Render.cpp RETIRED (run link100, lane EXCEPT): its own
     # header said "If _ZTV9ModelAnim ever gains a ROM-order view, this
     # retires", and SLOT5F gave it one. src/_ZN3MrI6RenderEv.cpp is on
@@ -17656,7 +17662,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
     ${SLICE_W8FACES_SOURCES}
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
-    hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp unmatched/MrI_StateMains.cpp
+    hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp
     # unmatched/MrI_Render.cpp RETIRED (run link100, lane EXCEPT): its own
     # header said "If _ZTV9ModelAnim ever gains a ROM-order view, this
     # retires", and SLOT5F gave it one. src/_ZN3MrI6RenderEv.cpp is on
