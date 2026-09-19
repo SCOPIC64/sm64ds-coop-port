@@ -2302,6 +2302,32 @@ static void l2_seat_fader_vtables(void)
        it -- same string, same return, correct frame. See l2_vt_trap8. */
     data_0208eacc[3] = (void *)l2_vt_trap8;
     data_0208eacc[4] = (void *)l2_vt_trap8;
+    /* eacc slots 2 and 5-9: run link100 lane FADERTRAP, the last unfinished
+       corner of this seat. relocs.txt (0208eae0..0208eaf0) resolves five of
+       the six remaining ROM words to the SAME FaderBrightness bodies the
+       sibling table data_0208eb2c already dispatches at its own +0x14..+0x24,
+       so those five are seated by REUSING those exact stubs -- matched by ROM
+       ADDRESS, not by slot number, since eacc's layout is not eb2c's:
+         eacc[5] 0x02017684 IsAtStart             == eb2c+0x14 l2_eb2c_s14
+         eacc[6] 0x02017670 IsAtEnd               == eb2c+0x18 l2_eb2c_s18
+         eacc[7] 0x02017628 IsBetweenStartAndEnd  == eb2c+0x1c l2_eb2c_s1c
+         eacc[8] 0x0201761c SetToEnd              == eb2c+0x20 l2_eb2c_s20
+         eacc[9] 0x02017610 SetToStart            == eb2c+0x24 l2_eb2c_s24
+       All five are the audit's "+0x14".."+0x24" __fastcall, no-stack-argument
+       predicates/setters, so the calling shape carries over unchanged.
+       Slot 2 (0x02017720, FaderBrightness::AdvanceFade) has no match on the
+       sibling table -- eb2c's own +0x08 is a DIFFERENT function, FaderColor::
+       AdvanceFade at 0x020174e0 -- so it keeps a trap. Its one dispatch site,
+       func_02018efc's `((void(*)(void*))vt[2])(o)` (the audit above, "+0x08
+       slot 2"), is the same CDECL/caller-cleans shape as slots 3 and 4's, so
+       it gets the trap those already use rather than the bare one:
+       l2_vt_trap8, not l2_vt_trap. */
+    data_0208eacc[2] = (void *)l2_vt_trap8;
+    data_0208eacc[5] = (void *)l2_eb2c_s14;
+    data_0208eacc[6] = (void *)l2_eb2c_s18;
+    data_0208eacc[7] = (void *)l2_eb2c_s1c;
+    data_0208eacc[8] = (void *)l2_eb2c_s20;
+    data_0208eacc[9] = (void *)l2_eb2c_s24;
     ((void **)data_0208eafc)[0] = (void *)l2_eafc_s00;
     ((void **)data_0208eafc)[1] = (void *)l2_eafc_s04;
     data_0208eb2c[0] = (void *)l2_eb2c_s00;
