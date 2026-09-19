@@ -5149,6 +5149,37 @@ foreach(line IN LISTS SLICE_W8PACKS_LINES)
     list(APPEND SLICE_W8PACKS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run link100 wave 14, lane SEAT14B (BATCH 5): the one ov022 row wave 8 held
+# out of slice_w8packs.txt, _ZN9LavaPlank16CleanupResourcesEv. Its G0/G1
+# refusal is stale -- the TU now spells its two SharedFilePtrs by the names
+# config/arm9/overlays/ov022/symbols.txt gives 0x02114620 and 0x02114618, so
+# it needs no per-source -D, only the two /alternatename lines in
+# hal/actor_classes_ov022.cpp. port/slice_lava.txt carries the derivation.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_lava.txt" SLICE_LAVA_LINES)
+set(SLICE_LAVA_SOURCES "")
+foreach(line IN LISTS SLICE_LAVA_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_LAVA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run link100 wave 14, lane SEAT14B (BATCH 7): small-overlay singles. One row,
+# src/BookSwitch_Spawn.c -- the dsd-misnamed ov016 body at 0x021115a4 that is
+# really Unagi's d7c state ENTER, retiring the hand transcription in
+# unmatched/Unagi_StateDispatch.cpp. port/slice_small7.txt carries the
+# instruction-level verification and the three refusals this batch also names.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_small7.txt" SLICE_SMALL7_LINES)
+set(SLICE_SMALL7_SOURCES "")
+foreach(line IN LISTS SLICE_SMALL7_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_SMALL7_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # run linkw wave 10, lane w10-shared: ov031's SLIDE DECORATION QUAD -- FOUR
 # spawn-table ids (302/303/304/305) onto ONE ROM class and ONE table
 # (0x02111984), x3 each on level 23, whose entire baseline skip set was those
@@ -16909,7 +16940,7 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W3A_SOURCES}
     ${SLICE_W7C_SOURCES}
-    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
+    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES} ${SLICE_LAVA_SOURCES}
     hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
     ${SLICE_W10B_SOURCES}
     ${SLICE_W11_SOURCES}
@@ -16995,6 +17026,7 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     # method recoveries take a cdecl face in hal/except_faces.cpp and the two
     # C names need none.
     unmatched/Unagi_StateDispatch.cpp unmatched/Jrb_Aliases.cpp
+    ${SLICE_SMALL7_SOURCES}
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp ${SLICEKLEPTO_SOURCES} unmatched/Klepto_StateDispatch.cpp unmatched/Klepto_PathPtrFaces.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
@@ -17196,7 +17228,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W3A_SOURCES}
     ${SLICE_W7C_SOURCES}
-    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
+    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES} ${SLICE_LAVA_SOURCES}
     hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
     ${SLICE_W10B_SOURCES}
     ${SLICE_W11_SOURCES}
@@ -17284,6 +17316,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     # method recoveries take a cdecl face in hal/except_faces.cpp and the two
     # C names need none.
     unmatched/Unagi_StateDispatch.cpp unmatched/Jrb_Aliases.cpp
+    ${SLICE_SMALL7_SOURCES}
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp ${SLICEKLEPTO_SOURCES} unmatched/Klepto_StateDispatch.cpp unmatched/Klepto_PathPtrFaces.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
@@ -17593,7 +17626,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W3A_SOURCES}
     ${SLICE_W7C_SOURCES}
-    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
+    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES} ${SLICE_LAVA_SOURCES}
     hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
     ${SLICE_W10B_SOURCES}
     ${SLICE_W11_SOURCES}
@@ -17681,6 +17714,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     # method recoveries take a cdecl face in hal/except_faces.cpp and the two
     # C names need none.
     unmatched/Unagi_StateDispatch.cpp unmatched/Jrb_Aliases.cpp
+    ${SLICE_SMALL7_SOURCES}
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp ${SLICEKLEPTO_SOURCES} unmatched/Klepto_StateDispatch.cpp unmatched/Klepto_PathPtrFaces.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
