@@ -5121,6 +5121,24 @@ foreach(line IN LISTS SLICE_L15CP_LINES)
     list(APPEND SLICE_L15CP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run link100 wave 15, lane SEAT15E (LINK15 BATCH 4): the ov007 / ov002 / ov096
+# singles. Every row is a port/unmatched/ host copy whose banner named a defect
+# in the matched source and worked around it; the source has since been fixed
+# and nothing re-read the banner. port/slice_l15ov7.txt quotes, per row, the
+# sentence that was re-tested against src/ at 8ddff3187 and what it reads now,
+# and carries the one row of the batch whose refusal STILL holds
+# (LoadEntranceObjects) as a written refusal rather than a deletion. Same
+# one-owner reader shape as the lane slices above.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_l15ov7.txt" SLICE_L15OV7_LINES)
+set(SLICE_L15OV7_SOURCES "")
+foreach(line IN LISTS SLICE_L15OV7_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_L15OV7_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # run linkw wave 6, lane w6-D: PATH_LIFT (31) and the PathLift base branch --
 # ov100's daObjPathLift_c over ov002's PathLiftActor_c over Platform, the
 # first three-level hierarchy this port hosts that is split across overlays.
@@ -6226,10 +6244,25 @@ foreach(line IN LISTS SLICE_OV007_LINES)
     # delete this if-block to put the TU back and the marker re-arms in that
     # configure, unasked, because the same edit that restores the body clears
     # the flag that retires the marker.
+    # RETIRED, run link100 wave 15, lane SEAT15E. THE DISPLACEMENT IS GONE AND
+    # THE MATCHED TU IS BACK: src/func_ov007_020be980.c today is
+    #     void func_ov007_020be980(char *r0, int i, int a2)
+    #     { func_ov007_020bc3dc(*(void**)(r0+4), i, a2); ... }
+    # -- three parameters declared, three passed, into a callee
+    # src/func_ov007_020bc3dc.c defines as (void *, int, int). Nothing rides r1
+    # or r2 through a frame that does not name them any more, so the reason this
+    # block cut the line is measurably gone. The four arm_call rows landing on
+    # 0x020be980 in config/arm9/overlays/ov007/relocs.txt all pass three
+    # arguments, so the arity the source now spells is the ROM's own.
+    #
+    # THE FLAG STAYS AND THE `continue()` GOES, which is the whole edit. The PC2
+    # marker block below reads RT1_BE980_IN_SLICE and RT1_BE980_DISPLACED as a
+    # pair, and its three-way message only tells the truth while the "is the
+    # line in the slice" half keeps saying yes. Dropping the flag with the cut
+    # would print "not in the slice at all ... the link fails before scene 1 can
+    # be judged" over a tree where the seam is seated and scene 1 runs.
     if(line MATCHES "^src/func_ov007_020be980\\.c$")
         set(RT1_BE980_IN_SLICE TRUE)
-        set(RT1_BE980_DISPLACED TRUE)
-        continue()
     endif()
     # run link60 lane AE1: THE SECOND DISPLACEMENT IN THIS SLICE, and the
     # OPPOSITE FRAME from the one above.
@@ -6258,10 +6291,30 @@ foreach(line IN LISTS SLICE_OV007_LINES)
     # no longer shipped -- the exact failure RT1 caught in PC2's predicate,
     # arriving a third time. The cut therefore sets its own DISPLACED flag and
     # the predicate reads both, which is the shape the be980 block already had.
+    # RETIRED, run link100 wave 15, lane SEAT15E. THE DISPLACEMENT IS GONE AND
+    # THE MATCHED TU IS BACK: src/func_ov007_020add3c.c opens
+    #     extern int func_ov007_020ae558(char *self);
+    # and calls it `int r = func_ov007_020ae558(c);` on its own incoming
+    # argument, and src/func_ov007_020ae558.c defines
+    # `int func_ov007_020ae558(char *self)` with that one parameter. The value
+    # this frame used to destroy is passed now, so there is nothing left for a
+    # stack ABI to lose and nothing for the host copy to spell out. The rest of
+    # the host body was the same source's statement list line for line.
+    #
+    # THE FLAG STAYS AND THE `continue()` GOES, for the reason the be980 block
+    # above gives: the RT1 marker block below reads RT1_ADD3C_IN_SLICE and
+    # AE1_ADD3C_DISPLACED as a pair, and only the pair tells "the seam is
+    # seated" apart from "the TU vanished and the link is about to fail". The
+    # marker retires by its own predicate in the same configure, because the
+    # `(void)` declaration of func_ov007_020ae558 it greps for is gone.
+    #
+    # port/tools/tailjump_guard.py's Class A row 1 comes back off RETIRED in
+    # this build, because its `tu` (src/func_ov007_020add3c.c) is now what the
+    # build really compiles. The row requires this frame to emit a REAL CALL
+    # and forbids a tail jump; the seated body is twenty statements, so the
+    # required form is what MSVC has to emit.
     if(line MATCHES "^src/func_ov007_020add3c\\.c$")
         set(RT1_ADD3C_IN_SLICE TRUE)
-        set(AE1_ADD3C_DISPLACED TRUE)
-        continue()
     endif()
     # run link60 Stage 5 lane TS1: THE THIRD DISPLACEMENT IN THIS SLICE, and
     # the same frame shape as the two above.
@@ -6406,20 +6459,13 @@ endforeach()
 # three implicit-argument defects in a row (020c78b0, 020cc600, the
 # 02013edc/02042fe4 veneer pair) recovered with the byte match intact, which is
 # what made this worth re-attempting rather than assuming settled.
-if(AE1_ADD3C_DISPLACED)
-    list(APPEND SLICE_OV007_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_ImplicitR0_020add3c.cpp")
-elseif(NOT RT1_ADD3C_IN_SLICE)
-    # Same two opposite states the be980 branch below distinguishes, and for
-    # the same reason: the slice line is the only thing that puts the matched
-    # TU in the build, so if the line is gone the host copy must not be added
-    # blind. Two bodies for one address is an LNK2005 and none is a silent
-    # undefined symbol.
-    message(STATUS "AE1: slice_ov007.txt no longer lists "
-                   "src/func_ov007_020add3c.c, so the implicit-r0 host copy is "
-                   "NOT added and the link will fail on it. Restore the line: "
-                   "this block does the cutting, not the slice file")
-endif()
+# RETIRED, run link100 wave 15, lane SEAT15E: the implicit-r0 host copy is no
+# longer appended, because the cut above no longer happens and the matched TU is
+# in SLICE_OV007_SOURCES as itself.
+# port/unmatched/Ov007_ImplicitR0_020add3c.cpp keeps its derivation -- the
+# 54-instruction capstone reading, the eight-arm jump table, and the measured
+# save-versus-argument listing at 0042A310 that settled the class -- and carries
+# no body, so it can never become a second definition of 0x020add3c.
 # RETIRED, run mg16 arc 4. src/func_ov007_020c2b9c.c now SPELLS the return its two
 # matched callers already declare -- `void*` and `return r;` -- and STILL
 # byte-matches at 2004/b56 (23 words, 0 MISMATCH). The matched TU is in the build
@@ -6442,29 +6488,12 @@ elseif(NOT TS1_B6EB4_IN_SLICE)
                    "NOT added and the link will fail on it. Restore the line: "
                    "this block does the cutting, not the slice file")
 endif()
-if(RT1_BE980_DISPLACED)
-    list(APPEND SLICE_OV007_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_RideThrough_020be980.cpp")
-elseif(NOT RT1_BE980_IN_SLICE)
-    # The slice line is the only thing that puts the matched TU in the build,
-    # so if it is gone the host copy must not be added blind: two bodies for
-    # one address is an LNK2005, and none is a silent undefined symbol. Say
-    # which state the tree is in rather than guessing.
-    #
-    # THE LIKELY WAY TO LAND HERE is following the port's OTHER idiom for this.
-    # unmatched/Actor_ClosestPlayerWrappers.cpp answers the same defect class by
-    # COMMENTING the src line out of slice_gate16.txt and slice_gate89.txt and
-    # appending its host copy unconditionally; gate 10's and gate 14's
-    # displacements instead leave the line and filter it here. Both are in the
-    # tree and neither is wrong. This seam uses the filter because the marker
-    # predicate below has to read whether the TU is in the build, and a flag set
-    # by the cut itself is the only form of that which cannot drift. If you
-    # commented the line out, put it back and let this filter do the cutting.
-    message(STATUS "RT1: slice_ov007.txt no longer lists "
-                   "src/func_ov007_020be980.c, so the ride-through host copy is "
-                   "NOT added and the link will fail on it. Restore the line: "
-                   "this block does the cutting, not the slice file")
-endif()
+# RETIRED, run link100 wave 15, lane SEAT15E: the ride-through host copy is no
+# longer appended, because the cut above no longer happens and the matched TU is
+# in SLICE_OV007_SOURCES as itself. port/unmatched/Ov007_RideThrough_020be980.cpp
+# keeps its derivation -- the capstone reading at the config-aligned base, the
+# four-call-site arity sweep, the r1/r2 liveness correction -- and carries no
+# body, so it can never become a second definition of 0x020be980.
 
 # run link60 Stage 5 lane T2: THE HARDWARE DIVIDER'S LAST RAW CALLER.
 #
@@ -17235,6 +17264,8 @@ add_executable(smoke_player EXCLUDE_FROM_ALL tests/smoke_player.cpp "${OV002DATA
     ${OV029_SOURCES}
     # ---- link100 OV ---- ids 348 (ov002, daChRoom_c) and 314 (ov039, Cloud)
     hal/actor_classes_ov_link100.cpp ${SLICE217_SOURCES}
+    # run link100 wave 15, lane SEAT15E: LINK15 BATCH 4 seats (slice_l15ov7)
+    ${SLICE_L15OV7_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -17555,6 +17586,8 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     # run linkw wave 8 (lane w8-a): the Stage class closure, first piece.
     hal/w8a_stage_storage.cpp hal/w8a_stage_faces.cpp ${SLICE_W8A_SOURCES}
     "${PORT_GITTIP_C}"
+    # run link100 wave 15, lane SEAT15E: LINK15 BATCH 4 seats (slice_l15ov7)
+    ${SLICE_L15OV7_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -17938,6 +17971,8 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     # ---- link100 OV ---- ids 348 (ov002, daChRoom_c) and 314 (ov039, Cloud)
     hal/actor_classes_ov_link100.cpp ${SLICE217_SOURCES}
     "${PORT_GITTIP_C}"
+    # run link100 wave 15, lane SEAT15E: LINK15 BATCH 4 seats (slice_l15ov7)
+    ${SLICE_L15OV7_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
