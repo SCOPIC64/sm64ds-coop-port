@@ -1156,6 +1156,169 @@ static void port_level_change_declined(void)
 /* defined further down, with the whole derivation beside it */
 extern "C" int port_scene_request_release(const char *why);
 
+/* ---- THE PAINTING ENTRY: level -> star select -> level, in one process ----
+ *
+ * ON THE CARTRIDGE, entering a painting shows the star select. The decision is
+ * not the painting's and not the port's: it is Stage::Behavior's, the Stage's
+ * own vtable slot 6, dispatched every frame and matched src in this tree
+ * (src/_ZN5Stage8BehaviorEv.cpp:190-198):
+ *
+ *     if (data_02092110 >= 0) {                        // a level change is pending
+ *         lvl  = SublevelToLevel(data_02092110);       // the level being entered
+ *         lvl2 = SublevelToLevel(data_0209f2f8);       // the level being left
+ *         bb   = (data_0209f2d8 == 2);
+ *         if (bb == 0 && lvl <= 0xe && lvl != lvl2 && data_02092118 < 0
+ *             && (data_02092110 != 0xc || data_0209f268 != 4))
+ *             dScene_c::SetSceneToSpawn(4, 0);         // THE STAR SELECT
+ *         else
+ *             dScene_c::SetSceneToSpawn(3, 0);         // straight into the level
+ *     }
+ *
+ * EVERY REFUSAL IN THAT `if` IS THE ROM'S OWN and this file adds none: game
+ * mode 2, anything above the fifteen main courses (the castle rooms, the caps,
+ * the Bowser stages, the key courses, the Rec Room, every VS map), a sublevel
+ * of the course you are already in, a latched return level, and Big Boo's
+ * Haunt through entrance 4. A minigame and the opening never reach the block at
+ * all -- it is inside Stage::Behavior and a minigame scene has no Stage, and
+ * the opening's own change is level 1 -> level 1, which fails `lvl != lvl2`
+ * and takes the scene-3 arm. Measured: the opening gate's run log prints
+ * "[lvl] change: level 1 -> 1" followed by "pending scene 3 released".
+ *
+ * THAT BODY ALREADY RUNS HERE. _ZTV5Stage slot 6 is the ROM's Stage::Behavior
+ * on walk_window and walk_window_hires (SM64DS_STAGE_SLOT6_ROM, the thunk in
+ * hal/stage_bridges.cpp into hal/stage_frame.cpp's port_stage_rom_behavior), so
+ * on every painting entry the cartridge's own code writes data_02092664 = 4 --
+ * and the port threw the request away, one statement later, in
+ * port_level_change_poll's release. The whole of what follows is the port
+ * answering it instead.
+ *
+ * WHEN THE DECISION ARRIVES, which is the thing that shapes this code.
+ * port_level_teardown's convergence loop calls port_actor_tick, and the Stage
+ * HEADS the behaviour list, so Stage::Behavior runs FROM INSIDE THE TEARDOWN
+ * (the banner above port_level_change_poll works that out for level 20). So the
+ * scene id is not readable before the teardown; it is readable after it. The
+ * cartridge's order is the same -- the Stage's own destruction is what produces
+ * the next scene -- and that is why this call sits where it does, between the
+ * teardown half of port_level_change_apply and its boot half.
+ *
+ * WHAT THE INTERLUDE RUNS. hal/scene_boot.cpp's port_scene_tick is the scene
+ * frame, complete: the touch poll, the scripted pad, port_scene_comms_publish,
+ * the SCENE-REQUEST CARRIER (the ROM's own Scene::SpawnIfNecessary, which is
+ * what spawns dScStarSel_c and clears the pending id itself), port_actor_tick,
+ * the frame clock, the fader advance, port_actor_render, gx_render and
+ * hal_sub_screen_present. Nothing new is written here; the level path simply
+ * had no caller for it. Measured, warp castle grounds -> Bob-omb Battlefield:
+ *
+ *     [starsel] at the seam: pending scene 4, spawned latch 0, level request 6
+ *     [scene] CARRIER: scene 4 pending -> SpawnIfNecessary SPAWNED (frame 0)
+ *     [starsel] the star select asked for SCENE 3 at frame 217; act 1
+ *     [lvl] level 6 up.
+ *     [lvl] re-seated: player 30039DEC camera 30039C34
+ *
+ * THE STOP IS THE STAR SELECT'S OWN HANDOFF. dScStarSel_c::Behavior ends in
+ * StartSceneFade(3, 0, 0) (src/_ZN12dScStarSel_c8BehaviorEv.cpp:144) and writes
+ * the act on the next line, data_0209f1f0 = FB(this, 0x115) + 1. Scene 3 is the
+ * Stage, so the scene's own exit is "boot the level with this star", and
+ * port_level_latch's third line -- data_0209f220[0] = data_0209f1f0 -- carries
+ * it. The port chooses no act and no star.
+ *
+ * WHAT IS NOT DONE HERE AND IS MEASURED, not assumed. data_02092660, the ROM's
+ * "a scene has spawned" latch, does not return to 0 on this route, so the star
+ * select is not destroyed by the ROM's own path before the level boots: the
+ * title bridge's stop test (`== 3 && data_02092660 == 0`) would never fire, and
+ * this one deliberately does not use it. Measured either way the level boots
+ * and the run stays clean for 1500 frames. The fade is also not armed across
+ * the crossing, so the cut is hard rather than covered; arming a cover whose
+ * reveal is not wired on this route would leave a white screen, which is worse
+ * than a cut. Both are named in the lane's write-up rather than papered over.
+ *
+ * DEFAULT ON, because on the cartridge every course entry shows this screen.
+ * SM64DS_STARSEL_PAINTING=0 declines the interlude on the same binary, which is
+ * how the before/after is taken without a rebuild.
+ */
+extern "C" {
+extern unsigned short data_02092664;    /* Scene::SetSceneToSpawn's pending id */
+extern unsigned char  data_02092660;    /* its "already spawned" latch */
+void port_scene_tick(int frame, int tick_game);   /* hal/scene_boot.cpp */
+}
+
+/* Read by the three ROM Stage slots (hal/stage_frame.cpp's
+   port_stage_rom_behavior and port_stage_rom_render, hal/stage_bridges.cpp's
+   st_bbeh). While this answers 1 the port has no Stage, which is what the
+   cartridge means at this moment: Scene::BeforeBehavior marked the Stage for
+   destruction before Scene::SpawnIfNecessary spawned the star select. The port
+   keeps ONE Stage alive across every level change and slot 3
+   (CleanupResources) is not hosted, so it cannot follow the ROM there; a
+   dormant Stage is the closest honest host state, and it is not cosmetic.
+   Measured with the slots live: Stage::Render reached Camera::IsUnderwater
+   through Stage::RenderFog and faulted on the camera the teardown destroyed
+   (c0000005 at Camera::IsUnderwater), and Scene::BeforeBehavior took
+   its `data_02092664 != 0x187` arm and marked the Stage, which aborts at the
+   slot-3 trap one frame later. Stage::Behavior would also re-issue
+   SetSceneToSpawn(4) every frame on top of the star select's own
+   StartSceneFade(3), because data_02092110 is still pending until the latch. */
+static int g_interlude_live;
+
+extern "C" int port_level_interlude_live(void) { return g_interlude_live; }
+
+static int port_starsel_painting_on(void)
+{
+    static int on = -1;
+    if (on < 0) {
+        const char *e = std::getenv("SM64DS_STARSEL_PAINTING");
+        on = (e && std::atoi(e) == 0) ? 0 : 1;   /* DEFAULT ON */
+    }
+    return on;
+}
+
+/* Between the teardown half and the boot half. The level is gone,
+   data_02092110 still names the level being entered (the latch has not run, so
+   the star select's own SublevelToLevel(data_02092110) test reads the right
+   level), and data_02092664 holds what Stage::Behavior decided. */
+static void port_level_scene_interlude(void)
+{
+    if (!port_starsel_painting_on())
+        return;
+    if (data_02092664 != 4)
+        return;                     /* the ROM's own scene-3 arm: straight in */
+
+    int cap = 1800;
+    if (const char *e = std::getenv("SM64DS_STARSEL_FRAMES"))
+        cap = std::atoi(e);
+    std::fprintf(stderr, "[starsel] at the seam: pending scene %u, spawned "
+                 "latch %u, level request %d -- running the star select in "
+                 "this process for up to %d frames\n",
+                 (unsigned)data_02092664, (unsigned)data_02092660,
+                 (int)data_02092110, cap);
+
+    int f = 0;
+    g_interlude_live = 1;
+    for (; f < cap; ++f) {
+        port_scene_tick(f, 1);
+        if ((f % 300) == 0)
+            std::fprintf(stderr, "  [starsel] f%d pending %u latch %u act %d\n",
+                         f, (unsigned)data_02092664, (unsigned)data_02092660,
+                         (int)data_0209f1f0);
+        if (data_02092664 == 3) {
+            std::fprintf(stderr, "[starsel] the star select asked for SCENE 3 "
+                         "at frame %d; the act it chose is data_0209f1f0 = %d "
+                         "(dScStarSel_c::Behavior's own FB(this,0x115) + 1; the "
+                         "port chose none of it)\n", f, (int)data_0209f1f0);
+            break;
+        }
+    }
+    g_interlude_live = 0;
+    if (f >= cap)
+        std::fprintf(stderr, "[starsel] the star select did not pick inside %d "
+                     "frames (pending %u, latch %u); the level boots with the "
+                     "act as it stands rather than hanging\n", cap,
+                     (unsigned)data_02092664, (unsigned)data_02092660);
+    /* Whatever happened, the port has now done everything it is going to do
+       about the request, so it completes Scene::SpawnIfNecessary's other half
+       exactly as the poll's own tail release does. */
+    port_scene_request_release("the star-select interlude is over");
+}
+
 extern "C" int port_level_change_apply(void)
 {
     if (data_02092110 < 0)
@@ -1242,6 +1405,12 @@ extern "C" int port_level_change_apply(void)
 
     const unsigned free_torn = port_level_heap_free();
     port_level_reset_host();
+    /* THE TEARDOWN HALF ENDS HERE AND THE BOOT HALF BEGINS BELOW. The
+       banner above port_level_scene_interlude says why the scene runs
+       between them and not before or after: the ROM's own decision is
+       written from inside the teardown, and the latch below consumes the
+       level request the star select has to read. */
+    port_level_scene_interlude();
     port_level_latch();
     /* Point the boot at the level the latch just made current. Without this the
        boot's mount resolved to the env-cached level and the warp re-booted the
