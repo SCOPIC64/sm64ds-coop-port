@@ -1450,10 +1450,38 @@ def main():
     # out to apply within one mount too.
     covering = make_covering((a, a + sz, n) for n, a, sz, _ in emitted)
 
+    # SIX FALSE RELOCS.TXT ROWS, MEASURED AGAINST THE CARTRIDGE (run link100 lane
+    # TEX3, 2026-09-19). Tango's bug 6 was "buggy texture spots" on the file-select
+    # castle. The castle is engine B's BG2, an 8bpp text BG whose tile data is
+    # copied verbatim out of data_ov007_020f295c, and six aligned words inside that
+    # asset spell addresses inside ov007's own data window. dsd's delink read them
+    # as pointer loads, so the pass below rewrote four picture bytes at each of
+    # them into a host address and the picture grew six wrong spots. The ROM word
+    # reproduces the cartridge pixel at all 24 bytes to within the 5-bit/6-bit
+    # quantisation floor (2 to 6 summed RGB); the patched word is 270 to 448 away.
+    # Evidence, both sides, byte by byte: out/TEX3/card_ov007reloc.md.
+    #
+    # The rows are excluded HERE and not in config/, because relocs.txt is decomp
+    # config shared with the ROM build and a relink at the ROM's own addresses
+    # writes the same bytes back either way, so the byte gate is blind to it and a
+    # config change is a separate, gated PR. Leaving the word unpatched leaves the
+    # raw DS address the cartridge has, which is what the picture wants; nothing
+    # follows it as a pointer.
+    # The last two are the BG2 TILEMAP, data_ov007_020dbdbc, an NCSC screen file:
+    # they overwrote map entries 524 to 527 of a row that otherwise runs 0x0204
+    # to 0x0214 without a break.
+    FALSE_RELOC_SITES = {
+        "ov007": {0x020f4530, 0x020f7cc8, 0x020f7ce0,
+                  0x020f84f8, 0x020f85bc, 0x020f8d20,
+                  0x020dc1fc, 0x020dc200},
+    }
+
     patches = []
     for name, a, size, blob in emitted:
         for off in range(0, size - 3, 4):
             if relocs.get(a + off) is None:
+                continue
+            if (a + off) in FALSE_RELOC_SITES.get(ov, ()):
                 continue
             v = int.from_bytes(blob[off:off + 4], "little")
             hit = covering(v)
