@@ -2269,6 +2269,32 @@ static void client_to_src(int cx, int cy, int *x, int *y, int *sw, int *sh)
            back out so an inside/outside answer is exact at the seam. */
         if (cx < g_pr_x) *x = -1;
         if (cy < g_pr_y) *y = -1;
+    } else if (hal_sub_screen_stacked()) {
+        /* NOTHING HAS PRESENTED AND THE STACKED IMAGE CARRIES ITS OWN SCALE,
+           so the divide below would halve a point that is already in the
+           image's own pixels. Measured (run link100 lane TOUCH1): a scene 374
+           window quiet-spawned minimized never presents at all -- the probe
+           prints "NO PRESENT RECTANGLE was ever published ... src 0x0, layout
+           stacked, image 512x832 ... bottom_y 448" after fifteen hundred
+           frames -- and the halved point lands 400 rows above the bottom
+           screen's band, so every click in that window reads as the TOP screen
+           and nothing is ever published. Minimized-never-activated is the ONLY
+           window shape allowed while Tango is present, so that is not a corner
+           case, it is the shape every click-driven proof has to run in.
+
+           1:1 IS THE IMAGE'S OWN MAPPING, not a guess: the stacked image is
+           built at 512x832 and the window's client area is sized to follow it
+           (hal/gap's "the stacked image grew 768 -> 832 rows; the window
+           client area follows"), so with no fit to invert, client pixel IS
+           image pixel. The zoom divide stays for the inset layout, where the
+           source is one framebuffer and the zoom is the window's.
+
+           IT CANNOT MOVE A RUN THAT PRESENTED. present() publishes a real
+           rectangle on its first frame and that takes the branch above; this
+           one is only reached before the first present or when there is none
+           at all. */
+        *x = cx;
+        *y = cy;
     } else {
         /* nothing has presented yet: the fixed-zoom divide this was before */
         *x = cx / (g_zoom > 0 ? g_zoom : 1);
