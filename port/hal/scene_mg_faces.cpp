@@ -784,3 +784,109 @@ int func_0202e78c(void *)
  */
 
 }  /* extern "C" */
+
+/* ---- 8. THE TWENTY-FIFTH CURLING STATE IS THE ROM'S OWN BODY NOW ----------
+ *
+ * Run link100 wave 14, lane SEAT14E, BATCH 4. SECTION 3 ABOVE IS NOW STALE IN
+ * ITS LAST PARAGRAPH and this is the correction rather than a rewrite of it.
+ * "WHAT STILL STANDS, unchanged and deliberately so: it STILL gets no symbol
+ * here ... The decomp has no body for 0x020e1854" was exactly true when lane
+ * CT1 wrote it. The decomp has one now: PR #2352 (86a6e696d, "Match three more
+ * ov006 minigame functions: the Coin cup touch test, the pen drag handler and
+ * the Coin cursor sprite") landed src/func_ov006_020e1854.c, and this tree
+ * carries its delink block --
+ *
+ *     config/arm9/overlays/ov006/delinks.txt:1785
+ *         src/func_ov006_020e1854.c:  .text start:0x020e1854 end:0x020e1b54
+ *
+ * which is 0x300 bytes, the size the address has always had here. The file
+ * carries no NONMATCHING banner. It is on port/slice_mg7.txt and
+ * port/unmatched/MgCurling_State_020e1854.cpp -- CT1's hand transcription of
+ * those same 0x300 bytes, written because there was no source -- is retired in
+ * the same commit with its CMakeLists line.
+ *
+ * VERIFIED AGAINST THE CARTRIDGE AND NOT AGAINST A NOTE, because the whole
+ * reason section 3 spent four paragraphs on this address is that a plausible
+ * body at a wrong address is the failure mode here. In
+ * extracted/overlays/overlay_0006.bin at base 0x020bfec0 the pointer-to-member
+ * pair section 3 names reads
+ *
+ *     0x0213c2bc  0x020e1854      the code word
+ *     0x0213c2c0  0x00000000      its adjustment
+ *
+ * and the words at 0x020e1854 are e92d43f0 e24dd004 e59f12d8 e59f22d8
+ * e5d11000 e1a09000 -- stmdb sp!, {r4-r9, lr} and the frame set-up. A function
+ * entry, at the table's own word, at the address the delink block covers.
+ *
+ * NO NEW EDGE IS CREATED. unmatched/MgCurling_StateDispatch.cpp has called
+ * port_mg_curling_st_020e1854 by name since run link60 lane MG2 (two case rows
+ * and one CUR_FACE0), and it still does: the name is DEFINED HERE now, as one
+ * call into the matched body. The dispatch file is not touched and the ROM's
+ * own state word is what still selects the state. That is the same shape lane
+ * SHADOWS3 used for the five rows it retired tonight, one level down: the
+ * stand-in goes, the reference edge stays exactly where it was.
+ *
+ * THE INSTRUMENT MOVES WITH THE BRIDGE. The transcription carried an entry
+ * counter and an SM64DS_MG_CURLING_TRACE dump, and its banner's reason for them
+ * -- "the state was entered has to be a measurement and not an assumption" --
+ * survives the seat unchanged, so they are here rather than lost. The env read
+ * is still once per process, not once per entry; this runs every frame the
+ * stylus is down. Nothing outside the retired file ever referenced
+ * port_mg_curling_st_020e1854_entries, so it keeps its internal-only shape.
+ *
+ * WHAT IS OWED. This state is the PEN HANDLER. It runs only while the stylus is
+ * down, so no headless run without input enters it: the seat rests on the
+ * byte-for-byte arm above, and a click-driven play proof of the curling scene
+ * with Tango present is OWED and is named in lane SEAT14E's report.
+ */
+
+extern "C" {
+
+void func_ov006_020e1854(void *arg);          /* src/func_ov006_020e1854.c */
+
+static unsigned g_curling_st_020e1854_entries;
+
+unsigned port_mg_curling_st_020e1854_entries(void)
+{
+    return g_curling_st_020e1854_entries;
+}
+
+void port_mg_curling_st_020e1854(char *c)
+{
+    static int on = -1;
+    static int traced;
+    if (on < 0) {
+        const char *e = std::getenv("SM64DS_MG_CURLING_TRACE");
+        on = (e && *e && *e != '0') ? 1 : 0;
+    }
+
+    ++g_curling_st_020e1854_entries;
+
+    if (on && !traced) {
+        traced = 1;
+        std::fprintf(stderr,
+                     "  [scene] dScMgCurling_c STATE 0x020e1854 ENTERED "
+                     "(func_ov006_020e1854, the ROM's matched TU, "
+                     "src/func_ov006_020e1854.c)\n");
+        std::fflush(stderr);
+    }
+
+    func_ov006_020e1854(c);
+
+    if (on) {
+        std::fprintf(stderr,
+                     "  [curling] n=%u substate=%u ready=%u phase=%u "
+                     "ang=0x%04x power=0x%x cur=(%d,%d)\n",
+                     g_curling_st_020e1854_entries,
+                     (unsigned)*(unsigned char *)(c + 0x4ee4),
+                     (unsigned)*(unsigned char *)(c + 0x4ee5),
+                     (unsigned)*(unsigned char *)(c + 0x4eea),
+                     (unsigned)*(unsigned short *)(c + 0x4ede),
+                     (unsigned)*(int *)(c + 0x4ec8),
+                     (*(int *)(c + 0x4eb0)) >> 12,
+                     (*(int *)(c + 0x4eb4)) >> 12);
+        std::fflush(stderr);
+    }
+}
+
+}  /* extern "C" */

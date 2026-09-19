@@ -7623,6 +7623,27 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov004_020ae5c4.cpp"
     PROPERTIES LANGUAGE CXX)
 
+# Gate mg7 (run link100 wave 14, lane SEAT14E, BATCH 4): the ov006 minigame
+# table roots. Nine of the batch's ten rows measured as refusals and
+# port/slice_mg7.txt carries the reason for each one; six of them are the same
+# reason, which is that the ROM's body is already in the binary under the
+# consolidated class TU the sync folded it into and the per-function file is
+# LNK2005 beside it. The one row that is real is func_ov006_020e1854,
+# dScMgCurling_c's pen-drag state, matched by PR #2352 with a delink block at
+# 0x020e1854..0x020e1b54 and verified against the cartridge's own pair word at
+# 0x0213c2bc. It replaces lane CT1's hand transcription, retired just below.
+# The slice rides SCENE_MG_SOURCES so it lands on exactly the three targets the
+# transcription rode and no target line changes.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_mg7.txt" SLICE_MG7_LINES)
+set(SLICE_MG7_SOURCES "")
+foreach(line IN LISTS SLICE_MG7_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_MG7_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # The seat's own files, on the same three targets the scene-1 and ov007 seats
 # ride. They are not optional on any of the three: hal/scene_boot.cpp's
 # port_scene_classes table now carries the curling row, so every target that
@@ -7630,6 +7651,7 @@ set_source_files_properties(
 # port_scene_fill_curling by name.
 set(SCENE_MG_SOURCES
     hal/scene_mg.cpp hal/scene_mg_faces.cpp hal/scene_mg_faces_gen.cpp
+    ${SLICE_MG7_SOURCES}
     # Lane MUS1: the minigame sound record (re-hosted 0x34) and the verbatim
     # ov005 row seeder that gives a direct SM64DS_SCENE minigame boot its music.
     # Rides these same three targets because scene_boot.cpp calls
@@ -7660,11 +7682,15 @@ set(SCENE_MG_SOURCES
     # src/minigames/d_s_mg_base.cpp is off BOTH port/slice_mg1.txt and
     # port/slice_smb.txt for this file.
     unmatched/MgBase_Slot5.cpp
-    # Lane CT1: dScMgCurling_c's twenty-fifth state, the one with no src TU.
-    # Rides the same three targets as the dispatch that calls it -- it is only
-    # ever reached through that switch, so any target compiling the dispatch
-    # needs this or the link fails on port_mg_curling_st_020e1854.
-    unmatched/MgCurling_State_020e1854.cpp
+    # Lane CT1's dScMgCurling_c twenty-fifth state, unmatched/MgCurling_State_020e1854.cpp,
+    # WAS HERE AND IS RETIRED (run link100 wave 14, lane SEAT14E). "The one with
+    # no src TU" is what its line said and it is no longer true: PR #2352
+    # (86a6e696d) matched 0x020e1854 and this tree has the delink block, so
+    # src/func_ov006_020e1854.c is on port/slice_mg7.txt above instead. The
+    # reason the line gave for riding these three targets still holds and is
+    # still satisfied -- the dispatch reaches the state only through its switch,
+    # and hal/scene_mg_faces.cpp, which is already on all three, now defines
+    # port_mg_curling_st_020e1854 as the bridge into the matched body.
     # Lane CUR2: dScMgCurling_c's two shell-against-shell collision bodies,
     # the other two ov006 addresses with no src TU. Same three targets and the
     # same reason as the state above: hal/scene_mg_faces.cpp now calls
