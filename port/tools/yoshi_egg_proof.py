@@ -2,20 +2,27 @@
 """Yoshi's egg lay, driven headless, with a verdict.
 
 WHAT IT PROVES. Yoshi tongues a Goomba on Bob-omb Battlefield, swallows it, lays
-an egg, and walks away. Five assertions, all of which the pre-fix binary fails:
+an egg, and walks away. Six assertions, all of which the pre-fix binary fails:
 
   1. the Player reaches St_Swallow          (state 0x020d666c / 0x020d6474)
   2. NOTHING is quarantined                 (a faulting actor is a frozen actor)
   3. a YOSHI_EGG actor exists and TICKS     (the egg was really laid)
   4. the Player LEAVES St_Swallow           (he is not stuck in the lay)
   5. the Player is still MOVING at the end  (he is not frozen in place)
+  6. the YOSHI_EGG actor is DRAWN           (a [actor] Render line with a real
+                                             model file and non-zero transforms)
 
-Assertion 5 is the one that speaks to the report ("yoshi freezes"). Assertions 3
-and 4 are the ones that stop a "no longer hangs" non-fix from passing: an egg
-that is never laid, or a Yoshi who never returns to walking, is not a fix.
+Assertion 5 is the one that speaks to the "yoshi freezes" half of the report.
+Assertion 6 is the one that speaks to the "doesn't show up" half: assertion 3
+only counts the egg's Behavior ticks, which an egg that is never drawn still
+produces, so a driver that steps over the frame-0xa mouth transfer (see below)
+can tick an egg forever without ever putting a picture of it on screen.
+Assertions 3, 4 and 6 are the ones that stop a "no longer hangs" non-fix from
+passing: an egg that is never laid, is never drawn, or a Yoshi who never
+returns to walking, is not a fix.
 
-WHY THERE IS A DRIVER AT ALL. Two env knobs, both off by default, both in the
-host test layer, neither one touching game logic:
+WHY THERE IS A DRIVER AT ALL. One env knob, off by default, in the host test
+layer, not touching game logic:
 
   SM64DS_SELFTEST_TONGUE_ONCE  press B once instead of every 40 frames. A second
                                B while an enemy is in the mouth is the SPIT
@@ -24,18 +31,21 @@ host test layer, neither one touching game logic:
                                Player+0x6c6 to run down first -- 90 frames,
                                longer than the 40-frame period -- so the
                                repeating press can never reach a swallow.
-  SM64DS_YOSHI_SWALLOW         make the two writes St_YoshiPower_Main makes at
-                               body-anim frame 0xa (unk_0b0 |= 0x40000,
-                               &= ~0x20000: the enemy moves from the tongue to
-                               the mouth). The port never crosses that frame
-                               because the p+0x160 head ModelAnim does not
-                               advance -- a separate, already-documented defect
-                               -- so St_YoshiPower_Cleanup drops the enemy and
-                               the eat ends early. The driver steps over that
-                               and nothing else; func_ov002_020d6790 still reads
-                               the enemy's OnYoshiTryEat itself and picks the
-                               state itself, and every frame from St_Swallow_Init
-                               onward is the game's.
+
+This tool used to also carry SM64DS_YOSHI_SWALLOW, which made by hand the two
+writes St_YoshiPower_Main case 1 makes at body-anim frame 0xa (unk_0b0 |=
+0x40000, &= ~0x20000: the enemy moves from the tongue to the mouth). That is
+precisely the step a played swallow does not reach, so the knob made the proof
+step over the real failure and report PASS on a binary where the egg never
+shows up. The knob is gone. What replaces it is arming the tongue target
+earlier: SM64DS_YOSHI_EGG_REPRO now reads 213, not 200. The eat animation's
+start frame comes from data_ov002_020ff0f8, indexed by the tongue animation's
+frame at the moment of the grab; those ROM bytes are 11, 10, 9, 8, 7, and index
+0 -- the frame-200 grab -- is the only entry that lands past the frame-0xa
+mouth transfer, so a grab that early can never hand the enemy to the mouth. A
+grab at f213 lands on tongue-animation frame 3, whose table entry is 8, which
+is before the transfer, so the real transfer fires and the whole swallow runs
+on the game's own frames with no driver standing in for it at all.
 
 RECIPE (reproducible from a clean tree):
 
@@ -43,7 +53,7 @@ RECIPE (reproducible from a clean tree):
     cmd /c port\\build-port.cmd
     python -u port/tools/yoshi_egg_proof.py
 
-Exit 0 = all five hold. Exit 1 = at least one fails, with the reason printed.
+Exit 0 = all six hold. Exit 1 = at least one fails, with the reason printed.
 """
 import os
 import re
@@ -65,30 +75,44 @@ ENV = {
     # one tongue flick at f210, then leave him alone
     "SM64DS_SELFTEST_TONGUE": "1",
     "SM64DS_SELFTEST_TONGUE_ONCE": "1",
-    # keep the tongue pointed at the first live Goomba (id 200) from f200
-    "SM64DS_YOSHI_EGG_REPRO": "200",
+    # keep the tongue pointed at the first live Goomba (id 200) from f213, so
+    # the grab lands on tongue-animation frame 3 (table entry 8, before the
+    # frame-0xa mouth transfer) instead of frame 0 (table entry 11, after it)
+    "SM64DS_YOSHI_EGG_REPRO": "213",
     "SM64DS_YOSHI_EGG_CLASS": "200",
     "SM64DS_YOSHI_EGG_WIN": "400",
-    "SM64DS_YOSHI_SWALLOW": "1",
     # readers
     "SM64DS_TRACE_STATE": "2",
     "SM64DS_RS_PROBE": "1",
+    "SM64DS_ACTOR_PROBE": "1",
+    # quiet spawner: no window, no sound, never activated
+    "SM64DS_NO_FOCUS": "1",
+    "SM64DS_VOLUME": "0",
     # other lanes run concurrently
     "SM64DS_TEST_LOCK": "1",
-    "SM64DS_TEST_LOCK_PATH": r"C:\tmp\sm64ds-test-slot\windowed_test.lock",
+    "SM64DS_TEST_LOCK_PATH": r"C:\tmp\sm64ds-test-slot\slot.lock",
     "SM64DS_TEST_LOCK_TIMEOUT": "5400",
 }
 
 # The player's per-frame line: [f317] pos=(-3695.0,0.0,4030.1) ... st=020d666c ...
 FRAME = re.compile(r"^\[f(\d+)\] pos=\(([-\d.]+),([-\d.]+),([-\d.]+)\).*?st=([0-9a-f]{8})")
 
+# The egg's RENDER face, not its Behavior face: [actor] YOSHI_EGG model 3002432C
+# file 301774CC transforms 3017749C mat.t (-509,3,545) scene
+DRAWN = re.compile(r"^\[actor\] YOSHI_EGG\s+model (\S+) file (\S+) transforms (\S+)")
+
 
 def run(log_path):
     env = dict(os.environ)
     env.update(ENV)
+    SI = subprocess.STARTUPINFO()
+    SI.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    SI.wShowWindow = 7  # SW_SHOWMINNOACTIVE
+    NOCON = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     with open(log_path, "wb") as fh:
         rc = subprocess.call([EXE], cwd=REPO, env=env, stdout=fh,
-                             stderr=subprocess.STDOUT)
+                             stderr=subprocess.STDOUT,
+                             creationflags=NOCON, startupinfo=SI)
     with open(log_path, "r", errors="ignore") as fh:
         return rc, fh.read()
 
@@ -152,6 +176,24 @@ def check(text, rc):
             print("  5 ALIVE   ok: %d distinct x / %d distinct z over the last "
                   "%d frames" % (len(xs), len(zs), len(tail)))
 
+    # 6. drawn -- the egg's RENDER face, not just its Behavior face
+    def _all_zero(s):
+        return re.fullmatch(r"0+", s) is not None
+
+    drawn_line = None
+    drawn_match = None
+    for line in text.splitlines():
+        m = DRAWN.match(line)
+        if m:
+            drawn_line = line
+            drawn_match = m
+            break
+    if not drawn_match or _all_zero(drawn_match.group(2)) or _all_zero(drawn_match.group(3)):
+        fails.append("6 DRAWN: the egg ticked but was never drawn (no Render), "
+                     "or its model file did not load")
+    else:
+        print("  6 DRAWN   ok: %s" % drawn_line.strip())
+
     if rc != 0:
         fails.append("0 EXIT: walk_window returned %d" % rc)
     return fails
@@ -171,7 +213,7 @@ def main():
         for f in fails:
             print("  " + f)
         return 1
-    print("YOSHI EGG PROOF: PASS (5/5)")
+    print("YOSHI EGG PROOF: PASS (6/6)")
     return 0
 
 
