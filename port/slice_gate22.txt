@@ -87,7 +87,11 @@ src/_ZN6Player11OpenBigDoorEv.cpp
 src/_ZN6Player12Unk_020ca488Ev.cpp
 src/_ZN6Player13TryTalkToDoorEh.cpp
 src/_ZN6Player16TryTalkToKeyDoorEv.cpp
-src/_ZN6Player16SetRealCharacterEj.cpp
+# _ZN6Player16SetRealCharacterEj is hosted: the ROM releases the outgoing
+# anim file first, which frees it outright on the host while stale slots
+# still reference it. The host keeps the file (leaked, once per switch)
+# and is otherwise identical.
+port/unmatched/Player_SetRealCharacter.cpp
 src/_ZN6Player17PlayMammaMiaSoundEv.cpp
 src/_ZN6Player21IsOpeningDoorWithStarEv.cpp
 src/_ZN6Camera14GoBehindPlayerEj.cpp

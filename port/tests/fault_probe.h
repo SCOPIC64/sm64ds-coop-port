@@ -15,6 +15,16 @@ static LONG WINAPI port_fault_probe(EXCEPTION_POINTERS *ep)
             (unsigned)((char *)ep->ExceptionRecord->ExceptionAddress - base),
             (unsigned)(ep->ExceptionRecord->NumberParameters > 1
                        ? ep->ExceptionRecord->ExceptionInformation[1] : 0));
+    /* op: 0 = read, 1 = write, 8 = DEP execute. Plus the absolute EIP and
+       the loaded module bases, so an EIP outside this image still resolves
+       (wild jump into a DLL/heap/ROM address reads very differently from a
+       data read of an unmapped page, and the raw offsets above cannot tell
+       them apart). */
+    fprintf(stderr, "  op=%u eip=%08x base=%08x\n",
+            (unsigned)(ep->ExceptionRecord->NumberParameters > 0
+                       ? ep->ExceptionRecord->ExceptionInformation[0] : 99),
+            (unsigned)(uintptr_t)ep->ExceptionRecord->ExceptionAddress,
+            (unsigned)(uintptr_t)base);
     void *frames[12];
     unsigned n = CaptureStackBackTrace(0, 12, frames, 0);
     for (unsigned i = 0; i < n; ++i)

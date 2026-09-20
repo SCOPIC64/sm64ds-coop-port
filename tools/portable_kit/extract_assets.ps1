@@ -24,7 +24,7 @@
     single .nds file sitting next to it.
 
 .PARAMETER Destination
-    Where to write extracted\ and build\. Defaults to this script's folder.
+    Where to write extracted\ and build\. Defaults to %LOCALAPPDATA%\SM64DS.
 
 .EXAMPLE
     .\extract_assets.ps1
@@ -51,7 +51,7 @@ function Stop-Politely($text) {
 }
 
 if (-not $Destination) {
-    $Destination = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+    $Destination = Join-Path $env:LOCALAPPDATA 'SM64DS'
 }
 
 # ---------------------------------------------------------------- find the rom

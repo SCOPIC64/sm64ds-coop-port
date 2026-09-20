@@ -253,11 +253,50 @@ static void port_list_trace(const char *name, int *list)
     std::printf("\n");
 }
 
+/* Held-actor hygiene. The swim/throw/yoshi paths read Player+0x358 (the
+   held-actor slot) without checking, and the cleanup phase above can free a
+   held actor out from under them -- a grabbed fish despawning, a rabbit
+   culled -- leaving a dangling slot that faults the next stroke or throw.
+   It crashes flakily (heap reuse decides), which is the swim-crash shape.
+   After cleanup, any +0x358 that no longer names a live behavior-list actor
+   is cleared. Only the PLAYER slot is a held-actor pointer; other classes
+   reuse the offset for other data, so only id 0xbf is touched. */
+static int port_actor_on_behavior_list(const void *o)
+{
+    for (int *n = (int *)(size_t)data_020a4b78[0]; n;
+         n = (int *)(size_t)n[1])
+        if ((const char *)(size_t)n[2] == (const char *)o) return 1;
+    return 0;
+}
+
+/* Liveness probe for held-actor slots, shared with the swim/throw readers
+   in src/ (which cannot walk the lists without a host symbol). */
+extern "C" int port_actor_is_live(const void *o)
+{
+    return o && port_actor_on_behavior_list(o);
+}
+
+extern "C" void port_actor_validate_holds(void)
+{
+    for (int *n = (int *)(size_t)data_020a4b78[0]; n;
+         n = (int *)(size_t)n[1]) {
+        char *o = (char *)(size_t)n[2];
+        if (!o || *(unsigned short *)(o + 0xc) != 0xbf) continue;
+        void *held = *(void **)(o + 0x358);
+        if (held && !port_actor_on_behavior_list(held)) {
+            std::printf("  [hold] cleared dangling held actor %p "
+                        "(player %p)\n", held, (void *)o);
+            *(void **)(o + 0x358) = 0;
+        }
+    }
+}
+
 extern "C" void port_actor_tick(void)
 {
     data_02099f24[0] = 4;
     port_list_trace("cleanup", data_020a4ba8);
     func_02043fdc(data_020a4ba8);
+    port_actor_validate_holds();
     data_02099f24[0] = 2;
     port_list_trace("pending", data_020a4b88);
     func_02043fdc(data_020a4b88);

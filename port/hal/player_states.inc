@@ -17,6 +17,8 @@
     /* Mario's airborne gravity fn, dispatched as a PMF from the
        per-character rows in data_ov002_0211073c (St_Jump_Main) */
     case 0x020e200c: func_ov002_020e200c((char *)self); return 1;
+    /* Yoshi's flutter-fall helper, same dispatch shape (St_Fall_Main) */
+    case 0x020e1c20: func_ov002_020e1c20((char *)self); return 1;
     case 0x020e1af8: return ((Player *)self)->Player::St_Fall_Main();
     case 0x020e1b80: return ((Player *)self)->Player::St_Fall_Init();
     case 0x020cb15c: return ((Player *)self)->Player::St_Headstand_Main();
@@ -211,6 +213,26 @@
     case 0x020c816c: return ((Player *)self)->Player::St_NoControl_Main();
     case 0x020c976c: return ((Player *)self)->Player::St_NoControl_Init();
     case 0x020c8128: return ((Player *)self)->Player::St_NoControl_Cleanup();
+    /* NoControl's per-kind Init handlers (the PMF table St_NoControl_Init
+       dispatches through). Non-Mario characters take kinds Mario never
+       does -- character select meets them at the entrance. */
+    case 0x020c97e0: func_ov002_020c97e0((char *)self); return 1;
+    case 0x020c97f8: func_ov002_020c97f8((char *)self); return 1;
+    case 0x020c9840: func_ov002_020c9840((char *)self); return 1;
+    case 0x020c98a4: func_ov002_020c98a4((char *)self); return 1;
+    case 0x020c990c: func_ov002_020c990c((void *)self); return 1;
+    case 0x020c9998: func_ov002_020c9998((void *)self); return 1;
+    case 0x020c9a04: func_ov002_020c9a04((char *)self); return 1;
+    case 0x020c9ac0: func_ov002_020c9ac0((char *)self); return 1;
+    case 0x020c9b10: return func_ov002_020c9b10((char *)self);
+    case 0x020c9b5c: func_ov002_020c9b5c((char *)self); return 1;
+    case 0x020c9b7c: func_ov002_020c9b7c((void *)self); return 1;
+    case 0x020c9c00: return func_ov002_020c9c00((char *)self);
+    case 0x020c9c4c: func_ov002_020c9c4c((char *)self); return 1;
+    case 0x020c9cc0: func_ov002_020c9cc0((char *)self); return 1;
+    case 0x020c9d1c: return func_ov002_020c9d1c((char *)self);
+    case 0x020c9d68: func_ov002_020c9d68((char *)self); return 1;
+    case 0x020c9de4: func_ov002_020c9de4((char *)self); return 1;
     /* DEATH states: every Main here funnels into KillPlayer ->
        StartExitFaderWipe, which derefs the fader-wipe array at
        0x0209f324. Stage::InitResources allocates that array and the port

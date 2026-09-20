@@ -1090,9 +1090,15 @@ void gx_render(Framebuffer &fb) {
         // surface, bit 7 the front; stage meshes use double-sided ground).
         // Screen Y is flipped relative to DS space, so a front face is
         // clockwise here (negative area).
+        // SM64DS_DOUBLE_SIDE=1 skips culling (diagnostic for single-sided
+        // surfaces like the moat water that never appear).
         const bool backface = area > 0.0f;
-        if (backface && !(t.cull & 1)) continue;
-        if (!backface && !(t.cull & 2)) continue;
+        static int nocull = -1;
+        if (nocull < 0) nocull = getenv("SM64DS_DOUBLE_SIDE") ? 1 : 0;
+        if (!nocull) {
+            if (backface && !(t.cull & 1)) continue;
+            if (!backface && !(t.cull & 2)) continue;
+        }
 
         int minx = static_cast<int>(std::floor(std::fmin(a.x, std::fmin(b.x, c.x))));
         int maxx = static_cast<int>(std::ceil(std::fmax(a.x, std::fmax(b.x, c.x))));

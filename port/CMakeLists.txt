@@ -721,9 +721,29 @@ foreach(src IN LISTS SLICE10_SOURCES)
     # data_020a4d84 = data_020a4d6c + 0x18, an adjacency host symbols do not
     # have. Same file, sound_abi.cpp.
        OR src MATCHES "/_ZN5Sound6Player19SetPlayableSeqCountEii\\.c$"
-    # ...and Sound::Play, whose src calls func_02050cdc(void) and lets the
-    # kind and id ride through in r0/r1.
+     # ...and Sound::Play, whose src calls func_02050cdc(void) and lets the
+     # kind and id ride through in r0/r1.
        OR src MATCHES "/_ZN5Sound4PlayEjjRK7Vector3\\.c$")
+        continue()
+    endif()
+    # Sound group loads, replaced by port/unmatched/Sound_GroupLoad.cpp: the
+    # ROM wraps the switch in a solid-heap snapshot restore whose iterator
+    # walk faults on host heaps (first reached by non-Mario voice groups).
+    if(src MATCHES "/func_02011ee4\\.c$"
+       OR src MATCHES "/func_02011f7c\\.c$")
+        continue()
+    endif()
+    # The entrance-cutscene progressor, replaced by
+    # port/unmatched/func_ov002_020c4188.cpp: its case-3 reads the kind-6
+    # sound object (actor 0x167, unregistered, spawn gated) through a null
+    # m364. First reached by Yoshi's entrance (character select).
+    if(src MATCHES "/func_ov002_020c4188\\.c$")
+        continue()
+    endif()
+    # Message-box Show, replaced by port/unmatched/Message_Show.cpp: the
+    # typewriter text engine is not hosted and Show faults on entry.
+    # First reached by Yoshi's entrance cutscene (character select).
+    if(src MATCHES "/func_0201f32c\\.c$")
         continue()
     endif()
     list(APPEND SLICE10_CAM_SOURCES "${src}")
@@ -737,10 +757,18 @@ set(SOUND_HOST_SOURCES
     hal/sdat/out_win.cpp
     hal/sdat/consumer.cpp
     hal/sdat/sound_abi.cpp
-    hal/sdat/sound_bss.cpp)
+    hal/sdat/sound_bss.cpp
+    # the bank switch without the DS heap-state stack: the snapshot
+    # restore's iterator walk faults on host heaps (first reached by
+    # non-Mario voice groups, i.e. character select)
+    unmatched/Sound_GroupLoad.cpp
+    # the message-box Show without the text engine: logs the id and reports
+    # instant completion (first reached by Yoshi's entrance cutscene)
+    unmatched/Message_Show.cpp)
 
 set(LEVELBOOT_HOST_SOURCES
     unmatched/ActorDerived_Spawn.cpp
+    unmatched/func_ov002_020c4188.cpp
     unmatched/PathPtr_FromID.cpp
     unmatched/func_0204335c.cpp
     unmatched/func_02043288.cpp
@@ -950,7 +978,7 @@ if(MSVC)
 endif()
 
 # Gate 12: the interactive window (same stack, windowed loop).
-add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C}"
+add_executable(walk_window tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loader.cpp hal/logo.cpp hal/lobby.cpp assets/logo.rc "${OV002DATA_C}" "${OV009DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -968,19 +996,46 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/hal")
 # 2x (512x384, window ZOOM 2): the software raster is fill-bound; the
 # hires 1024x768 tier burns ~40ms/frame on the level alone, native
 # 256x192 reads too chunky. 2x is ~12ms -> 60fps with frame pacing.
 target_link_libraries(walk_window PRIVATE ntr_2x)
 target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
     PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
+# Vendored Lua 5.4 (port/vendor/lua): mods always execute, nothing to
+# install. Built from source as a static lib; lua.c/luac.c/ltests.c are
+# interpreter/compiler/test-only and stay out.
+file(GLOB LUA_VENDOR_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src/l*.c")
+if(LUA_VENDOR_SOURCES)
+    list(FILTER LUA_VENDOR_SOURCES EXCLUDE REGEX "/lua\\.c$")
+    list(FILTER LUA_VENDOR_SOURCES EXCLUDE REGEX "/luac\\.c$")
+    list(FILTER LUA_VENDOR_SOURCES EXCLUDE REGEX "/ltests\\.c$")
+    add_library(lua_vendor STATIC ${LUA_VENDOR_SOURCES})
+    target_include_directories(lua_vendor PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src")
+    if(MSVC)
+        target_compile_options(lua_vendor PRIVATE
+            /wd4244 /wd4267 /wd4996 /wd4311 /wd4312)
+    endif()
+    set(LUA_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src")
+    set(LUA_LIBRARIES lua_vendor)
+    set(Lua_FOUND TRUE)
+else()
+    find_package(Lua 5.4 QUIET)
+endif()
+if(Lua_FOUND)
+    target_compile_definitions(walk_window PRIVATE SM64DS_HAS_LUA)
+    target_include_directories(walk_window PRIVATE ${LUA_INCLUDE_DIR})
+    target_link_libraries(walk_window PRIVATE ${LUA_LIBRARIES})
+endif()
 if(MSVC)
     target_compile_options(walk_window PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
 
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
-add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C}"
+add_executable(walk_window_hires tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loader.cpp hal/logo.cpp hal/lobby.cpp assets/logo.rc "${OV002DATA_C}" "${OV009DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -998,7 +1053,8 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/hal")
 target_link_libraries(walk_window_hires PRIVATE ntr_hires)
 target_compile_definitions(walk_window_hires PRIVATE SM64DS_PLATFORM_PC
     PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")

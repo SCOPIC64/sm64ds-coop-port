@@ -250,16 +250,35 @@ void hal_sub_screen_frame_begin(void)
 
 /* Bottom of the frame: upload the shadows the game filled, rasterise engine B,
    drop it into the corner. With the panel off nothing here writes a pixel. */
+void hal_sub_screen_set_scale(int div)
+{
+    if (div < 1) div = 1;
+    if (div > 4) div = 4;
+    g_div = div;
+}
+
+int hal_sub_screen_get_scale(void) { return g_div; }
+
+void hal_sub_screen_set_on(int on) { g_on = on != 0; }
+
+extern "C" void hal_sub_screen_apply_env(void)
+{
+    const char *v = std::getenv("SM64DS_SUB_SCALE");
+    if (v) hal_sub_screen_set_scale(std::atoi(v));
+    const char *p = std::getenv("SM64DS_SUB_PANEL");
+    if (p) g_on = std::atoi(p) != 0;
+}
+
 void hal_sub_screen_present(unsigned int *dst, int w, int h)
 {
     /* SM64DS_SUB_SCALE is a divisor: 1 = full DS size (a quarter of the 2x
-       window, Tango's "super in the way"), 2 = half size (1/16 of the
-       window, the default), up to 4. */
+       window), 2 = half size, 3 = third size (the default: small corner
+       panel so the main view stays big), up to 4 = tiny. */
     {
         static int init;
         if (!init) {
             init = 1;
-            const int v = env_flag("SM64DS_SUB_SCALE", 2);
+            const int v = env_flag("SM64DS_SUB_SCALE", 3);
             g_div = v < 1 ? 1 : (v > 4 ? 4 : v);
         }
     }
@@ -282,7 +301,7 @@ void hal_sub_screen_present(unsigned int *dst, int w, int h)
     _ZN3OAM4LoadEv();
     if (!g_on) return;
     ntr::ppu_scanout_sub(g_sub);
-    ntr::ppu_compose_sub(g_sub, dst, w, h, kMargin);
+    ntr::ppu_compose_sub(g_sub, dst, w, h, kMargin, g_div);
     g_ready = true;
 
     /* SM64DS_SUB_DUMP=N: the bottom screen alone, at 256x192, on frame N. */

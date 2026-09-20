@@ -68,6 +68,20 @@ def main(rom_path: str) -> None:
     for ov_id, ov in arm9_overlays.items():
         (ov_dir / f"overlay_{ov_id:04d}.bin").write_bytes(ov.data)
 
+    # The PC port consumes the overlay base and BSS sizes as YAML metadata.
+    # ndspy already decoded these values from the cartridge overlay table.
+    metadata_dir = out / "dsd" / "arm9_overlays"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    metadata = ["# Generated from the local ROM by tools/unpack.py", "overlays:"]
+    for ov_id, ov in sorted(arm9_overlays.items()):
+        metadata.extend([
+            f"  - id: {ov_id}",
+            f"    base_address: {ov.ramAddress}",
+            f"    bss_size: {ov.bssSize}",
+        ])
+    (metadata_dir / "overlays.yaml").write_text("\n".join(metadata) + "\n",
+                                                 encoding="ascii")
+
     print(f"\nWrote arm9.bin, arm7.bin and {len(arm9_overlays)} overlays to {out}")
 
 

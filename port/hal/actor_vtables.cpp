@@ -295,16 +295,14 @@ unsigned char data_0209f1f4; /* ...and the flag it clears with it */
 // file goes in the slice.
 int _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(void *, void *) { return 0; }
 
-// Player::StartTalk IS matched, and that is the problem: it would put the
-// Player in the talk state and the SignPost in its read state, whose Main
-// (ov002 0x020bb614) is unmatched and whose body is the Message box -- font
-// pages, OAM, the dialogue driver, none of it hosted. Declining the talk is
-// the ROM's own "no" branch (StartTalk returns 0 from six of its arms), the
-// sign stays planted, and everything else about it still works: it turns to
-// face the player, it blocks him, it can be grabbed, thrown and it walks its
-// other four states. Remove this when Message is hosted AND 0x020bb614 is
-// matched -- in that order.
-int _ZN6Player9StartTalkER9ActorBaseb(void *, void *, int) { return 0; }
+// Player::StartTalk USED to be refused here (return 0): it puts the Player
+// in the talk state and the SignPost in its read state, whose Main (ov002
+// 0x020bb614) is unmatched and whose body is the Message box. The read
+// state now has a benign host Main (port/unmatched/SignPost_StateDispatch)
+// and messages auto-advance (port/unmatched/Message_Show), so talk flows
+// end to end with invisible text instead of aborting. The refusal is
+// retired; the Itanium-named bridge lives in hal/player_bridges.cpp next
+// to the other Player method bridges.
 
 /* The global event bitfield. Event::GetBit reads it and BLACK_BRICK_BLOCK's
    Behavior asks whether its own event has fired; nothing on the castle grounds

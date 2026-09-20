@@ -57,3 +57,5 @@ Exit_SpawnInfo:0x1c WaterfallMist_SpawnInfo:0x1c
 # through, the one ov002 datum its InitResources names that no class before it
 # did.
 data_ov002_0210d954
+# character select: the anim-id table NoControl kind-init func_ov002_020c9c4c indexes by mStateStep
+data_ov002_020ff118

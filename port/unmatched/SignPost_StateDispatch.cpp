@@ -25,13 +25,13 @@
  * body was compiled from, so a mount pointing at the wrong bytes says so
  * instead of calling into the overlay image.
  *
- * STATE 1 IS SEATED WITH A NAMED ABORT. Its Main is ov002 0x020bb614, a
- * 0x3dc-byte hole in the delink table with no C at all -- the sign's read
- * loop, which drives the Message box. The only way into it is
- * func_ov002_020bb520 -> Player::StartTalk returning 1, and the port declines
- * that talk (hal/actor_vtables.cpp). If a future gate hosts Message, the guard
- * comes off and this state needs its Main matched first; until then the abort
- * is the loud version of "that path is closed".
+ * STATE 1 (read) Main is ov002 0x020bb614, a 0x3dc-byte hole in the delink
+ * table with no C at all -- the sign's read loop, which drives the Message
+ * box. It is seated with a benign host stand-in (below): the sign holds its
+ * read pose while the Player's Talk runs, and messages auto-advance through
+ * the Message_Show stub, so talk completes end to end with invisible text.
+ * If a future gate hosts Message, this state needs its Main matched and the
+ * stand-in comes out.
  */
 #include <cstdio>
 #include <cstdlib>
@@ -58,10 +58,13 @@ enum { PORT_SIGNPOST_STATES = 5 };
 
 static void port_signpost_read_main(void *)
 {
-    std::fprintf(stderr, "FATAL: SignPost state 1 (read) is not hosted -- "
-                 "ov002 0x020bb614 is unmatched and its body is the Message "
-                 "box. Player::StartTalk is supposed to decline.\n");
-    std::abort();
+    /* The read loop (ov002 0x020bb614) is unmatched and its body is the
+       Message box, which auto-advances on the host (Message_Show). Standing
+       in the read state while the Player's own Talk runs its course is the
+       honest interim: no abort, talk completes, text stays invisible until
+       the text engine is hosted. Said once per boot. */
+    static int said;
+    if (!said++) std::printf("[sign] read state: holding for talk (text auto-advanced)\n");
 }
 
 static const struct { unsigned rom; void (*host)(void *); } g_states[10] = {

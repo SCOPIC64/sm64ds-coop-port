@@ -73,9 +73,12 @@
 //                           SM64DS_SELFTEST_FREECAM=1 toggles the mod on
 //                           and off, at the same two points
 #include <cmath>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <string>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -96,6 +99,7 @@ struct WinApi {
     void(WINAPI *PostQuitMessage_)(int);
     HDC(WINAPI *GetDC_)(HWND);
     HCURSOR(WINAPI *LoadCursorA_)(HINSTANCE, LPCSTR);
+    HICON(WINAPI *LoadIconA_)(HINSTANCE, LPCSTR);
     BOOL(WINAPI *AdjustWindowRect_)(RECT *, DWORD, BOOL);
     SHORT(WINAPI *GetAsyncKeyState_)(int);
     int(WINAPI *StretchDIBits_)(HDC, int, int, int, int, int, int, int, int,
@@ -113,6 +117,10 @@ struct WinApi {
     BOOL(WINAPI *SetProcessInformation_)(HANDLE, int, void *, DWORD);
     /* psapi: the overlay's working-set line */
     BOOL(WINAPI *GetProcessMemoryInfo_)(HANDLE, void *, DWORD);
+    /* user32 foreground window (mute-when-unfocused sound option) */
+    HWND(WINAPI *GetForegroundWindow_)(void);
+    /* dwmapi: compositor vsync (DwmFlush blocks until the next vblank) */
+    HRESULT(WINAPI *DwmFlush_)(void);
 };
 static WinApi W;
 
@@ -148,8 +156,11 @@ static bool winapi_load(void)
     W.TranslateMessage_ = (decltype(W.TranslateMessage_))GetProcAddress(u, "TranslateMessage");
     W.DispatchMessageA_ = (decltype(W.DispatchMessageA_))GetProcAddress(u, "DispatchMessageA");
     W.PostQuitMessage_ = (decltype(W.PostQuitMessage_))GetProcAddress(u, "PostQuitMessage");
+    W.GetForegroundWindow_ =
+        (decltype(W.GetForegroundWindow_))GetProcAddress(u, "GetForegroundWindow");
     W.GetDC_ = (decltype(W.GetDC_))GetProcAddress(u, "GetDC");
     W.LoadCursorA_ = (decltype(W.LoadCursorA_))GetProcAddress(u, "LoadCursorA");
+    W.LoadIconA_ = (decltype(W.LoadIconA_))GetProcAddress(u, "LoadIconA");
     W.AdjustWindowRect_ = (decltype(W.AdjustWindowRect_))GetProcAddress(u, "AdjustWindowRect");
     W.GetAsyncKeyState_ = (decltype(W.GetAsyncKeyState_))GetProcAddress(u, "GetAsyncKeyState");
     W.StretchDIBits_ = (decltype(W.StretchDIBits_))GetProcAddress(g, "StretchDIBits");
@@ -176,6 +187,11 @@ static bool winapi_load(void)
         W.SetProcessInformation_ = (decltype(W.SetProcessInformation_))
             GetProcAddress(k, "SetProcessInformation");
     }
+    /* dwmapi is absent on anything older than Vista; missing = vsync
+       silently unavailable, everything else keeps working */
+    if (HMODULE dw = LoadLibraryA("dwmapi.dll")) {
+        W.DwmFlush_ = (decltype(W.DwmFlush_))GetProcAddress(dw, "DwmFlush");
+    }
     {
         const char *dlls[] = {"xinput1_4.dll", "xinput1_3.dll",
                               "xinput9_1_0.dll"};
@@ -194,6 +210,10 @@ static bool winapi_load(void)
 
 #include "fault_probe.h"
 #include "overlay_font.h"
+#include "rom_locator.h"
+#include "mod_loader.h"
+#include "lobby.h"
+#include "logo.h"
 
 typedef unsigned int u32;
 
@@ -217,6 +237,15 @@ int hal_player_behavior(void *p);
 int hal_player_process(void *p);   /* gate 15: BeforeBehavior/Behavior/After */
 void sdat_host_tick(void);         /* hosted ARM7: hal/sdat/ */
 void hal_render_player_world(void *p);
+extern unsigned char data_ov002_0211019c[];
+extern unsigned char data_ov002_021101b4[];
+extern unsigned char data_ov002_0211013c[];
+extern unsigned char data_ov002_02110514[];
+extern unsigned char data_ov002_02110154[];
+extern unsigned char data_ov002_0210a504[];
+/* per-character sound (voice) group loader + id table (InitResources) */
+void func_02011f7c(int a);
+extern unsigned char data_ov002_020ff0f0[];
 extern char data_0209f4a0[];
 extern int data_0209f4a6[];   /* pad stick WORLD angle -- auto_bss split
                                  symbol, NOT data_0209f4a0+6 on host */
@@ -352,6 +381,20 @@ void hal_sub_screen_init(void *hwnd, int zoom);
 void hal_sub_screen_frame_begin(void);
 void hal_sub_screen_present(unsigned int *dst, int w, int h);
 void hal_sub_screen_probe(void);
+void hal_sub_screen_set_scale(int div);
+int hal_sub_screen_get_scale(void);
+void hal_sub_screen_set_on(int on);
+int hal_sub_screen_on(void);
+/* character select: the ROM's own full switch (file load, hat, models, heal).
+   Reached through the __thiscall bridge in hal/player_bridges.cpp -- calling
+   the method through a plain extern "C" prototype misdelivers the id. */
+void hal_player_set_real_character(void *self, unsigned chr);
+/* talk entry (free function, slice_gate10) for the TEST_TALK probe */
+int _ZN6Player9StartTalkER9ActorBaseb(char *p, void *a, int b);
+/* last message id shown (port/unmatched/Message_Show.cpp) */
+extern int g_last_msg_id;
+extern unsigned char data_02092128[];  /* per-player character */
+extern unsigned char data_0209cad2[];  /* save block cont.: byte 0x41 = character */
 /* the camera buttons drawn on the bottom screen, hit-tested against the touch
    record the panel fills (hal/sub_screen.cpp wraps Stage::CheckCameraInput
    with the split-symbol bridge the host Ctrl block needs) */
@@ -485,6 +528,63 @@ static int ovl_text(ntr::Framebuffer &fb, int x0, int y0, const char *s,
     return x - x0;
 }
 
+/* ---- UI THEME -----------------------------------------------------------
+   One palette for the whole frontend so menus, overlay, toasts and chat
+   read as one design instead of five eras: translucent dark panels
+   (ovl_shade keeps the game visible behind them), azure accent for titles
+   and selection, green/amber/red kept for status. Selection is a solid
+   accent bar plus bright text -- no `>` glyphs, no indent jumping. */
+static const uint32_t UI_ACCENT = 0xFF45C8FFu;
+static const uint32_t UI_TEXT = 0xFFF2F2F2u;
+static const uint32_t UI_DIM = 0xFF9099A6u;
+static const uint32_t UI_FAINT = 0xFF5A5E66u;
+static void ovl_fill(ntr::Framebuffer &fb, int x0, int y0, int w, int h,
+                     uint32_t rgb)
+{
+    for (int y = y0; y < y0 + h; ++y) {
+        if (y < 0 || y >= ntr::SCREEN_H) continue;
+        for (int x = x0; x < x0 + w; ++x) {
+            if (x < 0 || x >= ntr::SCREEN_W) continue;
+            fb.px[y][x] = rgb;
+        }
+    }
+}
+/* selection marker: accent bar at (x, y), one text line tall */
+static void ovl_selbar(ntr::Framebuffer &fb, int x, int y)
+{
+    ovl_fill(fb, x, y - 2 * OVL_SCALE, 3 * OVL_SCALE, OVL_LINE, UI_ACCENT);
+}
+
+/* word-wrapped paragraph for side panels. Greedy pack by spaces. */
+static void ovl_wrapped(ntr::Framebuffer &fb, int x, int y, int maxw,
+                        const char *s, uint32_t rgb)
+{
+    char out[96];
+    int oi = 0;
+    const int maxch = maxw / (OVL_ADVANCE * OVL_SCALE);
+    while (1) {
+        while (*s == ' ') ++s;
+        if (!*s) break;
+        const char *w = s;
+        int wl = 0;
+        while (w[wl] && w[wl] != ' ') ++wl;
+        if (oi > 0 && oi + 1 + wl > maxch) {
+            out[oi] = 0;
+            ovl_text(fb, x, y, out, rgb);
+            y += OVL_LINE;
+            oi = 0;
+        }
+        if (oi > 0) out[oi++] = ' ';
+        for (int k = 0; k < wl && oi < (int)sizeof out - 1; ++k)
+            out[oi++] = w[k];
+        s = w + wl;
+    }
+    if (oi > 0) {
+        out[oi] = 0;
+        ovl_text(fb, x, y, out, rgb);
+    }
+}
+
 /* the per-phase clock. One QueryPerformanceCounter pair per phase and a
    1-second exponential average, so the numbers are readable instead of
    flickering with whatever the OS did to that one frame. */
@@ -575,9 +675,16 @@ static void ovl_draw(ntr::Framebuffer &fb, const OvlStats &s)
             const int lw = (int)strlen(ln[i]) * OVL_ADVANCE * OVL_SCALE;
             if (lw > w) w = lw;
         }
-        ovl_shade(fb, 2, 2, w + 6 * OVL_SCALE, n * OVL_LINE + 4 * OVL_SCALE);
+        const int title_w = 12 * OVL_ADVANCE * OVL_SCALE;
+        if (title_w > w) w = title_w;
+        const int pw = w + 6 * OVL_SCALE, ph = (n + 1) * OVL_LINE + 6;
+        ovl_shade(fb, 2, 2, pw, ph);
+        ovl_text(fb, 4 + OVL_SCALE, 4, "SM64DS COOP", UI_ACCENT);
+        ovl_fill(fb, 4 + OVL_SCALE, 4 + OVL_LINE - 1, w, OVL_SCALE,
+                 UI_ACCENT);
         for (int i = 0; i < n; ++i)
-            ovl_text(fb, 4 + OVL_SCALE, 4 + i * OVL_LINE, ln[i], col[i]);
+            ovl_text(fb, 4 + OVL_SCALE, 4 + (i + 1) * OVL_LINE, ln[i],
+                     col[i]);
     }
 }
 
@@ -635,8 +742,39 @@ static int g_amb_n;
    own frustum, so an actor the rig can see but the game camera cannot stays
    dormant. That is the price of leaving the Camera actor alone. */
 static const int CAM_STEP = 0x400;       /* the ROM's quantum, 0x0200a6a8 */
+static const int SM64_CSTEP = 0x1000;    /* one C-button chunk, 22.5 deg */
+/* framerate-independent camera easing. denom/cap are tuned at 30 presents
+   a second; k (= real dt / 1 Tick) stretches them so the lens moves the
+   same distance per second at any present rate. snap=1 also finishes the
+   last binang instead of stalling short of the target. */
+static float cam_k_live = 1.0f;          /* set fresh in the rig frame */
+static float sm64_glide;                 /* seconds of entry glide left */
+static int sm64_want_dist;               /* glide target for the distance */
+/* sm64 zoom modes: 0 normal, 1 C-up (close), 2 C-down (far). C buttons
+   are modal toggles, not a continuous zoom: from normal, C-up goes close
+   and C-down goes far; from either zoomed mode the OPPOSITE button goes
+   back to normal (same button again does nothing). Leaving normal saves
+   the distance so normal restores exactly. All transitions glide. */
+static int sm64_zoom_mode;
+static int sm64_normal_dist;
+static int cam_ease_step(int d, int denom, int cap, float k, int snap)
+{
+    float s;
+    if (d == 0 || denom <= 0) return 0;
+    s = (float)d * k / (float)denom;
+    if (cap > 0) {
+        const float c = (float)cap * k;
+        if (s > c) s = c;
+        else if (s < -c) s = -c;
+    }
+    if ((d > 0 && s > (float)d) || (d < 0 && s < (float)d))
+        s = (float)d;                    /* never overshoot */
+    if (snap && s > -1.0f && s < 1.0f)
+        s = d > 0 ? 1.0f : -1.0f;        /* finish, don't hover */
+    return (int)s;
+}
 
-/* ---- THREE CAMERA MODES, AND ONE RIG -----------------------------------
+/* ---- FOUR CAMERA MODES, AND ONE RIG -----------------------------------
    The freecam proved the shape: a harness rig that draws through the ROM's own
    PerspectiveW_ / LookAt_ / CopyToViewMat and publishes its own heading, with
    the Camera actor left running untouched underneath it. The only thing that
@@ -649,15 +787,31 @@ static const int CAM_STEP = 0x400;       /* the ROM's quantum, 0x0200a6a8 */
                  the DS's 5.625-degree steps, and when the stick is idle and he
                  is moving it drifts back behind him -- gently, the way the
                  analog cams in the PC SM64 ports do it, not a snap.
-     CAM_FREE    the freecam: the rig orbiting the Camera actor's own look-at,
-                 which is what "the harness takes the view" meant before.
-     CAM_DS      the hardware's own stepped rotate, byte for byte what this
-                 program did before analog existed. Nothing in the analog path
-                 runs, the harness writes the rotate bits, and the frame is
-                 whatever func_02009e70 makes of them.
+      CAM_SM64    the N64 camera. Same rig pinned to the same eased pivot,
+                  but everything about it is Lakitu's: the follow law has no
+                  deadzone and closes a tenth of the error a frame (capped),
+                  so the lens swings behind his direction of travel instead
+                  of trailing it lazily; Q/E step in C-button chunks with
+                  hold-to-repeat; R/F tap C-Up/C-Down and the right stick's
+                  Y pushes them too (stick up zooms in, down zooms out);
+                  zoom is modal -- normal, close, far -- where the opposite
+                  button comes back to normal and the same one does nothing;
+                  bumpers don't zoom here at all. C snaps the heading and
+                  glides the pitch home; entering the mode glides pitch and
+                  distance to the default framing over half a second rather
+                  than cutting. Height lags an extra frame for the swoop
+                  after jumps. All rates scale with the real present
+                  interval, so it feels the same at 30 and at 144 presents
+                  a second.
+      CAM_FREE    the freecam: the rig orbiting the Camera actor's own look-at,
+                  which is what "the harness takes the view" meant before.
+      CAM_DS      the hardware's own stepped rotate, byte for byte what this
+                  program did before analog existed. Nothing in the analog path
+                  runs, the harness writes the rotate bits, and the frame is
+                  whatever func_02009e70 makes of them.
 
-   F1 cycles analog -> freecam -> DS. SM64DS_DS_CAMERA=1 boots DS-exact and
-   SM64DS_FREECAM=1 boots the freecam.
+    F1 cycles analog -> sm64 -> freecam -> DS. SM64DS_DS_CAMERA=1 boots DS-exact and
+    SM64DS_FREECAM=1 boots the freecam.
 
    THE SELFTEST DEFAULTS TO CAM_DS, deliberately. It is the regression harness:
    its BMP is a byte-comparison against the hardware's framing and its camera
@@ -665,22 +819,26 @@ static const int CAM_STEP = 0x400;       /* the ROM's quantum, 0x0200a6a8 */
    of which the analog path writes. SM64DS_ANALOG_CAMERA=1 puts a selftest in
    analog when that is what is being probed.
 
-   WHAT IS TRUE IN ALL THREE: the Camera actor runs its whole frame, is never
+    WHAT IS TRUE IN ALL FOUR: the Camera actor runs its whole frame, is never
    written to, and Camera::Render still seeds the Clipper. The cull is the
    game's, which is the invariant the block above is about -- an actor the rig
    can see but the game camera cannot stays dormant, and that is the price of
    leaving the actor alone rather than a bug to chase. */
-enum { CAM_ANALOG = 0, CAM_FREE = 1, CAM_DS = 2 };
+enum { CAM_ANALOG = 0, CAM_SM64 = 1, CAM_FREE = 2, CAM_DS = 3 };
 static int cam_mode = CAM_DS;    /* main promotes it once the Camera is up */
 
 static const char *cam_mode_name(int m)
 {
-    return m == CAM_ANALOG ? "analog" : (m == CAM_FREE ? "freecam" : "DS");
+    return m == CAM_ANALOG ? "analog" :
+           (m == CAM_SM64 ? "sm64" : (m == CAM_FREE ? "freecam" : "DS"));
 }
 
 static short fc_yaw;             /* heading from the pivot to the eye */
 static short fc_pitch;           /* elevation of the eye above the pivot */
 static int fc_dist;              /* fixed-point world units */
+/* Lakitu's default framing: a gentle look-down, stepped back from the
+   inherited shot on entry (C snaps back to it too) */
+static const short SM64_PITCH = 0x500;
 
 /* the analog rig's own pivot: Mario's position lifted to about chest height
    and eased, so the picture does not carry the per-frame jitter of a walk
@@ -688,6 +846,41 @@ static int fc_dist;              /* fixed-point world units */
 static int an_pivot[3];
 static int an_pivot_live;
 static const int AN_LIFT = 140 << 12;     /* world fx above his feet */
+
+/* one C-button press in sm64 mode. dir +1 = C-up (zoom in), -1 = C-down
+   (zoom out). From normal it goes to that zoom; from the opposite zoom it
+   comes back to normal; pressing the same one twice does nothing. Lives
+   down here so fc_dist and the glide state are declared above it. */
+static void sm64_zoom_press(int dir)
+{
+    if (dir > 0) {
+        if (sm64_zoom_mode == 0) {
+            sm64_normal_dist = fc_dist;
+            sm64_zoom_mode = 1;
+            sm64_want_dist = sm64_normal_dist / 4;
+            if (sm64_want_dist < 0x30000) sm64_want_dist = 0x30000;
+            sm64_glide = 0.4f;
+        } else if (sm64_zoom_mode == 2) {
+            sm64_zoom_mode = 0;
+            sm64_want_dist = sm64_normal_dist;
+            sm64_glide = 0.4f;
+        }
+    } else if (dir < 0) {
+        if (sm64_zoom_mode == 0) {
+            sm64_normal_dist = fc_dist;
+            sm64_zoom_mode = 2;
+            sm64_want_dist = sm64_normal_dist +
+                             ((sm64_normal_dist >> 2) +
+                              sm64_normal_dist) / 2;
+            if (sm64_want_dist > 0x2000000) sm64_want_dist = 0x2000000;
+            sm64_glide = 0.4f;
+        } else if (sm64_zoom_mode == 1) {
+            sm64_zoom_mode = 0;
+            sm64_want_dist = sm64_normal_dist;
+            sm64_glide = 0.4f;
+        }
+    }
+}
 
 /* stick deflection -> binangs (or units) per frame, signed. Half linear,
    half squared: fine control near the centre, `top` at the stop. */
@@ -731,6 +924,18 @@ static void fc_seed(void *cam)
     fc_pitch = Vec3_VertAngle(eye, at);
     fc_dist = LenVec3(d);
     if (fc_dist < 0x40000) fc_dist = 0x40000;
+    /* sm64 enters on Lakitu's default framing instead of the inherited
+       shot: a gentle look-down and a quarter step back, eased in over
+       ~0.6s by the entry glide (steering cancels it). The yaw stays where
+       it was, so the cut reads as a reframe, not a swing. Zoom starts in
+       C-normal at the new framing. */
+    if (cam_mode == CAM_SM64) {
+        sm64_want_dist = fc_dist + fc_dist / 4;
+        if (sm64_want_dist > 0x2000000) sm64_want_dist = 0x2000000;
+        sm64_normal_dist = sm64_want_dist;
+        sm64_zoom_mode = 0;
+        sm64_glide = 0.6f;
+    }
 }
 
 /* the analog rig's pivot, stepped once a frame. Eased toward Mario's chest at
@@ -751,9 +956,24 @@ static void an_step_pivot(char *player)
     }
     for (k = 0; k < 3; ++k) {
         const int d = tgt[k] - an_pivot[k];
-        an_pivot[k] += (d > (4000 << 12) || d < -(4000 << 12)) ? d : d / 4;
+        if (d > (4000 << 12) || d < -(4000 << 12)) {
+            an_pivot[k] += d;
+            continue;
+        }
+        /* sm64 lets height lag an extra frame -- the swoop after a jump.
+           Rates hold at any present rate through cam_k_live. */
+        if (k == 1 && cam_mode == CAM_SM64)
+            an_pivot[k] += cam_ease_step(d, 8, 0, cam_k_live, 1);
+        else
+            an_pivot[k] += cam_ease_step(d, 4, 0, cam_k_live, 1);
     }
 }
+
+/* Widescreen is TRUE hor+: a 16:9 projection squeezed into the 4:3
+   framebuffer, which the 16:9 window then unsqueezes. Geometry stays
+   correct and the sides gain picture instead of stretch. (16 << 12) / 9
+   is the aspect in the ROM's own Fix12i. Defined after the mod globals. */
+static int port_view_aspect(void *cam);
 
 /* the view the mod draws with: the ROM's own two entry points, fed the rig's
    eye and pivot in scene units (the (v + 4) >> 3 Camera::Render applies to
@@ -769,7 +989,7 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
     }
     _ZN3G3i13PerspectiveW_E5Fix12IiES1_S1_S1_S1_S1_bP9Matrix4x3(
         data_02082214[i], data_02082214[i + 1],
-        *(int *)((char *)cam + 0xf8), *(int *)((char *)cam + 0xfc),
+        port_view_aspect(cam), *(int *)((char *)cam + 0xfc),
         *(int *)((char *)cam + 0x100), data_0209ee90[0x44 / 4], 1, 0);
     _ZN3G3i7LookAt_EPK7Vector3S2_S2_bP9Matrix4x3(e, data_02086efc, a, 1, mat);
     _Z13CopyToViewMatPK9Matrix4x3(mat);
@@ -793,13 +1013,869 @@ enum {
     MENU_OVERLAY,
     MENU_CAMERA,
     MENU_RECORDER,
+    MENU_ANALOG,
+    MENU_CHARACTER,
+    MENU_COLOR,
+    MENU_SPEED,
+    MENU_JUMP,
+    MENU_SUB,
+    MENU_WIDE,
+    MENU_ARENA,
+    MENU_CAMDIST,
+    MENU_FPS,
+    MENU_VSYNC,
+    MENU_DISCONNECT,
     MENU_COUNT
 };
+
+static const char *fps_mode_name(int m)
+{
+    return m == 1 ? "uncapped" : (m == 2 ? "smooth" : "30");
+}
 static int menu_on;
 static int menu_sel;
+static int front_on = 1;
+static int front_page;
+static int front_sel;
+static int front_file;
+static int front_invert_x;
+static int front_invert_y;            /* pitch inversion, rig + pad */
+static int g_sound_on = 1;            /* sdat tick gate (Sound page) */
+static int g_mute_unfocused;          /* skip tick when not foreground */
+static int g_toasts_on = 1;           /* toast_draw gate (Misc page) */
 static int menu_entrance;             /* the entrance the warp row is showing */
 static int g_overlay_on;              /* F3, and the menu's overlay row */
 static char g_playlog[160] = "off";   /* the flight recorder's current file */
+/* Coop-style mod state: persisted to mod_state.cfg, settable from the front
+   menu, the F5 menu, and Lua mods (sm64ds.set_* at startup). */
+static int g_analog_controls = 1;
+static int g_character;               /* 0 Mario, 1 Luigi, 2 Wario, 3 Yoshi */
+static int g_speed_pct = 100;         /* 25..300, 100 = ROM speed */
+static int g_jump_pct = 100;          /* 25..300, 100 = ROM jump */
+static int g_sub_scale = 3;           /* bottom-screen divisor 1..4, 3 = small */
+static int g_widescreen;              /* 0 = 4:3 window, 1 = 16:9 stretch */
+static int g_arena;                   /* 0 = full grounds, 1 = small arena clamp */
+static int g_cam_dist_pct = 100;      /* rig distance preset */
+static int g_fps_mode;                /* 0 = 30 present, 1 = 60, 2 = uncapped present */
+static int g_vsync = 1;               /* DwmFlush after present (tear-free) */
+static float g_dt_scale = 1.f;        /* display dt / 30Hz tick, for look rates */
+static float g_interp_t = 1.f;        /* 0 = previous tick, 1 = current tick */
+static int g_do_tick = 1;             /* this display frame runs a 30Hz game tick */
+static int g_jump_edge;               /* jump button edge this frame (post-tick boost) */
+/* gamepad button bindings: 0..15 = XInput button bit, 100 = LT, 101 = RT */
+static int g_pad_jump = 12;           /* A */
+static int g_pad_run = 14;            /* X */
+static int g_pad_punch = 13;          /* B */
+static int g_pad_crouch = 101;        /* RT */
+/* identity + remappable controls (OPTIONS page, persisted) */
+static char g_username[16] = "Player";
+static int g_key_jump = VK_SPACE;
+static int g_key_run = VK_SHIFT;
+static int g_key_crouch = VK_CONTROL;
+static int g_key_punch = 'X';
+static int g_color;                   /* outfit tint preset 0..7 (MODS/F5) */
+
+/* ---- toasts: one-line CoopDX-style notifications, bottom-center ---- */
+static char g_toast[3][96];
+static unsigned long long g_toast_until[3];
+static unsigned long long g_frame_no;
+static void toast(const char *fmt, ...)
+{
+    char buf[96];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    for (int i = 2; i > 0; --i) {
+        strcpy(g_toast[i], g_toast[i - 1]);
+        g_toast_until[i] = g_toast_until[i - 1];
+    }
+    strcpy(g_toast[0], buf);
+    g_toast_until[0] = (unsigned long long)(ovl_now_ms() + 8000.0);
+    fprintf(stderr, "[toast] %s\n", buf);
+}
+
+/* ---- chat: local echo box (T to talk), ready for the lobby plugin ---- */
+static char g_chat[4][128];
+static char g_chat_input[112];
+static int g_chat_open;
+static char g_lobby_ip[64];      /* join target, blank by default */
+static void chat_add_local(const char *user, const char *msg)
+{
+    for (int i = 3; i > 0; --i) strcpy(g_chat[i], g_chat[i - 1]);
+    snprintf(g_chat[0], sizeof g_chat[0], "<%s> %s", user, msg);
+    fprintf(stderr, "[chat] <%s> %s\n", user, msg);
+}
+static void chat_add(const char *user, const char *msg)
+{
+    chat_add_local(user, msg);
+    sm64ds::lobby::send_chat(user, msg);
+}
+
+/* lobby transport callbacks: relayed lines display without rebroadcast
+   (chat_add would send them back -- the echo storm), joins leave a toast */
+static void lobby_on_text(const char *user, const char *msg)
+{
+    chat_add_local(user, msg);
+}
+static void lobby_on_peer(const char *name, int joined)
+{
+    toast("%s %s", name, joined ? "joined" : "left");
+}
+static sm64ds::lobby::NetEvents lobby_ev;   /* registered once at boot */
+
+/* ---- line editor shared by chat input, username edit, rebind capture -- */
+    enum { EDIT_NONE = 0, EDIT_CHAT, EDIT_NAME, EDIT_IP, EDIT_KEY };
+static int g_edit_mode;
+static int *g_edit_key_target;   /* EDIT_KEY: keyboard binding being captured */
+static int *g_edit_pad_target;   /* EDIT_KEY: gamepad binding being captured */
+static int g_edit_pad;           /* listen for a controller button too */
+static int g_edit_wait_release;  /* ignore the key/button that opened capture */
+static int g_edit_just_done;     /* wndproc commit/cancel: eat one input edge */
+
+/* ---- lobby stub state (real lobbies land with the net plugin) ---- */
+    static int g_lobby_state;   /* 0 offline, 1 hosting, 2 joined (mirrors role) */
+static int g_lobby_code;
+
+/* mods live beside the exe; toggling renames their folders */
+static std::string g_mods_dir;
+static void front_save_state(void);
+static void apply_character_live(void);
+static const char *kModRowIds[] = {
+    "analog_controls", "character_select", "outfit",     "speed_boost",
+    "high_jump",       "bottom_compact",   "widescreen", "small_arena",
+    "sm64_movement",
+};
+static int f5_mod_index(int menu_row)
+{
+    switch (menu_row) {
+    case MENU_ANALOG: return 0;
+    case MENU_CHARACTER: return 1;
+    case MENU_COLOR: return 2;
+    case MENU_SPEED: return 3;
+    case MENU_JUMP: return 4;
+    case MENU_SUB: return 5;
+    case MENU_WIDE: return 6;
+    case MENU_ARENA: return 7;
+    default: break;
+    }
+    return -1;
+}
+/* Enter on a mod row flips it (rename on disk). Disabling applies vanilla
+   live at once; enabling arms the mod's script for the next boot. */
+static void mod_row_toggle(int mod_index)
+{
+    if (mod_index < 0 || mod_index > 8) return;
+    const char *id = kModRowIds[mod_index];
+    const bool on = !sm64ds::mods::mod_enabled(id);
+    if (!sm64ds::mods::mod_set_enabled(g_mods_dir, id, on)) {
+        toast("mod folder missing: %s", id);
+        return;
+    }
+    if (!on) {
+        switch (mod_index) {
+        case 0: g_analog_controls = 0; break;
+        case 1:
+            g_character = 0;
+            apply_character_live();
+            break;
+        case 2: g_color = 0; break;
+        case 3: g_speed_pct = 100; break;
+        case 4: g_jump_pct = 100; break;
+        case 5:
+            g_sub_scale = 3;
+            hal_sub_screen_set_scale(g_sub_scale);
+            break;
+        case 6: g_widescreen = 0; break;
+        case 7: g_arena = 0; break;
+        case 8:
+            g_speed_pct = 100;
+            g_jump_pct = 100;
+            break;
+        default: break;
+        }
+    }
+    front_save_state();
+    toast("%s %s%s", id, on ? "ON" : "OFF",
+          on ? " (restart applies it)" : "");
+}
+/* Turning a knob re-arms its mod (helper so call sites stay braceless) */
+static void mod_row_arm(int mi)
+{
+    if (mi >= 0 && !sm64ds::mods::mod_enabled(kModRowIds[mi])) {
+        sm64ds::mods::mod_set_enabled(g_mods_dir, kModRowIds[mi], true);
+        front_save_state();
+    }
+}
+
+static const char *key_name(int vk)
+{
+    static char buf[16];
+    if (vk >= 'A' && vk <= 'Z' || vk >= '0' && vk <= '9') {
+        snprintf(buf, sizeof buf, "%c", vk);
+        return buf;
+    }
+    switch (vk) {
+    case VK_SPACE: return "Space";
+    case VK_SHIFT: return "Shift";
+    case VK_CONTROL: return "Ctrl";
+    case VK_MENU: return "Alt";
+    case VK_UP: return "Up";
+    case VK_DOWN: return "Down";
+    case VK_LEFT: return "Left";
+    case VK_RIGHT: return "Right";
+    case VK_RETURN: return "Enter";
+    case VK_TAB: return "Tab";
+    case VK_CAPITAL: return "Caps";
+    default: break;
+    }
+    snprintf(buf, sizeof buf, "key%d", vk & 0xff);
+    return buf;
+}
+
+/* gamepad bindings: XInput button bit, or 100 = LT, 101 = RT */
+static const char *pad_name(int code)
+{
+    static const char *bits[] = {"DUp", "DDown", "DLeft", "DRight",
+                                 "Start", "Back", "LStick", "RStick", "LB",
+                                 "RB", "?", "?", "A", "B", "X", "Y"};
+    if (code >= 0 && code <= 15) return bits[code];
+    if (code == 100) return "LT";
+    if (code == 101) return "RT";
+    return "?";
+}
+
+static int pad_btn_down(const XPad *pad, int code)
+{
+    if (!pad) return 0;
+    if (code >= 0 && code <= 15) return (pad->buttons & (1u << code)) != 0;
+    if (code == 100) return pad->lt > 100;
+    if (code == 101) return pad->rt > 100;
+    return 0;
+}
+
+static short ang_lerp(short a, short b, float t)
+{
+    int d = (short)(b - a);
+    return (short)(a + (int)((float)d * t));
+}
+
+/* CoopDX-style: physics stays 30Hz; extra presents lerp actors from the
+   previous tick (Actor+0x68 / mPrevAngle*) toward the current one. */
+struct InterpSave {
+    char *o;
+    int x, y, z;
+    short ax, ay, az;
+};
+static InterpSave g_interp_save[512];
+static int g_interp_n;
+
+static void interp_apply(float t)
+{
+    g_interp_n = 0;
+    if (t >= 0.999f) return;
+    if (t < 0.f) t = 0.f;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node && g_interp_n < 512;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o) continue;
+        InterpSave &s = g_interp_save[g_interp_n++];
+        s.o = o;
+        s.x = *(int *)(o + 0x5c);
+        s.y = *(int *)(o + 0x60);
+        s.z = *(int *)(o + 0x64);
+        s.ax = *(short *)(o + 0x8c);
+        s.ay = *(short *)(o + 0x8e);
+        s.az = *(short *)(o + 0x90);
+        const int px = *(int *)(o + 0x68);
+        const int py = *(int *)(o + 0x6c);
+        const int pz = *(int *)(o + 0x70);
+        *(int *)(o + 0x5c) = px + (int)((float)(s.x - px) * t);
+        *(int *)(o + 0x60) = py + (int)((float)(s.y - py) * t);
+        *(int *)(o + 0x64) = pz + (int)((float)(s.z - pz) * t);
+        *(short *)(o + 0x8c) = ang_lerp(*(short *)(o + 0x92), s.ax, t);
+        *(short *)(o + 0x8e) = ang_lerp(*(short *)(o + 0x94), s.ay, t);
+        *(short *)(o + 0x90) = ang_lerp(*(short *)(o + 0x96), s.az, t);
+    }
+}
+
+static void interp_restore(void)
+{
+    for (int i = 0; i < g_interp_n; ++i) {
+        const InterpSave &s = g_interp_save[i];
+        *(int *)(s.o + 0x5c) = s.x;
+        *(int *)(s.o + 0x60) = s.y;
+        *(int *)(s.o + 0x64) = s.z;
+        *(short *)(s.o + 0x8c) = s.ax;
+        *(short *)(s.o + 0x8e) = s.ay;
+        *(short *)(s.o + 0x90) = s.az;
+    }
+    g_interp_n = 0;
+}
+
+static void bind_begin(int *key, int *pad, const char *action)
+{
+    g_edit_key_target = key;
+    g_edit_pad_target = pad;
+    g_edit_mode = EDIT_KEY;
+    g_edit_pad = 1;
+    g_edit_wait_release = 1;
+    toast("Press a key or button for %s...", action);
+}
+
+static const char *character_name(int c)
+{
+    return c == 0 ? "Mario" : c == 1 ? "Luigi" : c == 2 ? "Wario" : "Yoshi";
+}
+
+static int port_view_aspect(void *cam)
+{
+    if (g_widescreen) return (16 << 12) / 9;
+    return *(int *)((char *)cam + 0xf8);
+}
+
+/* forward: the live player actor, set once the entrance spawns him */
+static void *g_live_player;
+static void apply_character_live(void)
+{
+    if (!g_live_player) return;
+    char *c = (char *)g_live_player;
+    /* param1 low byte + mCharacter both carry the id; SetRealCharacter
+       owns the full switch (files, hat, models, heal). Skip when already
+       there so a menu re-open never reloads. */
+    if (((*(int *)(c + 8)) & 0xff) == g_character &&
+        *(unsigned char *)(c + 0x6d9) == (unsigned char)g_character)
+        return;
+    hal_player_set_real_character(g_live_player, (unsigned)g_character);
+    /* voices follow the character: the boot loads the boot character's
+       sound group (InitResources), but a live switch never did -- the new
+       character kept the old voice bank (or silence). Same call the ROM
+       makes per character (func_ov002_020e6330); safe to repeat (it
+       early-outs when already loaded). */
+    func_02011f7c(data_ov002_020ff0f0[g_character & 3]);
+}
+
+enum {
+    FRONT_HOME = 0,
+    FRONT_OPTIONS,
+    FRONT_FILES,
+    FRONT_MODS,
+    FRONT_LOBBY,
+    FRONT_CHARACTER,
+    FRONT_PLAYER,
+    FRONT_CONTROLS,
+    FRONT_CAMERA,
+    FRONT_DISPLAY,
+    FRONT_SOUND,
+    FRONT_MISC,
+    FRONT_INFO
+};
+
+static int front_row_count(void)
+{
+    switch (front_page) {
+    case FRONT_HOME: return 5;
+    case FRONT_OPTIONS: return 7;
+    case FRONT_PLAYER: return 4;
+    case FRONT_CONTROLS: return 11;
+    case FRONT_CAMERA: return 5;
+    case FRONT_DISPLAY: return 5;
+    case FRONT_SOUND: return 3;
+    case FRONT_MISC: return 4;
+    case FRONT_INFO: return 1;
+    case FRONT_FILES: return 6;
+    case FRONT_LOBBY: return 5;
+    case FRONT_CHARACTER: return 5;
+    default: return 12;   /* MODS: 9 mods + Refresh + Open folder + Back */
+    }
+}
+
+/* outfit tints (multipliers over the body's DIF_AMB channels) */
+static const float g_color_tints[8][3] = {
+    {1.0f, 1.0f, 1.0f}, {1.5f, 0.55f, 0.55f}, {1.5f, 0.9f, 0.45f},
+    {1.4f, 1.25f, 0.5f}, {0.6f, 1.4f, 0.6f}, {0.55f, 0.75f, 1.5f},
+    {1.25f, 0.6f, 1.4f}, {0.32f, 0.32f, 0.45f},
+};
+static const char *color_name(int c)
+{
+    static const char *names[] = {"Default", "Red",   "Orange", "Yellow",
+                                  "Green",   "Blue",  "Purple", "Shadow"};
+    return names[c < 0 ? 0 : (c > 7 ? 7 : c)];
+}
+
+static PortLogo g_logo;
+static int g_logo_tried;
+
+/* outfit tint for hal/player_bridges.cpp: null = Default (no tint) */
+extern "C" const float *port_outfit_tint(void)
+{
+    if (g_color <= 0 || g_color > 7) return 0;
+    return g_color_tints[g_color];
+}
+
+static std::string front_state_path(void)
+{
+    const char *local = std::getenv("LOCALAPPDATA");
+    if (!local) return "";
+    return (std::filesystem::path(local) / "SM64DS" / "mod_state.cfg").string();
+}
+
+static void front_load_state(void)
+{
+    const std::string path = front_state_path();
+    if (path.empty()) return;
+    FILE *f = std::fopen(path.c_str(), "rb");
+    if (!f) return;
+    int analog = 1, invert = 0, ch = 0, spd = 100, jmp = 100, sub = 3,
+        wide = 0, arena = 0, camd = 100, fps = 0, kj = VK_SPACE,
+        kr = VK_SHIFT, kc = VK_CONTROL, kp = 'X', col = 0, vs = 1,
+        pj = 12, pr = 14, pp = 13, pc = 101, ivy = 0, snd = 1, mut = 0,
+        tst = 1;
+    /* old files still load: missing fields keep their defaults */
+    if (std::fscanf(f, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+                    &analog, &invert, &ch, &spd, &jmp, &sub, &wide, &arena,
+                    &camd, &fps, &kj, &kr, &kc, &kp, &col, &vs, &pj, &pr,
+                    &pp, &pc, &ivy, &snd, &mut, &tst) >= 2) {
+        g_analog_controls = analog != 0;
+        front_invert_x = invert != 0;
+        if (ch >= 0 && ch <= 3) g_character = ch;
+        if (spd >= 25 && spd <= 300) g_speed_pct = spd;
+        if (jmp >= 25 && jmp <= 300) g_jump_pct = jmp;
+        if (sub >= 1 && sub <= 4) g_sub_scale = sub;
+        g_widescreen = wide != 0;
+        g_arena = arena != 0;
+        if (camd >= 50 && camd <= 200) g_cam_dist_pct = camd;
+        if (fps >= 0 && fps <= 2) g_fps_mode = fps;
+        if (kj > 0 && kj < 256) g_key_jump = kj;
+        if (kr > 0 && kr < 256) g_key_run = kr;
+        if (kc > 0 && kc < 256) g_key_crouch = kc;
+        if (kp > 0 && kp < 256) g_key_punch = kp;
+        if (col >= 0 && col <= 7) g_color = col;
+        g_vsync = vs != 0;
+        if ((pj >= 0 && pj <= 15) || pj == 100 || pj == 101) g_pad_jump = pj;
+        if ((pr >= 0 && pr <= 15) || pr == 100 || pr == 101) g_pad_run = pr;
+        if ((pp >= 0 && pp <= 15) || pp == 100 || pp == 101) g_pad_punch = pp;
+        if ((pc >= 0 && pc <= 15) || pc == 100 || pc == 101) g_pad_crouch = pc;
+        front_invert_y = ivy != 0;
+        g_sound_on = snd != 0;
+        g_mute_unfocused = mut != 0;
+        g_toasts_on = tst != 0;
+    }
+    /* username rides on line 2 (absent in old files -> default stays),
+       join-target IP on line 3 (blank = must type one to join) */
+    {
+        char name[32] = {0};
+        if (std::fscanf(f, "%31s", name) == 1 && name[0]) {
+            name[sizeof g_username - 1] = 0;
+            strcpy(g_username, name);
+        }
+        char ip[64] = {0};
+        if (std::fscanf(f, "%63s", ip) == 1) {
+            ip[sizeof g_lobby_ip - 1] = 0;
+            strcpy(g_lobby_ip, ip);
+        }
+    }
+    std::fclose(f);
+}
+
+static void front_save_state(void)
+{
+    const std::string path = front_state_path();
+    if (path.empty()) return;
+    std::error_code ec;
+    std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
+    FILE *f = std::fopen(path.c_str(), "wb");
+    if (!f) return;
+    std::fprintf(f, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
+                 g_analog_controls ? 1 : 0, front_invert_x ? 1 : 0,
+                 g_character, g_speed_pct, g_jump_pct, g_sub_scale,
+                 g_widescreen ? 1 : 0, g_arena ? 1 : 0, g_cam_dist_pct,
+                 g_fps_mode, g_key_jump, g_key_run, g_key_crouch,
+                 g_key_punch, g_color, g_vsync ? 1 : 0, g_pad_jump,
+                 g_pad_run, g_pad_punch, g_pad_crouch,
+                 front_invert_y ? 1 : 0, g_sound_on ? 1 : 0,
+                 g_mute_unfocused ? 1 : 0, g_toasts_on ? 1 : 0);
+    std::fprintf(f, "%s\n", g_username);
+    std::fprintf(f, "%s\n", g_lobby_ip);
+    std::fclose(f);
+}
+
+static const char *front_page_name(void)
+{
+    return front_page == FRONT_OPTIONS ? "OPTIONS" :
+           front_page == FRONT_FILES ? "SAVE FILE" :
+           front_page == FRONT_MODS ? "MODS" :
+           front_page == FRONT_LOBBY ? "LOBBY" :
+           front_page == FRONT_CHARACTER ? "CHARACTER" :
+           front_page == FRONT_PLAYER ? "PLAYER" :
+           front_page == FRONT_CONTROLS ? "CONTROLS" :
+           front_page == FRONT_CAMERA ? "CAMERA" :
+           front_page == FRONT_DISPLAY ? "DISPLAY" :
+           front_page == FRONT_SOUND ? "SOUND" :
+           front_page == FRONT_MISC ? "MISC" :
+           front_page == FRONT_INFO ? "INFO" : "";
+}
+
+static const char *character_blurb(int c)
+{
+    return c == 0 ? "all-round" : c == 1 ? "jumps highest" :
+           c == 2 ? "strongest" : "flutters, eats";
+}
+
+static unsigned character_color(int c)
+{
+    return c == 0 ? 0xFFFF5B4Du : c == 1 ? 0xFF7CFF78u :
+           c == 2 ? 0xFFFFD12Eu : 0xFF4CC9FFu;
+}
+
+/* full-height navigation rail, CoopDX composition: the game stays alive
+   behind it, logo on top, buttons below, version at the foot */
+static void front_rail(ntr::Framebuffer &fb)
+{
+    /* solid near-black panel like the reference: readable over any scene */
+    ovl_fill(fb, 0, 0, 156, ntr::SCREEN_H, 0xFF121418u);
+}
+
+/* Mario-letter title: each glyph in the next Mario color. */
+static void mario_text(ntr::Framebuffer &fb, int x, int y, const char *s)
+{
+    static const uint32_t cols[] = {0xFFE52521u, 0xFFFFD12Eu, 0xFF3BB143u,
+                                    0xFF2E7DE9u};
+    char b[2] = {0, 0};
+    int i = 0;
+    for (; *s; ++s) {
+        if (*s == ' ') {
+            x += OVL_ADVANCE * OVL_SCALE;
+            continue;
+        }
+        b[0] = *s;
+        ovl_text(fb, x, y, b, cols[i & 3]);
+        x += OVL_ADVANCE * OVL_SCALE;
+        ++i;
+    }
+}
+
+/* centered rail title */
+static void front_title(ntr::Framebuffer &fb, const char *s)
+{
+    const int w = (int)strlen(s) * OVL_ADVANCE * OVL_SCALE;
+    mario_text(fb, (156 - w) / 2, 84, s);
+}
+
+static void front_button(ntr::Framebuffer &fb, int y, const char *label,
+                         int selected)
+{
+    const int x = 8, w = 140, h = 22;
+    const int bx = x, bw = w;
+    /* bordered button: dark fill, gray edge; selected gets the blue edge
+       and a lighter fill, label centered like the reference. */
+    ovl_fill(fb, bx, y, bw, h, selected ? 0xFF2A2E35u : 0xFF1B1E24u);
+    uint32_t edge = selected ? 0xFF2E7DE9u : 0xFF3A3F47u;
+    ovl_fill(fb, bx, y, bw, OVL_SCALE, edge);
+    ovl_fill(fb, bx, y + h - OVL_SCALE, bw, OVL_SCALE, edge);
+    ovl_fill(fb, bx, y, OVL_SCALE, h, edge);
+    ovl_fill(fb, bx + bw - OVL_SCALE, y, OVL_SCALE, h, edge);
+    const int lw = (int)strlen(label) * OVL_ADVANCE * OVL_SCALE;
+    ovl_text(fb, bx + (bw - lw) / 2, y + 7, label,
+             selected ? UI_TEXT : UI_DIM);
+}
+
+static void front_row(ntr::Framebuffer &fb, int y, const char *label,
+                      int selected, int enabled = 1, int check = -1)
+{
+    uint32_t col = UI_DIM;
+    if (selected)
+        col = UI_TEXT;
+    else if (!enabled)
+        col = UI_FAINT;
+    if (selected) ovl_selbar(fb, 8, y);
+    ovl_text(fb, 26, y, label, col);
+    /* checkbox at the rail's right edge for toggle rows */
+    if (check >= 0) {
+        char box[4] = {'[', check ? 'x' : ' ', ']', 0};
+        ovl_text(fb, 132, y, box,
+                 check ? UI_TEXT : (selected ? UI_DIM : UI_FAINT));
+    }
+}
+
+static void front_draw(ntr::Framebuffer &fb)
+{
+    char line[96];
+    front_rail(fb);
+    /* wordmark: the logo asset when present, the text mark otherwise */
+    extern PortLogo g_logo;
+    if (g_logo.px)
+        port_logo_blit(&fb.px[0][0], ntr::SCREEN_W, ntr::SCREEN_H, g_logo, 8,
+                       6, 140, 70);
+    else {
+        ovl_text(fb, 14, 12, "SUPER", 0xFF4CC9FFu);
+        ovl_text(fb, 14, 26, "MARIO", 0xFFFFD12Eu);
+        ovl_text(fb, 14, 40, "64", 0xFFFF5B4Du);
+        ovl_text(fb, 38, 40, "DS", 0xFF7CFF78u);
+        ovl_text(fb, 14, 56, "COOP", 0xFFFFFFFFu);
+    }
+    if (front_page == FRONT_HOME) {
+        static const char *home[] = {"Host", "Join", "Mods", "Options",
+                                     "Quit"};
+        for (int i = 0; i < 5; ++i)
+            front_button(fb, 96 + i * 30, home[i], i == front_sel);
+    } else {
+        front_title(fb, front_page_name());
+        if (front_page == FRONT_OPTIONS) {
+            /* hub, coopdx-style: categories below own their rows */
+            front_row(fb, 104, "Character", front_sel == 0);
+            front_row(fb, 118, "Controls", front_sel == 1);
+            front_row(fb, 132, "Camera", front_sel == 2);
+            front_row(fb, 146, "Display", front_sel == 3);
+            front_row(fb, 160, "Sound", front_sel == 4);
+            front_row(fb, 174, "Misc", front_sel == 5);
+            front_row(fb, 188, "Back", front_sel == 6);
+        } else if (front_page == FRONT_PLAYER) {
+            snprintf(line, sizeof line, "Character: %s",
+                     character_name(g_character));
+            front_row(fb, 104, line, front_sel == 0);
+            snprintf(line, sizeof line, "Color: %s", color_name(g_color));
+            front_row(fb, 118, line, front_sel == 1);
+            snprintf(line, sizeof line, "Name: %s", g_username);
+            front_row(fb, 132, line, front_sel == 2);
+            front_row(fb, 146, "Back", front_sel == 3);
+        } else if (front_page == FRONT_CONTROLS) {
+            snprintf(line, sizeof line, "Jump: %s", key_name(g_key_jump));
+            front_row(fb, 104, line, front_sel == 0);
+            snprintf(line, sizeof line, "Run: %s", key_name(g_key_run));
+            front_row(fb, 114, line, front_sel == 1);
+            snprintf(line, sizeof line, "Crouch: %s", key_name(g_key_crouch));
+            front_row(fb, 124, line, front_sel == 2);
+            snprintf(line, sizeof line, "Punch: %s", key_name(g_key_punch));
+            front_row(fb, 134, line, front_sel == 3);
+            snprintf(line, sizeof line, "Pad Jump: %s",
+                     pad_name(g_pad_jump));
+            front_row(fb, 144, line, front_sel == 4);
+            snprintf(line, sizeof line, "Pad Run: %s", pad_name(g_pad_run));
+            front_row(fb, 154, line, front_sel == 5);
+            snprintf(line, sizeof line, "Pad Punch: %s",
+                     pad_name(g_pad_punch));
+            front_row(fb, 164, line, front_sel == 6);
+            snprintf(line, sizeof line, "Pad Crouch: %s",
+                     pad_name(g_pad_crouch));
+            front_row(fb, 174, line, front_sel == 7);
+            front_row(fb, 184, "Analog", front_sel == 8, 1,
+                      g_analog_controls ? 1 : 0);
+            front_row(fb, 194, "Invert X", front_sel == 9, 1,
+                      front_invert_x ? 1 : 0);
+            front_row(fb, 204, "Back", front_sel == 10);
+        } else if (front_page == FRONT_CAMERA) {
+            snprintf(line, sizeof line, "Mode: %s",
+                     cam_mode_name(cam_mode));
+            front_row(fb, 104, line, front_sel == 0);
+            front_row(fb, 118, "Invert X", front_sel == 1, 1,
+                      front_invert_x ? 1 : 0);
+            front_row(fb, 132, "Invert Y", front_sel == 2, 1,
+                      front_invert_y ? 1 : 0);
+            snprintf(line, sizeof line, "Distance: %d%%", g_cam_dist_pct);
+            front_row(fb, 146, line, front_sel == 3);
+            front_row(fb, 160, "Back", front_sel == 4);
+        } else if (front_page == FRONT_DISPLAY) {
+            snprintf(line, sizeof line, "FPS: %s",
+                     fps_mode_name(g_fps_mode));
+            front_row(fb, 104, line, front_sel == 0);
+            front_row(fb, 118, "VSync", front_sel == 1, 1,
+                      g_vsync ? 1 : 0);
+            front_row(fb, 132, "Widescreen", front_sel == 2, 1,
+                      g_widescreen ? 1 : 0);
+            snprintf(line, sizeof line, "Bottom: 1/%d", g_sub_scale);
+            front_row(fb, 146, line, front_sel == 3);
+            front_row(fb, 160, "Back", front_sel == 4);
+        } else if (front_page == FRONT_SOUND) {
+            front_row(fb, 104, "Sound", front_sel == 0, 1,
+                      g_sound_on ? 1 : 0);
+            front_row(fb, 118, "Mute unfocused", front_sel == 1, 1,
+                      g_mute_unfocused ? 1 : 0);
+            front_row(fb, 132, "Back", front_sel == 2);
+        } else if (front_page == FRONT_MISC) {
+            front_row(fb, 104, "Stats overlay", front_sel == 0, 1,
+                      g_overlay_on ? 1 : 0);
+            front_row(fb, 118, "Toasts", front_sel == 1, 1,
+                      g_toasts_on ? 1 : 0);
+            front_row(fb, 132, "Info...", front_sel == 2);
+            front_row(fb, 146, "Back", front_sel == 3);
+        } else if (front_page == FRONT_INFO) {
+            ovl_text(fb, 14, 104, "SM64DS COOP PC port", UI_TEXT);
+            ovl_text(fb, 14, 118, "F5 menu pauses, F1 camera,", UI_DIM);
+            ovl_text(fb, 14, 130, "F3 stats, TAB bottom scr.", UI_DIM);
+            front_row(fb, 152, "Back", front_sel == 0);
+        } else if (front_page == FRONT_FILES) {
+            for (int i = 0; i < 4; ++i) {
+                snprintf(line, sizeof line, "File %d   %s", i + 1,
+                         i == front_file ? "SELECTED" : "empty");
+                front_row(fb, 104 + i * 14, line, i == front_sel);
+            }
+            front_row(fb, 162, "Rename", front_sel == 4);
+            front_row(fb, 176, "Back", front_sel == 5);
+        } else if (front_page == FRONT_LOBBY) {
+            char st[64];
+            sm64ds::lobby::status_text(st, sizeof st);
+            snprintf(line, sizeof line, "Status: %s", st);
+            front_row(fb, 104, line, false);
+            if (sm64ds::lobby::role() == 1)
+                front_row(fb, 120, "Stop hosting", front_sel == 0);
+            else
+                front_row(fb, 120, "Host co-op (local)", front_sel == 0);
+            if (sm64ds::lobby::role() == 2)
+                front_row(fb, 134, "Disconnect", front_sel == 1);
+            else
+                front_row(fb, 134, "Join a lobby", front_sel == 1);
+            snprintf(line, sizeof line, "Host IP: %s",
+                     g_lobby_ip[0] ? g_lobby_ip : "(blank)");
+            front_row(fb, 148, line, front_sel == 2);
+            snprintf(line, sizeof line, "Name: %s", g_username);
+            front_row(fb, 162, line, front_sel == 3);
+            front_row(fb, 176, "Back", front_sel == 4);
+            /* roster: you first, then whoever the transport knows about --
+               plain info lines, not selectable */
+            snprintf(line, sizeof line, "* %s (you)", g_username);
+            ovl_text(fb, 26, 192, line, UI_DIM);
+            for (int i = 0, n = sm64ds::lobby::peer_count();
+                 i < n && i < 4; ++i) {
+                snprintf(line, sizeof line, "  %s",
+                         sm64ds::lobby::peer_name(i));
+                ovl_text(fb, 26, 206 + i * 14, line, UI_DIM);
+            }
+        } else if (front_page == FRONT_CHARACTER) {
+            /* CoopDX-style select: every character, what it does best,
+               the current one ticked. ENTER picks and goes back. */
+            for (int i = 0; i < 4; ++i) {
+                const int sel = i == front_sel;
+                const int ry = 104 + i * 20;
+                if (sel) ovl_selbar(fb, 8, ry);
+                ovl_text(fb, 26, ry, character_name(i),
+                         sel ? UI_TEXT : character_color(i));
+                if (i == g_character)
+                    ovl_text(fb, 118, ry, "*", UI_ACCENT);
+                ovl_text(fb, 26, ry + 9, character_blurb(i), UI_DIM);
+            }
+            front_row(fb, 188, "Back", front_sel == 4);
+        } else {
+            /* a dim row = its mod folder is off_/missing: ENTER enables it.
+               Toggle rows show a checkbox; value rows show their value. */
+            front_row(fb, 104, "Analog", front_sel == 0,
+                      sm64ds::mods::mod_enabled(kModRowIds[0]),
+                      g_analog_controls ? 1 : 0);
+            snprintf(line, sizeof line, "Character: %s",
+                     character_name(g_character));
+            front_row(fb, 118, line, front_sel == 1,
+                      sm64ds::mods::mod_enabled(kModRowIds[1]));
+            snprintf(line, sizeof line, "Color: %s", color_name(g_color));
+            front_row(fb, 132, line, front_sel == 2,
+                      sm64ds::mods::mod_enabled(kModRowIds[2]));
+            snprintf(line, sizeof line, "Speed: %d%%", g_speed_pct);
+            front_row(fb, 146, line, front_sel == 3,
+                      sm64ds::mods::mod_enabled(kModRowIds[3]));
+            snprintf(line, sizeof line, "Jump: %d%%", g_jump_pct);
+            front_row(fb, 160, line, front_sel == 4,
+                      sm64ds::mods::mod_enabled(kModRowIds[4]));
+            snprintf(line, sizeof line, "Bottom: 1/%d", g_sub_scale);
+            front_row(fb, 174, line, front_sel == 5,
+                      sm64ds::mods::mod_enabled(kModRowIds[5]));
+            snprintf(line, sizeof line, "Widescreen: %s",
+                     g_widescreen ? "ON" : "OFF");
+            front_row(fb, 188, "Widescreen", front_sel == 6,
+                      sm64ds::mods::mod_enabled(kModRowIds[6]),
+                      g_widescreen ? 1 : 0);
+            front_row(fb, 202, "Arena", front_sel == 7,
+                      sm64ds::mods::mod_enabled(kModRowIds[7]),
+                      g_arena ? 1 : 0);
+            front_row(fb, 216, "SM64 move", front_sel == 8,
+                      sm64ds::mods::mod_enabled(kModRowIds[8]),
+                      sm64ds::mods::mod_enabled(kModRowIds[8]) ? 1 : 0);
+            front_row(fb, 230, "Refresh", front_sel == 9);
+            front_row(fb, 244, "Open mods folder", front_sel == 10);
+            front_row(fb, 258, "Back", front_sel == 11);
+            /* description panel, coopdx-style: what the selected row is */
+            {
+                static const char *blurb[] = {
+                    "Stick walks, tilt sets run speed. Off means D-pad steps.",
+                    "ENTER opens the character select screen.",
+                    "Body tint. The head keeps its own colors.",
+                    "Stick magnitude percent. Full speed needs dash.",
+                    "Rise velocity percent.",
+                    "DS bottom-screen size divisor. TAB hides it.",
+                    "True 16:9 hor+. Takes effect on reboot.",
+                    "A 1200-unit fence around the spawn point.",
+                    "N64 movement preset. Run plus punch dives.",
+                    "Rescan the mods folder for added folders.",
+                    "Open the mods folder in Explorer.",
+                    "Back to Options.",
+                };
+                const int px = 170, py = 100, pw = ntr::SCREEN_W - px - 8;
+                const int sel = front_sel < 0 ? 0
+                                  : (front_sel > 11 ? 11 : front_sel);
+                ovl_shade(fb, px, py, pw, 4 * OVL_LINE + 16);
+                ovl_fill(fb, px, py + 2 * OVL_SCALE, 2 * OVL_SCALE,
+                         4 * OVL_LINE + 12, UI_ACCENT);
+                ovl_wrapped(fb, px + 8 * OVL_SCALE, py + 8, pw - 40,
+                            blurb[sel], UI_TEXT);
+            }
+        }
+    }
+    ovl_text(fb, 12, ntr::SCREEN_H - 26, "UP/DN move  ENTER select",
+             UI_FAINT);
+    ovl_text(fb, 12, ntr::SCREEN_H - 12, "v0.4", UI_FAINT);
+}
+
+/* toasts + chat + always-on FPS, drawn over the world in and out of menus */
+static void toast_draw(ntr::Framebuffer &fb)
+{
+    if (!g_toasts_on) return;
+    int shown = 0;
+    for (int i = 2; i >= 0; --i) {
+        if (!g_toast[i][0] || ovl_now_ms() > (double)g_toast_until[i]) continue;
+        char line[128];
+        snprintf(line, sizeof line, "%s", g_toast[i]);
+        const int w =
+            (int)strlen(line) * OVL_ADVANCE * OVL_SCALE + 12 * OVL_SCALE;
+        const int x0 = (ntr::SCREEN_W - w) / 2;
+        const int y0 = ntr::SCREEN_H - 60 - shown * (OVL_LINE + 4);
+        ovl_shade(fb, x0, y0, w, OVL_LINE + 4);
+        ovl_fill(fb, x0, y0 + 2 * OVL_SCALE, 2 * OVL_SCALE, OVL_LINE,
+                 UI_ACCENT);
+        ovl_text(fb, x0 + 6 * OVL_SCALE, y0 + 2 * OVL_SCALE, line, UI_TEXT);
+        ++shown;
+    }
+}
+
+static void chat_draw(ntr::Framebuffer &fb)
+{
+    char line[160];
+    for (int i = 2; i >= 0; --i) {
+        if (!g_chat[i][0]) continue;
+        const int cy = ntr::SCREEN_H - 96 - (2 - i) * OVL_LINE;
+        const int cw = (int)strlen(g_chat[i]) * OVL_ADVANCE * OVL_SCALE +
+                       4 * OVL_SCALE;
+        ovl_shade(fb, 6, cy - 2, cw, OVL_LINE + 2);
+        ovl_text(fb, 8, cy, g_chat[i], UI_TEXT);
+    }
+    if (g_chat_open) {
+        snprintf(line, sizeof line, "say: %s_", g_chat_input);
+        const int w =
+            (int)strlen(line) * OVL_ADVANCE * OVL_SCALE + 12 * OVL_SCALE;
+        ovl_shade(fb, 4, ntr::SCREEN_H - 96 + OVL_LINE + 2, w, OVL_LINE + 4);
+        ovl_text(fb, 8, ntr::SCREEN_H - 96 + OVL_LINE + 4, line,
+                 0xFFFFFFFFu);
+    }
+}
+
+static void fps_draw(ntr::Framebuffer &fb, double fps)
+{
+    char line[32];
+    snprintf(line, sizeof line, "FPS: %d", (int)(fps + 0.5));
+    /* top-right of the world view: never under the rail, menu or panel.
+       Shaded behind so it reads over bright sky and stone alike. */
+    ovl_shade(fb, ntr::SCREEN_W - 68, 2, 64, OVL_LINE + 4);
+    ovl_text(fb, ntr::SCREEN_W - 64, 4, line,
+             fps >= 28.0 ? 0xFF80FF80u
+                         : (fps >= 20.0 ? 0xFFFFC040u : 0xFFFF6060u));
+}
 
 /* The harness ground snap and wall clamp, a boot-time const off
    SM64DS_FAKE_SNAP until now, so the A/B was a restart. It is a switch.
@@ -817,7 +1893,6 @@ static void menu_draw(ntr::Framebuffer &fb)
     int ex = 0, ey = 0, ez = 0, eyaw = 0;
     const int n_ent = port_entrance_count();
     const int have = port_entrance_record(menu_entrance, &ex, &ey, &ez, &eyaw);
-    const char *title = "DEBUG MENU   F5 close   arrows move   enter/right act";
 
     if (have)
         snprintf(ln[MENU_WARP], sizeof ln[0],
@@ -833,28 +1908,68 @@ static void menu_draw(ntr::Framebuffer &fb)
     snprintf(ln[MENU_CAMERA], sizeof ln[0], "camera            %s",
              cam_mode_name(cam_mode));
     snprintf(ln[MENU_RECORDER], sizeof ln[0], "recorder          %s", g_playlog);
+    snprintf(ln[MENU_ANALOG], sizeof ln[0], "mod: analog input  %s",
+             g_analog_controls ? "ON" : "off");
+    snprintf(ln[MENU_CHARACTER], sizeof ln[0], "character         %s",
+             character_name(g_character));
+    snprintf(ln[MENU_COLOR], sizeof ln[0], "outfit color      %s",
+             color_name(g_color));
+    snprintf(ln[MENU_SPEED], sizeof ln[0], "mod: speed        %d%%",
+             g_speed_pct);
+    snprintf(ln[MENU_JUMP], sizeof ln[0], "mod: jump         %d%%",
+             g_jump_pct);
+    snprintf(ln[MENU_SUB], sizeof ln[0], "bottom screen     1/%d%s",
+             g_sub_scale, hal_sub_screen_on() ? "" : " (hidden, TAB)");
+    snprintf(ln[MENU_WIDE], sizeof ln[0], "widescreen        %s (next boot)",
+             g_widescreen ? "ON" : "off");
+    snprintf(ln[MENU_ARENA], sizeof ln[0], "small arena       %s",
+             g_arena ? "ON" : "off");
+    snprintf(ln[MENU_CAMDIST], sizeof ln[0], "camera dist       %d%%",
+             g_cam_dist_pct);
+    snprintf(ln[MENU_FPS], sizeof ln[0], "fps               %s",
+             fps_mode_name(g_fps_mode));
+    snprintf(ln[MENU_VSYNC], sizeof ln[0], "vsync             %s",
+             g_vsync ? "ON" : "off");
+    snprintf(ln[MENU_DISCONNECT], sizeof ln[0], "disconnect        %s",
+             front_on ? "ON" : "OFF");
 
     for (i = 0; i < MENU_COUNT; ++i) {
         const int lw = (int)strlen(ln[i]) * OVL_ADVANCE * OVL_SCALE;
         if (lw > w) w = lw;
     }
     {
-        const int tw = (int)strlen(title) * OVL_ADVANCE * OVL_SCALE;
+        const int tw =
+            (int)strlen("DEBUG   F5 close   arrows move   ENTER flips mod") *
+            OVL_ADVANCE * OVL_SCALE;
         if (tw > w) w = tw;
     }
     w += 3 * OVL_ADVANCE * OVL_SCALE;
     x0 = (ntr::SCREEN_W - w) / 2;
     if (x0 < 2) x0 = 2;
     y0 = (ntr::SCREEN_H - (MENU_COUNT + 2) * OVL_LINE) / 2;
-    ovl_shade(fb, x0 - 4, y0 - 4, w + 8, (MENU_COUNT + 2) * OVL_LINE + 8);
-    ovl_shade(fb, x0 - 4, y0 - 4, w + 8, (MENU_COUNT + 2) * OVL_LINE + 8);
-    ovl_text(fb, x0, y0, title, 0xFF80C0FFu);
+    {
+        const int ph = (MENU_COUNT + 2) * OVL_LINE + 8;
+        ovl_fill(fb, x0 - 4, y0 - 4, w + 8, ph, 0xFF121418u);
+        uint32_t edge = 0xFF3A3F47u;
+        ovl_fill(fb, x0 - 4, y0 - 4, w + 8, OVL_SCALE, edge);
+        ovl_fill(fb, x0 - 4, y0 + ph - 4 - OVL_SCALE, w + 8, OVL_SCALE,
+                 edge);
+        ovl_fill(fb, x0 - 4, y0 - 4, OVL_SCALE, ph, edge);
+        ovl_fill(fb, x0 + w + 4 - OVL_SCALE, y0 - 4, OVL_SCALE, ph, edge);
+    }
+    mario_text(fb, x0, y0, "DEBUG");
+    ovl_text(fb, x0 + 6 * OVL_ADVANCE * OVL_SCALE, y0,
+             "F5 close   arrows move   ENTER flips mod", UI_DIM);
+    ovl_fill(fb, x0, y0 + OVL_LINE - 1, w, OVL_SCALE, UI_ACCENT);
     for (i = 0; i < MENU_COUNT; ++i) {
         const int y = y0 + (i + 2) * OVL_LINE;
         const int sel = i == menu_sel;
-        if (sel) ovl_text(fb, x0, y, ">", 0xFFFFE060u);
+        const int mi = f5_mod_index(i);
+        const int dim =
+            mi >= 0 && !sm64ds::mods::mod_enabled(kModRowIds[mi]);
+        if (sel) ovl_selbar(fb, x0, y);
         ovl_text(fb, x0 + 2 * OVL_ADVANCE * OVL_SCALE, y, ln[i],
-                 sel ? 0xFFFFE060u : 0xFFB0B0B0u);
+                 sel ? UI_TEXT : (dim ? UI_FAINT : UI_DIM));
     }
 }
 
@@ -900,10 +2015,85 @@ static void mo_release(void)
     if (W.ShowCursor_) while (W.ShowCursor_(TRUE) < 0) {}
 }
 
+/* text-editor commit/cancel shared by chat input, username edit */
+static void edit_commit(void)
+{
+    if (g_edit_mode == EDIT_CHAT) {
+        if (g_chat_input[0]) chat_add(g_username, g_chat_input);
+        g_chat_input[0] = 0;
+        g_chat_open = 0;
+    } else if (g_edit_mode == EDIT_NAME) {
+        if (g_chat_input[0]) {
+            strncpy(g_username, g_chat_input, sizeof g_username - 1);
+            g_username[sizeof g_username - 1] = 0;
+            sm64ds::lobby::set_name(g_username);
+            front_save_state();
+            toast("Name: %s", g_username);
+        }
+        g_chat_input[0] = 0;
+    } else if (g_edit_mode == EDIT_IP) {
+        strncpy(g_lobby_ip, g_chat_input, sizeof g_lobby_ip - 1);
+        g_lobby_ip[sizeof g_lobby_ip - 1] = 0;
+        g_chat_input[0] = 0;
+        front_save_state();
+        toast("Host IP: %s", g_lobby_ip[0] ? g_lobby_ip : "(blank)");
+    }
+    g_edit_mode = EDIT_NONE;
+    g_edit_just_done = 1;
+}
+
+static void edit_cancel(void)
+{
+    g_chat_input[0] = 0;
+    if (g_edit_mode == EDIT_CHAT) g_chat_open = 0;
+    g_edit_mode = EDIT_NONE;
+    g_edit_just_done = 1;
+}
+
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
     if (m == WM_DESTROY) { mo_release(); W.PostQuitMessage_(0); return 0; }
-    if (m == WM_KEYDOWN && w == VK_ESCAPE) { mo_release(); W.PostQuitMessage_(0); return 0; }
+    if (m == WM_KEYDOWN && w == VK_ESCAPE) {
+        if (g_edit_mode != EDIT_NONE) { edit_cancel(); return 0; }
+        mo_release();
+        W.PostQuitMessage_(0);
+        return 0;
+    }
+    if (m == WM_KEYDOWN && g_edit_mode == EDIT_KEY && g_edit_key_target &&
+        !g_edit_pad) {
+        /* rebind capture: any key becomes the binding (Esc cancels above) */
+        *g_edit_key_target = (int)(w & 0xff);
+        fprintf(stderr, "[keys] bound to %s\n", key_name(*g_edit_key_target));
+        front_save_state();
+        toast("Bound: %s", key_name(*g_edit_key_target));
+        g_edit_key_target = 0;
+        g_edit_mode = EDIT_NONE;
+        g_edit_just_done = 1;
+        return 0;
+    }
+    if (m == WM_CHAR && (g_edit_mode == EDIT_CHAT || g_edit_mode == EDIT_NAME ||
+                         g_edit_mode == EDIT_IP)) {
+        if (w == '\r') {
+            edit_commit();
+            return 0;
+        }
+        if (w == 0x08) {   /* backspace */
+            size_t n = strlen(g_chat_input);
+            if (n) g_chat_input[n - 1] = 0;
+            return 0;
+        }
+        if (w >= 32 && w < 127) {
+            size_t n = strlen(g_chat_input);
+            const size_t cap = g_edit_mode == EDIT_NAME ? sizeof g_username - 1 :
+                               g_edit_mode == EDIT_IP ? sizeof g_lobby_ip - 1 :
+                                                        sizeof g_chat_input - 1;
+            if (n < cap) {
+                g_chat_input[n] = (char)w;
+                g_chat_input[n + 1] = 0;
+            }
+        }
+        return 0;
+    }
     switch (m) {
     case WM_RBUTTONDOWN:
         if (W.GetCursorPos_ && W.GetCursorPos_(&mo_anchor)) {
@@ -995,7 +2185,8 @@ static void push_camera(const float eye_w[3], const float at_w[3])
        old 55 was a wide-angle lens -- it shrank and warped the world
        around Mario no matter how right the geometry was. */
     const float fovy = 32.9f * 3.14159265f / 180.0f;
-    const float aspect = (float)ntr::SCREEN_W / ntr::SCREEN_H;
+    const float aspect =
+        g_widescreen ? 16.0f / 9.0f : (float)ntr::SCREEN_W / ntr::SCREEN_H;
     const float f = 1.0f / tanf(fovy * 0.5f);
     const float zn = 3.0f / 8, zf = 25600.0f / 8;
     float P[16] = {f / aspect, 0, 0, 0,
@@ -1019,6 +2210,82 @@ static void push_camera(const float eye_w[3], const float at_w[3])
 
 int main(void)
 {
+    sm64ds::port::RomInfo rom;
+    std::string rom_error;
+    if (!sm64ds::port::locate_rom_next_to_exe(rom, rom_error)) {
+        fprintf(stderr, "ROM required: %s\n", rom_error.c_str());
+        return 2;
+    }
+    SetEnvironmentVariableA("SM64DS_ROM", rom.path.c_str());
+    printf("ROM: %s (%s)\n", rom.title.c_str(), rom.game_code.c_str());
+    std::string mod_error;
+    const std::string mods_directory =
+        std::filesystem::path(rom.path).parent_path().append("mods").string();
+    g_mods_dir = mods_directory;
+    if (!sm64ds::mods::load_all(mods_directory, mod_error)) {
+        fprintf(stderr, "Lua mod error: %s\n", mod_error.c_str());
+        return 2;
+    }
+    front_load_state();
+    /* lobby transport: UI callbacks in, display name out, headless env
+       hooks for the two-instance test (NAME/HOST/JOIN; CHAT fires once
+       a peer is actually connected, see the poll site) */
+    lobby_ev.text = lobby_on_text;
+    lobby_ev.peer = lobby_on_peer;
+    sm64ds::lobby::set_events(&lobby_ev);
+    if (const char *ln = std::getenv("SM64DS_LOBBY_NAME")) {
+        strncpy(g_username, ln, sizeof g_username - 1);
+        g_username[sizeof g_username - 1] = 0;
+    }
+    sm64ds::lobby::set_name(g_username);
+    if (std::getenv("SM64DS_LOBBY_HOST")) {
+        front_on = 0;
+        sm64ds::lobby::host_start();
+    } else if (const char *lj = std::getenv("SM64DS_LOBBY_JOIN")) {
+        front_on = 0;
+        sm64ds::lobby::join(lj);
+    }
+    /* Lua startup requests (sm64ds.set_* in any mod main.lua file) overlay
+       the persisted settings, so a mod folder can ship its own defaults. */
+    if (sm64ds::mods::requested_character() >= 0)
+        g_character = sm64ds::mods::requested_character();
+    if (sm64ds::mods::requested_speed_pct() > 0)
+        g_speed_pct = sm64ds::mods::requested_speed_pct();
+    if (sm64ds::mods::requested_jump_pct() > 0)
+        g_jump_pct = sm64ds::mods::requested_jump_pct();
+    if (sm64ds::mods::requested_sub_scale() > 0)
+        g_sub_scale = sm64ds::mods::requested_sub_scale();
+    if (sm64ds::mods::requested_widescreen() >= 0)
+        g_widescreen = sm64ds::mods::requested_widescreen();
+    if (sm64ds::mods::requested_arena() >= 0)
+        g_arena = sm64ds::mods::requested_arena();
+    if (sm64ds::mods::requested_camera() >= 0)
+        cam_mode = sm64ds::mods::requested_camera() & 3;
+    if (sm64ds::mods::requested_color() >= 0)
+        g_color = sm64ds::mods::requested_color();
+    /* env still wins for one-shot A/B runs */
+    if (const char *ec = std::getenv("SM64DS_CHARACTER"))
+        g_character = std::atoi(ec) & 3;
+    if (const char *es = std::getenv("SM64DS_SPEED_PCT"))
+        g_speed_pct = std::atoi(es);
+    if (const char *ej = std::getenv("SM64DS_JUMP_PCT"))
+        g_jump_pct = std::atoi(ej);
+    if (const char *eu = std::getenv("SM64DS_SUB_SCALE"))
+        g_sub_scale = std::atoi(eu);
+    if (const char *ew = std::getenv("SM64DS_WIDESCREEN"))
+        g_widescreen = std::atoi(ew) != 0;
+    if (const char *ea = std::getenv("SM64DS_ARENA"))
+        g_arena = std::atoi(ea) != 0;
+    if (g_speed_pct < 25) g_speed_pct = 25;
+    if (g_speed_pct > 300) g_speed_pct = 300;
+    if (g_jump_pct < 25) g_jump_pct = 25;
+    if (g_jump_pct > 300) g_jump_pct = 300;
+    if (g_sub_scale < 1) g_sub_scale = 1;
+    if (g_sub_scale > 4) g_sub_scale = 4;
+    /* Mods are real units: a disabled analog mod means vanilla digital.
+       (Every other shipped mod only adds its Lua request when enabled, so
+       the persisted values stand on their own.) */
+    if (!sm64ds::mods::mod_enabled("analog_controls")) g_analog_controls = 0;
     /* world = KCL file x64. Default spawn: north end of the stone
        bridge (deck ~892), facing the walk south across it -- the shot
        that calibrates against real-game footage. Roof surface = 4916,
@@ -1150,6 +2417,15 @@ int main(void)
            sub-table is dropped, which is stage A1: geometry only. */
         if (boot_spawns)
             port_stage_a2_seat();
+        /* character select at boot: the seat defaults to Mario (0); the
+           entrance spawn reads the per-player slot, so park the choice
+           before the boot runs. The save byte mirrors it. */
+        if (boot_spawns && g_character >= 0 && g_character <= 3) {
+            data_02092128[0] = (unsigned char)g_character;
+            data_0209cad2[0x41 - 0x32] = (unsigned char)g_character;
+            printf("[mod] boot character %s\n",
+                   character_name(g_character));
+        }
         void *lvl = port_stage_a_boot(g_mc, boot_spawns);
         level_bmd = *(unsigned short *)((char *)lvl + 8);
         port_stage_a_probe(g_mc);
@@ -1157,6 +2433,58 @@ int main(void)
             port_stage_tree_probe(data_0209f394[0], "PLAYER");
             port_actor_census();
             port_actor_lists_probe();
+            /* SM64DS_TRACE_JUMPTAB=1: dump the jump-physics PMF table rows
+               (adj, ptr pairs). Diagnosing the DEP jump into a raw DS
+               helper from St_Jump_Main's dispatch. */
+            if (getenv("SM64DS_TRACE_JUMPTAB")) {
+                extern int data_ov002_0211073c[];
+                for (int r = 0; r < 16; ++r)
+                    printf("[jumptab] row %d adj=%08x ptr=%08x%s\n", r,
+                           (unsigned)data_ov002_0211073c[r * 2],
+                           (unsigned)data_ov002_0211073c[r * 2 + 1],
+                           (data_ov002_0211073c[r * 2 + 1] & 1)
+                               ? " virt"
+                               : " RAW");
+                /* state-object census: first word (Main fn) of candidate
+                   states, to identify the LongJump state for the dive. */
+                printf("[states] 119c=%08x 11b4=%08x 113c=%08x 0514=%08x "
+                       "0154=%08x\n",
+                       *(unsigned *)data_ov002_0211019c,
+                       *(unsigned *)data_ov002_021101b4,
+                       *(unsigned *)data_ov002_0211013c,
+                       *(unsigned *)data_ov002_02110514,
+                       *(unsigned *)data_ov002_02110154);
+                /* anim-file slots around the LongJump anim (0x1a*4+char):
+                   empty here means SetAnim loads nothing. */
+                extern int data_ov002_020ff480[];
+                for (int s = 100; s <= 112; ++s) {
+                    char *sfp =
+                        *(char **)&data_ov002_020ff480[s];
+                    printf("[anims] slot[%d]=%p id=%u refs=%u file=%p\n",
+                           s, (void *)sfp, sfp ? *(unsigned short *)sfp : 0,
+                           sfp ? *(unsigned char *)(sfp + 2) : 0,
+                           sfp ? *(void **)(sfp + 4) : 0);
+                }
+                {
+                    unsigned *w = (unsigned *)data_ov002_0210a504;
+                    for (int i = 0; i < 0xFC / 4; ++i) {
+                        if (w[i] == 0x020e1238 || w[i] == 0x020e127c)
+                            printf("[ljscan] ds=%08x val=%08x\n",
+                                   0x0210a504u + (unsigned)i * 4u, w[i]);
+                    }
+                    /* full-record shape compare: suspected LongJump record
+                       vs a known state object. */
+                    unsigned *lj =
+                        (unsigned *)((char *)w + (0x524 - 0x504));
+                    unsigned *st = (unsigned *)data_ov002_0211013c;
+                    printf("[ljrec] lj+0=%08x +4=%08x +8=%08x +c=%08x "
+                           "+10=%08x +14=%08x\n",
+                           lj[0], lj[1], lj[2], lj[3], lj[4], lj[5]);
+                    printf("[ljrec] st+0=%08x +4=%08x +8=%08x +c=%08x "
+                           "+10=%08x +14=%08x\n",
+                           st[0], st[1], st[2], st[3], st[4], st[5]);
+                }
+            }
         }
     }
 
@@ -1237,9 +2565,14 @@ int main(void)
                (unsigned short)*(short *)(c + 0x8e), *(void **)(c + 0x370),
                *(unsigned char *)(c + 0x6e3), *(unsigned char *)(c + 0x6e5),
                *(unsigned *)(c + 0x670));
-        if (getenv("PORT_WATCH_POS"))
-            port_watch_words(c + 0x5c, 3);
+         if (getenv("PORT_WATCH_POS"))
+             port_watch_words(c + 0x5c, 3);
+         /* SM64DS_WATCH_HOLD=1: break on writes to the held-actor slot.
+            Diagnosing the swim-stroke crash that reads c+0x358. */
+         if (getenv("SM64DS_WATCH_HOLD"))
+             port_watch_words(c + 0x358, 1);
     }
+    g_live_player = player;
     /* THE RADIUS LEVER IS NOT HERE. WithMeshClsn+0x18 is the radius
        UpdateExtraContinous hands to SphereClsn::SetObjAndSphere and +0x1c the
        vertical offset it adds to pos first, but Player::Behavior RECOMPUTES
@@ -1486,22 +2819,42 @@ int main(void)
                *(int *)((char *)cam + 0xfc), *(int *)((char *)cam + 0x100));
     }
 
-    /* window */
+    /* window. Widescreen (MODS/F5, persisted) opens a 16:9 client and
+       stretches the 4:3 framebuffer into it -- anamorphic widescreen, the
+       same tradeoff the N64 PC ports shipped first. The framebuffer itself
+       stays 512x384 so the raster, the selftest BMPs and the sub panel
+       are untouched. */
+    int win_client_w = ntr::SCREEN_W * ZOOM;
+    int win_client_h = ntr::SCREEN_H * ZOOM;
+    if (g_widescreen) {
+        win_client_w = 1280;
+        win_client_h = 720;
+    }
+    if (!g_logo_tried) {
+        g_logo_tried = 1;
+        if (!port_logo_load(g_logo))
+            printf("[logo] no logo.bmp beside the exe: text wordmark\n");
+    }
     WNDCLASSA wc = {};
     wc.lpfnWndProc = wndproc;
     wc.hInstance = GetModuleHandleA(0);
     wc.hCursor = W.LoadCursorA_(0, (LPCSTR)IDC_ARROW);
+    if (W.LoadIconA_)
+        wc.hIcon = W.LoadIconA_(wc.hInstance, (LPCSTR)(size_t)1);
     wc.lpszClassName = "sm64ds_walk";
     W.RegisterClassA_(&wc);
-    RECT r = {0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM};
+    RECT r = {0, 0, win_client_w, win_client_h};
     W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME, FALSE);
     HWND hwnd = W.CreateWindowExA_(0, "sm64ds_walk",
-                              "SM64DS port -- WASD walk, ESC quit",
+                              "SM64DS COOP -- T chat, F5 menu, ESC quit",
                               (WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME) |
                                   WS_VISIBLE,
                               CW_USEDEFAULT, CW_USEDEFAULT,
                               r.right - r.left, r.bottom - r.top, 0, 0,
                               wc.hInstance, 0);
+    if (g_widescreen)
+        printf("[mod] widescreen window %dx%d (4:3 frame stretched)\n",
+               win_client_w, win_client_h);
     HDC hdc = W.GetDC_(hwnd);
     BITMAPINFO bi = {};
     bi.bmiHeader.biSize = sizeof bi.bmiHeader;
@@ -1515,6 +2868,23 @@ int main(void)
        framebuffer next to the exe, exit -- CI-checkable without a user */
     const char *st = getenv("SM64DS_WINDOW_SELFTEST");
     const int selftest = st ? atoi(st) : 0;
+    /* headless runs have no one to dismiss the front menu, and its keys are
+       off under a selftest by design -- so start past it. Otherwise the tick
+       stays paused and the run proves boot + render only.
+       SM64DS_SELFTEST_MENU=1 keeps the menu up (still no input) and draws
+       the HUD into the BMP: a screenshot of the menu over live gameplay. */
+    if (selftest && !getenv("SM64DS_SELFTEST_MENU")) front_on = 0;
+    /* SM64DS_AUTOPLAY=1: skip the front menu and start offline. Headless
+       smoke runs (rate proofs, soak tests) have no hands to press Host. */
+    if (getenv("SM64DS_AUTOPLAY")) front_on = 0;
+    if (selftest && getenv("SM64DS_SELFTEST_MENU")) {
+        /* SM64DS_SELFTEST_MENUPAGE=N shot a subpage (0 home, 1 options,
+           2 files, 3 mods, 4 lobby, 5 character, 6 player, 7 controls,
+           8 camera, 9 display, 10 sound, 11 misc, 12 info) */
+        if (getenv("SM64DS_SELFTEST_MENUPAGE"))
+            front_page = atoi(getenv("SM64DS_SELFTEST_MENUPAGE")) % 13;
+        toast("Welcome to SM64DS COOP");
+    }
     int frame = 0;
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
@@ -1530,8 +2900,13 @@ int main(void)
     unsigned ovl_mem_kb = 0;
     unsigned long long ovl_frames = 0;   /* `frame` only counts under selftest */
 
-    /* the bottom screen: dual OAM, the 2D frame, and the corner panel */
+    /* the bottom screen: dual OAM, the 2D frame, and the corner panel.
+       Small by default (1/3) so the main view stays big; F5/MODS changes
+       it live, TAB still hides it. */
     hal_sub_screen_init(hwnd, ZOOM);
+    hal_sub_screen_set_scale(g_sub_scale);
+    if (!g_overlay_on && std::getenv("SM64DS_OVERLAY"))
+        g_overlay_on = 1;
     hal_sub_screen_probe();
 
     static ntr::Framebuffer fb;
@@ -1580,6 +2955,21 @@ int main(void)
            view). Q/E orbit it; when Mario walks and Q/E are idle it eases
            in behind his motion like the real game's lazy camera. */
         int dx = 0, dz = 0;
+        /* typing in chat/username capture owns the keyboard: game keys go
+           quiet (the tick itself keeps running, CoopDX-style) */
+        const int typing = (g_edit_mode != EDIT_NONE);
+        /* T opens chat outside menus (edge). Esc/Enter close it in wndproc. */
+        {
+            static int t_was;
+            const int t_now = !selftest && !front_on && !menu_on &&
+                              (W.GetAsyncKeyState_('T') < 0);
+            if (t_now && !t_was && g_edit_mode == EDIT_NONE) {
+                g_edit_mode = EDIT_CHAT;
+                g_chat_input[0] = 0;
+                g_chat_open = 1;
+            }
+            t_was = t_now;
+        }
         if (selftest && !getenv("SM64DS_SELFTEST_IDLE")) {
             dz = 1;
             /* turn probe: hold "A" from frame 60 -- position x must curve */
@@ -1589,20 +2979,474 @@ int main(void)
             /* reversal probe: hard 180 at speed (the skid-turn path) */
             if (getenv("SM64DS_SELFTEST_REVERSE") && frame >= 50) dz = -1;
         }
+        if (!typing) {
         if (W.GetAsyncKeyState_('W') < 0 || W.GetAsyncKeyState_(VK_UP) < 0) dz += 1;
         if (W.GetAsyncKeyState_('S') < 0 || W.GetAsyncKeyState_(VK_DOWN) < 0) dz -= 1;
         if (W.GetAsyncKeyState_('A') < 0 || W.GetAsyncKeyState_(VK_LEFT) < 0) dx -= 1;
         if (W.GetAsyncKeyState_('D') < 0 || W.GetAsyncKeyState_(VK_RIGHT) < 0) dx += 1;
+        }
         /* gamepad: left stick / d-pad walk, right stick orbits + tilts */
         static XPad pad;
         int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
         int orbiting = 0;
+        /* gamepad rebind capture: first pressed button/trigger wins.
+           Keyboard Esc still cancels (wndproc), pad START cancels too. */
+        if (g_edit_mode == EDIT_KEY && g_edit_pad && pad_live) {
+            static unsigned short cap_was;
+            static unsigned char cap_lt, cap_rt;
+            if (g_edit_wait_release) {
+                /* the button that opened the row is still held: swallow
+                   the current state so it is not bound to itself */
+                cap_was = pad.buttons;
+                cap_lt = pad.lt;
+                cap_rt = pad.rt;
+                g_edit_wait_release = 0;
+            }
+            const unsigned edge = pad.buttons & (unsigned short)~cap_was;
+            int code = -1;
+            if (edge) {
+                for (int b = 0; b < 16; ++b) {
+                    if (edge & (1u << b)) {
+                        code = b;
+                        break;
+                    }
+                }
+                if (code == 4) code = -2;   /* START cancels */
+            } else {
+                if (pad.lt > 100 && !(cap_lt > 100)) code = 100;
+                if (pad.rt > 100 && !(cap_rt > 100)) code = 101;
+            }
+            cap_was = pad.buttons;
+            cap_lt = pad.lt;
+            cap_rt = pad.rt;
+            if (code == -2) {
+                edit_cancel();
+            } else if (code >= 0 && g_edit_key_target) {
+                *g_edit_key_target = code;
+                fprintf(stderr, "[keys] pad bound to %s\n",
+                        pad_name(code));
+                front_save_state();
+                toast("Pad bound: %s", pad_name(code));
+                g_edit_key_target = 0;
+                g_edit_pad = 0;
+                g_edit_mode = EDIT_NONE;
+                g_edit_just_done = 1;
+            }
+        }
+        if (!selftest && front_on) {
+            static unsigned front_prev;
+            unsigned held = 0;
+            if (W.GetAsyncKeyState_(VK_UP) < 0) held |= 1u << 0;
+            if (W.GetAsyncKeyState_(VK_DOWN) < 0) held |= 1u << 1;
+            if (W.GetAsyncKeyState_(VK_LEFT) < 0) held |= 1u << 2;
+            if (W.GetAsyncKeyState_(VK_RIGHT) < 0) held |= 1u << 3;
+            if (W.GetAsyncKeyState_(VK_RETURN) < 0) held |= 1u << 4;
+            if (W.GetAsyncKeyState_(VK_F5) < 0) held |= 1u << 5;
+            if (pad_live) {
+                if (pad.buttons & 0x0001) held |= 1u << 0;
+                if (pad.buttons & 0x0002) held |= 1u << 1;
+                if (pad.buttons & 0x0004) held |= 1u << 2;
+                if (pad.buttons & 0x0008) held |= 1u << 3;
+                if (pad.buttons & 0x1000) held |= 1u << 4;
+                if (pad.buttons & 0x0020) held |= 1u << 5;
+            }
+            const unsigned edge = held & ~front_prev;
+            front_prev = held;
+            /* an editor commit/cancel lands on this frame's edge too; eat one
+               frame so Enter doesn't also activate a row */
+            static int edit_swallow;
+            if (g_edit_just_done) {
+                g_edit_just_done = 0;
+                edit_swallow = 2;
+            }
+            if (g_edit_mode != EDIT_NONE || edit_swallow > 0) {
+                if (edit_swallow > 0) --edit_swallow;
+            } else {
+            if (edge & (1u << 5)) front_on = 0;
+            if (edge & (1u << 0)) {
+                const int count = front_page == FRONT_HOME ? 5 :
+                                  front_page == FRONT_OPTIONS ? 7 :
+                                  front_page == FRONT_PLAYER ? 4 :
+                                  front_page == FRONT_CONTROLS ? 11 :
+                                  front_page == FRONT_CAMERA ? 5 :
+                                  front_page == FRONT_DISPLAY ? 5 :
+                                  front_page == FRONT_SOUND ? 3 :
+                                  front_page == FRONT_MISC ? 4 :
+                                  front_page == FRONT_INFO ? 1 :
+                                   front_page == FRONT_FILES ? 6 :
+                                   front_page == FRONT_LOBBY ? 5 :
+                                   front_page == FRONT_CHARACTER ? 5 :
+                                   front_page == FRONT_MODS ? 12 : 9;
+                front_sel = (front_sel + count - 1) % count;
+            }
+            if (edge & (1u << 1)) {
+                const int count = front_page == FRONT_HOME ? 5 :
+                                  front_page == FRONT_OPTIONS ? 7 :
+                                  front_page == FRONT_PLAYER ? 4 :
+                                  front_page == FRONT_CONTROLS ? 11 :
+                                  front_page == FRONT_CAMERA ? 5 :
+                                  front_page == FRONT_DISPLAY ? 5 :
+                                  front_page == FRONT_SOUND ? 3 :
+                                  front_page == FRONT_MISC ? 4 :
+                                  front_page == FRONT_INFO ? 1 :
+                                   front_page == FRONT_FILES ? 6 :
+                                   front_page == FRONT_LOBBY ? 5 :
+                                   front_page == FRONT_CHARACTER ? 5 :
+                                   front_page == FRONT_MODS ? 12 : 9;
+                front_sel = (front_sel + 1) % count;
+            }
+            /* left/right on stepped rows (turning the knob enables the mod) */
+            if ((edge & (1u << 2)) || (edge & (1u << 3))) {
+                const int dir = (edge & (1u << 2)) ? -1 : 1;
+                if (front_page == FRONT_MODS)
+                    mod_row_arm(front_sel <= 8 ? front_sel : -1);
+                if (front_page == FRONT_MODS) switch (front_sel) {
+                case 1:
+                    g_character = (g_character + dir + 4) % 4;
+                    front_save_state();
+                    break;
+                case 2:
+                    g_color = (g_color + dir + 8) % 8;
+                    front_save_state();
+                    break;
+                case 3:
+                    g_speed_pct += dir * 25;
+                    if (g_speed_pct < 25) g_speed_pct = 25;
+                    if (g_speed_pct > 300) g_speed_pct = 300;
+                    front_save_state();
+                    break;
+                case 4:
+                    g_jump_pct += dir * 25;
+                    if (g_jump_pct < 25) g_jump_pct = 25;
+                    if (g_jump_pct > 300) g_jump_pct = 300;
+                    front_save_state();
+                    break;
+                case 5:
+                    g_sub_scale += dir;
+                    if (g_sub_scale < 1) g_sub_scale = 1;
+                    if (g_sub_scale > 4) g_sub_scale = 4;
+                    hal_sub_screen_set_scale(g_sub_scale);
+                    front_save_state();
+                    break;
+                case 6:
+                    g_widescreen = !g_widescreen;
+                    front_save_state();
+                    break;
+                case 7: g_arena = !g_arena; front_save_state(); break;
+                default: break;
+                }
+                else if (front_page == FRONT_PLAYER && front_sel == 1) {
+                    g_color = (g_color + dir + 8) % 8;
+                    front_save_state();
+                } else if (front_page == FRONT_CAMERA) {
+                    if (front_sel == 0) {
+                        if (real_camera) {
+                            cam_mode = (cam_mode + dir + 4) % 4;
+                            if (cam_mode != CAM_DS) fc_seed(cam);
+                            if (cam_mode == CAM_ANALOG ||
+                                cam_mode == CAM_SM64)
+                                an_pivot_live = 0;
+                            fprintf(stderr, "[cam] mode %s\n",
+                                    cam_mode_name(cam_mode));
+                        }
+                    } else if (front_sel == 3) {
+                        static const int presets[] = {70, 85, 100, 120,
+                                                      150};
+                        int i = 2;
+                        for (int k = 0; k < 5; ++k)
+                            if (presets[k] == g_cam_dist_pct) i = k;
+                        i = (i + dir + 5) % 5;
+                        if (g_cam_dist_pct)
+                            fc_dist = (int)(((long long)fc_dist *
+                                             presets[i]) /
+                                            g_cam_dist_pct);
+                        g_cam_dist_pct = presets[i];
+                        fprintf(stderr, "[mod] camera dist %d%%\n",
+                                g_cam_dist_pct);
+                        front_save_state();
+                    }
+                } else if (front_page == FRONT_DISPLAY) {
+                    if (front_sel == 0) {
+                        g_fps_mode = (g_fps_mode + dir + 3) % 3;
+                        fprintf(stderr, "[mod] fps %s\n",
+                                fps_mode_name(g_fps_mode));
+                        front_save_state();
+                    } else if (front_sel == 3) {
+                        g_sub_scale += dir;
+                        if (g_sub_scale < 1) g_sub_scale = 1;
+                        if (g_sub_scale > 4) g_sub_scale = 4;
+                        hal_sub_screen_set_scale(g_sub_scale);
+                        front_save_state();
+                    }
+                }
+            }
+            if (edge & (1u << 4)) {
+                if (front_page == FRONT_HOME) {
+                    if (front_sel == 0) {
+                        front_on = 0;
+                        sm64ds::lobby::leave();
+                        sm64ds::lobby::set_name(g_username);
+                        sm64ds::lobby::host_start();
+                        if (sm64ds::lobby::hosting())
+                            toast("Hosting as %s", g_username);
+                        else
+                            toast("Host failed (port busy?)");
+                    } else if (front_sel == 1) {
+                        front_page = FRONT_LOBBY;
+                        front_sel = 0;
+                    } else if (front_sel == 2) {
+                        front_page = FRONT_MODS;
+                        front_sel = 0;
+                    } else if (front_sel == 3) {
+                        front_page = FRONT_OPTIONS;
+                        front_sel = 0;
+                    } else if (front_sel == 4) {
+                        sm64ds::lobby::leave();
+                        W.PostQuitMessage_(0);
+                    }
+                } else if (front_page == FRONT_OPTIONS) {
+                    if (front_sel == 0) {
+                        front_page = FRONT_PLAYER;
+                        front_sel = 0;
+                    } else if (front_sel == 1) {
+                        front_page = FRONT_CONTROLS;
+                        front_sel = 0;
+                    } else if (front_sel == 2) {
+                        front_page = FRONT_CAMERA;
+                        front_sel = 0;
+                    } else if (front_sel == 3) {
+                        front_page = FRONT_DISPLAY;
+                        front_sel = 0;
+                    } else if (front_sel == 4) {
+                        front_page = FRONT_SOUND;
+                        front_sel = 0;
+                    } else if (front_sel == 5) {
+                        front_page = FRONT_MISC;
+                        front_sel = 0;
+                    } else if (front_sel == 6) {
+                        front_page = FRONT_HOME;
+                        front_sel = 0;
+                    }
+                } else if (front_page == FRONT_PLAYER) {
+                    if (front_sel == 0) {
+                        front_page = FRONT_CHARACTER;
+                        front_sel = g_character;
+                    } else if (front_sel == 1) {
+                        g_color = (g_color + 1) % 8;
+                        fprintf(stderr, "[mod] color %s\n",
+                                color_name(g_color));
+                        front_save_state();
+                    } else if (front_sel == 2) {
+                        g_edit_mode = EDIT_NAME;
+                        strcpy(g_chat_input, g_username);
+                    } else if (front_sel == 3) {
+                        front_page = FRONT_OPTIONS;
+                        front_sel = 0;
+                    }
+                } else if (front_page == FRONT_CONTROLS) {
+                    if (front_sel >= 0 && front_sel <= 3) {
+                        static int *const keys[] = {&g_key_jump, &g_key_run,
+                                                    &g_key_crouch,
+                                                    &g_key_punch};
+                        static const char *names[] = {"Jump", "Run", "Crouch",
+                                                      "Punch"};
+                        g_edit_key_target = keys[front_sel];
+                        g_edit_pad = 0;
+                        g_edit_mode = EDIT_KEY;
+                        toast("Press a key for %s...", names[front_sel]);
+                    } else if (front_sel >= 4 && front_sel <= 7) {
+                        static int *const pads[] = {&g_pad_jump, &g_pad_run,
+                                                    &g_pad_punch,
+                                                    &g_pad_crouch};
+                        static const char *names[] = {"Jump", "Run", "Punch",
+                                                      "Crouch"};
+                        g_edit_key_target = pads[front_sel - 4];
+                        g_edit_pad = 1;
+                        g_edit_wait_release = 1;
+                        g_edit_mode = EDIT_KEY;
+                        toast("Press a button for Pad %s...",
+                              names[front_sel - 4]);
+                    } else if (front_sel == 8) {
+                        g_analog_controls = !g_analog_controls;
+                        front_save_state();
+                    } else if (front_sel == 9) {
+                        front_invert_x = !front_invert_x;
+                        front_save_state();
+                    } else if (front_sel == 10) {
+                        front_page = FRONT_OPTIONS;
+                        front_sel = 1;
+                    }
+                } else if (front_page == FRONT_CAMERA) {
+                    if (front_sel == 0) {
+                        if (real_camera) {
+                            cam_mode = (cam_mode + 1) % 4;
+                            if (cam_mode != CAM_DS) fc_seed(cam);
+                            if (cam_mode == CAM_ANALOG ||
+                                cam_mode == CAM_SM64)
+                                an_pivot_live = 0;
+                            fprintf(stderr, "[cam] mode %s\n",
+                                    cam_mode_name(cam_mode));
+                        }
+                    } else if (front_sel == 1) {
+                        front_invert_x = !front_invert_x;
+                        front_save_state();
+                    } else if (front_sel == 2) {
+                        front_invert_y = !front_invert_y;
+                        front_save_state();
+                    } else if (front_sel == 3) {
+                        g_cam_dist_pct = g_cam_dist_pct == 100 ? 120 : 100;
+                        front_save_state();
+                    } else if (front_sel == 4) {
+                        front_page = FRONT_OPTIONS;
+                        front_sel = 2;
+                    }
+                } else if (front_page == FRONT_DISPLAY) {
+                    if (front_sel == 0) {
+                        g_fps_mode = (g_fps_mode + 1) % 3;
+                        fprintf(stderr, "[mod] fps %s\n",
+                                fps_mode_name(g_fps_mode));
+                        front_save_state();
+                    } else if (front_sel == 1) {
+                        g_vsync = !g_vsync;
+                        front_save_state();
+                    } else if (front_sel == 2) {
+                        g_widescreen = !g_widescreen;
+                        front_save_state();
+                    } else if (front_sel == 3) {
+                        g_sub_scale = g_sub_scale % 4 + 1;
+                        hal_sub_screen_set_scale(g_sub_scale);
+                        front_save_state();
+                    } else if (front_sel == 4) {
+                        front_page = FRONT_OPTIONS;
+                        front_sel = 3;
+                    }
+                } else if (front_page == FRONT_SOUND) {
+                    if (front_sel == 0) {
+                        g_sound_on = !g_sound_on;
+                        front_save_state();
+                    } else if (front_sel == 1) {
+                        g_mute_unfocused = !g_mute_unfocused;
+                        front_save_state();
+                    } else if (front_sel == 2) {
+                        front_page = FRONT_OPTIONS;
+                        front_sel = 4;
+                    }
+                } else if (front_page == FRONT_MISC) {
+                    if (front_sel == 0) {
+                        g_overlay_on = !g_overlay_on;
+                    } else if (front_sel == 1) {
+                        g_toasts_on = !g_toasts_on;
+                        front_save_state();
+                    } else if (front_sel == 2) {
+                        front_page = FRONT_INFO;
+                        front_sel = 0;
+                    } else if (front_sel == 3) {
+                        front_page = FRONT_OPTIONS;
+                        front_sel = 5;
+                    }
+                } else if (front_page == FRONT_INFO) {
+                    if (front_sel == 0) {
+                        front_page = FRONT_MISC;
+                        front_sel = 2;
+                    }
+                } else if (front_page == FRONT_FILES) {
+                    if (front_sel < 4) front_file = front_sel;
+                    else if (front_sel == 4) {
+                        toast("Rename needs save support");
+                    } else if (front_sel == 5) {
+                        front_page = FRONT_OPTIONS;
+                        front_sel = 0;
+                    }
+                } else if (front_page == FRONT_LOBBY) {
+                    if (front_sel == 0) {
+                        if (sm64ds::lobby::role() == 1) {
+                            sm64ds::lobby::leave();
+                            toast("Stopped hosting");
+                        } else {
+                            sm64ds::lobby::leave();
+                            sm64ds::lobby::set_name(g_username);
+                            front_on = 0;
+                            sm64ds::lobby::host_start();
+                            if (sm64ds::lobby::hosting())
+                                toast("Hosting as %s", g_username);
+                            else
+                                toast("Host failed (port busy?)");
+                        }
+                    } else if (front_sel == 1) {
+                        if (sm64ds::lobby::role() == 2) {
+                            sm64ds::lobby::leave();
+                            toast("Disconnected");
+                        } else if (!g_lobby_ip[0]) {
+                            toast("Enter a host IP first");
+                        } else {
+                            sm64ds::lobby::leave();
+                            sm64ds::lobby::set_name(g_username);
+                            front_on = 0;
+                            sm64ds::lobby::join(g_lobby_ip);
+                            if (sm64ds::lobby::joined())
+                                toast("Joining %s...", g_lobby_ip);
+                            else
+                                toast("Join failed");
+                        }
+                    } else if (front_sel == 2) {
+                        g_edit_mode = EDIT_IP;
+                        strcpy(g_chat_input, g_lobby_ip);
+                    } else if (front_sel == 3) {
+                        g_edit_mode = EDIT_NAME;
+                        strcpy(g_chat_input, g_username);
+                    } else if (front_sel == 4) {
+                        front_page = FRONT_HOME;
+                        front_sel = 0;
+                    }
+                } else if (front_page == FRONT_MODS) {
+                    /* ENTER on a mod row flips the mod itself -- except
+                       Character, which opens its own select screen */
+                    if (front_sel == 1) {
+                        front_page = FRONT_CHARACTER;
+                        front_sel = g_character;
+                    } else if (front_sel >= 0 && front_sel <= 8)
+                        mod_row_toggle(front_sel);
+                    else if (front_sel == 9) {
+                        sm64ds::mods::mod_rescan(g_mods_dir);
+                        toast("Mods rescanned");
+                    } else if (front_sel == 10) {
+                        /* open the mods folder in Explorer, best effort */
+                        HMODULE sh = LoadLibraryA("shell32.dll");
+                        if (sh) {
+                            typedef long(WINAPI *SE)(void *, const char *,
+                                                     const char *,
+                                                     const char *,
+                                                     const char *, int);
+                            SE se = (SE)GetProcAddress(sh, "ShellExecuteA");
+                            if (se)
+                                se(0, "open", g_mods_dir.c_str(), 0, 0, 1);
+                        }
+                        toast("Mods folder opened");
+                    } else if (front_sel == 11) {
+                        front_page = FRONT_OPTIONS;
+                        front_sel = 0;
+                    }
+                } else if (front_page == FRONT_CHARACTER) {
+                    if (front_sel >= 0 && front_sel <= 3) {
+                        g_character = front_sel;
+                        front_save_state();
+                        toast("%s selected", character_name(g_character));
+                        front_page = FRONT_MODS;
+                        front_sel = 1;
+                    } else if (front_sel == 4) {
+                        front_page = FRONT_MODS;
+                        front_sel = 1;
+                    }
+                }
+            }
+        }
+        }
         /* ---- THE DEBUG MENU'S OWN INPUT. It runs before anything else reads
            the keyboard, and while it is open it swallows the keys it uses and
            the tick is skipped below, so nothing it does can also be a walk.
            Every key here is edge-detected off one held-mask, which is the
            cheapest way to get "one step per press" out of GetAsyncKeyState. */
-        if (!selftest) {
+        if (!selftest && !front_on) {
             static unsigned menu_prev;
             unsigned held = 0;
             unsigned edge;
@@ -1633,9 +3477,18 @@ int main(void)
                 if (edge & (1u << 2))
                     menu_sel = (menu_sel + 1) % MENU_COUNT;
                 {
-                    /* enter is a synonym for right, so a pad can do it all */
+                    /* ENTER on a mod row flips the mod (pad A flips too);
+                       elsewhere ENTER still means right. Turning a knob
+                       re-arms its mod. All branchless single statements:
+                       no scope changes here, the switch below is untouched. */
                     const int dec = (edge & (1u << 3)) != 0;
-                    const int inc = (edge & ((1u << 4) | (1u << 5))) != 0;
+                    const int enter = (edge & (1u << 5)) != 0;
+                    const int mi = f5_mod_index(menu_sel);
+                    if (enter && mi >= 0) mod_row_toggle(mi);
+                    const int inc = (edge & (1u << 4)) != 0 ||
+                        (enter && mi < 0);
+                    if ((dec || (edge & (1u << 4))) && mi >= 0)
+                        mod_row_arm(mi);
                     if (dec || inc) switch (menu_sel) {
                     case MENU_WARP:
                         if (n_ent > 0) {
@@ -1682,13 +3535,117 @@ int main(void)
                         break;
                     case MENU_CAMERA:
                         if (real_camera) {
-                            cam_mode = dec ? (cam_mode + 2) % 3
-                                           : (cam_mode + 1) % 3;
+                            cam_mode = dec ? (cam_mode + 3) % 4
+                                           : (cam_mode + 1) % 4;
                             if (cam_mode != CAM_DS) fc_seed(cam);
-                            if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
+                            if (cam_mode == CAM_ANALOG ||
+                                cam_mode == CAM_SM64)
+                                an_pivot_live = 0;
                             fprintf(stderr, "[menu] camera %s\n",
                                     cam_mode_name(cam_mode));
                         }
+                        break;
+                    case MENU_ANALOG:
+                        g_analog_controls = !g_analog_controls;
+                        fprintf(stderr, "[mod] analog controls %s\n",
+                                g_analog_controls ? "ON" : "off");
+                        front_save_state();
+                        break;
+                    case MENU_CHARACTER:
+                        g_character = dec ? (g_character + 3) % 4
+                                          : (g_character + 1) % 4;
+                        apply_character_live();
+                        fprintf(stderr, "[mod] character %s\n",
+                                character_name(g_character));
+                        front_save_state();
+                        break;
+                    case MENU_COLOR:
+                        g_color = dec ? (g_color + 7) % 8 : (g_color + 1) % 8;
+                        fprintf(stderr, "[mod] color %s\n",
+                                color_name(g_color));
+                        front_save_state();
+                        break;
+                    case MENU_SPEED:
+                        g_speed_pct += dec ? -25 : 25;
+                        if (g_speed_pct < 25) g_speed_pct = 25;
+                        if (g_speed_pct > 300) g_speed_pct = 300;
+                        fprintf(stderr, "[mod] speed %d%%\n", g_speed_pct);
+                        front_save_state();
+                        break;
+                    case MENU_JUMP:
+                        g_jump_pct += dec ? -25 : 25;
+                        if (g_jump_pct < 25) g_jump_pct = 25;
+                        if (g_jump_pct > 300) g_jump_pct = 300;
+                        fprintf(stderr, "[mod] jump %d%%\n", g_jump_pct);
+                        front_save_state();
+                        break;
+                    case MENU_SUB:
+                        if (dec) {
+                            g_sub_scale--;
+                            if (g_sub_scale < 1) g_sub_scale = 4;
+                        } else {
+                            g_sub_scale++;
+                            if (g_sub_scale > 4) g_sub_scale = 1;
+                        }
+                        hal_sub_screen_set_scale(g_sub_scale);
+                        fprintf(stderr, "[mod] bottom screen 1/%d\n",
+                                g_sub_scale);
+                        front_save_state();
+                        break;
+                    case MENU_WIDE:
+                        g_widescreen = !g_widescreen;
+                        fprintf(stderr, "[mod] widescreen %s (takes effect "
+                                "next boot)\n",
+                                g_widescreen ? "ON" : "off");
+                        front_save_state();
+                        break;
+                    case MENU_ARENA:
+                        g_arena = !g_arena;
+                        fprintf(stderr, "[mod] small arena %s\n",
+                                g_arena ? "ON" : "off");
+                        front_save_state();
+                        break;
+                    case MENU_CAMDIST: {
+                        static const int presets[] = {70, 85, 100, 120,
+                                                      150};
+                        int i = 2;
+                        for (int k = 0; k < 5; ++k)
+                            if (presets[k] == g_cam_dist_pct) i = k;
+                        i = dec ? (i + 4) % 5 : (i + 1) % 5;
+                        /* rescale the live rig distance so the change is
+                           visible without re-seeding the camera */
+                        if (g_cam_dist_pct)
+                            fc_dist = (int)(((long long)fc_dist *
+                                             presets[i]) /
+                                            g_cam_dist_pct);
+                        g_cam_dist_pct = presets[i];
+                        fprintf(stderr, "[mod] camera dist %d%%\n",
+                                g_cam_dist_pct);
+                        front_save_state();
+                        break;
+                    }
+                    case MENU_FPS:
+                        g_fps_mode = (g_fps_mode + (dec ? 2 : 1)) % 3;
+                        fprintf(stderr, "[mod] fps %s\n",
+                                fps_mode_name(g_fps_mode));
+                        front_save_state();
+                        break;
+                    case MENU_VSYNC:
+                        g_vsync = !g_vsync;
+                        fprintf(stderr, "[mod] vsync %s\n",
+                                g_vsync ? "ON" : "off");
+                        front_save_state();
+                        break;
+                    case MENU_DISCONNECT:
+                        if (front_on && g_lobby_state != 0) {
+                            sm64ds::lobby::leave();
+                            front_on = 0;
+                            toast("Disconnected");
+                        } else {
+                            front_on = 0;
+                            toast("Menu closed");
+                        }
+                        front_save_state();
                         break;
                     default:
                         break;
@@ -1696,6 +3653,96 @@ int main(void)
                 }
             }
         }
+        /* SM64DS_TEST_TALK=1: headless talk proof -- at frame 80, call
+           StartTalk(player, first SIGN_POST, proximity-path) directly,
+           skipping trigger geometry (punch range/facing). Proves the talk
+           chain the menus depend on without needing staged inputs. */
+        if (selftest && frame == 80 && getenv("SM64DS_TEST_TALK")) {
+            for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+                 node = (int *)(size_t)node[1]) {
+                char *o = (char *)(size_t)node[2];
+                if (o && *(unsigned short *)(o + 0xc) == 184) {
+                    int r = _ZN6Player9StartTalkER9ActorBaseb(c, o, 1);
+                    fprintf(stderr, "[test] StartTalk(sign %p) = %d\n", (void *)o, r);
+                    break;
+                }
+            }
+        }
+        /* SM64DS_TEST_SWITCH=<0..3>[,<0..7>]: headless live character
+           switch -- the F5 "character" row's apply_character_live() at
+           frame 100, mid-walk, exactly as if a person moved the row. The
+           optional second number sets the outfit tint first, exercising
+           the material patch. Proves the switch the menu does without
+           needing a person on the keyboard. */
+        if (selftest && frame == 100 && !front_on && !menu_on) {
+            const char *ts = getenv("SM64DS_TEST_SWITCH");
+            if (ts) {
+                g_character = atoi(ts) & 3;
+                const char *comma = strchr(ts, ',');
+                if (comma) {
+                    g_color = atoi(comma + 1) & 7;
+                    fprintf(stderr, "[test] outfit %s\n",
+                            color_name(g_color));
+                }
+                fprintf(stderr, "[test] live switch to %s\n",
+                        character_name(g_character));
+                apply_character_live();
+            }
+        }
+            /* SM64DS_TEST_SCAN=1: every frame, report player animations
+               with a zero frame count (the WillHitFrame div0 shape) */
+            if (getenv("SM64DS_TEST_SCAN") && g_live_player) {
+                char *pl = (char *)g_live_player;
+                for (int i = 0; i < 4; ++i) {
+                    char *ma = *(char **)(pl + 0xdc + i * 4);
+                    if (ma) {
+                        int nf = *(int *)(ma + 0x54) & ~0xc0000000;
+                        if (nf == 0)
+                            fprintf(stderr,
+                                    "[scan] f%d body[%d]=%p numFrames=0\n",
+                                    frame, i, (void *)ma);
+                    } else {
+                        fprintf(stderr, "[scan] f%d body[%d]=NULL\n", frame,
+                                i);
+                    }
+                }
+                {
+                    int pi = *(int *)(pl + 8) & 0xff;
+                    char *ea = pl + 0x1dc + pi * 0x14;
+                    int nf = *(int *)(ea + 4) & ~0xc0000000;
+                    if (nf == 0)
+                        fprintf(stderr, "[scan] f%d embed[param=%d]=%p ZERO\n",
+                                frame, pi, (void *)ea);
+                }
+            }
+            /* SM64DS_TEST_DUMP=1: dump the char-file SharedFilePtr slots
+               (base+0..3 and the 0xC4 anim slots) to compare boot states */
+            if (getenv("SM64DS_TEST_DUMP") && g_live_player) {
+                extern int data_ov002_020ff480[];
+                char *pl = (char *)g_live_player;
+                char *arr = (char *)data_ov002_020ff480;
+                int base = *(int *)(pl + 0x63c);
+                for (int i = 0; i < 4; ++i) {
+                    char *s = *(char **)(arr + (base + i) * 4);
+                    char *a = *(char **)(arr + (0xc4 + i) * 4);
+                    fprintf(stderr,
+                            "[dump] slot[%x]=%p id=%u refs=%u file=%p "
+                            "w0=0x%08x | anim[%x]=%p id=%u refs=%u file=%p "
+                            "w0=0x%08x\n",
+                            base + i, (void *)s, s ? *(unsigned short *)s : 0,
+                            s ? *(unsigned char *)(s + 2) : 0,
+                            s ? *(void **)(s + 4) : 0,
+                            (s && *(void **)(s + 4))
+                                ? *(unsigned *)(*(void **)(s + 4))
+                                : 0,
+                            0xc4 + i, (void *)a, a ? *(unsigned short *)a : 0,
+                            a ? *(unsigned char *)(a + 2) : 0,
+                            a ? *(void **)(a + 4) : 0,
+                            (a && *(void **)(a + 4))
+                            ? *(unsigned *)(*(void **)(a + 4))
+                            : 0);
+                }
+            }
         /* the right stick's X, from the pad or from the selftest ramp:
            SM64DS_SELFTEST_STICK=<pct> holds it at pct% of full deflection
            from frame 20 (negative for the other way), and =0 ramps it from
@@ -1728,24 +3775,34 @@ int main(void)
                    unless it is asked otherwise (see the mode block above) */
                 cam_mode = selftest ? CAM_DS : CAM_ANALOG;
                 if (getenv("SM64DS_ANALOG_CAMERA")) cam_mode = CAM_ANALOG;
+                if (getenv("SM64DS_SM64_CAMERA")) cam_mode = CAM_SM64;
                 if (getenv("SM64DS_DS_CAMERA")) cam_mode = CAM_DS;
                 if (getenv("SM64DS_FREECAM")) cam_mode = CAM_FREE;
-                if (cam_mode != CAM_DS) fc_seed(cam);
+                if (cam_mode != CAM_DS) {
+                    fc_seed(cam);
+                    /* camera-dist preset from MODS (persisted) */
+                    if (g_cam_dist_pct != 100 && g_cam_dist_pct > 0)
+                        fc_dist = (int)(((long long)fc_dist *
+                                         g_cam_dist_pct) /
+                                        100);
+                }
             }
             int now = W.GetAsyncKeyState_(VK_F1) < 0 ||
                       (pad_live && (pad.buttons & 0x0080));
             if (selftest && getenv("SM64DS_SELFTEST_FREECAM")) {
                 /* the probe wants the mod ON at 20 and OFF three quarters
-                   through, which a three-way cycle cannot express -- so set
+                   through, which the cycle cannot express -- so set
                    the mode outright and leave the edge alone. */
                 if (frame == 20) { cam_mode = CAM_FREE; fc_seed(cam); }
                 if (frame == 20 + 3 * (selftest - 20) / 4) cam_mode = CAM_DS;
                 now = 0;
             }
             if (now && !fc_edge) {
-                cam_mode = (cam_mode + 1) % 3;   /* analog -> freecam -> DS */
+                /* analog -> sm64 -> freecam -> DS */
+                cam_mode = (cam_mode + 1) % 4;
                 if (cam_mode != CAM_DS) fc_seed(cam);
-                if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
+                if (cam_mode == CAM_ANALOG || cam_mode == CAM_SM64)
+                    an_pivot_live = 0;
                 fprintf(stderr, "[cam] mode %s\n", cam_mode_name(cam_mode));
             }
             fc_edge = now;
@@ -1754,61 +3811,212 @@ int main(void)
             /* the rig's own frame: orbit and tilt at a rate proportional to
                the stick, zoom on the bumpers or R/F, C back behind Mario.
                `rig_touched` is what tells the analog auto-recenter to keep its
-               hands off -- the player is aiming the camera. */
+               hands off -- the player is aiming the camera. Every rate below
+               is scaled by the real present interval (cam_k_live = 1 at 30
+               presents a second) so the lens moves the same distance per
+               second at any frame rate. */
+            static LARGE_INTEGER cam_qpf, cam_last;
+            if (!cam_qpf.QuadPart) QueryPerformanceFrequency(&cam_qpf);
+            {
+                LARGE_INTEGER cam_now;
+                QueryPerformanceCounter(&cam_now);
+                float dt = cam_last.QuadPart ?
+                    (float)(cam_now.QuadPart - cam_last.QuadPart) /
+                    (float)cam_qpf.QuadPart : 1.0f / 30.0f;
+                cam_last = cam_now;
+                if (dt < 0.005f) dt = 0.005f;
+                if (dt > 0.1f) dt = 0.1f;
+                cam_k_live = dt * 30.0f;
+            }
             int rig_touched = 0;
             {
-                const int r = fc_stick_rate(stick_rx, CAM_STEP) + mouse_dyaw;
+                const int r = (int)(fc_stick_rate(stick_rx, CAM_STEP) *
+                                    cam_k_live) +
+                              (int)(mouse_dyaw * cam_k_live);
                 if (r) { fc_yaw = (short)(fc_yaw + r); rig_touched = 1; }
             }
             {
-                int t = fc_pitch - fc_stick_rate(stick_ry, CAM_STEP / 2)
-                        + mouse_dpitch;
+                /* N64 has no manual tilt and no stick zoom: in sm64 mode
+                   the right stick's Y is C-Up/C-Down (see below) instead.
+                   Analog and freecam keep the tilt. Invert Y flips every
+                   vertical input at once. */
+                const int ysign = front_invert_y ? -1 : 1;
+                int t = fc_pitch +
+                        (int)(ysign * mouse_dpitch * cam_k_live);
+                if (cam_mode != CAM_SM64)
+                    t -= (int)(ysign *
+                               fc_stick_rate(stick_ry, CAM_STEP / 2) *
+                               cam_k_live);
                 if (mouse_dpitch) rig_touched = 1;
-                if (W.GetAsyncKeyState_('R') < 0) t += 0x80;
-                if (W.GetAsyncKeyState_('F') < 0) t -= 0x80;
+                if (!typing && cam_mode != CAM_SM64) {
+                    if (W.GetAsyncKeyState_('R') < 0)
+                        t += ysign * (int)(0x80 * cam_k_live);
+                    if (W.GetAsyncKeyState_('F') < 0)
+                        t -= ysign * (int)(0x80 * cam_k_live);
+                }
                 if (t > 0x3a00) t = 0x3a00;      /* just short of overhead */
                 if (t < -0x1000) t = -0x1000;    /* a little from below */
                 fc_pitch = (short)t;
             }
-            if (W.GetAsyncKeyState_('Q') < 0) { fc_yaw -= CAM_STEP / 2; rig_touched = 1; }
-            if (W.GetAsyncKeyState_('E') < 0) { fc_yaw += CAM_STEP / 2; rig_touched = 1; }
+            /* N64's C-buttons move in chunks, not a continuous slew: a tap
+               steps the lens one chunk, holding repeats after a beat (both
+               in seconds, so the feel is the same at any frame rate).
+               Analog and freecam keep the smooth slew. Either way the
+               player is aiming, so the follow law keeps its hands off. */
+            {
+                static int q_was, e_was;
+                static float q_rt, q_nxt, e_rt, e_nxt;
+                const int q_now = !typing && W.GetAsyncKeyState_('Q') < 0;
+                const int e_now = !typing && W.GetAsyncKeyState_('E') < 0;
+                if (cam_mode == CAM_SM64) {
+                    if (q_now && !q_was) {
+                        fc_yaw = (short)(fc_yaw - SM64_CSTEP);
+                        q_rt = 0.0f;
+                        q_nxt = 0.4f;
+                    } else if (q_now) {
+                        q_rt += cam_k_live / 30.0f;
+                        if (q_rt >= q_nxt) {
+                            fc_yaw = (short)(fc_yaw - SM64_CSTEP);
+                            q_nxt += 0.15f;
+                        }
+                    }
+                    if (e_now && !e_was) {
+                        fc_yaw = (short)(fc_yaw + SM64_CSTEP);
+                        e_rt = 0.0f;
+                        e_nxt = 0.4f;
+                    } else if (e_now) {
+                        e_rt += cam_k_live / 30.0f;
+                        if (e_rt >= e_nxt) {
+                            fc_yaw = (short)(fc_yaw + SM64_CSTEP);
+                            e_nxt += 0.15f;
+                        }
+                    }
+                    if (q_now || e_now) rig_touched = 1;
+                } else {
+                    if (q_now) {
+                        fc_yaw = (short)(fc_yaw -
+                                         (int)((CAM_STEP / 2) * cam_k_live));
+                        rig_touched = 1;
+                    }
+                    if (e_now) {
+                        fc_yaw = (short)(fc_yaw +
+                                         (int)((CAM_STEP / 2) * cam_k_live));
+                        rig_touched = 1;
+                    }
+                }
+                q_was = q_now;
+                e_was = e_now;
+            }
+            /* C-Up / C-Down on the pad: right stick past ~60% deflection
+               is a C-button press (stick up zooms in, stick down zooms
+               out). Re-centering re-arms, so holding the stick is one
+               press -- tap it like the N64 buttons. */
+            if (cam_mode == CAM_SM64 && pad_live && !typing) {
+                static int ry_armed = 1;
+                if (pad.ry > 20000 || pad.ry < -20000) {
+                    /* a zoom press steers nothing (yaw untouched), so it
+                       must NOT set rig_touched: that flag cancels the
+                       glide below, which used to kill every C-press on
+                       the same frame (zoom targets set, never moved). */
+                    if (ry_armed)
+                        sm64_zoom_press(pad.ry > 20000 ? 1 : -1);
+                    ry_armed = 0;
+                } else if (pad.ry > -8000 && pad.ry < 8000) {
+                    ry_armed = 1;
+                }
+            }
             {
                 int zoom = 0;
-                if (pad_live && (pad.buttons & 0x0100)) zoom -= 1;   /* LB */
-                if (pad_live && (pad.buttons & 0x0200)) zoom += 1;   /* RB */
-                zoom -= mouse_wheel;   /* wheel forward pulls the eye in */
+                /* bumpers zoom everywhere except sm64 (C-buttons own it) */
+                if (cam_mode != CAM_SM64) {
+                    if (pad_live && (pad.buttons & 0x0100)) zoom -= 1; /* LB */
+                    if (pad_live && (pad.buttons & 0x0200)) zoom += 1; /* RB */
+                }
+                if (cam_mode == CAM_SM64) {
+                    /* wheel ticks are C-button presses too (zoom steers
+                       nothing, so no rig_touched -- see above). */
+                    if (mouse_wheel < 0) sm64_zoom_press(1);
+                    else if (mouse_wheel > 0)
+                        sm64_zoom_press(-1);
+                } else {
+                    zoom -= mouse_wheel; /* wheel fwd pulls the eye in */
+                }
+                /* C-Up / C-Down on the keyboard: R and F are edge-triggered
+                   presses (tap, don't hold), same modal rules. */
+                if (cam_mode == CAM_SM64 && !typing) {
+                    static int r_was, f_was;
+                    const int r_now = W.GetAsyncKeyState_('R') < 0;
+                    const int f_now = W.GetAsyncKeyState_('F') < 0;
+                    if (r_now && !r_was)
+                        sm64_zoom_press(1);
+                    if (f_now && !f_was)
+                        sm64_zoom_press(-1);
+                    r_was = r_now;
+                    f_was = f_now;
+                }
                 if (zoom) {
-                    fc_dist += zoom * (fc_dist >> 5);
+                    fc_dist += (int)(zoom * (fc_dist >> 5) * cam_k_live);
                     if (fc_dist < 0x30000) fc_dist = 0x30000;
                     if (fc_dist > 0x2000000) fc_dist = 0x2000000;
                 }
             }
-            if (W.GetAsyncKeyState_('C') < 0) {
+            if (!typing && W.GetAsyncKeyState_('C') < 0) {
                 fc_yaw = (short)(*(short *)(c + 0x8e) + 0x8000);
-                rig_touched = 1;
+                /* N64's R restores the default cam: snap the heading and
+                   glide the pitch back instead of cutting it. Steering
+                   cancels the glide (see below). */
+                if (cam_mode == CAM_SM64) {
+                    sm64_glide = 0.6f;
+                } else {
+                    rig_touched = 1;
+                }
             }
-            /* THE AUTO-RECENTER, analog only. Nothing happens while the player
-               is steering the camera, nothing happens while Mario is standing
-               still, and nothing happens inside eleven degrees of behind him --
-               the last one is what keeps it from hunting around the target.
-               Outside that it closes a twentieth of the error a frame, capped
-               at 0x200 binangs (2.8 degrees, 84 a second), so the worst case --
-               the player has spun Mario right around and let go -- settles in
-               about two seconds and nothing in it ever reads as a snap. During
-               a sustained turn the proportional term is what binds, and the
-               camera trails him by a dozen degrees or so, which is the lag
-               that makes it feel like a camera rather than a bracket. */
-            if (cam_mode == CAM_ANALOG && !rig_touched) {
+            if (typing) rig_touched = 1;   /* typing freezes the lens */
+            /* THE AUTO-RECENTER, analog and sm64. Nothing happens while the
+               player is steering the camera and nothing happens while Mario
+               is standing still. Analog keeps an eleven-degree deadzone
+               behind him and closes a twentieth of the error a frame, capped
+               at 0x200 binangs (2.8 degrees, 84 a second), so the worst case
+               settles in about two seconds and nothing ever reads as a snap.
+               Sm64 runs Lakitu's law instead: no deadzone, a tenth a frame
+               capped at 0x300, so the lens swings behind his direction of
+               travel through turns without whipping. During a sustained turn
+               the proportional term is what binds in both, and the camera
+               trails him -- lazily in analog, tightly in sm64 -- which is
+               the lag that makes it feel like a camera rather than a
+               bracket. All rates go through cam_ease_step, so they hold at
+               any present rate. */
+            if ((cam_mode == CAM_ANALOG || cam_mode == CAM_SM64) &&
+                !rig_touched) {
                 const int spd = *(int *)(c + 0x98);
                 if (spd > (2 << 12) || spd < -(2 << 12)) {
                     const short behind = (short)(*(short *)(c + 0x8e) + 0x8000);
                     int d = (short)(behind - fc_yaw);
-                    if (d > 0x800 || d < -0x800) {
-                        d /= 20;
-                        if (d > 0x200) d = 0x200;
-                        if (d < -0x200) d = -0x200;
-                        fc_yaw = (short)(fc_yaw + d);
+                    if (cam_mode == CAM_SM64) {
+                        fc_yaw = (short)(fc_yaw +
+                                         cam_ease_step(d, 10, 0x300,
+                                                       cam_k_live, 1));
+                    } else if (d > 0x800 || d < -0x800) {
+                        fc_yaw = (short)(fc_yaw +
+                                         cam_ease_step(d, 20, 0x200,
+                                                       cam_k_live, 0));
                     }
+                }
+            }
+            /* sm64 entry glide: pitch and distance ease to Lakitu's
+               defaults over ~0.6s instead of cutting there. Any steering
+               cancels it; C restarts it. */
+            if (cam_mode == CAM_SM64 && sm64_glide > 0.0f) {
+                if (rig_touched) {
+                    sm64_glide = 0.0f;
+                } else {
+                    fc_pitch = (short)(fc_pitch +
+                                       cam_ease_step(SM64_PITCH - fc_pitch, 6,
+                                                     0, cam_k_live, 1));
+                    fc_dist += cam_ease_step(sm64_want_dist - fc_dist, 6, 0,
+                                             cam_k_live, 0);
+                    sm64_glide -= cam_k_live / 30.0f;
+                    if (sm64_glide <= 0.0f) sm64_glide = 0.0f;
                 }
             }
         }
@@ -1821,15 +4029,22 @@ int main(void)
                 cam_yaw += 0.045f * (pad.rx / 32768.0f);
                 orbiting = 1;
             }
-            if (pad.ry > 10000 && cam_pitch < 0.85f) cam_pitch += 0.02f;
-            if (pad.ry < -10000 && cam_pitch > -0.15f) cam_pitch -= 0.02f;
+            if (!front_invert_y) {
+                if (pad.ry > 10000 && cam_pitch < 0.85f) cam_pitch += 0.02f;
+                if (pad.ry < -10000 && cam_pitch > -0.15f) cam_pitch -= 0.02f;
+            } else {
+                if (pad.ry < -10000 && cam_pitch < 0.85f) cam_pitch += 0.02f;
+                if (pad.ry > 10000 && cam_pitch > -0.15f) cam_pitch -= 0.02f;
+            }
         }
-        if (W.GetAsyncKeyState_('Q') < 0) { cam_yaw -= 0.045f; orbiting = 1; }
-        if (W.GetAsyncKeyState_('E') < 0) { cam_yaw += 0.045f; orbiting = 1; }
-        if (W.GetAsyncKeyState_('R') < 0 && cam_pitch < 0.85f)
-            cam_pitch += 0.02f;
-        if (W.GetAsyncKeyState_('F') < 0 && cam_pitch > -0.15f)
-            cam_pitch -= 0.02f;
+        if (!typing && W.GetAsyncKeyState_('Q') < 0) { cam_yaw -= 0.045f; orbiting = 1; }
+        if (!typing && W.GetAsyncKeyState_('E') < 0) { cam_yaw += 0.045f; orbiting = 1; }
+        if (!typing && W.GetAsyncKeyState_('R') < 0 &&
+            (front_invert_y ? cam_pitch > -0.15f : cam_pitch < 0.85f))
+            cam_pitch += front_invert_y ? -0.02f : 0.02f;
+        if (!typing && W.GetAsyncKeyState_('F') < 0 &&
+            (front_invert_y ? cam_pitch < 0.85f : cam_pitch > -0.15f))
+            cam_pitch -= front_invert_y ? -0.02f : 0.02f;
         /* THE GAME'S OWN INPUT PROCESSOR: keys become raw DS pad bits,
            Stage::CheckInput turns them into the stick record (mag, dir,
            binang -- the D-pad path, mode 0), and Player::Behavior folds
@@ -1870,6 +4085,53 @@ int main(void)
                 *(short *)data_0209f4a4 = *(const short *)(q + 0x0c);
                 *(short *)data_0209f4a6 = *(const short *)(q + 0x0e);
                 data_0209f4ac[0] = *(const unsigned char *)(q + 0x14);
+                if (g_analog_controls && pad_live) {
+                    const float sx = (float)pad.lx;
+                    const float sy = (float)pad.ly;
+                    const float length = sqrtf(sx * sx + sy * sy);
+                    const float deadzone = 5000.0f;
+                    if (length > deadzone) {
+                        float usable = (length - deadzone) /
+                                       (32767.0f - deadzone);
+                        /* speed mod: scale the stick magnitude. Above 100%
+                           the stick can exceed full tilt (up to 3x), which
+                           is what carries into faster walk/run speeds --
+                           but only while dashing. A light tilt must stay a
+                           walk, so without dash input cap at the vanilla
+                           walk ceiling (the magnitude of exactly 0.72
+                           travel, the same threshold that sets the dash
+                           bit below). Otherwise even a breath on the stick
+                           runs, and the run button stops meaning anything. */
+                        usable *= g_speed_pct / 100.0f;
+                        if (usable > 3.0f) usable = 3.0f;
+                        {
+                            const float walk_ceil =
+                                (0.72f * 32767.0f - deadzone) /
+                                (32767.0f - deadzone);
+                            if (length / 32767.0f <= 0.72f &&
+                                usable > walk_ceil)
+                                usable = walk_ceil;
+                        }
+                        const float scale = usable * 32767.0f / length;
+                        const float input_x = front_invert_x ? -sx : sx;
+                        *(short *)(q + 0x0a) = (short)(input_x * scale);
+                        *(short *)(q + 0x0c) = (short)(sy * scale);
+                        float mag = usable * 4096.0f;
+                        if (mag > 32767.0f) mag = 32767.0f;
+                        *(short *)(q + 0x08) = (short)mag;
+                        *(short *)(q + 0x0e) = (short)(
+                            (int)(atan2f(-input_x, sy) *
+                                  (32768.0f / 3.14159265f)) +
+                            *(short *)((char *)data_020a1164 + 0) + 0x8000);
+                    } else {
+                        *(short *)(q + 0x08) = 0;
+                        *(short *)(q + 0x0a) = 0;
+                        *(short *)(q + 0x0c) = 0;
+                    }
+                    *(short *)data_0209f4a2 = *(short *)(q + 0x0a);
+                    *(short *)data_0209f4a4 = *(short *)(q + 0x0c);
+                    *(short *)data_0209f4a6 = *(short *)(q + 0x0e);
+                }
             }
             /* camera lazy-follow, from the same intended direction */
             if ((dx || dz) && !orbiting) {
@@ -1889,10 +4151,13 @@ int main(void)
         {
             static unsigned short btn_was;
             unsigned short btn = 0;
-            if (W.GetAsyncKeyState_(VK_SPACE) < 0) btn |= 2;
-            if (W.GetAsyncKeyState_(VK_SHIFT) < 0) btn |= 0x800;
-            if (W.GetAsyncKeyState_(VK_CONTROL) < 0) btn |= 0x400;
-            if (W.GetAsyncKeyState_('X') < 0) btn |= 1;
+            if (g_edit_mode != EDIT_NONE) btn = 0;   /* typing, not playing */
+            else {
+            if (W.GetAsyncKeyState_(g_key_jump) < 0) btn |= 2;
+            if (W.GetAsyncKeyState_(g_key_run) < 0) btn |= 0x800;
+            if (W.GetAsyncKeyState_(g_key_crouch) < 0) btn |= 0x400;
+            if (W.GetAsyncKeyState_(g_key_punch) < 0) btn |= 1;
+            }
             if (pad_live) {
                 /* Xbox layout per Tango: A jump, X run, B punch,
                    bumpers rotate the camera. RT is meant to be crouch,
@@ -1902,10 +4167,16 @@ int main(void)
                    the LT "crouch crash" actually hit. The REAL crouch
                    bit is 0x400 (St_Crouch_Main holds on it, St_Land
                    enters with it, Crawl exits by it). */
-                if (pad.buttons & 0x1000) btn |= 2;      /* A  -> jump  */
-                if (pad.buttons & 0x4000) btn |= 0x800;  /* X  -> dash  */
-                if (pad.buttons & 0x2000) btn |= 1;      /* B  -> punch */
-                if (pad.rt > 100) btn |= 0x400;          /* RT -> crouch */
+                if (pad_btn_down(&pad, g_pad_jump)) btn |= 2;
+                if (pad_btn_down(&pad, g_pad_run)) btn |= 0x800;
+                if (pad_btn_down(&pad, g_pad_punch)) btn |= 1;
+                if (pad_btn_down(&pad, g_pad_crouch)) btn |= 0x400;
+                if (g_analog_controls) {
+                    const float ax = (float)pad.lx;
+                    const float ay = (float)pad.ly;
+                    const float travel = sqrtf(ax * ax + ay * ay) / 32767.0f;
+                    if (travel > 0.72f) btn |= 0x800;   /* analog run */
+                }
                 /* the bumpers are camera-rotate and go in with the rest of
                    the rotate input below, where the freecam gate is */
             }
@@ -1930,10 +4201,15 @@ int main(void)
                 if (frame >= 20) btn |= 0x800;
                 if (frame >= 60 && frame <= 63) btn |= 2;
             }
-            /* punch probe: A-button edge at f40 */
-            if (selftest && getenv("SM64DS_SELFTEST_PUNCH") &&
-                frame >= 40 && frame <= 42)
-                btn |= 1;
+            /* punch probe: A-button edge at f40 (SM64DS_SELFTEST_PUNCH_AT
+               moves it; the entry animation still owns the player at f40
+               on some spawns) */
+            if (selftest && getenv("SM64DS_SELFTEST_PUNCH")) {
+                int pat = 40;
+                if (getenv("SM64DS_SELFTEST_PUNCH_AT"))
+                    pat = atoi(getenv("SM64DS_SELFTEST_PUNCH_AT"));
+                if (frame >= pat && frame <= pat + 2) btn |= 1;
+            }
             /* SWIM probe: a B-button STROKE every 24 frames. Swimming is the
                one locomotion in the game the stick alone cannot drive --
                St_Swim_Main moves him on the stroke, not on the tilt -- so a
@@ -1956,7 +4232,7 @@ int main(void)
                steps every frame. While the freecam mod owns the view none of
                it is written -- the Camera actor is left following Mario so
                there is something clean to hand back to. */
-            if (real_camera && cam_mode == CAM_DS) {
+            if (real_camera && cam_mode == CAM_DS && !typing) {
                 if (W.GetAsyncKeyState_('Q') < 0) btn |= 0x200;
                 if (W.GetAsyncKeyState_('E') < 0) btn |= 0x100;
                 if (W.GetAsyncKeyState_('C') < 0) btn |= 0x4000;
@@ -1972,11 +4248,79 @@ int main(void)
                 if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20)
                     btn |= 0x100;
             }
-            if (menu_on) btn = 0;   /* enter/A belong to the menu, not to him */
+            /* speed mod for digital input: the D-pad has no magnitude,
+               so tiers map onto the dash bit the walk core reads. */
+            if ((dx || dz) && !menu_on) {
+                if (g_speed_pct >= 150) btn |= 0x800;
+                else if (g_speed_pct <= 75) btn &= (unsigned short)~0x800;
+            }
+            g_jump_edge = (btn & (unsigned short)~btn_was) & 2;
+            if (menu_on) { btn = 0; g_jump_edge = 0; }
             *(unsigned short *)(data_0209f49c + 0) = btn;
             *(unsigned short *)(data_0209f49e + 0) =
                 (unsigned short)(btn & (unsigned short)~btn_was);
             btn_was = btn;
+        }
+
+        /* SM64 DIVE (sm64_movement mod): N64's dive is absent from DS, so
+           run + punch falls back to a standing punch that kills all speed.
+           With the mod on, a punch edge while dashing and moving on dry
+            ground becomes a dive instead: the ROM's own jump is triggered
+            (Walk + jump edge picks the right record itself -- no exotic
+            states), then the harness holds N64 dive ballistics while
+            airborne: entry speed held every tick (the ROM would bleed it
+            down) and a flat +20u rise. Landing
+           is the ROM's own (which preserves speed for jumps), the punch
+           bits are consumed so PunchKick does not also fire, and the dive
+           is always a fresh single (combo timer cleared). Standing punches
+           (signs talk), airborne punches and everything with the mod off
+           pass through untouched. */
+        {
+            const unsigned short held =
+                *(unsigned short *)(data_0209f49c + 0);
+            const unsigned short pressed =
+                *(unsigned short *)(data_0209f49e + 0);
+            const int spd = *(int *)(c + 0x98);
+            static int dive_t, dive_on, dive_spd;
+            if (!menu_on && !front_on && (pressed & 1) &&
+                (held & 0x800) && (spd > (8 << 12) || spd < -(8 << 12)) &&
+                *(unsigned char *)(c + 0x6de) == 0 &&
+                *(unsigned char *)(c + 0x706) == 0 &&
+                sm64ds::mods::mod_enabled("sm64_movement")) {
+                /* jump for me (ROM picks the record), fresh single, and
+                   remember the entry speed + arm the ride. Punch is
+                   consumed; jump goes out as held + edge for exactly this
+                   frame (the input block rebuilds both words next frame). */
+                *(unsigned short *)(data_0209f49c + 0) = (unsigned short)
+                    ((held | 2u) & (unsigned short)~1u);
+                *(unsigned short *)(data_0209f49e + 0) = (unsigned short)
+                    ((pressed | 2u) & (unsigned short)~1u);
+                *(unsigned short *)(c + 0x6a8) = 0;
+                dive_t = 6;
+                dive_on = 0;
+                dive_spd = spd;
+                fprintf(stderr, "[mod] sm64 dive\n");
+            }
+            /* ride: while the dive is airborne, hold entry speed exactly
+               (N64 preserves momentum; the ROM would bleed it down) and
+               flatten the rise to +20u (N64's dive hop -- the ROM's jump
+               arc is taller). Falling is untouched. Landing clears. */
+            if (dive_t > 0) {
+                --dive_t;
+                if (*(unsigned char *)(c + 0x6de) != 0) {
+                    dive_on = 1;
+                    dive_t = 0;
+                }
+            }
+            if (dive_on) {
+                if (*(unsigned char *)(c + 0x6de) != 0) {
+                    *(int *)(c + 0x98) = dive_spd;
+                    if (*(int *)(c + 0xa8) > 81920)
+                        *(int *)(c + 0xa8) = 81920;
+                } else {
+                    dive_on = 0;
+                }
+            }
         }
 
         /* ...and the bottom screen's half of the same record: the camera
@@ -2025,6 +4369,90 @@ int main(void)
             prev_pos[1] = *(int *)(c + 0x60);
             prev_pos[2] = *(int *)(c + 0x64);
         }
+        /* FIXED TIMESTEP -- the sim's clock, and the whole of the "don't
+           speed up" guarantee. Game logic advances in 1/30s chunks of REAL
+           time no matter how fast the presents run:
+           - mode 0 (30): the Sleep pace below holds ~30 presents/s and each
+             present runs exactly one tick (the classic path, untouched).
+           - mode 1 (uncapped): presents run free; the accumulator runs
+             0..3 ticks a present so the sim still advances at 30Hz.
+           - mode 2 (smooth): same as uncapped, plus the render-phase lerp
+             after the toast block interpolates the player's position/yaw
+             between the last two ticks.
+           Paused (menu/front): no ticks and the accumulator clears, so
+           unpausing never dumps catch-up ticks. Selftest: exactly one tick
+           a frame and no lerp, so headless runs stay frame-deterministic. */
+        static LARGE_INTEGER step_qpf, step_last;
+        static double step_acc;
+        static int ip_prev[3], ip_cur[3];
+        static short ip_prev_yaw, ip_cur_yaw;
+        static int ip_armed, ip_pending;
+        int sim_ticks = 0;
+        {
+            if (!step_qpf.QuadPart) QueryPerformanceFrequency(&step_qpf);
+            LARGE_INTEGER step_now;
+            QueryPerformanceCounter(&step_now);
+            double dt = step_last.QuadPart ?
+                (double)(step_now.QuadPart - step_last.QuadPart) /
+                (double)step_qpf.QuadPart : 0.0;
+            step_last = step_now;
+            if (dt < 0.0) dt = 0.0;
+            if (dt > 0.25) dt = 0.25;
+            /* a lerp left live by the previous present must never leak
+               into a tick: restore the true post-tick state first, in
+               every mode, before anything ticks. */
+            if (ip_pending) {
+                *(int *)(c + 0x5c) = ip_cur[0];
+                *(int *)(c + 0x60) = ip_cur[1];
+                *(int *)(c + 0x64) = ip_cur[2];
+                *(short *)(c + 0x8e) = ip_cur_yaw;
+                ip_pending = 0;
+            }
+            if (menu_on || front_on) {
+                game_ticked = 0;
+                step_acc = 0.0;
+                ip_armed = 0;
+            } else if (selftest || g_fps_mode == 0) {
+                sim_ticks = 1;
+                game_ticked = 1;
+                step_acc = 0.0;
+            } else {
+                step_acc += dt;
+                if (step_acc < 0.0) step_acc = 0.0;
+                if (step_acc > 0.25) step_acc = 0.25;
+                sim_ticks = (int)(step_acc * 30.0);
+                /* capped: heavy lag slows the sim down instead of
+                   spiralling to catch up. */
+                if (sim_ticks > 3) sim_ticks = 3;
+                step_acc -= sim_ticks / 30.0;
+                if (step_acc < 0.0) step_acc = 0.0;
+                game_ticked = sim_ticks > 0;
+            }
+            g_interp_t = step_acc > 0.0 ? (float)(step_acc * 30.0) : 0.0f;
+            if (g_interp_t > 1.0f) g_interp_t = 1.0f;
+            /* snapshot the tick window's start state for the render lerp.
+               The end state is captured after the mod hooks in the apply
+               block below, so clamps land inside the interpolation. */
+            if (!selftest && g_fps_mode == 2 && !menu_on && !front_on) {
+                if (sim_ticks > 0) {
+                    ip_prev[0] = *(int *)(c + 0x5c);
+                    ip_prev[1] = *(int *)(c + 0x60);
+                    ip_prev[2] = *(int *)(c + 0x64);
+                    ip_prev_yaw = *(short *)(c + 0x8e);
+                }
+            } else {
+                ip_armed = 0;
+            }
+            for (int ti = 0; ti < sim_ticks; ++ti) {
+                if (boot_spawns) {
+                    port_actor_tick();
+                } else if (*(void **)(c + 0x370)) {
+                    hal_player_behavior(player);
+                } else {
+                    hal_player_st_wait_main(player);
+                }
+            }
+        }
 
         /* until the first ChangeState seats the current-state pointer,
            tick the wait state directly (the smoke's exact flow); Behavior
@@ -2055,30 +4483,147 @@ int main(void)
            the init pass for anything spawned since last frame, then behaviour
            in priority order -- which reaches him through the same
            func_02043288 the harness used to call by hand. */
-        /* THE MENU'S PAUSE IS HERE, and this is the whole of it: skip the
-           tick. Not a flag every actor has to respect and not a time scale --
-           the frame simply does not advance the game, so nothing can drift
-           while a person reads. Everything downstream still runs, so the
-           picture stays live and the camera can still be moved around a
-           frozen scene. */
-        if (menu_on) {
-            game_ticked = 0;
-        } else if (boot_spawns) {
-            /* Nothing to undo before the tick any more. The view matrix is
-               the one Camera::Render published, in the ROM's own scene units,
-               and Actor::BeforeBehavior reads exactly those three words to
-               place every actor for the Clipper. */
-            port_actor_tick();
-        } else if (*(void **)(c + 0x370)) {
-            hal_player_behavior(player);
-        } else {
-            hal_player_st_wait_main(player);
-        }
+        /* THE TICK RAN ABOVE, once, in the fixed-timestep dispatcher -- this
+           used to be a second dispatch site, which double-ticked the sim.
+           Everything below reads that tick's result. Pausing still means
+           the frame simply does not advance the game: nothing moves, nothing
+           spawns, nothing decides, while rendering carries on so the picture
+           stays live. (The view matrix in play is the one Camera::Render
+           published, in the ROM's own scene units; Actor::BeforeBehavior
+           reads exactly those three words to place every actor.) */
         /* the real boot seats the path table, so the tracking's own binding
            stands -- except where the port's unfilled floor record invents
            one the level cannot produce (hal/level_boot.cpp) */
         if (real_boot)
             port_stage_path_guard(player);
+        /* MOD HOOKS, post-tick so the game's own Behavior runs first and
+           these only adjust its result for one frame (no compounding):
+           - jump: on the exact edge frame, scale a fresh positive rise
+             once. Only when leaving the ground (was grounded, now rising).
+           - arena: small-map clamp around the spawn. A soft circle --
+             position pulled back inside, velocity kept, so it reads as a
+             fence rather than a teleport. */
+        if (game_ticked) {
+            if (g_jump_edge && g_jump_pct != 100) {
+                int *vy = (int *)(c + 0xa8);
+                if (*vy > 0) {
+                    *vy = (int)(((long long)*vy * g_jump_pct) / 100);
+                    if (g_jump_pct > 100)
+                        fprintf(stderr, "[mod] jump boost %d%% vy=%d\n",
+                                g_jump_pct, *vy);
+                }
+            }
+            if (g_arena && boot_spawns) {
+                /* small arena: 1200-unit radius around the spawn point.
+                   The castle bridge spawn is the centre; the moat, lawn
+                   edges and outer wall stay out of reach, which is the
+                   whole point of the tighter coop pit. */
+                const long long dxa = (long long)*(int *)(c + 0x5c) -
+                                      ((long long)spawn_x << 12);
+                const long long dza = (long long)*(int *)(c + 0x64) -
+                                      ((long long)spawn_z << 12);
+                const long long r2 = dxa * dxa + dza * dza;
+                const long long R = (long long)1200 << 12;
+                if (r2 > R * R) {
+                    const double r = sqrt((double)r2);
+                    const double k = (double)R / r;
+                    *(int *)(c + 0x5c) =
+                        (int)(((long long)spawn_x << 12) + dxa * k);
+                    *(int *)(c + 0x64) =
+                        (int)(((long long)spawn_z << 12) + dza * k);
+                }
+            }
+        }
+        g_jump_edge = 0;
+        /* interaction toasts: small CoopDX-style feedback for systems that
+           otherwise read as dead (deep water needs strokes, doors need
+           unloaded interiors, sign text auto-advances). Detection always
+           runs (the flight recorder shows what the player saw); only the
+           draw is gated out of selftest BMPs. */
+        if (game_ticked) {
+            void *pst = *(void **)(c + 0x370);
+            const unsigned staddr = pst ? *(unsigned *)pst : 0u;
+            /* swim entry: mIsUnderwater rising edge */
+            {
+                static int was_wet;
+                const int wet = *(unsigned char *)(c + 0x706) != 0;
+                if (wet && !was_wet)
+                    toast("Swimming: mash %s to stroke",
+                          key_name(g_key_jump));
+                was_wet = wet;
+            }
+            /* talk entry */
+            {
+                static unsigned last_st;
+                if (staddr == 0x020c4bd8 && last_st != 0x020c4bd8)
+                    toast("Talking...");
+                last_st = staddr;
+            }
+            /* sign/talk text id (only while talking) */
+            {
+                static int last_msg = -2;
+                if (g_last_msg_id != last_msg) {
+                    last_msg = g_last_msg_id;
+                    if (staddr == 0x020c4bd8 || staddr == 0x020c48e0)
+                        toast("Says message #%d (text not hosted)",
+                              g_last_msg_id);
+                }
+            }
+            /* pushing a door: OnWall against a DOOR actor */
+            if (staddr == 0x020cf714 || staddr == 0x020cfa90) {
+                static unsigned long long last_door;
+                static int door_told;
+                if (!door_told || g_frame_no > last_door + 600) {
+                    const int px = *(int *)(c + 0x5c),
+                              pz = *(int *)(c + 0x64);
+                    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+                         node = (int *)(size_t)node[1]) {
+                        char *o = (char *)(size_t)node[2];
+                        if (!o || *(unsigned short *)(o + 0xc) != 353)
+                            continue;
+                        const long long dx =
+                            (long long)*(int *)(o + 0x5c) - px;
+                        const long long dz =
+                            (long long)*(int *)(o + 0x64) - pz;
+                        const long long rr =
+                            (long long)800 << 12;
+                        if (dx * dx + dz * dz < rr * rr) {
+                            last_door = g_frame_no;
+                            door_told = 1;
+                            toast("Locked: interiors aren't in this build");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        /* SMOOTH RENDER LERP (fps mode 2 only). The hooks above ran on the
+           true post-tick state; now blend the player's position/yaw toward
+           it for this present. The next frame restores the true state
+           before ticking (see the dispatcher), so the sim never sees these
+           blended values. Yaw wraps the short way round. */
+        if (!selftest && g_fps_mode == 2 && !menu_on && !front_on) {
+            if (game_ticked) {
+                ip_cur[0] = *(int *)(c + 0x5c);
+                ip_cur[1] = *(int *)(c + 0x60);
+                ip_cur[2] = *(int *)(c + 0x64);
+                ip_cur_yaw = *(short *)(c + 0x8e);
+                ip_armed = 1;
+            }
+            if (ip_armed) {
+                const float t = g_interp_t;
+                *(int *)(c + 0x5c) =
+                    (int)((1.0f - t) * ip_prev[0] + t * ip_cur[0]);
+                *(int *)(c + 0x60) =
+                    (int)((1.0f - t) * ip_prev[1] + t * ip_cur[1]);
+                *(int *)(c + 0x64) =
+                    (int)((1.0f - t) * ip_prev[2] + t * ip_cur[2]);
+                const int dyaw = (short)(ip_cur_yaw - ip_prev_yaw);
+                *(short *)(c + 0x8e) =
+                    (short)(ip_prev_yaw + (int)(dyaw * t));
+                ip_pending = 1;
+            }
+        }
         ph_end(PH_INPUT, t_phase);
         if (selftest && frame == 0)
             fprintf(stderr, "[w] ticked\n");
@@ -2091,13 +4636,13 @@ int main(void)
            heading. */
         ph_begin(&t_phase);
         /* the analog rig's pivot is stepped here, after the tick moved Mario
-           and before anything reads it */
-        if (cam_mode == CAM_ANALOG) an_step_pivot(c);
+           and before anything reads it (sm64 shares the pinned pivot) */
+        if (cam_mode == CAM_ANALOG || cam_mode == CAM_SM64) an_step_pivot(c);
         if (real_camera) {
             hal_camera_behavior(cam);
             /* THE ONE THING THE RIG OVERRIDES BESIDES THE VIEW: the heading
                the walk steers by. Camera::Behavior has just put its own into
-               the local comms record; in analog and in freecam the rig's
+               the local comms record; in analog, sm64 and freecam the rig's
                heading goes in instead, so "forward" is away from the lens the
                player is actually looking through. The echo below is what
                copies it into the record GetAngleToCamera reads, so this has to
@@ -2518,6 +5063,11 @@ int main(void)
                Model::Render composes every model matrix with data_0209b3ec
                in software, so THAT is where the camera reaches the raster,
                not the GX position stack. */
+            /* widescreen hor+ on the DS path too: the camera reads its
+               aspect from cam+0xf8 every Render, so parking 16:9 there (it
+               is re-seated from presets by Behavior when it cares) widens
+               the hardware framing the same way the rig path does. */
+            if (g_widescreen) *(int *)((char *)cam + 0xf8) = (16 << 12) / 9;
             hal_camera_render(cam);
             /* the rig's view goes on top of the camera's own, not instead of
                it: Render still seeds the Clipper, writes CLEAR_COLOR and
@@ -2525,11 +5075,13 @@ int main(void)
                the projection and the view matrix from its own eye. Nothing
                downstream can tell the difference -- it is the same three ROM
                calls, with different numbers.
-               ANALOG orbits Mario (the eased pivot); FREECAM orbits the Camera
-               actor's own look-at, which is what made it free of him. */
+                ANALOG and SM64 orbit Mario (the eased pivot); FREECAM orbits
+                the Camera actor's own look-at, which is what made it free
+                of him. */
             if (cam_mode != CAM_DS) {
                 int fceye[3];
-                const int *pivot = cam_mode == CAM_ANALOG
+                const int *pivot = (cam_mode == CAM_ANALOG ||
+                                    cam_mode == CAM_SM64)
                                        ? an_pivot
                                        : (const int *)((char *)cam + 0x80);
                 fc_eye(pivot, fceye);
@@ -2578,12 +5130,15 @@ int main(void)
                                  ++i)
                                 printf("         tri (%.1f,%.1f,%.4f) "
                                        "(%.1f,%.1f,%.4f) (%.1f,%.1f,%.4f) "
-                                       "tex %p %dx%d cull %u alpha %u\n",
+                                       "tex %p %dx%d cull %u alpha %u "
+                                       "rgb %08x/%08x/%08x\n",
                                        at[i].v[0].x, at[i].v[0].y, at[i].v[0].z,
                                        at[i].v[1].x, at[i].v[1].y, at[i].v[1].z,
                                        at[i].v[2].x, at[i].v[2].y, at[i].v[2].z,
                                        (const void *)at[i].tex, at[i].tw,
-                                       at[i].th, at[i].cull, at[i].alpha);
+                                       at[i].th, at[i].cull, at[i].alpha,
+                                       at[i].v[0].color, at[i].v[1].color,
+                                       at[i].v[2].color);
                     }
                 }
             }
@@ -2827,9 +5382,19 @@ int main(void)
             ovl_draw(fb, os);
         }
         if (menu_on) menu_draw(fb);
+        if (front_on) front_draw(fb);
+        /* HUD extras stay out of selftest BMPs (deterministic pixels),
+           except menu-shot mode, whose whole point is the picture */
+        if (!selftest || getenv("SM64DS_SELFTEST_MENU")) {
+            toast_draw(fb);
+            chat_draw(fb);
+            if (!selftest) fps_draw(fb, ovl_fps);
+            else fps_draw(fb, 138.0);
+        }
+        ++g_frame_no;
 
         ph_begin(&t_phase);
-        W.StretchDIBits_(hdc, 0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM,
+        W.StretchDIBits_(hdc, 0, 0, win_client_w, win_client_h,
                       0, 0, ntr::SCREEN_W, ntr::SCREEN_H, fb.px, &bi,
                       DIB_RGB_COLORS, SRCCOPY);
         ph_end(PH_BLIT, t_phase);
@@ -2849,6 +5414,22 @@ int main(void)
             }
             ovl_last_present = now;
         }
+        /* SM64DS_TRACE_RATE=1: about once a second, log present fps beside
+           game tick rate -- the proof that uncapped/smooth modes hold 30Hz
+           sim speed while presenting faster. */
+        {
+            static double rate_last;
+            const double rnow = ovl_now_ms();
+            if (getenv("SM64DS_TRACE_RATE")) {
+                if (rate_last == 0.0) rate_last = rnow;
+                if (rnow - rate_last >= 1000.0) {
+                    rate_last = rnow;
+                    fprintf(stderr, "[rate] fps=%.1f tps=%.1f mode=%d%s\n",
+                            ovl_fps, ovl_tps, g_fps_mode,
+                            g_vsync ? " vsync" : "");
+                }
+            }
+        }
         ++ovl_frames;
         /* the click flag is true for exactly the frame it landed on; the hold
            in g_mouse_left_down is what outlives it */
@@ -2856,6 +5437,15 @@ int main(void)
         if (selftest && (frame % 10) == 0)
             printf("[y] frame %d y=%d units %.1f\n", frame,
                    *(int *)(c + 0x60), *(int *)(c + 0x60) / 4096.0f);
+        /* SM64DS_TRACE_HOLD=1: per-frame held-actor slot + swim substate.
+           Diagnosing the swim-stroke crash that reads c+0x358. */
+        if (getenv("SM64DS_TRACE_HOLD")) {
+            void *pst = *(void **)(c + 0x370);
+            printf("[hold] f%d sub=%u t6a4=%u hold=%p st=%08x spd=%d\n",
+                   frame, *(unsigned char *)(c + 0x6e3),
+                   *(unsigned short *)(c + 0x6a4), *(void **)(c + 0x358),
+                   pst ? *(unsigned *)pst : 0u, *(int *)(c + 0x98));
+        }
         /* SM64DS_DUMP_FROM/TO: per-frame BMPs across a window, for
            watching an animation play (or fail to) */
         {
@@ -2874,7 +5464,30 @@ int main(void)
                 ntr::ppu_write_bmp(nm, fb);
             }
         }
-        sdat_host_tick();   /* hosted ARM7: drain the sound queue, feed the mixer */
+        /* Sound page: master switch, plus mute when the window is not
+           foreground. Skipping the tick starves waveOut, which goes
+           silent on its own once the queued buffers run out. */
+        {
+            int audible = g_sound_on;
+            if (audible && g_mute_unfocused && W.GetForegroundWindow_)
+                audible = W.GetForegroundWindow_() == hwnd;
+            if (audible)
+                sdat_host_tick();   /* hosted ARM7: drain queue, feed mixer */
+        }
+        sm64ds::lobby::poll();   /* host accept / line pump / reconnect */
+        g_lobby_state = sm64ds::lobby::role();   /* menus mirror the transport */
+        {
+            /* headless lobby proof: send once a peer is really connected.
+               (roster fills on WELCOME/HELLO, so peer_count > 0 means the
+               handshake finished -- role alone would fire while connecting) */
+            static int lobby_chat_sent;
+            const char *lc = getenv("SM64DS_LOBBY_CHAT");
+            if (lc && !lobby_chat_sent &&
+                sm64ds::lobby::peer_count() > 0) {
+                sm64ds::lobby::send_chat(g_username, lc);
+                lobby_chat_sent = 1;
+            }
+        }
         if (selftest && ++frame >= selftest) {
             for (int k = 0; k < g_amb_n; ++k) {
                 char *o = (char *)g_amb[k].o;
@@ -2905,13 +5518,15 @@ int main(void)
            scans 60 but gameplay ticks every other vblank). Ticking the
            game's per-frame constants at 60Hz doubled every speed --
            the "jump too fast, weird gravity" report. Sleep only the
-           remainder of the 33.3ms budget. */
+           remainder of the 33.3ms budget. fps mode 0 sleeps here; modes 1
+           (uncapped) and 2 (smooth) skip the sleep and hold 30Hz sim speed
+           with the fixed-timestep accumulator instead. */
         {
             static LARGE_INTEGER qpf, last;
             LARGE_INTEGER now;
             if (!qpf.QuadPart) QueryPerformanceFrequency(&qpf);
             QueryPerformanceCounter(&now);
-            if (!selftest && last.QuadPart) {
+            if (!selftest && last.QuadPart && g_fps_mode == 0) {
                 const double el =
                     (now.QuadPart - last.QuadPart) * 1000.0 / qpf.QuadPart;
                 if (el < 33.3) Sleep((DWORD)(33.3 - el));
@@ -2925,5 +5540,7 @@ int main(void)
             }
             QueryPerformanceCounter(&last);
         }
+        /* vsync: DwmFlush blocks until the next vblank if dwmapi is available */
+        if (W.DwmFlush_) W.DwmFlush_();
     }
 }

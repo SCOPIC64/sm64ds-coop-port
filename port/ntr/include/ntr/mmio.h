@@ -25,6 +25,7 @@ namespace ntr {
 // truncating 32-bit round-trips -- `int base = (int)&file`, which the BMD/BCA/KCL
 // loaders do in place -- stay exact.
 constexpr uintptr_t MAIN_BASE = 0x02000000u, MAIN_SIZE = 0x00400000u;  // main RAM
+constexpr uintptr_t FIRM_BASE = 0x027FC000u, FIRM_SIZE = 0x00004000u;  // firmware mirror (main-RAM tail)
 constexpr uintptr_t IO_BASE   = 0x04000000u, IO_SIZE   = 0x00002000u;  // 2D/3D/system
 constexpr uintptr_t PLTT_BASE = 0x05000000u, PLTT_SIZE = 0x00000800u;  // palettes
 constexpr uintptr_t VRAM_BASE = 0x06000000u, VRAM_SIZE = 0x00900000u;  // all banks

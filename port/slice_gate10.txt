@@ -851,6 +851,10 @@ src/func_ov002_020dd2f4.c
 src/func_ov002_020e0ccc.cpp
 port/unmatched/Player_St_Jump_Main.cpp
 src/func_ov002_020e200c.c
+# Yoshi's flutter-fall helper, dispatched as a state fn like the jump
+# gravity above (first reached by holding jump as Yoshi: character select).
+src/func_ov002_020e1c20.c
+src/func_02012120.c
 src/func_ov002_020bf27c.c
 src/func_ov002_020e2be4.cpp
 src/func_ov002_020e2b6c.cpp
@@ -1015,6 +1019,9 @@ src/_ZN6Player15St_Swim_CleanupEv.cpp
 src/_ZN6Player12St_Talk_MainEv.cpp
 src/_ZN6Player12St_Talk_InitEv.cpp
 src/_ZN6Player15St_Talk_CleanupEv.cpp
+# Talk entry: the refusal in hal/actor_vtables.cpp is retired now that the
+# sign's read state has a benign host Main and messages auto-advance.
+src/_ZN6Player9StartTalkER9ActorBaseb.cpp
 src/_ZN6Player16St_Teleport_MainEv.cpp
 src/_ZN6Player16St_Teleport_InitEv.cpp
 src/_ZN6Player13St_Throw_MainEv.cpp
@@ -1199,6 +1206,29 @@ src/_ZN5Scene15SetSceneToSpawnEjj.c
 src/_ZN6Player17St_NoControl_MainEv.cpp
 port/unmatched/Player_St_NoControl_Init.cpp
 src/_ZN6Player20St_NoControl_CleanupEv.cpp
+# NoControl's per-kind Init handlers (the PMF table St_NoControl_Init
+# dispatches through): first reached by non-Mario characters, whose entrance
+# kinds Mario never takes (character select). All tiny, all matched.
+src/func_ov002_020c97e0.c
+src/func_ov002_020c97f8.cpp
+src/func_ov002_020c9840.cpp
+src/func_ov002_020c98a4.cpp
+src/func_ov002_020c990c.c
+src/func_ov002_020c9998.c
+src/func_ov002_020c9a04.c
+src/func_ov002_020c9ac0.cpp
+src/func_ov002_020c9b10.c
+src/func_ov002_020c9b5c.c
+src/func_ov002_020c9b7c.c
+src/func_ov002_020c9c00.c
+src/func_ov002_020c9c4c.c
+src/func_ov002_020c9cc0.c
+src/func_ov002_020c9d1c.c
+src/func_ov002_020c9d68.cpp
+src/func_ov002_020c9de4.c
+# ...plus the arm9 camera helper one of those kinds calls: if the local
+# player enters it, the Camera changes to its cutscene state (hosted).
+src/func_0200d148.c
 src/func_ov002_020c965c.c
 src/func_ov002_020c94a4.c
 src/func_ov002_020c92fc.c

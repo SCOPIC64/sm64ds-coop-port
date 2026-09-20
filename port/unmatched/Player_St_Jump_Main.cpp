@@ -7,6 +7,7 @@
 #include "types.h"
 #include "decl_common.h"
 #include "Player.h"
+#include <cstdio>
 extern "C" {
 extern int func_ov002_020eeca8(void*, void*);
 extern int func_ov002_020e28d4(void*, int, int);
@@ -67,13 +68,31 @@ int Player::St_Jump_Main()
       if (*(u8*)((char*)&mIsMega) != 0) {
         idx = 0;
       }
+      /* PORT: the table holds 11 rows (dumped via SM64DS_TRACE_JUMPTAB);
+         an out-of-range kind reads garbage rows and can route a wild
+         vtable call. Clamp to the default row and say so loudly. */
+      if (idx < 0 || idx > 10) {
+        std::printf("[jumpidx] Jump_Main kind %d out of range, clamped\n",
+                    idx);
+        idx = 0;
+      }
       int* row = &data_ov002_0211073c[idx * 2];
       int v = row[1];
       void* p2 = (char*)((void*)this) + (v >> 1);
       if (v & 1) {
         int (*f)(void*) =
             *(int (**)(void*))((char*)(*(int**)p2) + row[0]);
-        f(p2);
+        /* PORT: a vtable slot the port never filled still holds its ROM
+           address; calling it jumps to ROM as x86 (op=8 DEP fault). Host
+           code never lives in DS address space, so a DS-range target is
+           certainly unfilled -- route it through the dispatcher instead. */
+        if ((unsigned)f >= 0x02000000u && (unsigned)f < 0x03000000u) {
+          std::printf("[jumpidx] Jump_Main vtable slot holds ROM %08x, "
+                      "routed\n", (unsigned)f);
+          hal_call_state_fn(p2, (unsigned)f);
+        } else {
+          f(p2);
+        }
       } else {
         /* PORT: row[0] is a DS code address (mwcc PMF); route through the
            state-fn mapper instead of calling it raw */

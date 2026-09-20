@@ -31,9 +31,71 @@ int _ZN9Animation8GetFlagsEv(void *self)
 { return ((Animation *)self)->Animation::GetFlags(); }
 void _ZN6Player4HealEi(Player *p, int amt)
 { p->Player::Heal(amt); }
+/* the F5/MODS live character switch: SetRealCharacter is a real __thiscall
+   method, so it needs its `this` in ECX -- a plain extern "C" declaration
+   generates __cdecl and the character id arrives as stack garbage (the
+   switch crashed reading wild model slots). Same wrapper pattern as Heal. */
+extern "C" void hal_player_set_real_character(void *p, unsigned chr)
+{ ((Player *)p)->Player::SetRealCharacter(chr); }
 
 unsigned int Player::GetBodyModelID(unsigned int a, bool b_) const
 { return _ZNK6Player14GetBodyModelIDEjb((char *)this, a, b_ ? 1 : 0); }
+
+/* ---- outfit tint (MODS/F5 "color") --------------------------------------
+   Multiplies the body ModelAnim's DIF_AMB diffuse+ambient channels by the
+   active preset. DIF_AMB packs two BGR555 colors (diffuse bits 0-14, flag
+   15, ambient 16-30, flag 31 -- see ntr/gx.cpp); the flags are preserved.
+   Originals are cached per (file, materials, count) and restored when the
+   file changes or Default returns, so retinting never compounds. The head
+   keeps its own colors. */
+extern "C" const float *port_outfit_tint(void);
+namespace {
+const BMD_File *g_tint_file;
+unsigned *g_tint_mats;
+unsigned g_tint_orig[128];
+unsigned g_tint_n;
+int g_tint_applied;
+}  // namespace
+
+static void hal_tint_body(ModelAnim *ma)
+{
+    const float *t = port_outfit_tint();
+    BMD_File *f = ma ? ma->data.modelFile : 0;
+    unsigned *mats = (ma && f) ? (unsigned *)ma->data.materials : 0;
+    unsigned n = f ? f->numMaterials : 0;
+    if (n > 128) n = 128;
+    if (g_tint_applied &&
+        (f != g_tint_file || mats != g_tint_mats || n != g_tint_n)) {
+        for (unsigned i = 0; i < g_tint_n; ++i)
+            g_tint_mats[i * 12 + 10] = g_tint_orig[i];
+        g_tint_applied = 0;
+    }
+    if (!t || !mats || !n) {
+        if (!t) g_tint_file = 0;
+        return;
+    }
+    if (!g_tint_applied || f != g_tint_file || mats != g_tint_mats ||
+        n != g_tint_n) {
+        for (unsigned i = 0; i < n; ++i) g_tint_orig[i] = mats[i * 12 + 10];
+        g_tint_file = f;
+        g_tint_mats = mats;
+        g_tint_n = n;
+        g_tint_applied = 1;
+    }
+    for (unsigned i = 0; i < n; ++i) {
+        const unsigned v = g_tint_orig[i];
+        unsigned c[6] = {v & 0x1f, (v >> 5) & 0x1f, (v >> 10) & 0x1f,
+                         (v >> 16) & 0x1f, (v >> 21) & 0x1f,
+                         (v >> 26) & 0x1f};
+        for (int k = 0; k < 6; ++k) {
+            int r = (int)(c[k] * t[k % 3] + 0.5f);
+            c[k] = (unsigned)(r > 31 ? 31 : r);
+        }
+        mats[i * 12 + 10] =
+            (v & 0x80008000u) | c[0] | (c[1] << 5) | (c[2] << 10) |
+            (c[3] << 16) | (c[4] << 21) | (c[5] << 26);
+    }
+}
 
 extern "C" {
 /* gate-10 smoke drives the state machine directly (the ChangeState PMF
@@ -208,6 +270,7 @@ void hal_render_player_world(void *player)
                      (*(int *)(c + 0x64) + 4) >> 3};
     for (int i = 0; i < 12; ++i) ((int *)&ma->mat4x3)[i] = scene[i];
     ma->ModelAnim::UpdateVerts();
+    hal_tint_body(ma);
     ma->ModelAnim::Render(0);
 
     unsigned hid = func_ov002_020becf4(c, *(unsigned char *)(c + 0x6db), 1);
@@ -234,6 +297,7 @@ void hal_render_player_body_ex(void *player, int with_head)
     ((int *)&ma->mat4x3)[4] = 0x1000;
     ((int *)&ma->mat4x3)[8] = 0x1000;
     ma->ModelAnim::UpdateVerts();
+    hal_tint_body(ma);
     ma->ModelAnim::Render(0);
 
     /* the head is its own model; Player::Render seats it by copying the
@@ -270,6 +334,26 @@ extern "C" void func_ov002_020e200c(char *c);
 extern "C" int func_ov002_020cac30(void);
 extern "C" int func_ov002_020d6084(char *c);
 extern "C" int func_ov002_020e17f8(void *c);
+extern "C" void func_ov002_020e1c20(char *c);
+/* NoControl's per-kind Init handlers (character select reaches kinds Mario
+   never takes); signatures from src */
+extern "C" void func_ov002_020c97e0(char *c);
+extern "C" void func_ov002_020c97f8(char *c);
+extern "C" void func_ov002_020c9840(char *c);
+extern "C" void func_ov002_020c98a4(char *c);
+extern "C" void func_ov002_020c990c(void *c);
+extern "C" void func_ov002_020c9998(void *c);
+extern "C" void func_ov002_020c9a04(char *c);
+extern "C" void func_ov002_020c9ac0(char *c);
+extern "C" int func_ov002_020c9b10(char *c);
+extern "C" void func_ov002_020c9b5c(char *c);
+extern "C" void func_ov002_020c9b7c(void *c);
+extern "C" int func_ov002_020c9c00(char *c);
+extern "C" void func_ov002_020c9c4c(char *c);
+extern "C" void func_ov002_020c9cc0(char *c);
+extern "C" int func_ov002_020c9d1c(char *c);
+extern "C" void func_ov002_020c9d68(char *c);
+extern "C" void func_ov002_020c9de4(char *c);
 extern "C" int _ZN6Player16St_BurnLava_MainEv(char *c);
 /* gate 14: the level-boot state and the seven entrance-step handlers */
 extern "C" int func_ov002_020c6f3c(void *c);
@@ -291,6 +375,14 @@ extern "C" void func_ov002_020c6fe4(char *c);
          walk-in/swim-across/climb-out run has to be read from */
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
+    /* SM64DS_TRACE_CS=1: log every state-fn dispatch with the current
+       state object, so transitions read as object changes. How the dive
+       bug was caught (a Main called as an exit re-entered its own state
+       until the stack was gone). */
+    if (std::getenv("SM64DS_TRACE_CS")) {
+        void *cur = *(void **)((char *)self + 0x370);
+        std::fprintf(stderr, "[cs] obj=%p fn=%08x\n", cur, ds_addr);
+    }
     {
         static int on = -1;
         if (on < 0) {
@@ -363,8 +455,25 @@ int _ZN6Player17SetNoControlStateEhih(void *self, unsigned char a, int b,
 { return ((Player *)self)->Player::SetNoControlState(a, b, c); }
 int _ZN6Player8HasNoCapEv(void *self)
 { return ((Player *)self)->Player::HasNoCap(); }
+/* The subject resolver: no-arg ride-through callers (St_Swim_Main calls
+   GetHealth() bare, trusting ARM r0 to still hold the player) leave stack
+   garbage where `self` should be. The subject is always a live player, so
+   a pointer that is not one of the engine's player slots falls back to the
+   local player. Comparisons only -- garbage is never dereferenced. */
+static Player *hal_player_self(void *self)
+{
+    extern unsigned char data_0209f250;
+    extern int data_0209f394[];
+    for (int i = 0; i < 4; ++i)
+        if (self == (void *)(size_t)data_0209f394[i]) return (Player *)self;
+    return (Player *)(size_t)data_0209f394[data_0209f250 & 3];
+}
 int _ZN6Player9GetHealthEv(void *self)
-{ return ((Player *)self)->Player::GetHealth(); }
+{
+    Player *p = hal_player_self(self);
+    if (!p) return 8;
+    return p->Player::GetHealth();
+}
 
 void _ZN4BgCh19StartDetectingWaterEv(void *self)
 { ((BgCh *)self)->BgCh::StartDetectingWater(); }

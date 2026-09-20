@@ -120,6 +120,7 @@ bool io_init() {
     struct { uintptr_t base; size_t size; } regions[] = {
         {MAIN_BASE, MAIN_SIZE}, {IO_BASE, IO_SIZE}, {PLTT_BASE, PLTT_SIZE},
         {VRAM_BASE, VRAM_SIZE}, {OAM_BASE, OAM_SIZE},
+        {FIRM_BASE, FIRM_SIZE},
     };
     void *io = nullptr;
     for (const auto &r : regions) {
@@ -128,10 +129,19 @@ bool io_init() {
         // build the game's globals are host-linked symbols and file images
         // live on the game heap, so a lost race for 0x02000000 (the host
         // allocator can land anything there first) is not fatal.
-        if (!p && r.base != MAIN_BASE) return false;
+        //
+        // The firmware mirror is the same story one level down: a dozen
+        // game functions read their settings straight out of 0x027FFC00+
+        // (console type at 0x027FFC40, lid state, shared IPC words) with
+        // plain pointer dereferences. Zeroed is a plain retail DS, and any
+        // reader that only runs for non-Mario characters (Luigi's voice
+        // group load reaches func_0203d974 at frame ~28) faults without it.
+        const int optional =
+            r.base == MAIN_BASE || r.base == FIRM_BASE;
+        if (!p && !optional) return false;
         /* Losing this race is not fatal, but it IS the difference between two
            runs of the same build, so say so rather than carrying on quietly. */
-        if (!p) std::fprintf(stderr, "[io] main RAM %08x NOT mapped\n",
+        if (!p) std::fprintf(stderr, "[io] region %08x NOT mapped\n",
                              (unsigned)r.base);
         if (r.base == IO_BASE) io = p;
     }
