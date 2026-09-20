@@ -1138,6 +1138,45 @@ int display_refresh_hz(void)
    reader is walk_window's pacer. See the header for the whole contract. */
 int g_frame_rate = 0;
 
+/* ---- THE THREE PICTURE-QUALITY KEYS' BANDS (run hd1) ---------------------
+   One sanitiser each, and both readers of every key -- settings.json and the
+   environment override -- come through it, so the file and the environment
+   cannot disagree about what 9 or -1 means. The shape is FrameRate's exactly.
+
+     RenderScale   not a positive number -> 0, the explicit default sentinel:
+                   the multiplier the port picks today. Covers absent,
+                   unparseable, 0 itself and negatives. 1..4 are themselves.
+                   Above 4 clamps to 4 rather than being refused, the Aspect
+                   rule: a number that is a picture beats an error. The
+                   ceiling is 4 because 4 x 192 is 768 and 4 x 256 is 1024,
+                   which is the largest tier the render path has ever been
+                   compiled at (ntr/ppu.h's NTR_HIRES), so it is the largest
+                   one with any evidence behind it.
+     SmoothModels  the same, clamped into 0..3, which is the range the
+                   subdivision itself is defined over (ntr/smooth.h). */
+int render_scale_sanitise(int n)
+{
+    if (n <= 0) return 0;
+    if (n > 4) return 4;
+    return n;
+}
+
+int smooth_models_sanitise(int n)
+{
+    if (n <= 0) return 0;
+    if (n > 3) return 3;
+    return n;
+}
+
+/* The three keys' stored values. BOOT-LATCHED like g_aspect and g_frame_rate
+   and for the same kind of reason: the render size is threaded into the
+   framebuffer, the pack is opened once and the subdivision level sizes
+   per-polygon work, so all three are settled before the first frame and a
+   mid-run change would be a second code path nobody tests. */
+int g_render_scale = 0;
+int g_hd_textures = 0;
+int g_smooth_models = 0;
+
 void load_once(void)
 {
     if (g_loaded) return;
@@ -1183,6 +1222,14 @@ void load_once(void)
        defaults so a missing file and a file that will not parse both land on
        the behaviour the port shipped with. */
     g_frame_rate = 0;
+    /* The three picture-quality keys, defaulted here beside FrameRate for its
+       reason: a missing file and a file that will not parse both have to land
+       on the picture the port shipped with, and these are the values that say
+       so -- the render multiplier the port picks for itself, the ROM's own
+       textures and the ROM's own geometry. */
+    g_render_scale = 0;
+    g_hd_textures = 0;
+    g_smooth_models = 0;
 
     char path[1024];
     if (!find_settings(path, sizeof path)) return;
@@ -1415,6 +1462,20 @@ void load_once(void)
                 n = json_int(text, "FrameRate", 0);
             g_frame_rate = frame_rate_sanitise(n);
         }
+        /* The three picture-quality keys, each read against its own default
+           beside FrameRate and sanitised HERE rather than at the accessor --
+           the Aspect shape -- so the stored value is always one the render
+           path can size a framebuffer, open a pack or subdivide a polygon
+           from. A file written before these keys existed reads as one that
+           left all three off, which is the shipped picture. */
+        g_render_scale = render_scale_sanitise(json_int(text, "RenderScale", 0));
+        /* Both spellings of a toggle, the RunMode rule: the launcher
+           serialises a C# bool as true/false and a player editing by hand may
+           write 1. Either says on; absent and anything else say off. */
+        g_hd_textures = (json_int(text, "HdTextures", 0) != 0 ||
+                         json_bool(text, "HdTextures", 0) != 0) ? 1 : 0;
+        g_smooth_models =
+            smooth_models_sanitise(json_int(text, "SmoothModels", 0));
     }
     free(text);
 
@@ -1542,6 +1603,30 @@ void load_once(void)
                         "rate and nothing is interpolated yet, so the same "
                         "picture repeats. This is a mod, not the game. "
                         "(%s)\n", g_frame_rate, g_frame_rate, path);
+    /* The three picture-quality keys, one plain line each and only when the
+       key is off its default, so an ordinary run's log is unchanged and a
+       support log for "it looks different from the video" names the reason on
+       one line. Each says what it changes and that it is a host setting and
+       not the game. */
+    if (g_render_scale)
+        fprintf(stderr, "[settings] RenderScale %d -- the 3D picture is drawn "
+                        "at %d host rows per DS row (%d rows; the width "
+                        "follows this run's Aspect) and presented into the "
+                        "same window. The game is untouched; this is how "
+                        "sharp the picture is and nothing else. (%s)\n",
+                g_render_scale, g_render_scale, g_render_scale * 192, path);
+    if (g_hd_textures)
+        fprintf(stderr, "[settings] HdTextures on -- replacement texture "
+                        "images are loaded from %s where the pack has one, and "
+                        "the ROM's own texture is used everywhere else. This "
+                        "is a mod, not the game. (%s)\n",
+                host_setting_hd_textures_dir(), path);
+    if (g_smooth_models)
+        fprintf(stderr, "[settings] SmoothModels %d -- the game's models are "
+                        "subdivided %d level(s) before they are drawn, so the "
+                        "silhouettes are rounder than the ROM's. This is a "
+                        "mod, not the game. (%s)\n",
+                g_smooth_models, g_smooth_models, path);
 }
 
 /* ---- the live re-read -----------------------------------------------------
@@ -2215,4 +2300,111 @@ extern "C" int host_setting_frame_rate(void)
     if (env >= 0) return env;
     load_once();
     return g_frame_rate;
+}
+
+/* ---- THE THREE PICTURE-QUALITY KEYS' ACCESSORS (run hd1) ----------------
+   Every one is host_setting_frame_rate's shape exactly: an environment
+   override read once, in front of load_once and the stored value, through
+   the same sanitiser the file goes through, so a proof run can pin any of
+   them off ONE build without editing a player's settings file and the two
+   channels cannot disagree about what a value means. See the header for each
+   key's contract. */
+
+/* RenderScale: host rows per DS row, 0 for the multiplier the port picks
+   today. SM64DS_RENDER_SCALE overrides; junk reads as 0, which is the answer
+   an unparseable file value gives. */
+extern "C" int host_setting_render_scale(void)
+{
+    static int env_read = 0;
+    static int env = -1;             /* <0 means "the environment said nothing" */
+    if (!env_read) {
+        env_read = 1;
+        const char *e = getenv("SM64DS_RENDER_SCALE");
+        if (e && *e) {
+            char *end = 0;
+            const long v = strtol(e, &end, 10);
+            env = (end != e) ? render_scale_sanitise((int)v) : 0;
+        }
+    }
+    if (env >= 0) return env;
+    load_once();
+    return g_render_scale;
+}
+
+/* HdTextures: 1 when the replacement pack is on. SM64DS_HD_TEXTURES has the
+   mod keys' grammar rather than a number's -- unset is the file's answer,
+   empty or "0" forces it off, anything else forces it on -- because that is
+   the spelling every other on/off override in this file uses and a player
+   reading a proof recipe should not have to learn a second one. */
+extern "C" int host_setting_hd_textures(void)
+{
+    static int env = -2;
+    if (env == -2) {
+        const char *e = getenv("SM64DS_HD_TEXTURES");
+        env = e ? ((e[0] == 0 || (e[0] == '0' && e[1] == 0)) ? 0 : 1) : -1;
+    }
+    if (env >= 0) return env;
+    load_once();
+    return g_hd_textures;
+}
+
+/* WHERE THE PACK WOULD BE LOADED FROM, whether or not it is switched on --
+   the on/off question is host_setting_hd_textures above and this one is
+   only "which directory", so a log line can name the path while the key is
+   off and a refusal can say where it looked.
+
+   The candidates, in the order every other asset reader in this port uses
+   (hal/gap_art.cpp, hal/fs_mods.cpp):
+
+     SM64DS_HD_TEXTURES_DIR   the directory outright, for a pack somewhere
+                              else entirely. Whatever it says, used as given.
+     SM64DS_ASSET_ROOT        "<root>/textures_hd". In a player's kit the
+                              launcher sets the asset root to the bundle
+                              directory, so this is the pack folder sitting
+                              beside the exe and settings.json.
+     neither                  "textures_hd", relative, which is the working
+                              directory -- the same last resort find_settings
+                              falls back to for settings.json itself.
+
+   Built once into a static buffer and never null, so a caller can print it
+   unconditionally. Does NOT call load_once: nothing here comes from the
+   file, and the log line inside load_once calls this. */
+extern "C" const char *host_setting_hd_textures_dir(void)
+{
+    static int built = 0;
+    static char dir[1024];
+    if (!built) {
+        built = 1;
+        const char *over = getenv("SM64DS_HD_TEXTURES_DIR");
+        if (over && *over) {
+            snprintf(dir, sizeof dir, "%s", over);
+        } else {
+            const char *root = getenv("SM64DS_ASSET_ROOT");
+            if (root && *root && strlen(root) + 16 < sizeof dir)
+                snprintf(dir, sizeof dir, "%s/textures_hd", root);
+            else
+                snprintf(dir, sizeof dir, "textures_hd");
+        }
+    }
+    return dir;
+}
+
+/* SmoothModels: the subdivision level, 0 for the ROM's own geometry.
+   SM64DS_SMOOTH_MODELS overrides; junk reads as 0. */
+extern "C" int host_setting_smooth_models(void)
+{
+    static int env_read = 0;
+    static int env = -1;             /* <0 means "the environment said nothing" */
+    if (!env_read) {
+        env_read = 1;
+        const char *e = getenv("SM64DS_SMOOTH_MODELS");
+        if (e && *e) {
+            char *end = 0;
+            const long v = strtol(e, &end, 10);
+            env = (end != e) ? smooth_models_sanitise((int)v) : 0;
+        }
+    }
+    if (env >= 0) return env;
+    load_once();
+    return g_smooth_models;
 }

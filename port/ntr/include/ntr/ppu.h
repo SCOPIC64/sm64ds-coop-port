@@ -24,18 +24,44 @@ constexpr int SCREEN_H = 768;
 constexpr int SCREEN_W = 512;    /* 2x: the interactive window's tier */
 constexpr int SCREEN_H = 384;
 #elif defined(NTR_WIDE_RT)
-/* THE RUNTIME-SELECTABLE 16:9 TIER. One binary, either aspect, chosen at boot
-   from the Aspect settings key (a ratio) instead of a separate compile. The
-   framebuffer and every raster/stride array are sized for the WIDE MAXIMUM
-   (1024x576) so no reallocation is needed when the toggle is off; the ACTIVE
-   extent (ntr::active_w / active_h, below) is what the render, HUD, sub-screen,
-   input and present paths read, and it is set to 512x384 (byte-for-byte the old
-   2x window) when the toggle is off and to the full 1024x576 when it is on. So
-   these two constants are the STRIDE and the ALLOCATION only; they are never the
-   live screen size on this tier. See ntr/ppu.cpp for the globals and the setter,
-   and the NTR_WIDE169 tier below for the fixed-compile widescreen this replaces. */
-constexpr int SCREEN_W = 1024;
-constexpr int SCREEN_H = 576;
+/* THE RUNTIME-SELECTABLE TIER. One binary, any aspect AND any render scale,
+   both chosen at boot from settings keys (Aspect, a ratio; RenderScale, host
+   rows per DS row) instead of a separate compile. The framebuffer and every
+   raster/stride array are sized for the LARGEST COMBINATION THE SETTINGS CAN
+   ASK FOR so no reallocation is ever needed; the ACTIVE extent (ntr::active_w
+   / active_h, below) is what the render, HUD, sub-screen, input and present
+   paths read. With both keys absent it is 512x384 -- byte-for-byte the 2x
+   window the port has always shipped -- and these two constants are the STRIDE
+   and the ALLOCATION only; they are never the live screen size on this tier.
+   See ntr/ppu.cpp for the globals and the setter, and the NTR_WIDE169 tier
+   below for the fixed-compile widescreen this replaces.
+
+   WHY 1368x768 AND NOT 1024x576. The height is the anchor, as it is on every
+   tier here: 768 is 4 * 192, the largest RenderScale the key exposes, and it
+   is also NTR_HIRES's own height, so the ceiling is one the render path has
+   been compiled at before rather than a number picked here. The width is that
+   height's 16:9 partner rounded up to an even number with a little room --
+   768 * 16/9 is 1365.33, so 1368 holds a true 16:9 picture at the tallest
+   scale with the width still a multiple of 8. An aspect wider than 16:9 at a
+   tall scale asks for more width than this and is answered the way the buffer
+   has always answered it: the width pins here and the HEIGHT comes down to
+   keep the ratio the player asked for (see configure_aspect).
+
+   WHAT IT COSTS. The per-pixel buffers are the framebuffer (4 bytes), the
+   depth buffer (4), the scan-out packing buffer (4) and four one-byte masks
+   (coverage, shadow stencil, polygon id, translucent attr), and walk_window
+   holds two framebuffers -- the level path's and the scene path's. That is
+   20 bytes a pixel over one buffer set plus the second framebuffer, so
+   1368 * 768 comes to about 21 MB of host .bss where 1024 * 576 came to about
+   11.8 MB: 9.2 MB more, in a 32-bit process, and it is the same 21 MB whether
+   the keys are set or not. It is deliberately NOT sized from the settings: a
+   buffer whose size follows a key would move every host global whenever the
+   key moved, and the selftest BMP comparison this port gates on reads those
+   addresses (port/tools/battery.py's note on hosted-global layout). One
+   allocation, every run, means two runs of one binary at two scales are
+   comparable. */
+constexpr int SCREEN_W = 1368;
+constexpr int SCREEN_H = 768;
 #elif defined(NTR_WIDE169)
 /* THE FIRST NON-4:3 TIER: 16:9 widescreen, 1024x576. Unlike NTR_HIRES/HIRES2
    -- both 4:3, sharper but not wider -- this is a genuinely wider frame. The
@@ -93,7 +119,59 @@ extern bool widescreen;
 // host_setting_aspect); this clamps again rather than trusting, because a bad
 // ratio here is a divide that sizes a framebuffer. Call once, at boot, before
 // the first framebuffer use.
-void configure_aspect(double aspect);
+//
+// ---- AND THE SECOND ARGUMENT: HOW SHARP, AS WELL AS HOW WIDE ---------------
+//
+// `render_scale` is the RenderScale settings key: HOST ROWS PER DS ROW. 0 is
+// the explicit default sentinel and means "whatever this function picked for
+// itself before the key existed", so a run that does not set it is the
+// shipped build exactly, at every aspect, and the argument's default here
+// means a caller that has never heard of the key is too.
+//
+// THE RULE, and it is the height that carries it, for the reason every tier
+// above anchors on the height: the DS's 192 rows are what the 2D compositor,
+// the sub-screen scale and the HUD's uniform scale are all derived from, so a
+// scale that is a whole multiple of 192 keeps every one of those an exact
+// integer. So
+//
+//   active_h = render_scale * 192
+//   active_w = the width that height needs for THIS RUN'S ASPECT
+//              (render_scale * 256 at the native 4:3 sentinel)
+//
+// and the buffer is the only limit: a width past SCREEN_W pins there and the
+// height comes down to hold the ratio, which is the arm the 0-scale path
+// already had. Worked, on this tier:
+//
+//   scale 0, aspect 0          -> 512x384    the shipped 4:3 window
+//   scale 0, aspect 1.7777778  -> 1024x576   the shipped 16:9 picture
+//   scale 1, aspect 0          -> 256x192    the DS's own panel, 1:1
+//   scale 2, aspect 0          -> 512x384    the same picture scale 0 gives
+//   scale 3, aspect 0          -> 768x576
+//   scale 4, aspect 0          -> 1024x768
+//   scale 2, aspect 1.7777778  -> 682x384    16:9 at two rows per DS row
+//   scale 3, aspect 1.7777778  -> 1024x576   the shipped 16:9 picture again
+//   scale 4, aspect 1.7777778  -> 1364x768
+//   scale 4, aspect 3.5555556  -> 1368x386   the WIDTH pinned, height derived
+//
+// Note the two rows that land on the shipped numbers: today's 4:3 picture IS
+// scale 2 and today's 16:9 picture IS scale 3, which is a fact about the
+// buffer the port already shipped and not a coincidence this arranged.
+void configure_aspect(double aspect, int render_scale = 0);
+
+// THE EXTENT THIS RUN WOULD HAVE HAD AT RenderScale 0, which is the size the
+// WINDOW opens at whatever the scale. A player who asks for a sharper picture
+// is asking for more pixels in the same window, not for a window four times
+// the size, so the client area is sized off these and the present then scales
+// the finished picture into it (tests/walk_window.cpp's ZOOM and present()).
+// Equal to active_w / active_h on every run that leaves the key alone, so the
+// window arithmetic is token for token what it was.
+int default_active_w(void);
+int default_active_h(void);
+
+// RenderScale as it was applied: 0 when the key was absent (and the extent is
+// the default), else the multiplier in force. Reported, never used to derive
+// a size -- active_w / active_h are the size, as they have always been.
+int render_scale(void);
 
 // ---- THE PRESENT RECTANGLE -------------------------------------------------
 //

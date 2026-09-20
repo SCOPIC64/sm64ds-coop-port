@@ -6,7 +6,9 @@
 
 #include "ntr/gx.h"
 
+#include "ntr/hdtex.h"
 #include "ntr/mmio.h"
+#include "ntr/smooth.h"
 #include "ntr/texture.h"
 
 #include <chrono>
@@ -92,11 +94,33 @@ struct State {
     const uint32_t *tex_rgba = nullptr; // bound texture (Mat tex above is the
     int tw = 0, th = 0;                 // texture *matrix* -- different thing)
     uint8_t tex_wrap = 3;               // TEXIMAGE_PARAM bits 16-19, see GxTriangle
+    /* Host pixels per DS texel for the bound texture; see GxTriangle::tex_scale
+       in ntr/gx.h. 1 is every texture the ROM supplies, and `g = State{}` in
+       gx_reset puts it back to 1 at the head of every frame, so only a bind
+       that knowingly replaced the image can leave it anything else. */
+    uint8_t tex_scale = 1;
     int prim = -1;                 // BEGIN_VTXS type, -1 when not inside a primitive
     uint32_t poly_attr = 0x80;     // POLYGON_ATTR latch; bit6 back, bit7 front
     int16_t vx = 0, vy = 0, vz = 0;
     std::vector<GxVertex> strip;   // vertices accumulated in the current primitive
     int strip_parity = 0;
+
+    /* THE LATCHED VERTEX NORMAL, for the model smoother (ntr/smooth.h).
+       NORMAL (0x21) is a latch on hardware exactly like TEXCOORD is: it holds
+       until the next one, and a vertex submitted without a fresh NORMAL is
+       lit with the last one. So this is kept the same way, in the same space
+       the lighting used it in -- after the VECTOR matrix, normalised.
+
+       normal_live is the part that is not just a mirror. It says the CURRENT
+       vertex colour came from lighting a real surface normal, and it is
+       cleared by the two commands that take the colour from somewhere else:
+       COLOR (0x20) and a DIF_AMB with bit 15 set. Both mean "this polygon is
+       not being lit", and a polygon that is not being lit -- a particle
+       billboard, a fog quad, the HUD's own 3D geometry -- has no surface for
+       a curved patch to follow. Without this, such a polygon would inherit
+       whatever normal the last lit model happened to leave behind. */
+    float nrm[3] = {0, 0, 0};
+    int normal_live = 0;
 
     /* THE PRESENT RECTANGLE, not the whole extent: a scene presented at the
        native 4:3 field draws into the centred sub-rectangle and leaves the
@@ -302,9 +326,27 @@ int stargeo_on() {
     return g_stargeo.on;
 }
 
+/* VIEW SPACE -> CLIP SPACE, factored out of project() and out of nothing
+   else. The model smoother (ntr/smooth.h) projects the vertices it invents
+   through THIS function rather than through a copy of these six lines, so a
+   subdivided vertex cannot drift away from the corner it came from: the
+   projection matrix, the widescreen widen and its perspective test are one
+   piece of code with one caller each. Byte-identical to what project() did
+   inline before, same expression, same order. */
+Vec4 view_to_clip(const Vec4 &view) {
+    Vec4 c = mul(view, g.proj);
+    if (g.proj.m[3] != 0.0f || g.proj.m[7] != 0.0f || g.proj.m[11] != 0.0f) {
+        const float widen =
+            (4.0f / 3.0f) * ((float)present_h() / (float)present_w());
+        c.x *= widen;
+    }
+    return c;
+}
+
 GxVertex project(int16_t x, int16_t y, int16_t z) {
     const Vec4 v{x * FX12, y * FX12, z * FX12, 1.0f};
-    Vec4 c = mul(mul(v, current_pos()), g.proj);
+    const Vec4 view = mul(v, current_pos());
+    Vec4 c = view_to_clip(view);
 
     /* WIDESCREEN 3D FIELD (16:9 Hor+). The ROM builds its projection with a
        4:3 aspect (G3i::PerspectiveW_ divides the x scale by 0x1555). Presented
@@ -319,17 +361,16 @@ GxVertex project(int16_t x, int16_t y, int16_t z) {
        untouched here. clip.x scales by native/target = (4/3) / (active_w/
        active_h): 0.75 at 16:9, and EXACTLY 1.0 at any 4:3 aspect, so with the
        runtime toggle off (active 512x384) this multiply is the identity and the
-       4:3 field is byte-for-byte the old one -- no #ifdef needed. */
-    if (g.proj.m[3] != 0.0f || g.proj.m[7] != 0.0f || g.proj.m[11] != 0.0f) {
-        /* OFF THE PRESENT RECTANGLE, which is the active extent on every run
-           that widens and the centred 256:192 sub-rectangle on a scene
-           presented natively. 256:192 is 4:3 exactly, so on that path this
-           factor is EXACTLY 1.0 and the field is the cartridge's own -- the
-           same way it is already exactly 1.0 at any 4:3 aspect. */
-        const float widen =
-            (4.0f / 3.0f) * ((float)present_h() / (float)present_w());
-        c.x *= widen;
-    }
+       4:3 field is byte-for-byte the old one -- no #ifdef needed.
+
+       OFF THE PRESENT RECTANGLE, which is the active extent on every run that
+       widens and the centred 256:192 sub-rectangle on a scene presented
+       natively. 256:192 is 4:3 exactly, so on that path this factor is
+       EXACTLY 1.0 and the field is the cartridge's own -- the same way it is
+       already exactly 1.0 at any 4:3 aspect.
+
+       The multiply itself now lives in view_to_clip() just above, because the
+       smoother has to apply the same one to the vertices it invents. */
 
     if (stargeo_on()) {
         StarGeo &G = g_stargeo;
@@ -394,6 +435,14 @@ GxVertex project(int16_t x, int16_t y, int16_t z) {
     out.u = g.u;
     out.v = g.v;
     out.color = g.color;
+    /* MDL: the view-space half, for the smoother. Written on every path so
+       the struct is fully determined -- smoke_gx memcmps whole GxTriangles
+       between the two submit paths and an unwritten field would make that
+       comparison a coin toss. */
+    out.vx = view.x; out.vy = view.y; out.vz = view.z; out.vw = view.w;
+    out.nx = g.normal_live ? g.nrm[0] : 0.0f;
+    out.ny = g.normal_live ? g.nrm[1] : 0.0f;
+    out.nz = g.normal_live ? g.nrm[2] : 0.0f;
     return out;
 }
 
@@ -417,6 +466,18 @@ GxVertex clip_lerp(const GxVertex &a, const GxVertex &b, float t) {
     o.w = a.w + (b.w - a.w) * t;
     o.u = a.u + (b.u - a.u) * t;
     o.v = a.v + (b.v - a.v) * t;
+    /* MDL: the appended view-space fields are interpolated too. They have to
+       be written on this path as well -- see the note in project() about the
+       whole struct being determined -- and linear interpolation is right:
+       clipping is a linear operation in the space above, and the near-plane
+       intersection of the view-space edge is the same point. */
+    o.vx = a.vx + (b.vx - a.vx) * t;
+    o.vy = a.vy + (b.vy - a.vy) * t;
+    o.vz = a.vz + (b.vz - a.vz) * t;
+    o.vw = a.vw + (b.vw - a.vw) * t;
+    o.nx = a.nx + (b.nx - a.nx) * t;
+    o.ny = a.ny + (b.ny - a.ny) * t;
+    o.nz = a.nz + (b.nz - a.nz) * t;
     uint32_t ca = a.color, cb = b.color, c = 0;
     for (int s = 0; s < 32; s += 8) {
         const float ch = ((ca >> s) & 0xFF) +
@@ -433,6 +494,9 @@ void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
     GxTriangle t{};
     t.v[0] = a; t.v[1] = b; t.v[2] = c;
     t.tex = g.tex_rgba; t.tw = g.tw; t.th = g.th;
+    /* the bound texture's host-pixels-per-texel travels with the triangle
+       exactly as its dimensions do; 1 unless a pack replaced the image */
+    t.tex_scale = g.tex_scale ? g.tex_scale : 1;
     t.cull = static_cast<uint8_t>((g.poly_attr >> 6) & 3);
     t.alpha = static_cast<uint8_t>((g.poly_attr >> 16) & 31);
     t.mode = static_cast<uint8_t>((g.poly_attr >> 4) & 3);
@@ -451,6 +515,11 @@ void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
         t.mode == 3);
     t.dbg_tex = g_teximage;
     g.tris.push_back(t);
+    /* MDL: what actually reached the polygon list. Paired with
+       SMOOTH_COUNT_IN in emit_tri, this is the submitted-versus-emitted row
+       of the measurement table, and the two move together on every triangle
+       the smoother declined. */
+    smooth_count(SMOOTH_COUNT_OUT, 1);
 }
 
 // Does the active projection put a near plane in front of the camera? It
@@ -471,7 +540,7 @@ float near_dist(const GxVertex &v, bool persp) {
     return persp ? v.z + v.w : v.w - NEAR_EPS;
 }
 
-void emit_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
+void emit_tri_near(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
     // Sutherland-Hodgman against the near plane.
     //
     // THE DISTANCE IS z + w, NOT w. Clipping a perspective triangle at
@@ -510,6 +579,123 @@ void emit_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
         push_screen_tri(s0, prev, cur);
         prev = cur;
     }
+}
+
+/* ===========================================================================
+   MODEL SMOOTHING (the "SmoothModels" setting; ntr/smooth.h has the kernel
+   and the whole argument). It sits HERE, between the assembler and the near
+   clip, for three reasons:
+
+   WHY BEFORE THE CLIP. A curved patch is only meaningful in a linear space.
+   After the near clip a triangle may be a quad, and after the perspective
+   divide straight edges are no longer straight in the coordinates being
+   interpolated. So the input is the view-space vertex project() carried down
+   here, the new vertices are projected by project()'s own view_to_clip(), and
+   every one of them then goes through the SAME near clip, the same
+   to_screen() and the same push_screen_tri() as an ordinary triangle. The
+   clip therefore never sees anything it has not always seen.
+
+   WHY NOTHING IS BUFFERED. The normals are the model's own, out of the
+   display list's NORMAL commands, so a patch depends only on the three
+   corners in front of it. Nothing has to be held back to the end of a model
+   to be welded, which means the triangles reach the polygon list in exactly
+   the submission order the game chose -- the order translucent sorting and
+   the mode-3 shadow stencil protocol both depend on -- and each one is
+   stamped with the state that was live when the GAME submitted it, because
+   that state is still live. There is no flush point to get wrong.
+
+   WHAT THE GAME SEES. Nothing. tris_in below is the count the game
+   assembled; every game-visible counter in this file (the command census,
+   the stream hash, the matrix-stack levels GXSTAT publishes, the MTX_STORE
+   count) is fed from the command stream, which is untouched. The port
+   enforces no polygon-RAM or vertex-RAM limit anywhere -- grep 2048 and 6144
+   in this file -- so there is no limit for a smoothed list to overrun.
+   =========================================================================== */
+
+/* The sub-triangle sink: project the invented vertices and send them down the
+   ordinary path. */
+void smooth_sink(void *, const SmoothVertex &a, const SmoothVertex &b,
+                 const SmoothVertex &c);
+
+int smooth_try(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
+    const SmoothPolicy &pol = smooth_policy();
+
+    /* A mode-3 polygon is a shadow volume. Its stencil protocol compares the
+       mask pass against the draw pass PIXEL FOR PIXEL, so both have to be the
+       same geometry; a curved shadow volume would not close. */
+    if (((g.poly_attr >> 4) & 3) == 3) {
+        smooth_count(SMOOTH_COUNT_MODE3, 1);
+        return 0;
+    }
+    /* A constant-w projection is an ortho one: the HUD's own 3D geometry and
+       every 2D framing trick in the port. No view volume, no surface. */
+    if (g.proj.m[3] == 0.0f && g.proj.m[7] == 0.0f && g.proj.m[11] == 0.0f) {
+        smooth_count(SMOOTH_COUNT_ORTHO, 1);
+        return 0;
+    }
+    /* A non-affine position matrix would make the view-space positions below
+       projective, and a patch built in projective coordinates is not the
+       patch anyone meant. No matrix the game loads is like this; the guard is
+       here so that stays a measured fact rather than an assumption. */
+    if (a.vw != 1.0f || b.vw != 1.0f || c.vw != 1.0f) {
+        smooth_count(SMOOTH_COUNT_W, 1);
+        return 0;
+    }
+
+    SmoothVertex s[3];
+    const GxVertex *in[3] = {&a, &b, &c};
+    for (int i = 0; i < 3; ++i) {
+        s[i].x = in[i]->vx; s[i].y = in[i]->vy; s[i].z = in[i]->vz;
+        s[i].nx = in[i]->nx; s[i].ny = in[i]->ny; s[i].nz = in[i]->nz;
+        s[i].u = in[i]->u; s[i].v = in[i]->v;
+        s[i].color = in[i]->color;
+    }
+    /* Say WHY, so the measurement table can separate "the feature did nothing
+       because the scene is flat" from "the caps are too tight". */
+    int why = SMOOTH_WHY_OK;
+    const int tf = smooth_tess_factor(s[0], s[1], s[2], pol, &why);
+    if (smooth_census_on()) smooth_census_tri(s[0], s[1], s[2], tf);
+    if (tf <= 1) {
+        switch (why) {
+            case SMOOTH_WHY_NO_NORMAL: smooth_count(SMOOTH_COUNT_NO_NORMAL, 1); break;
+            case SMOOTH_WHY_FLAT:      smooth_count(SMOOTH_COUNT_FLAT, 1); break;
+            case SMOOTH_WHY_EDGE:      smooth_count(SMOOTH_COUNT_EDGE, 1); break;
+            case SMOOTH_WHY_RADIUS:    smooth_count(SMOOTH_COUNT_RADIUS, 1); break;
+            default: break;
+        }
+        return 0;
+    }
+
+    smooth_count(SMOOTH_COUNT_SUBDIVIDED, 1);
+    smooth_subdivide(s[0], s[1], s[2], tf, smooth_sink, 0);
+    return 1;
+}
+
+void emit_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
+    smooth_count(SMOOTH_COUNT_IN, 1);
+    /* OFF IS ONE COMPARE. smooth_level() is a load of a file-scope int that
+       walk_window sets once at boot; with the setting absent it is 0 and this
+       function is the same call it always was. */
+    if (smooth_level() > 0 && smooth_try(a, b, c)) return;
+    emit_tri_near(a, b, c);
+}
+
+void smooth_sink(void *, const SmoothVertex &a, const SmoothVertex &b,
+                 const SmoothVertex &c) {
+    GxVertex out[3];
+    const SmoothVertex *in[3] = {&a, &b, &c};
+    for (int i = 0; i < 3; ++i) {
+        const Vec4 view{in[i]->x, in[i]->y, in[i]->z, 1.0f};
+        const Vec4 clip = view_to_clip(view);
+        GxVertex &o = out[i];
+        o.x = clip.x; o.y = clip.y; o.z = clip.z; o.w = clip.w;
+        o.u = in[i]->u; o.v = in[i]->v; o.color = in[i]->color;
+        o.vx = view.x; o.vy = view.y; o.vz = view.z; o.vw = view.w;
+        o.nx = in[i]->nx; o.ny = in[i]->ny; o.nz = in[i]->nz;
+    }
+    /* Straight to the near clip: a sub-triangle must never re-enter
+       smooth_try, and this is where that is enforced. */
+    emit_tri_near(out[0], out[1], out[2]);
 }
 
 // Assemble according to the active BEGIN_VTXS primitive type.
@@ -760,7 +946,10 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             else { g.pos = mul(m, g.pos); if (g.mode == MTX_POSVEC) g.vec = mul(m, g.vec); }
             break;
         }
-        case 0x20: g.color = bgr555_to_argb(static_cast<uint16_t>(p[0] & 0x7FFF)); break;
+        case 0x20:                                               // COLOR
+            g.color = bgr555_to_argb(static_cast<uint16_t>(p[0] & 0x7FFF));
+            g.normal_live = 0;   /* MDL: colour set by hand, not by lighting */
+            break;
         case 0x21: {                                             // NORMAL
             if (mat_log()) mat_note_normal(g.poly_attr);
             // 3 x 10-bit signed, 1.9 fixed point.
@@ -788,6 +977,12 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             nx = len > 1e-6f ? tx / len : 0;
             ny = len > 1e-6f ? ty / len : 0;
             nz = len > 1e-6f ? tz / len : 1;
+
+            /* MDL: latch it for the smoother. Same value, same space, same
+               moment the hardware uses it: nothing below this line reads
+               these two fields, so lighting is bit-for-bit what it was. */
+            g.nrm[0] = nx; g.nrm[1] = ny; g.nrm[2] = nz;
+            g.normal_live = 1;
 
             /* WHICH LIGHTS ARE ON IS THE POLYGON'S OWN BUSINESS. GBATEK puts
                the four light-enable flags in POLYGON_ATTR bits 0-3, so the
@@ -895,6 +1090,7 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
                 auto ch = [](float f) { return static_cast<uint32_t>(f * 255.0f + 0.5f); };
                 g.color = 0xFF000000u | (ch(g.diffuse[0]) << 16)
                           | (ch(g.diffuse[1]) << 8) | ch(g.diffuse[2]);
+                g.normal_live = 0;   /* MDL: colour set by hand, as case 0x20 */
             }
             break;
         }
@@ -1083,6 +1279,12 @@ void gx_bind_texture(const uint32_t *rgba, int width, int height) {
     // keeps the plain repeat-in-both-directions behaviour it always had; the
     // VRAM bind below overrides this with the material's real wrap mode.
     g.tex_wrap = 3;
+    // AND ONE HOST PIXEL PER DS TEXEL. Every caller of this entry hands over a
+    // buffer at the DS texture's own size, so the scale is 1 unless the VRAM
+    // bind below knowingly replaced the image and says otherwise AFTER this
+    // call. Clearing it here rather than leaving it is what stops a replaced
+    // texture's scale riding along into the next unreplaced bind.
+    g.tex_scale = 1;
 }
 
 // --- VRAM-sourced texturing: the game path ----------------------------------
@@ -1116,7 +1318,19 @@ struct TexKey {
         return cp < o.cp;
     }
 };
-std::map<TexKey, std::vector<uint32_t>> g_vram_tex_cache;
+/* What a key maps to. This used to be the decoded texels alone, and it is now
+   the BUFFER THAT ACTUALLY GETS BOUND plus its real pixel size, because an HD
+   pack (ntr/hdtex.h) may have replaced the picture with a whole multiple of
+   itself. `scale` is that multiple and travels to the raster through
+   GxTriangle::tex_scale; w/h are px's real dimensions, which is what the
+   sampler wants for its wrap and clamp arithmetic. With no pack every entry
+   is the decode, at the DS's own size, with scale 1. */
+struct TexEntry {
+    std::vector<uint32_t> px;
+    int w = 0, h = 0;
+    uint8_t scale = 1;
+};
+std::map<TexKey, TexEntry> g_vram_tex_cache;
 
 uint32_t probe_word(const uint8_t *p, int32_t len, int32_t off) {
     if (!p || off < 0 || off + 4 > len) return 0;
@@ -1216,10 +1430,38 @@ void bind_from_vram() {
                 fclose(f);
             }
         }
-        it = g_vram_tex_cache.emplace(key, std::move(rgba)).first;
+        TexEntry entry;
+        entry.w = d.width;
+        entry.h = d.height;
+        entry.scale = 1;
+        /* THE HD PACK, AND ONLY ON A CACHE MISS. hdtex_wants_work() is an int
+           compare and it is false unless a pack was indexed or a dump
+           directory was named, so a default run reaches nothing below: no
+           hash, no file, no allocation. Hanging the whole thing off the MISS
+           rather than off the bind is what keeps the cost proportional to the
+           number of distinct textures a level has rather than to the hundreds
+           of binds a frame makes -- the key above already discriminates a
+           stale slot, so a hit needs no re-examination. */
+        if (hdtex_wants_work()) {
+            const uint64_t name = hdtex_name(g_teximage, g_plttbase);
+            hdtex_dump(name, d.width, d.height, rgba.data());
+            std::vector<uint32_t> hd;
+            const int s = hdtex_lookup(name, d.width, d.height, hd);
+            if (s >= 1) {
+                entry.px = std::move(hd);
+                entry.w = d.width * s;
+                entry.h = d.height * s;
+                entry.scale = static_cast<uint8_t>(s);
+            }
+        }
+        if (entry.px.empty()) entry.px = std::move(rgba);
+        it = g_vram_tex_cache.emplace(key, std::move(entry)).first;
     }
-    const int w = 8 << ((g_teximage >> 20) & 7), h = 8 << ((g_teximage >> 23) & 7);
-    gx_bind_texture(it->second.data(), w, h);
+    /* The bound buffer's REAL dimensions, which are the DS texture's unless a
+       pack replaced it; the scale beside them is what lets the sampler put the
+       DS's own texel grid back over a bigger picture. */
+    gx_bind_texture(it->second.px.data(), it->second.w, it->second.h);
+    g.tex_scale = it->second.scale;
     /* THE WRAP MODE IS PART OF THE BIND. TEXIMAGE_PARAM bits 16/17 select
        repeat vs CLAMP, bits 18/19 add mirroring on top of repeat (GBATEK).
        The raster used to wrap everything unconditionally, which is right
@@ -1335,6 +1577,16 @@ void gx_invalidate_textures() { g_vram_tex_cache.clear(); }
 
 void gx_reset() {
     ++g_resets;
+    /* MDL. gx_reset is the host's own "begin a frame's command stream" (see
+       the long note below), so it is the frame boundary the smoother's
+       counters and its crack census are keyed to. It is also the flush point
+       a buffering smoother would need; this one buffers nothing, so today it
+       only counts. Costs an increment when the census is off.
+       This lane's other lines outside its own regions of this file are the
+       ntr/smooth.h include, and one assignment each in the COLOR (0x20),
+       NORMAL (0x21) and DIF_AMB (0x30) cases of exec(), all four listed in
+       the lane's report. */
+    smooth_frame_mark();
     /* rung R3b/BSWAP: a reset ENDS the frame the pending swap was asking
        about, so it retires the request rather than letting it stand into
        the next frame. This is the path a scene body's own SWAP_BUFFERS
@@ -1901,15 +2153,80 @@ RasterPool &pool(int threads) {
     return p;
 }
 
-/* The 3D coverage mask's storage. Declared out here rather than inside
-   gx_render because gx_coverage() below has to reach it and because the raster
-   bands are lambdas inside that function; a function-local static would work
-   and would read as a private buffer, which it is not. */
-uint8_t g_cover[SCREEN_H][SCREEN_W];
+/* ---- THE PER-PIXEL RASTER BUFFERS LIVE ON THE HEAP ------------------------
+ *
+ * Five buffers, one entry per pixel of the ALLOCATION (SCREEN_W x SCREEN_H,
+ * the largest extent the settings can ask for): the depth buffer, the 3D
+ * coverage mask, the shadow stencil, the polygon-id plane and the translucent
+ * attribute plane. Twelve bytes a pixel, and they used to be static arrays.
+ *
+ * THEY HAD TO COME OFF .bss, AND THE REASON IS AN ADDRESS AND NOT A SIZE.
+ * ntr/io.cpp reserves 02000000..02400000 at process start because that is the
+ * DS's own main RAM and the ROM's code holds pointers into it. A 32-bit image
+ * based at 0x400000 therefore has to END below 0x02000000, and the port was
+ * already using about 26 MB of that 28 MB. Growing this tier's allocation to
+ * 1368x768 for RenderScale 4 added roughly 9 MB of .bss, the image ran on to
+ * 0x02226000, and io.cpp refused the reservation and said so in plain words:
+ * "LOST 02000000..02400000 main memory ... 02000000..02226000 committed ->
+ * walk_window.exe". Every run then died at 0xC0000409 before a frame.
+ *
+ * Heap memory has no such constraint -- Windows hands these out well above the
+ * DS window, and ntr has already reserved that window by the time anything
+ * calls gx_render. So the buffers move and the IMAGE SHRINKS: 12 bytes a pixel
+ * of .bss go away, which is more than the growth from 1024x576 to 1368x768
+ * costs, and the port has more room under the ceiling than it started with.
+ *
+ * THE ROW TYPEDEFS ARE THE POINT OF THE SHAPE. `DepthRow *` indexes exactly
+ * like `float [][SCREEN_W]` does, so depth[y], depth[y][x] and
+ * memcpy(depth[y], ...) are the expressions they always were and not one use
+ * site in the raster changed. The stride is still the compile-time SCREEN_W,
+ * which is what every band and every bounds clamp already assumes.
+ *
+ * Allocated ONCE, on the first call that needs them, and never freed: they are
+ * live for as long as the program draws. calloc rather than malloc so the
+ * first frame reads zeros out of the coverage and attribute planes exactly as
+ * a .bss array gave it, and so the pages are the OS's zero pages until they
+ * are written.
+ */
+typedef float DepthRow[SCREEN_W];
+typedef uint8_t MaskRow[SCREEN_W];
+
+DepthRow *g_depth;
+MaskRow *g_cover;
+MaskRow *g_stencil;
+MaskRow *g_attrid;
+MaskRow *g_tlattr;
+
+/* True once every buffer is there. A refusal is FATAL and says so: a renderer
+   with nowhere to put a depth value cannot draw a frame, and a program that
+   carried on would fault somewhere else entirely and look like a render bug.
+   About 12.6 MB at this tier's allocation, so in practice this does not fail
+   on any machine that can open the window. */
+bool raster_buffers(void)
+{
+    if (g_depth) return true;
+    g_depth = (DepthRow *)std::calloc(SCREEN_H, sizeof(DepthRow));
+    g_cover = (MaskRow *)std::calloc(SCREEN_H, sizeof(MaskRow));
+    g_stencil = (MaskRow *)std::calloc(SCREEN_H, sizeof(MaskRow));
+    g_attrid = (MaskRow *)std::calloc(SCREEN_H, sizeof(MaskRow));
+    g_tlattr = (MaskRow *)std::calloc(SCREEN_H, sizeof(MaskRow));
+    if (g_depth && g_cover && g_stencil && g_attrid && g_tlattr) return true;
+    std::fprintf(stderr,
+                 "FATAL: the 3D renderer could not get its %d x %d buffers "
+                 "(about %.1f MB). There is not enough memory to draw.\n",
+                 SCREEN_W, SCREEN_H,
+                 (double)SCREEN_W * SCREEN_H * 12.0 / (1024.0 * 1024.0));
+    std::fflush(stderr);
+    std::exit(3);
+}
 
 }  // namespace
 
-const uint8_t *gx_coverage() { return &g_cover[0][0]; }
+const uint8_t *gx_coverage()
+{
+    raster_buffers();
+    return &g_cover[0][0];
+}
 
 void gx_render(Framebuffer &fb) {
     const int tm = frame_ms();
@@ -1919,14 +2236,38 @@ void gx_render(Framebuffer &fb) {
     texpx_report();
     mat_report();
     mtx_report(false);
-    /* Depth clear: 768KB at the window's 2x tier, every frame. 1e30f is not a
-       repeating byte pattern so memset cannot do it, but one row can be built
-       scalar and the rest copied from it, which is memcpy's problem rather
-       than a 196k-iteration scalar loop's. */
-    static float depth[SCREEN_H][SCREEN_W];
-    for (int x = 0; x < SCREEN_W; ++x) depth[0][x] = 1e30f;
-    for (int y = 1; y < SCREEN_H; ++y)
-        std::memcpy(depth[y], depth[0], SCREEN_W * sizeof(float));
+    /* ---- THE PER-FRAME CLEARS ARE OVER THE LIVE PICTURE, NOT THE BUFFER ----
+       Every buffer here is allocated at SCREEN_W x SCREEN_H, the largest
+       extent any settings combination can ask for, and the picture is
+       active_w x active_h in its top-left corner. Clearing the whole
+       allocation was clearing rows and columns nothing reads: the raster's
+       bounding box is clamped to the present rectangle, which is inside the
+       active extent, and the 2D compositor and the display capture both loop
+       to active_w / active_h. So the clear is the active rectangle and the
+       rest of the allocation is left holding last frame's numbers, which no
+       pass can reach.
+
+       IT IS A SPEED FIX AND NOT A PIXEL ONE, and it is the fix that lets the
+       allocation grow for RenderScale 4 without making the DEFAULT run
+       slower: at 512x384 in a 1368x768 allocation this is 196 KB of coverage
+       and 768 KB of depth a frame instead of 1.05 MB and 4.2 MB. Measured
+       per-frame numbers and the byte-identical BMP proof are in the lane's
+       report.
+
+       cw/ch are clamped to the allocation rather than trusted for the reason
+       every other clamp in this path exists: a wrong extent here is a write
+       past a static array. */
+    const int cw = active_w > 0 ? (active_w < SCREEN_W ? active_w : SCREEN_W) : 0;
+    const int ch = active_h > 0 ? (active_h < SCREEN_H ? active_h : SCREEN_H) : 0;
+
+    /* Depth clear. 1e30f is not a repeating byte pattern so memset cannot do
+       it, but one row can be built scalar and the rest copied from it, which
+       is memcpy's problem rather than a scalar loop's. */
+    raster_buffers();
+    DepthRow *const depth = g_depth;
+    for (int x = 0; x < cw; ++x) depth[0][x] = 1e30f;
+    for (int y = 1; y < ch; ++y)
+        std::memcpy(depth[y], depth[0], (size_t)cw * sizeof(float));
 
     /* THE 3D COVERAGE MASK, see gx_coverage() in ntr/gx.h. One byte per pixel,
        set beside every store into fb.px below and cleared here. It is what
@@ -1936,7 +2277,7 @@ void gx_render(Framebuffer &fb) {
        It is written from the raster bands, and that is safe for the reason
        the framebuffer itself is: a band owns the rows y == tid (mod nt) and
        no other band touches them. */
-    std::memset(g_cover, 0, sizeof g_cover);
+    for (int y = 0; y < ch; ++y) std::memset(g_cover[y], 0, (size_t)cw);
 
     /* --- shadow-polygon (POLYGON_ATTR mode 3) machinery -------------------
        GBATEK's two-step protocol, and the reason a per-pixel stencil bit and
@@ -1962,8 +2303,8 @@ void gx_render(Framebuffer &fb) {
        (run linkw, w4a review pinned it). The buffers clear per frame and the
        whole apparatus stays untouched -- one predictable branch -- for any
        frame that submits no mode-3 polygon. */
-    static uint8_t stencil[SCREEN_H][SCREEN_W];
-    static uint8_t attrid[SCREEN_H][SCREEN_W];
+    MaskRow *const stencil = g_stencil;
+    MaskRow *const attrid = g_attrid;
     /* The DS attribute word's OTHER half, the translucent one: bit 6 here says
        this pixel has already taken a translucent fragment THIS FRAME and bits
        0..5 are that fragment's polygon ID. The hardware refuses a translucent
@@ -1978,7 +2319,7 @@ void gx_render(Framebuffer &fb) {
        per covered pixel and comes out solid and patchy where she crosses
        herself. The flag is per frame (hardware clears it on the frame clear and
        on any opaque write), so the clear below is the whole of its lifetime. */
-    static uint8_t tlattr[SCREEN_H][SCREEN_W];
+    MaskRow *const tlattr = g_tlattr;
     bool have_shadow = false;
     bool have_translucent = false;
     for (const GxTriangle &t : g.tris) {
@@ -1986,13 +2327,17 @@ void gx_render(Framebuffer &fb) {
         if (t.translucent) have_translucent = true;
         if (have_shadow && have_translucent) break;
     }
+    /* The same active-rectangle clear as the depth and coverage buffers
+       above, and these two are already conditional on the frame submitting a
+       shadow or a translucent polygon at all. */
     if (have_shadow) {
-        std::memset(stencil, 0, sizeof stencil);
+        for (int y = 0; y < ch; ++y) std::memset(stencil[y], 0, (size_t)cw);
         /* 0 is the clear plane's polygon ID (CLEAR_COLOR bits 24-29 reset
            value); pixels no opaque polygon reaches keep it. */
-        std::memset(attrid, 0, sizeof attrid);
+        for (int y = 0; y < ch; ++y) std::memset(attrid[y], 0, (size_t)cw);
     }
-    if (have_translucent) std::memset(tlattr, 0, sizeof tlattr);
+    if (have_translucent)
+        for (int y = 0; y < ch; ++y) std::memset(tlattr[y], 0, (size_t)cw);
 
     /* SM64DS_TEX_ONLY=<hex teximage>: draw only the polygons that were
        bound to that texture, so a material can be located on screen
@@ -2122,6 +2467,13 @@ void gx_render(Framebuffer &fb) {
         const bool textured = t.tex && t.tw > 0 && t.th > 0;
         const bool rep_s = (t.wrap & 1) != 0, rep_t = (t.wrap & 2) != 0;
         const bool flip_s = (t.wrap & 4) != 0, flip_t = (t.wrap & 8) != 0;
+        /* Host pixels per DS texel (GxTriangle::tex_scale). The UVs the
+           geometry engine produced are in DS TEXELS, and tw/th are the bound
+           buffer's real pixel dimensions, so the sampler works in buffer
+           pixels by multiplying. 1 for everything the ROM supplies, and a
+           multiply by exactly 1.0f returns its operand bit for bit, so the
+           default run samples the texel it always sampled. */
+        const float tsc = (float)(t.tex_scale ? t.tex_scale : 1);
         const float acol[3] = {(float)((a.color >> 16) & 0xFF),
                                (float)((a.color >> 8) & 0xFF),
                                (float)(a.color & 0xFF)};
@@ -2208,8 +2560,8 @@ void gx_render(Framebuffer &fb) {
                                 uu = l0 * a.u + l1 * b.u + l2 * c.u;
                                 vv = l0 * a.v + l1 * b.v + l2 * c.v;
                             }
-                            const int ui = tex_coord(uu, t.tw, rep_s, flip_s);
-                            const int vi = tex_coord(vv, t.th, rep_t, flip_t);
+                            const int ui = tex_coord(uu * tsc, t.tw, rep_s, flip_s);
+                            const int vi = tex_coord(vv * tsc, t.th, rep_t, flip_t);
                             texel = t.tex[vi * t.tw + ui];
                             if ((texel >> 24) == 0) continue;
                         }
@@ -2281,8 +2633,8 @@ void gx_render(Framebuffer &fb) {
                         uu = l0 * a.u + l1 * b.u + l2 * c.u;
                         vv = l0 * a.v + l1 * b.v + l2 * c.v;
                     }
-                    const int ui = tex_coord(uu, t.tw, rep_s, flip_s);
-                    const int vi = tex_coord(vv, t.th, rep_t, flip_t);
+                    const int ui = tex_coord(uu * tsc, t.tw, rep_s, flip_s);
+                    const int vi = tex_coord(vv * tsc, t.th, rep_t, flip_t);
                     texel = t.tex[vi * t.tw + ui];
                     if ((texel >> 24) == 0) continue;      // transparent texel
                 }
