@@ -292,6 +292,41 @@ static int child(const char *which)
         check_eq(host_setting_pad_layout_count(), 0, "unusable PadLayouts is none");
         check_eq(host_setting_key(HOST_KEY_JUMP), 0x4a, "KeyJump J still parsed");
         check_eq(host_setting_camera_mode(), 2, "CameraMode ds still parsed");
+    } else if (!strcmp(which, "quality_defaults")) {
+        /* no file at all: the three picture keys are the shipped picture.
+           0 is the explicit sentinel for "the multiplier the port picks
+           today" and is NOT 1, which is a real choice (the DS's own
+           256x192). The pack directory answers even with the pack off,
+           because it is "where would it be", not "is it on". */
+        check_eq(host_setting_render_scale(), 0, "RenderScale default 0");
+        check_eq(host_setting_hd_textures(), 0, "HdTextures default off");
+        check_eq(host_setting_smooth_models(), 0, "SmoothModels default 0");
+        check(host_setting_hd_textures_dir() != 0, "pack dir is never null");
+        check(!strcmp(host_setting_hd_textures_dir(), "textures_hd"),
+              "pack dir with no asset root is the working directory's");
+    } else if (!strcmp(which, "quality")) {
+        check_eq(host_setting_render_scale(), 3, "RenderScale 3");
+        check_eq(host_setting_hd_textures(), 1, "HdTextures 1 is on");
+        check_eq(host_setting_smooth_models(), 2, "SmoothModels 2");
+        /* the keys around them still parse: a new key must not move an old
+           one, which is the whole reason this case carries CameraMode */
+        check_eq(host_setting_camera_mode(), 2, "CameraMode ds still parsed");
+    } else if (!strcmp(which, "quality_bool")) {
+        /* the launcher serialises a C# bool, so true means on */
+        check_eq(host_setting_hd_textures(), 1, "HdTextures true is on");
+        check_eq(host_setting_render_scale(), 1, "RenderScale 1 is DS native");
+    } else if (!strcmp(which, "quality_clamp")) {
+        /* out of range is a number that is a picture, not an error: the
+           Aspect rule the header states for all three */
+        check_eq(host_setting_render_scale(), 4, "RenderScale 9 clamps to 4");
+        check_eq(host_setting_smooth_models(), 3, "SmoothModels 99 clamps to 3");
+        check_eq(host_setting_hd_textures(), 0, "HdTextures 0 is off");
+    } else if (!strcmp(which, "quality_junk")) {
+        /* unparseable and negative both read as the default, like every
+           other key in this file */
+        check_eq(host_setting_render_scale(), 0, "RenderScale -2 is the default");
+        check_eq(host_setting_smooth_models(), 0, "SmoothModels junk is 0");
+        check_eq(host_setting_hd_textures(), 0, "HdTextures junk is off");
     } else if (!strcmp(which, "padtranslate")) {
         check(port_pad_selftest(), "pad_backend translation selftest");
     } else {
@@ -370,6 +405,16 @@ int main(int argc, char **argv)
     /* the working directory must be the file that is read */
     _putenv("SM64DS_ASSET_ROOT=");
     _putenv("SM64DS_INSTANCE=");
+    /* run hd1's three keys each have an environment override in front of the
+       file, the Aspect contract. A developer who exported one for a capture
+       run would otherwise turn every quality case below into a test of his
+       own shell, so they are cleared for the children exactly as the asset
+       root is. SM64DS_HD_TEXTURES_DIR goes with them because the default pack
+       directory is one of the answers pinned. */
+    _putenv("SM64DS_RENDER_SCALE=");
+    _putenv("SM64DS_HD_TEXTURES=");
+    _putenv("SM64DS_HD_TEXTURES_DIR=");
+    _putenv("SM64DS_SMOOTH_MODELS=");
 
     char tmp[MAX_PATH], dir[MAX_PATH];
     if (!GetTempPathA(MAX_PATH, tmp)) return 1;
@@ -444,12 +489,27 @@ int main(int argc, char **argv)
         "  \"PadLayouts\": [ 5, \"x\", { \"vid\": \"abc\", \"pid\": 1 }, [ ] ],\n"
         "  \"CameraMode\": \"ds\"\n"
         "}\n");
+    /* run hd1's three picture-quality keys: the default, a file that sets all
+       three, the launcher's boolean spelling, the clamps and the junk */
+    bad |= run_case(exe, dir, "quality_defaults", 0);
+    bad |= run_case(exe, dir, "quality",
+        "{ \"RenderScale\": 3, \"HdTextures\": 1, \"SmoothModels\": 2,\n"
+        "  \"CameraMode\": \"ds\" }");
+    bad |= run_case(exe, dir, "quality_bool",
+        "{ \"HdTextures\": true, \"RenderScale\": 1 }");
+    bad |= run_case(exe, dir, "quality_clamp",
+        "{ \"RenderScale\": 9, \"SmoothModels\": 99, \"HdTextures\": 0 }");
+    bad |= run_case(exe, dir, "quality_junk",
+        "{ \"RenderScale\": -2, \"SmoothModels\": \"lots\",\n"
+        "  \"HdTextures\": \"maybe\" }");
     bad |= run_case(exe, dir, "padtranslate", 0);
     _rmdir(dir);
     if (bad) {
         printf("smoke_settings: FAIL\n");
         return 1;
     }
-    printf("smoke_settings: ok, 15 cases\n");
+    /* the count is the run_case calls above, counted rather than remembered:
+       it was one out of date before run hd1 added five cases to it */
+    printf("smoke_settings: ok, 19 cases\n");
     return 0;
 }

@@ -667,6 +667,49 @@ enum { kRollbackMaxPlayers = 8 };
    native. */
 int host_setting_frame_rate(void);
 
+/* ---- THE THREE PICTURE-QUALITY KEYS (run hd1) ---------------------------
+   One block, because they are one promise: with every one of them absent the
+   game's picture, timing and behaviour are what the build without them
+   produced, byte for byte where it can be measured. They are opt-in host
+   renderer settings and never fixes to the ROM's own behaviour.
+
+   RenderScale: HOW MANY HOST ROWS PER DS ROW the 3D picture is rendered at.
+   A vertical multiplier of the DS panel's 192 rows, so 2 is 512x384, 3 is
+   768x576 and 4 is 1024x768, and the width follows the run's aspect. 0 is
+   the explicit default sentinel and means exactly what the port does today
+   (2 at the native 4:3 Aspect; whatever ntr::configure_aspect derives under
+   a wide one), so a settings.json written before this key existed, and a
+   file that will not parse, both read as the shipped picture. Absent,
+   unparseable and negative all read as 0; a positive value is CLAMPED into
+   1..4, the Aspect rule, so 9 is 4 and not an error. 1 is the DS's own
+   256x192 and is a real choice, which is why it is not folded into 0.
+   BOOT-LATCHED: the size is threaded into the framebuffer at boot and a
+   mid-run change would be a reallocation nobody tests. SM64DS_RENDER_SCALE
+   overrides the file with the same grammar.
+
+   HdTextures: 1 turns on the replacement texture pack, 0 (the default) is
+   the ROM's own textures. The pack's directory is "textures_hd" under the
+   asset root (SM64DS_ASSET_ROOT), or the working directory's own
+   "textures_hd" when there is no asset root, and SM64DS_HD_TEXTURES_DIR
+   names a different one outright. SM64DS_HD_TEXTURES overrides the on/off
+   key: unset is the file's answer, empty or "0" forces it off, anything
+   else forces it on, the grammar the mod keys already use.
+   host_setting_hd_textures_dir never returns null; it returns the directory
+   the pack would be loaded from whether or not the key is on, and the
+   pointer is a static buffer that is valid for the whole run.
+
+   SmoothModels: the model subdivision level, 0..3. 0 is the default and is
+   the ROM's own geometry. Absent, unparseable and negative read as 0 and
+   anything above 3 is clamped to 3, the Aspect rule again.
+   SM64DS_SMOOTH_MODELS overrides the file.
+
+   All three are read once and latched, like Aspect and FrameRate, and the
+   launcher's rows promise a restart. */
+int host_setting_render_scale(void);
+int host_setting_hd_textures(void);
+const char *host_setting_hd_textures_dir(void);
+int host_setting_smooth_models(void);
+
 #ifdef __cplusplus
 }
 #endif

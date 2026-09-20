@@ -103,6 +103,9 @@ public:
 extern "C" {
 /* the present rectangle, defined at the bottom of this file */
 void hal_present_set_rect(int x, int y, int w, int h, int src_w, int src_h);
+/* THE FIT, the one copy of it; tests/walk_window.cpp's present() and the
+   layout selftest below both call this rather than each spelling it. */
+void hal_present_fit(int cw, int ch, int sw, int sh, int *x, int *y, int *w, int *h);
 int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
 int hal_present_client_to_sub(int cx, int cy, int *dsx, int *dsy);
 /* the layout mode, defined at the bottom of this file */
@@ -1989,6 +1992,19 @@ int hal_sub_screen_relatch(int on)
     return 1;
 }
 
+/* Forward declarations: layout_log and layout_selftest are called from
+   hal_sub_screen_stacked_image just below, but their bodies are defined next
+   to hal_present_set_rect / hal_present_fit further down, where
+   client_to_src and the hal_present_* mappers they drive are already in
+   scope. client_to_src itself is defined further down still. THESE MUST SIT
+   HERE, past the file's one anonymous namespace (which closed above): a
+   forward declaration inside that namespace is a DIFFERENT entity from the
+   file-static definition below, and calling the file-static one where both
+   are visible is an ambiguous overload, not a redeclaration. */
+static void client_to_src(int cx, int cy, int *x, int *y, int *sw, int *sh);
+static void layout_log(const char *why);
+static void layout_selftest(void);
+
 /* Build the stacked image and hand back a pointer to it. `top` is the FINISHED
  * framebuffer -- faded, overlaid, everything -- and the return is
  * ntr::STACK_W x ntr::STACK_H, or null when the mode is off or the bottom
@@ -2024,7 +2040,26 @@ unsigned int *hal_sub_screen_stacked_image(const unsigned int *top)
     static unsigned int *px;
     static size_t cap;
     static int refused;
-    if (!hal_sub_screen_stacked() || !g_ready || !top) return 0;
+    static unsigned last_layout_gen = (unsigned)-1;
+    if (!hal_sub_screen_stacked()) return 0;
+    /* THE LAYOUT LOG AND SELFTEST fire once per scene, as soon as the mode is
+       known to be stacked -- BEFORE the g_ready/top gate just below, which is
+       about whether THIS FRAME'S picture is ready to compose, not about
+       whether the LAYOUT (a property of the scene's G and the aspect, latched
+       well before any frame renders) is known. hal_screen_layout_generation()
+       is what actually changes when a minigame's InitResources latches a new
+       G -- not every frame recomputes a different layout, so logging/
+       asserting on every call would be a line per frame for no new
+       information. */
+    {
+        const unsigned layout_gen = hal_screen_layout_generation();
+        if (layout_gen != last_layout_gen) {
+            last_layout_gen = layout_gen;
+            layout_log("layout");
+            layout_selftest();
+        }
+    }
+    if (!g_ready || !top) return 0;
     const ntr::StackLayout &lay = *hal_screen_layout();
     /* SIZED FOR THE GAP THE LAYOUT ASKS FOR, and grown rather than sized once
        for the worst case. A minigame's G latches at its InitResources and does
@@ -2222,12 +2257,243 @@ int hal_sub_screen_on(void) { return g_on ? 1 : 0; }
  */
 void hal_present_set_rect(int x, int y, int w, int h, int src_w, int src_h)
 {
+    const int changed = x != g_pr_x || y != g_pr_y || w != g_pr_w || h != g_pr_h ||
+                         src_w != g_pr_sw || src_h != g_pr_sh;
     g_pr_x = x;
     g_pr_y = y;
     g_pr_w = w;
     g_pr_h = h;
     g_pr_sw = src_w;
     g_pr_sh = src_h;
+    /* THE LAYOUT LOG's why="present" call: only on an actual change, so a
+       windowed run that presents every frame does not print one line per
+       frame forever -- the six numbers here only move on a resize or a
+       layout change, and hal_sub_screen_stacked_image's own why="layout"
+       call already covers the layout-only case with no present() at all
+       (the headless scene runner). */
+    if (changed) layout_log("present");
+}
+
+/* THE FIT, the one copy of it. present() in tests/walk_window.cpp
+   called this arithmetic inline; the layout selftest has to drive the
+   SAME code or it is checking a restatement. The largest sw:sh
+   rectangle inside cw x ch, compared as a cross product so the
+   choice is exact rather than a rounded ratio, centred. */
+void hal_present_fit(int cw, int ch, int sw, int sh,
+                     int *x, int *y, int *w, int *h)
+{
+    int dw, dh;
+    if (sw <= 0 || sh <= 0 || cw <= 0 || ch <= 0) {
+        if (x) *x = 0; if (y) *y = 0; if (w) *w = 0; if (h) *h = 0;
+        return;
+    }
+    if ((long long)cw * sh <= (long long)ch * sw) {
+        dw = cw;
+        dh = (int)(((long long)cw * sh) / sw);
+    } else {
+        dh = ch;
+        dw = (int)(((long long)ch * sw) / sh);
+    }
+    if (dw < 1) dw = 1;
+    if (dh < 1) dh = 1;
+    if (w) *w = dw;
+    if (h) *h = dh;
+    if (x) *x = (cw - dw) / 2;
+    if (y) *y = (ch - dh) / 2;
+}
+
+/* THE LAYOUT LOG: does nothing unless SM64DS_LAYOUT_LOG is set. One line per
+   call otherwise, read by hal_screen_layout(), the present rectangle
+   (g_pr_*) and the same touch-mapping arithmetic hal_present_client_to_sub
+   below uses (through client_to_src, so the printed numbers cannot drift
+   from what a real touch would resolve to). Called from hal_present_set_rect
+   when the published rectangle changes (why="present") and from
+   hal_sub_screen_stacked_image when the layout generation changes
+   (why="layout"), so a headless scene run and a windowed run both produce
+   it. */
+static void layout_log(const char *why)
+{
+    const char *env = std::getenv("SM64DS_LAYOUT_LOG");
+    if (!env || !*env) return;
+    const ntr::StackLayout &lay = *hal_screen_layout();
+    const int stacked = hal_sub_screen_stacked();
+    int dummy_x, dummy_y, sw, sh;
+    client_to_src(0, 0, &dummy_x, &dummy_y, &sw, &sh);
+    const int px0 = (int)((long long)sw * lay.pan_x0 / (lay.w > 0 ? lay.w : 1));
+    const int pw  = (int)((long long)sw * lay.pan_w  / (lay.w > 0 ? lay.w : 1));
+    const int b_y0   = stacked ? (int)(((long long)sh * lay.bottom_y) /
+                                       (lay.h > 0 ? lay.h : 1)) : 0;
+    const int band_h = stacked ? (int)(((long long)sh * lay.pan_h) /
+                                       (lay.h > 0 ? lay.h : 1)) : 0;
+    std::fprintf(stderr,
+        "[layout] %s scene=%s aspect_active=%dx%d scale=%d "
+        "image=%dx%d head=%d topregion=(0,%d,%d,%d) "
+        "toppic=(%d,%d,%d,%d) band=(%d,%d) "
+        "botregion=(0,%d,%d,%d) "
+        "botpic=(%d,%d,%d,%d) "
+        "present=(%d,%d,%d,%d) src=%dx%d "
+        "touch=(%d,%d,%d,%d)\n",
+        why, stacked ? "stacked" : "inset", ntr::active_w, ntr::active_h, lay.scale,
+        lay.w, lay.h, lay.head_h, lay.top_y, lay.w, lay.pan_h,
+        lay.pan_x0, lay.top_y, lay.pan_w, lay.pan_h, lay.band_y, lay.band_h,
+        lay.bottom_y, lay.w, lay.pan_h,
+        lay.pan_x0, lay.bottom_y, lay.pan_w, lay.pan_h,
+        g_pr_x, g_pr_y, g_pr_w, g_pr_h, g_pr_sw, g_pr_sh,
+        px0, b_y0, pw, band_h);
+}
+
+/* THE LAYOUT SELFTEST: does nothing unless SM64DS_LAYOUT_SELFTEST is set (to
+   "1" for the default list of client sizes plus the image's own, or to a
+   comma-separated cw x ch list). Runs from the same place layout_log's
+   why="layout" call runs, so it fires once per scene at whatever scene and
+   aspect the run is at. Asserts invariants A..F for each client size and
+   prints one line per size plus a final summary. Drives hal_present_fit and
+   the two hal_present_client_to_* mappers -- the SAME code a real present()
+   and a real click drive -- rather than restating their arithmetic, so a bug
+   in either mapper is caught here too. RESTORES the present rectangle it
+   found on entry before returning, so a windowed run is not disturbed. */
+static void layout_selftest(void)
+{
+    const char *env = std::getenv("SM64DS_LAYOUT_SELFTEST");
+    if (!env || !*env) return;
+    const ntr::StackLayout &lay = *hal_screen_layout();
+
+    struct WH { int w, h; };
+    WH sizes[8];
+    int n = 0;
+    if (std::strcmp(env, "1") == 0) {
+        static const WH defaults[3] = { {1027, 578}, {1920, 1080}, {3440, 1440} };
+        for (int i = 0; i < 3 && n < 7; ++i) sizes[n++] = defaults[i];
+    } else {
+        const char *p = env;
+        while (*p && n < 7) {
+            int w = 0, h = 0;
+            while (*p >= '0' && *p <= '9') { w = w * 10 + (*p - '0'); ++p; }
+            if (*p == 'x' || *p == 'X') ++p;
+            while (*p >= '0' && *p <= '9') { h = h * 10 + (*p - '0'); ++p; }
+            if (w > 0 && h > 0) sizes[n++] = WH{ w, h };
+            if (*p == ',') ++p; else break;
+        }
+    }
+    if (n < 8) { sizes[n].w = lay.w; sizes[n].h = lay.h; ++n; }
+
+    /* save the six published numbers so this run does not disturb a real
+       present(). */
+    const int save_x = g_pr_x, save_y = g_pr_y, save_w = g_pr_w, save_h = g_pr_h,
+              save_sw = g_pr_sw, save_sh = g_pr_sh;
+
+    int passed = 0;
+    for (int i = 0; i < n; ++i) {
+        const int cw = sizes[i].w, ch = sizes[i].h;
+        char fails[8] = {0};
+        int nfail = 0;
+
+        /* A: no region beyond the pictures */
+        if (lay.h != lay.head_h + lay.pan_h * 2 + lay.band_h)
+            fails[nfail++] = 'A';
+        /* B: the pictures are adjacent */
+        if (lay.band_y != lay.top_y + lay.pan_h ||
+            lay.bottom_y != lay.band_y + lay.band_h)
+            fails[nfail++] = 'B';
+        /* C: both pictures are 4:3 */
+        if (lay.pan_w * ntr::SUB_H != lay.pan_h * ntr::SUB_W)
+            fails[nfail++] = 'C';
+        /* D: centred, inside the image */
+        if (lay.pan_x0 < 0 || lay.pan_x0 + lay.pan_w > lay.w)
+            fails[nfail++] = 'D';
+
+        int rx, ry, rw, rh;
+        hal_present_fit(cw, ch, lay.w, lay.h, &rx, &ry, &rw, &rh);
+        hal_present_set_rect(rx, ry, rw, rh, lay.w, lay.h);
+
+        /* the client-space corners of the drawn bottom picture. xout/yout is
+           a step guaranteed to cross at least one source pixel outward (the
+           scale plus slop), for the outside checks below. */
+        const long long bx0 = rx + (long long)lay.pan_x0 * rw / lay.w;
+        const long long bx1 = rx + (long long)(lay.pan_x0 + lay.pan_w) * rw / lay.w - 1;
+        const long long by0 = ry + (long long)lay.bottom_y * rh / lay.h;
+        const long long by1 = ry + (long long)(lay.bottom_y + lay.pan_h) * rh / lay.h - 1;
+        const long long xout = rw / lay.w + 2;
+        const long long yout = rh / lay.h + 2;
+
+        /* E: the four corners of the drawn bottom picture land within ONE DS
+           pixel of DS (0,0), (SUB_W-1,0), (0,SUB_H-1) and (SUB_W-1,SUB_H-1);
+           one pixel outside each of the four edges is OUTSIDE.
+
+           WIDE4V, run link100 (status/WIDE4V.md): the check used to step
+           picw/3 client pixels in from each corner and allow SUB_W/3 (85) DS
+           pixels of slack -- the SAME fraction on both sides of the divide,
+           so it carried NO margin at all. Reproduced 10/10 byte-identical at
+           1027x578 against every WIDE aspect (native passed): the
+           near-corner step landed at DS x 169 where the check required 170,
+           a miss of exactly one DS pixel from a tolerance that was never
+           wider than the rounding it was meant to absorb. It was never a
+           race, an uninitialised value or a stale published rect --
+           SM64DS_LAYOUT_SELFTEST is deterministic given a fixed aspect and
+           client size, and ten repeats and a five-aspect sweep both proved
+           it (same FAIL, same numbers, every time).
+
+           THIS TESTS THE LITERAL CORNER instead, at the ONE DS pixel bound
+           the brief accepts for a non-integer present scale, and does not
+           require hal_present_client_to_sub's own "inside" answer AT THAT
+           EXACT PIXEL: a floor-based forward fit and a floor-based inverse
+           do not always agree on which side of a boundary sample falls, so
+           the literal corner pixel of a picture can come back "outside" on
+           the low (0) edge of either axis even though the DS pixel it
+           clamps to is exactly right. Measured at 1027x578/32:9: the top-
+           left corner's y reads "outside" and clamps to DS y 0 anyway; the
+           very next client row already reads "inside" y 0. That is the
+           fit's own unavoidable one-pixel seam -- present before this card
+           wherever a window was not an integer multiple of the image, since
+           the horizontal arm (already correct) has the same floor divide --
+           not a defect for this test to fail on. The outside checks below
+           stay pixel-tight: a point stepped out by at least two source
+           pixels' worth of client slop has no such seam to explain a false
+           negative. */
+        {
+            int dsx, dsy, ok = 1;
+            hal_present_client_to_sub((int)bx0, (int)by0, &dsx, &dsy);
+            if (dsx > 1 || dsy > 1) ok = 0;
+            hal_present_client_to_sub((int)bx1, (int)by0, &dsx, &dsy);
+            if (dsx < ntr::SUB_W - 2 || dsy > 1) ok = 0;
+            hal_present_client_to_sub((int)bx0, (int)by1, &dsx, &dsy);
+            if (dsx > 1 || dsy < ntr::SUB_H - 2) ok = 0;
+            hal_present_client_to_sub((int)bx1, (int)by1, &dsx, &dsy);
+            if (dsx < ntr::SUB_W - 2 || dsy < ntr::SUB_H - 2) ok = 0;
+            if (hal_present_client_to_sub((int)(bx0 - xout), (int)((by0 + by1) / 2), &dsx, &dsy)) ok = 0;
+            if (hal_present_client_to_sub((int)(bx1 + xout), (int)((by0 + by1) / 2), &dsx, &dsy)) ok = 0;
+            if (hal_present_client_to_sub((int)((bx0 + bx1) / 2), (int)(by0 - yout), &dsx, &dsy)) ok = 0;
+            if (hal_present_client_to_sub((int)((bx0 + bx1) / 2), (int)(by1 + yout), &dsx, &dsy)) ok = 0;
+            if (!ok) fails[nfail++] = 'E';
+        }
+        /* F: the same four corners of the drawn TOP picture map to INSIDE
+           through hal_present_client_to_fb, and one pixel below the top
+           picture's last row maps OUTSIDE. */
+        {
+            const long long ty0 = ry + (long long)lay.top_y * rh / lay.h;
+            const long long ty1 = ry + (long long)(lay.top_y + lay.pan_h) * rh / lay.h - 1;
+            int fx, fy, ok = 1;
+            if (!hal_present_client_to_fb((int)bx0, (int)ty0, &fx, &fy)) ok = 0;
+            if (!hal_present_client_to_fb((int)bx1, (int)ty0, &fx, &fy)) ok = 0;
+            if (!hal_present_client_to_fb((int)bx0, (int)ty1, &fx, &fy)) ok = 0;
+            if (!hal_present_client_to_fb((int)bx1, (int)ty1, &fx, &fy)) ok = 0;
+            if (hal_present_client_to_fb((int)bx0, (int)(ty1 + yout), &fx, &fy)) ok = 0;
+            if (!ok) fails[nfail++] = 'F';
+        }
+
+        if (nfail == 0) {
+            std::fprintf(stderr, "[layoutst] %dx%d A..F PASS\n", cw, ch);
+            ++passed;
+        } else {
+            fails[nfail] = 0;
+            std::fprintf(stderr, "[layoutst] %dx%d FAIL %s\n", cw, ch, fails);
+        }
+    }
+    std::fprintf(stderr, "LAYOUT SELFTEST: %s %d/%d\n",
+                 passed == n ? "PASS" : "FAIL", passed, n);
+
+    g_pr_x = save_x; g_pr_y = save_y; g_pr_w = save_w; g_pr_h = save_h;
+    g_pr_sw = save_sw; g_pr_sh = save_sh;
 }
 
 /* Client pixels to SOURCE-IMAGE pixels: the inverse of present()'s fit. Does
@@ -2334,7 +2600,8 @@ int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy)
        the message_compositor band split belongs here; flagged for Tango. */
     const ntr::StackLayout &lay = *hal_screen_layout();
     const int inside = x >= 0 && y >= lay.top_y && x < ntr::active_w &&
-                       y < lay.top_y + ntr::active_h;
+                       y < lay.top_y + (hal_sub_screen_stacked() ? lay.pan_h
+                                                                 : ntr::active_h);
     /* AND THE FRAMEBUFFER ROW IS THE SOURCE ROW MINUS top_y, which was a no-op
        for as long as top_y was zero and is not one any more: the gapless
        headroom puts head_h rows of image ABOVE the top screen, so a click on
@@ -2398,8 +2665,25 @@ int hal_present_client_to_sub(int cx, int cy, int *dsx, int *dsy)
        answers "outside" for every point -- in that layout the panel is the
        bottom screen and poll_touch takes the other branch. */
     const ntr::StackLayout &lay = *hal_screen_layout();
-    const int band_h = sh - lay.bottom_y;
-    const int by = y - lay.bottom_y;
+    /* THE STYLUS SURFACE IS THE DRAWN PANEL, to the pixel, on both axes.
+       It used to be the REGION on the vertical axis -- sh - bottom_y --
+       which is the panel only when active_h is a whole multiple of 192.
+       At 32:9 the region is 288 rows and the panel 192, so DS 0..191 was
+       spread over 288 client rows and every press read two thirds of the
+       way up the button it landed on. pan_h is scaled into this mapper's
+       own source height exactly the way pan_x0 / pan_w are scaled into its
+       source width two lines below, so a present() that reports a
+       different source size (the headless probe's fallback) still lands.
+       THE INSET LAYOUT ANSWERS "OUTSIDE" FOR EVERY POINT, which is what
+       sh - bottom_y used to say by arithmetic and what this now says by
+       name: there is no stacked band there, the panel is the bottom
+       screen and poll_touch takes the other branch. */
+    const int stacked = hal_sub_screen_stacked();
+    const int b_y0 = stacked ? (int)(((long long)sh * lay.bottom_y) /
+                                     (lay.h > 0 ? lay.h : 1)) : 0;
+    const int band_h = stacked ? (int)(((long long)sh * lay.pan_h) /
+                                       (lay.h > 0 ? lay.h : 1)) : 0;
+    const int by = y - b_y0;
     /* The bottom panel is PILLARBOXED when the run is 16:9 and full-width when it
        is 4:3, and this ONE mapping covers both: it reads lay.pan_x0/pan_w, which
        the layout sets to (0, full width) on a 4:3 run and to the centred band on
@@ -2504,7 +2788,7 @@ void hal_touch_client_probe(void)
         if (sx >= 0 && sx < ssw) {
             if (lay.head_h > 0 && sy >= 0 && sy < lay.top_y)
                 where = "HEADROOM";
-            else if (sy >= lay.top_y && sy < lay.top_y + ntr::SCREEN_H)
+            else if (sy >= lay.top_y && sy < lay.top_y + lay.pan_h)
                 where = "top screen";
             else if (lay.band_h > 0 && sy >= lay.band_y && sy < lay.bottom_y)
                 where = "GAP";

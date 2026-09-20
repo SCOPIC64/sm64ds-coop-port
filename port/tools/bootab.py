@@ -1,6 +1,7 @@
 """Headless, silent boot sweep, same knobs for every binary, so builds compare.
 usage: python bootab.py <walk_window.exe> <outdir> [frames] [budget_s]
        [levels=2,4,5 | scenes=4,5 | levels=all | scenes=all] [idle=1] [aspect=<ratio>]
+       [smooth=<0..3>]
        [workers=<n>]
 workers=<n> (run link100, lane SWEEPPAR1) runs up to n rows at a time instead of one
 after another. Default 1 is this tool's whole history, byte for byte: nobody who does
@@ -29,6 +30,10 @@ Always: SM64DS_FAULTS_FATAL=1 SM64DS_NO_FOCUS=1 SM64DS_VOLUME=0, no SCENE_WINDOW
 idle=1 adds SM64DS_SELFTEST_IDLE=1 to the LEVEL rows, which walk_window.cpp uses to
 leave dz at 0 so the selftest neither holds forward nor hops at frame 30: the level
 boots and then sits still. Scene rows have no selftest and are unaffected.
+smooth=<0..3> sets SM64DS_SMOOTH_MODELS on EVERY row, level and scene alike, which
+is the "SmoothModels" setting (run hd1, lane MDL). Same shape and same reason as
+aspect= below: the environment scrub drops an inherited one, so a sweep that does
+not name it is byte-identical to one from before this argument existed.
 aspect=<ratio> sets SM64DS_ASPECT to that ratio on EVERY row, level and scene alike,
 so one sweep boots the whole table at one presentation width. It is the only way to
 reach the wide path from here: the environment scrub above drops an inherited
@@ -71,7 +76,9 @@ course still standing. Nothing else in this run has ever run a course's exit.
               level change back to the hub with the death reason (2)
   exit=star   SM64DS_STAR_DROP=#0,200 plus A presses -- stand on the level's
               first PowerStar, let its collision run the star-get sequence and
-              the course-clear exit (reason 1)
+              the course-clear exit (reason 1). Also drives HOST_PAD (A then
+              DPAD_LEFT) after the arrival and fails the row if [exitpos]
+              shows the player never moved.
   exit=pause  START then the fourth pause button on the touch screen -- exit
               course (reason 0)
 All three set selftest 1200 and SM64DS_EXIT_WATCH=1, and a row is FAIL unless
@@ -101,7 +108,7 @@ is still a finding: its position barely moves under the held-forward walk while
 record 0's travels. Scene rows are untouched by the arm, and a sweep that does
 not name it is byte-identical to one from before the arm existed.
 """
-import os, sys, time, shutil, subprocess, queue, threading, signal
+import os, re, sys, time, shutil, subprocess, queue, threading, signal
 from concurrent.futures import ThreadPoolExecutor
 EXE = os.path.abspath(sys.argv[1]); OUT = os.path.abspath(sys.argv[2])
 FRAMES = sys.argv[3] if len(sys.argv) > 3 else "600"
@@ -119,6 +126,9 @@ IDLE = any(a == "idle=1" for a in sys.argv[5:])
 ASPECT = ""
 for a in sys.argv[5:]:
     if a.startswith("aspect="): ASPECT = a[7:]
+SMOOTH = ""
+for a in sys.argv[5:]:
+    if a.startswith("smooth="): SMOOTH = a[7:]
 WARPIN = any(a == "warpin=1" for a in sys.argv[5:])
 REENTRY = any(a == "reentry=1" for a in sys.argv[5:])
 PRESS = "200:A"
@@ -160,7 +170,7 @@ WORKERS = max(1, min(WORKERS, MAX_SWEEP_WORKERS))
 # the row filter is positional but the flags are not, so a run that passes only a
 # flag must not have that flag read as a filter (it would then match no prefix and
 # sweep everything by accident)
-if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=", "exit=", "entrance=", "workers=")): FILTER = ""
+if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=", "exit=", "entrance=", "smooth=", "workers=")): FILTER = ""
 if FILTER.startswith("levels="):
     sel = FILTER[7:]; SCENES = ()
     if sel != "all": LEVELS = tuple(i for i in LEVELS if str(i) in sel.split(","))
@@ -369,6 +379,20 @@ def run(kind, ident, label, ent=None, wdir=None):
                 env["SM64DS_STAR_DROP"] = "#0,200"
                 env["SM64DS_PROBE_INPUT"] = \
                     "260:A,300:A,340:A,380:A,420:A,460:A"
+                # AFTER THE ARRIVAL, through the HOST INPUT LAYER. The A
+                # pulses answer whatever the held-forward walk bumps into
+                # in the castle (a star gate's message opened at f603 on
+                # the level 6 row and never closed, which is what a
+                # 1200-frame row used to end in); 4 is DPAD_LEFT, a
+                # direction the selftest is NOT already holding, so the
+                # movement it produces is the PLAYER'S and not the
+                # harness's. The window opens at f500, long after the
+                # change (f298 on the level 6 row), so no row's level
+                # change verdict can move because of it.
+                env["SM64DS_HOST_PAD"] = (
+                    ",".join("1000@%d-%d" % (f, f + 3)
+                             for f in range(500, 1160, 60))
+                    + ",4@600-1150")
             elif EXIT == "pause":
                 # START, then the fourth pause button (exit course). The four
                 # buttons are touch boxes x 8..247, y 0x20/0x48/0x70/0x98 each
@@ -395,6 +419,12 @@ def run(kind, ident, label, ent=None, wdir=None):
     # set on level and scene rows alike: the aspect is latched at boot, before
     # either path picks its presentation, so both read the same key
     if ASPECT: env["SM64DS_ASPECT"] = ASPECT
+    # smooth=N, the same shape and the same reason as aspect= above: the
+    # environment scrub drops an inherited SM64DS_SMOOTH_MODELS with the rest
+    # of the SM64DS_* block, so a sweep that does not name it is byte-identical
+    # to one from before this argument existed, and naming it is the only way
+    # to reach the model smoother from here.
+    if SMOOTH: env["SM64DS_SMOOTH_MODELS"] = SMOOTH
     exe_path = os.path.join(wdir, os.path.basename(EXE))
     t0 = time.time()
     rc, out = _run_proc([exe_path], wdir, env, BUDGET)
@@ -427,6 +457,46 @@ def run(kind, ident, label, ent=None, wdir=None):
             ok = False
             chg += "  (WRONG EXIT: wanted reason %d)" % want
         note = (note + " | " if note else "") + (chg or "NO LEVEL CHANGE")
+        # MOVES AFTER THE ARRIVAL. A change that completes and
+        # leaves the player unable to move is the softlock Tango
+        # reported, and until now this arm could not see it: the
+        # [exitwatch] stream prints only on change, so a frozen
+        # player prints nothing and a row that ends rc 0 reads as
+        # a pass. [exitpos] is the position on a fixed cadence.
+        # Take the samples from AFTER the pad window opens that
+        # are in the level the change named, and require the
+        # player to have moved more than a quarter of a walking
+        # stride in some axis over them. A frozen player's
+        # samples are byte-identical, so the threshold is not
+        # near anything.
+        if EXIT == "star" and ok:
+            dest = None
+            m = re.search(r"-> (-?\d+), entrance", chg)
+            if m: dest = int(m.group(1))
+            pts = []
+            for line in out.splitlines():
+                mm = re.match(r"\[exitpos\] f(\d+) level=(-?\d+) "
+                              r"pos=\((-?\d+),(-?\d+),(-?\d+)\)",
+                              line.strip())
+                if not mm: continue
+                if int(mm.group(1)) < 700: continue
+                if dest is not None and int(mm.group(2)) != dest: continue
+                pts.append(tuple(int(mm.group(i)) for i in (3, 4, 5)))
+            if len(pts) < 4:
+                ok = False
+                note = (note + " | " if note else "") + \
+                    "NO ARRIVAL POSITION SAMPLES (%d)" % len(pts)
+            else:
+                span = max(max(abs(p[i] - pts[0][i]) for p in pts)
+                           for i in range(3))
+                if span <= 16:
+                    ok = False
+                    note = (note + " | " if note else "") + \
+                        ("PLAYER NEVER MOVED AFTER THE ARRIVAL "
+                         "(span %d over %d samples)" % (span, len(pts)))
+                else:
+                    note = (note + " | " if note else "") + \
+                        "moved %d after arrival" % span
     if ent is not None and kind == "SM64DS_LEVEL":
         # how far the held-forward walk actually got. An entrance whose mode
         # wedges the player in his arrival animation exits 0 with a position

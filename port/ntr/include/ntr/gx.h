@@ -29,6 +29,22 @@ struct GxVertex {
     float x, y, z, w;      // x/y in pixels, z in [0,1] after divide
     float u, v;            // texel coordinates (DS TEXCOORD is 1.4 fixed point)
     uint32_t color;        // 0xAARRGGBB
+
+    // --- appended for the model smoother; see ntr/smooth.h ------------------
+    // THE VIEW-SPACE VERTEX, carried alongside the clip-space one above.
+    // "View space" here is after the DS POSITION matrix and before the
+    // projection. It is the last space in which a curved patch can be built
+    // linearly: the perspective divide and the near clip both come after it,
+    // and subdividing past either of them bends straight edges by the near
+    // plane's distance. vw is the fourth component the position matrix
+    // produced -- 1 for every affine matrix the game loads, and the smoother
+    // refuses a triangle where it is not.
+    float vx, vy, vz, vw;
+    // The NORMAL command's own vector after the VECTOR matrix (which is the
+    // position matrix without translation, so it lands in the same space as
+    // the position above), unit length. (0,0,0) when the polygon carried no
+    // NORMAL, which is how an unlit polygon says it has no surface to curve.
+    float nx, ny, nz;
 };
 
 // The bound texture travels with the triangle. Material state is set by the
@@ -38,6 +54,17 @@ struct GxTriangle {
     GxVertex v[3];
     const uint32_t *tex;   // decoded RGBA, or null for untextured
     int tw, th;
+    // HOST PIXELS PER DS TEXEL, and it is 1 for every texture the ROM itself
+    // supplies. A replacement image from an HD pack (ntr/hdtex.h) is a whole
+    // multiple of the DS texture's own size, and this is that multiple: the
+    // sampler multiplies u and v by it, and tw/th are then the ACTUAL pixel
+    // dimensions of the bound buffer rather than the DS texture's. So the
+    // wrap, clamp and flip rules in tex_coord keep working on the real
+    // buffer, a 4x image of a 32x32 texture binds as 128x128 with a 4 here,
+    // and at 1 -- which is what a run with no pack has everywhere -- the
+    // multiply is by exactly 1.0f and the raster is bit-for-bit the
+    // arithmetic it did before this field existed.
+    uint8_t tex_scale;
     uint8_t cull;          // POLYGON_ATTR bits 6-7: 1 back, 2 front, 3 both
     uint8_t alpha;         // POLYGON_ATTR bits 16-20 (0..31; 31 = opaque)
     // TEXIMAGE_PARAM bits 16-19 as bit0 repeat S, bit1 repeat T, bit2 flip S,

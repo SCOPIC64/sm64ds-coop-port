@@ -42,57 +42,159 @@ bool widescreen = true;
 bool widescreen = false;
 #endif
 
-void configure_aspect(double aspect)
-{
+/* THE WINDOW'S SIZE, and the scale it was chosen at. Both are written once by
+   configure_aspect and read-only afterwards. The defaults are the extent's own
+   defaults above, so a program that never calls configure_aspect -- every
+   smoke, every tool that links this -- answers exactly what it answers for
+   active_w / active_h, which is what it answered before these existed. */
 #ifdef NTR_WIDE_RT
+int g_default_w = 512;
+int g_default_h = 384;
+#else
+int g_default_w = SCREEN_W;
+int g_default_h = SCREEN_H;
+#endif
+int g_render_scale;
+
+int default_active_w(void) { return g_default_w; }
+int default_active_h(void) { return g_default_h; }
+int render_scale(void) { return g_render_scale; }
+
+#ifdef NTR_WIDE_RT
+/* THE DEFAULT BOX, and it is NOT the allocation any more.
+
+   The RenderScale-0 extent is still derived inside the 1024x576 wide maximum
+   this tier shipped with, and these two constants are that box. The buffer
+   grew to 1368x768 so a scaled run has somewhere to draw; the default run's
+   numbers must not follow it, or a settings.json with no RenderScale in it
+   would silently get a different 16:9 picture than the build before this. So
+   the arm below reads DEFAULT_W / DEFAULT_H exactly where it read SCREEN_W /
+   SCREEN_H, token for token, and its answers are the shipped answers at every
+   aspect: 512x384 at 0, 1024x576 at 16:9, 1024x256 at 32:9, 576x576 at 1:1. */
+constexpr int DEFAULT_W = 1024;
+constexpr int DEFAULT_H = 576;
+
+/* The extent a run with no RenderScale gets, which is also the size the window
+   opens at whatever the scale. Lifted out of configure_aspect unchanged. */
+void default_extent(double aspect, int &out_w, int &out_h)
+{
     if (!(aspect > 0.0)) {
         // 0, negative, or NaN: the native sentinel. The 4:3 window at the old
         // 2x size, rendered into the top-left of the wide buffer and presented
         // at that size -- byte-for-byte the shipped build.
-        active_w = 512;
-        active_h = 384;
+        out_w = 512;
+        out_h = 384;
+        return;
+    }
+    // Clamp again at the point of use. host_setting_aspect already clamps,
+    // but this is the divide that sizes a framebuffer and it does not get to
+    // trust its caller.
+    if (aspect < 1.0) aspect = 1.0;
+    if (aspect > 4.0) aspect = 4.0;
+    // The largest w:h rectangle that fits the default box. Start full width
+    // and derive the height; if that is taller than the box, the ratio is
+    // narrower than the box's own and the height binds instead. At 1.7777778
+    // the first arm lands exactly on 1024x576, the measured 16:9 tier, with
+    // no rounding at all.
+    int w = DEFAULT_W;
+    int h = (int)(DEFAULT_W / aspect + 0.5);
+    if (h > DEFAULT_H) {
+        h = DEFAULT_H;
+        w = (int)(DEFAULT_H * aspect + 0.5);
+        if (w > DEFAULT_W) w = DEFAULT_W;
+    }
+    // Even extents: several centring and half-screen reads divide by two,
+    // and an odd width there leaves a one-pixel seam for no gain. The
+    // DERIVED side rounds in the direction that keeps the picture no WIDER
+    // than the ratio asked for, so the delivered w:h stays inside the
+    // clamp rather than sliding a hair past it -- 3.0 asked for on this
+    // box is 1024/342 (2.994) and not 1024/340 (3.012). The PINNED side
+    // is already even (both box dimensions are), so its round is a no-op.
+    if (h != DEFAULT_H) h = (h + 1) & ~1;   // width pinned: round height up
+    else                w &= ~1;            // height pinned: round width down
+    if (h > DEFAULT_H) h = DEFAULT_H;
+    if (w < 2) w = 2;
+    if (h < 2) h = 2;
+    out_w = w;
+    out_h = h;
+}
+
+/* The extent a run WITH a RenderScale gets. The height is the anchor and is
+   an exact whole multiple of the DS's 192 rows, so the 2D compositor's sy,
+   the HUD's uniform scale, the stacked sub-screen's scale and the display
+   capture's ry are all exact integers by construction; the width is whatever
+   that height needs for this run's ratio. See ntr/ppu.h for the worked table
+   and for why the height carries the rule. */
+void scaled_extent(double aspect, int scale, int &out_w, int &out_h)
+{
+    int h = scale * 192;
+    int w;
+    if (!(aspect > 0.0)) {
+        // the native sentinel: the DS's own 4:3, so the width is the DS's own
+        // 256 columns at the same multiplier and the picture is exactly square
+        // pixels. scale 2 lands on 512x384, which is the default extent, so
+        // "RenderScale 2 at aspect 0" and "no RenderScale at aspect 0" are the
+        // same picture and not merely the same size.
+        w = scale * 256;
     } else {
-        // Clamp again at the point of use. host_setting_aspect already clamps,
-        // but this is the divide that sizes a framebuffer and it does not get to
-        // trust its caller.
         if (aspect < 1.0) aspect = 1.0;
         if (aspect > 4.0) aspect = 4.0;
-        // The largest w:h rectangle that fits the wide-maximum buffer. Start
-        // full width and derive the height; if that is taller than the buffer,
-        // the ratio is narrower than the buffer's own and the height binds
-        // instead. At 1.7777778 the first arm lands exactly on 1024x576, the
-        // measured 16:9 tier, with no rounding at all.
-        int w = SCREEN_W;
-        int h = (int)(SCREEN_W / aspect + 0.5);
-        if (h > SCREEN_H) {
-            h = SCREEN_H;
-            w = (int)(SCREEN_H * aspect + 0.5);
-            if (w > SCREEN_W) w = SCREEN_W;
+        w = (int)(h * aspect + 0.5);
+        w &= ~1;                    // height pinned: round the width down
+        if (w > SCREEN_W) {
+            // THE BUFFER BINDS. A tall scale at an ultrawide ratio asks for
+            // more columns than the allocation has, and the answer is the one
+            // the default box already gives in the same situation: pin the
+            // width and bring the HEIGHT down to hold the ratio the player
+            // asked for, rather than widen the picture past it. The height
+            // stops being a whole 192-multiple here, which is exactly what
+            // happens at those ratios today (1024x256 at 32:9), so no pass
+            // meets a case it has not met before.
+            w = SCREEN_W;
+            h = (int)(SCREEN_W / aspect + 0.5);
+            h = (h + 1) & ~1;       // width pinned: round the height up
+            if (h > SCREEN_H) h = SCREEN_H;
         }
-        // Even extents: several centring and half-screen reads divide by two,
-        // and an odd width there leaves a one-pixel seam for no gain. The
-        // DERIVED side rounds in the direction that keeps the picture no WIDER
-        // than the ratio asked for, so the delivered w:h stays inside the
-        // clamp rather than sliding a hair past it -- 3.0 asked for on this
-        // buffer is 1024/342 (2.994) and not 1024/340 (3.012). The PINNED side
-        // is already even (both buffer dimensions are), so its round is a no-op.
-        if (h != SCREEN_H) h = (h + 1) & ~1;   // width pinned: round height up
-        else               w &= ~1;            // height pinned: round width down
-        if (h > SCREEN_H) h = SCREEN_H;
-        if (w < 2) w = 2;
-        if (h < 2) h = 2;
-        active_w = w;
-        active_h = h;
+    }
+    if (w < 2) w = 2;
+    if (h < 2) h = 2;
+    out_w = w;
+    out_h = h;
+}
+#endif
+
+void configure_aspect(double aspect, int render_scale_key)
+{
+#ifdef NTR_WIDE_RT
+    /* THE SCALE IS SANITISED HERE AS WELL, the rule the aspect follows:
+       host_setting_render_scale has already clamped it, and this is the
+       multiply that sizes a framebuffer, so it does not get to trust its
+       caller. Negative reads as 0, the default, and a scale taller than the
+       buffer comes down to the tallest the buffer holds. */
+    if (render_scale_key < 0) render_scale_key = 0;
+    if (render_scale_key * 192 > SCREEN_H) render_scale_key = SCREEN_H / 192;
+    g_render_scale = render_scale_key;
+    /* ALWAYS COMPUTED, whatever the scale: this is the window's size, and a
+       scaled run opens the same window a default run does. */
+    default_extent(aspect, g_default_w, g_default_h);
+    if (render_scale_key == 0) {
+        active_w = g_default_w;
+        active_h = g_default_h;
+    } else {
+        scaled_extent(aspect, render_scale_key, active_w, active_h);
     }
     // "Is this run's picture wider than the DS's 4:3", which is what every
     // runtime wide branch actually asks. Computed from the extent rather than
     // stored from the argument, so an Aspect of 1.3333 (a 4:3 ratio written out
     // longhand) correctly reads as NOT widescreen: there is no frustum to widen.
+    // A SCALED 4:3 run is w = s*256, h = s*192, so w*3 == h*4 at every scale
+    // and a sharper picture is still not a wider one.
     widescreen = (active_w * 3 != active_h * 4);
 #else
-    // A fixed tier has one aspect; there is nothing to choose. Kept so callers
-    // can invoke it unconditionally.
+    // A fixed tier has one aspect and one size; there is nothing to choose.
+    // Kept so callers can invoke it unconditionally.
     (void)aspect;
+    (void)render_scale_key;
 #endif
 }
 
@@ -496,8 +598,25 @@ bool ppu_write_bmp(const char *path, const Framebuffer &fb) {
         return ppu_write_bmp_px(path, &fb.px[0][0], active_w, active_h);
     // NTR_WIDE_RT, 4:3 toggle: the picture is narrower than the SCREEN_W stride,
     // so pack the active rows tight before the writer (which assumes stride ==
-    // width) sees them. Static because this is a debug/probe dump, not per-frame.
-    static uint32_t packed[SCREEN_W * SCREEN_H];
+    // width) sees them.
+    //
+    // ON THE HEAP, AND ALLOCATED THE FIRST TIME A BMP IS WRITTEN, for the
+    // reason the raster buffers in ntr/gx.cpp moved there: this image is 4
+    // bytes a pixel of the whole allocation, the host image has to end below
+    // 0x02000000 because ntr/io.cpp reserves the DS's main RAM there, and a
+    // debug dump has no business spending 4 MB of that ceiling in every run
+    // that never writes one. Never freed: a program that wrote one BMP
+    // usually writes a hundred.
+    static uint32_t *packed;
+    if (!packed) {
+        packed = (uint32_t *)std::calloc((size_t)SCREEN_W * SCREEN_H, 4);
+        if (!packed) {
+            std::fprintf(stderr, "ppu_write_bmp: no memory for the %dx%d "
+                         "packing buffer; %s not written\n",
+                         active_w, active_h, path);
+            return false;
+        }
+    }
     for (int y = 0; y < active_h; ++y)
         std::memcpy(packed + (size_t)y * active_w, fb.px[y], (size_t)active_w * 4);
     return ppu_write_bmp_px(path, packed, active_w, active_h);
@@ -674,8 +793,37 @@ void ppu_display_capture(const uint32_t *src, int w, int h) {
     if (off + need > kBankSize) return;      // would run off the end of the bank
 
     /* NEAREST, not averaged; see the note in ntr/ppu.h. The ratio is a whole
-       number at every tier the port builds. */
+       number at every 4:3 extent the port can be configured at, because
+       configure_aspect anchors a scaled height on a whole multiple of 192 and
+       the native-sentinel width on the same multiple of 256. */
     const int rx = w / SUB_W, ry = h / SUB_H;
+
+    /* THE FIRST CAPTURE SAYS WHAT IT IS, once, on stderr. This unit is the
+       whole basis of the four dual-screen minigames -- the game READS the
+       picture it writes -- and it is also the one place the render extent
+       reaches a buffer the GAME consumes rather than a buffer the player
+       looks at. So a run that performs a capture states the extent it
+       sampled and the whole-number ratio it sampled at, which is what turns
+       "the capture is still exact at RenderScale 4" from an argument into a
+       line in a log. One line per process, on the success path only: the two
+       refusals above already have theirs. */
+    {
+        static int said;
+        if (!said) {
+            said = 1;
+            std::fprintf(stderr,
+                         "  [capture] DISPCAPCNT %08x: %dx%d from the live "
+                         "%dx%d picture (stride %d) into block %u at +%05x, "
+                         "nearest at %d x %d per DS pixel%s\n",
+                         cap, cw, ch, w, h, SCREEN_W, block, off, rx, ry,
+                         (rx * SUB_W == w && ry * SUB_H == h)
+                             ? " (an exact whole-number downsample)"
+                             : " (the extent is not a whole DS multiple; the "
+                               "sample walks, as it does on every odd aspect "
+                               "this port already shipped)");
+            std::fflush(stderr);
+        }
+    }
     uint16_t *dst = reinterpret_cast<uint16_t *>(lcdc_addr(block) + off);
     for (int y = 0; y < ch; ++y) {
         const int sy = ry > 0 ? y * ry : (y * h) / SUB_H;

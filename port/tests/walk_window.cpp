@@ -393,9 +393,11 @@ static bool winapi_load(void)
 }
 
 #include "ntr/gx.h"
+#include "ntr/hdtex.h"
 #include "ntr/mmio.h"
 #include "ntr/ppu.h"
 #include "ntr/rt.h"
+#include "ntr/smooth.h"
 
 /* walk_window is the one TU that installs the crash probe, so it also emits the
    external seams (port_rich_dump_ex, port_crash_dir_get) the quarantine walker
@@ -1430,6 +1432,9 @@ void hal_sub_screen_init(void *hwnd, int zoom);
    back into a framebuffer point and returns 0 for a point in the letterbox
    bars, which is outside the picture and therefore not a touch. */
 void hal_present_set_rect(int x, int y, int w, int h, int src_w, int src_h);
+/* THE FIT: the largest sw:sh rectangle centred inside cw x ch. present()
+   below and the layout selftest (hal/sub_screen.cpp) share this one copy. */
+void hal_present_fit(int cw, int ch, int sw, int sh, int *x, int *y, int *w, int *h);
 int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
 /* THE OTHER BAND OF THE SAME RECTANGLE. client_to_fb means the TOP screen in
    both layouts, so in the stacked layout it answers "outside" for every point
@@ -2149,6 +2154,59 @@ static const int ZOOM = 2;
 #else
 static const int ZOOM = 3;
 #endif
+
+/* ---- THE WINDOW'S SIZE IS THE DEFAULT EXTENT'S, WHATEVER THE RenderScale ---
+ *
+ * ZOOM above is client pixels per FRAMEBUFFER pixel, which was one number
+ * because the framebuffer had one size. With the RenderScale key it does not:
+ * the same run can draw 256x192 or 1024x768 and the player is asking for a
+ * sharper picture in the SAME window, not for a window four times the size.
+ * So the window is sized off ntr::default_active_* -- the extent this run
+ * would have had with the key absent -- and present() scales the finished
+ * picture into it, which is what it already does on every resize.
+ *
+ * The ratio is a ratio and not an integer, and it has to be: at scale 3 the
+ * picture is 768x576 inside a 1024x768 client, which is four client pixels to
+ * three source pixels and no integer ZOOM can say that.
+ *
+ * THE DEFAULT RUN TAKES THE FIRST BRANCH AND IS THE OLD EXPRESSION TOKEN FOR
+ * TOKEN. That is the whole point of writing the equal case out rather than
+ * letting the multiply and divide cancel: `src * ZOOM` is what the three call
+ * sites did before this existed, and with the key absent it is still literally
+ * what they do.
+ */
+static int win_px(int src)
+{
+    const int a = ntr::active_h > 0 ? ntr::active_h : 1;
+    const int d = ntr::default_active_h();
+    if (d == a) return src * ZOOM;
+    return (int)((long long)src * d * ZOOM / a);
+}
+
+/* The same ratio WITHOUT the tier's ZOOM, for an image the window already
+ * shows one client pixel to one source pixel: the stacked (both-screens)
+ * presentation, which is built at the active extent and sized 1:1. With the
+ * key absent this returns its argument, so those lines do not move either. */
+static int win_px_1(int src)
+{
+    const int a = ntr::active_h > 0 ? ntr::active_h : 1;
+    const int d = ntr::default_active_h();
+    if (d == a) return src;
+    return (int)((long long)src * d / a);
+}
+
+/* The integer zoom the STYLUS FALLBACK takes before the first present has
+ * published a real rectangle (hal/sub_screen.cpp's client_to_src). Once a
+ * frame has presented, that rectangle is the mapping and this is not read at
+ * all. At the default extent it is ZOOM, exactly as it was. */
+static int stylus_fallback_zoom(void)
+{
+    const int a = ntr::active_h > 0 ? ntr::active_h : 1;
+    const int d = ntr::default_active_h();
+    if (d == a) return ZOOM;
+    const int z = d * ZOOM / a;
+    return z > 0 ? z : 1;
+}
 /* The level MeshCollider every ray in this file is cast against: the STAGE'S
    own, at Stage+0x91c, on the Stage-backed boot. RELOADRV's reverse scan named
    it as a host mirror of a world pointer; the restore re-seat re-derives it
@@ -5519,6 +5577,30 @@ static void pad_test_apply(int frame, int *pad_live, XPad *pad)
     unsigned mask = 0;
     if (pt_env) mask |= pad_script_mask(pt_env, frame);
     if (hp_env) mask |= pad_script_mask(hp_env, frame);
+    /* THE TRAP THIS LINE EXISTS FOR (run link100, lanes STAREXIT1
+       and STARLAND1). A walking selftest already holds the stick
+       fully forward, so a HOST_PAD script whose mask carries
+       DPAD_UP (bit 0) adds the direction the run is already
+       pushing: a pad / no-pad pair then comes out BYTE-IDENTICAL
+       whatever the player can or cannot do, and two lanes read
+       that as a frozen player. Say so once, in the log, where the
+       next lane will see it. */
+    if (hp_env && (mask & 1) && g_selftest &&
+        !getenv("SM64DS_SELFTEST_IDLE")) {
+        static int warned;
+        if (!warned) {
+            warned = 1;
+            fprintf(stderr, "[hostpad] NOTE: this is a walking "
+                    "selftest, which already holds the stick "
+                    "fully forward, and this script's DPAD_UP "
+                    "bit pushes the same way -- a pad / no-pad "
+                    "pair will be byte-identical whatever the "
+                    "player can do. Measure control with another "
+                    "direction (4 LEFT, 8 RIGHT, 2 DOWN), with "
+                    "1000 (A), or with SM64DS_SELFTEST_IDLE=1.\n");
+            fflush(stderr);
+        }
+    }
     /* THE EDGES, so a row can say on which host frames the script was actually
        APPLIED rather than on which frames it was scheduled. The two differ by
        exactly the bug this instrument exists for: a frame the loop never
@@ -6143,20 +6225,11 @@ static void present(void)
         sw = ntr::active_w;
         sh = ntr::active_h;
     }
-    /* the largest sw:sh rectangle inside cw x ch. Compared as a cross
-       product so the choice is exact rather than a rounded ratio: wider than
-       the frame means pillarbox (height wins), taller means letterbox. */
-    int dw, dh;
-    if ((long long)cw * sh <= (long long)ch * sw) {
-        dw = cw;
-        dh = (int)(((long long)cw * sh) / sw);
-    } else {
-        dh = ch;
-        dw = (int)(((long long)ch * sw) / sh);
-    }
-    if (dw < 1) dw = 1;
-    if (dh < 1) dh = 1;
-    const int dx = (cw - dw) / 2, dy = (ch - dh) / 2;
+    /* the largest sw:sh rectangle inside cw x ch, via hal_present_fit (the
+       one copy of this arithmetic; see port/hal/sub_screen.cpp, next to
+       hal_present_set_rect). The layout selftest drives the same code. */
+    int dw, dh, dx, dy;
+    hal_present_fit(cw, ch, sw, sh, &dx, &dy, &dw, &dh);
 
     /* the four strips around it, black. Written before the picture so a
        stretch that lands a pixel wide of the arithmetic covers the bar
@@ -6210,6 +6283,144 @@ static void present(void)
        an image twice as tall as the framebuffer, and an inverse that assumed
        otherwise would put every stylus press on the wrong screen. */
     hal_present_set_rect(dx, dy, dw, dh, sw, sh);
+}
+
+/* ---- THE PRESENT FILTER, MEASURED OFF SCREEN ---------------------------
+ *
+ * SM64DS_PRESENT_BENCH=<repeats> times the two StretchDIBits scalers -- the
+ * nearest one the port presents with (COLORONCOLOR) and the filtered one
+ * SM64DS_PRESENT_FILTER=halftone selects -- on the finished framebuffer, and
+ * writes one BMP of each so the two can be looked at side by side. It runs at
+ * the end of a selftest, once, and a run that does not set it does nothing.
+ *
+ * WHY IT IS OFF SCREEN AND NOT THROUGH present(). Every automated run in this
+ * project launches minimised and never activated, and a minimised window has a
+ * zero-by-zero client area, so present() returns before it blits (see its own
+ * first lines). There is no way to measure the real present path from a run
+ * that obeys the house rule. So the same GDI call is made into a MEMORY DIB of
+ * the window's own client size: the same StretchDIBits, the same stretch mode,
+ * the same source rectangle and the same destination size. What that does NOT
+ * measure is the display driver's own path to the screen, which can differ, so
+ * these numbers are the scaler's cost and not the whole present's. Said here
+ * rather than left to be discovered.
+ *
+ * THE DESTINATION IS THE WINDOW'S CLIENT SIZE, which is the default extent's
+ * size at every RenderScale (win_px above). That is the whole question this
+ * measures: at scale 4 the source is 1024x768 and the destination is 1024x768,
+ * so there is nothing to scale; at scale 3 it is 768x576 into 1024x768, an
+ * upscale; and the interesting row is a high scale presented DOWN into a
+ * smaller client, which is supersampling. Whether it looks better is Tango's
+ * call and these files are for him; this function only counts milliseconds.
+ */
+static void present_bench(const ntr::Framebuffer &fb)
+{
+    const char *e = getenv("SM64DS_PRESENT_BENCH");
+    if (!e) return;
+    int reps = atoi(e);
+    if (reps < 1) reps = 60;
+
+    /* gdi32/user32 by hand, the rule this whole port follows: a static import
+       table maps over 0x02000000 and the ROM's address space lives there. */
+    HMODULE g = LoadLibraryA("gdi32.dll");
+    HMODULE u = LoadLibraryA("user32.dll");
+    if (!g || !u) return;
+    typedef HDC(WINAPI * CreateCompatibleDC_t)(HDC);
+    typedef HBITMAP(WINAPI * CreateDIBSection_t)(HDC, const BITMAPINFO *, UINT,
+                                                 void **, HANDLE, DWORD);
+    typedef HGDIOBJ(WINAPI * SelectObject_t)(HDC, HGDIOBJ);
+    typedef BOOL(WINAPI * DeleteObject_t)(HGDIOBJ);
+    typedef BOOL(WINAPI * DeleteDC_t)(HDC);
+    typedef HDC(WINAPI * GetDC_t)(HWND);
+    typedef int(WINAPI * ReleaseDC_t)(HWND, HDC);
+    CreateCompatibleDC_t CreateCompatibleDC_ =
+        (CreateCompatibleDC_t)GetProcAddress(g, "CreateCompatibleDC");
+    CreateDIBSection_t CreateDIBSection_ =
+        (CreateDIBSection_t)GetProcAddress(g, "CreateDIBSection");
+    SelectObject_t SelectObject_ = (SelectObject_t)GetProcAddress(g, "SelectObject");
+    DeleteObject_t DeleteObject_ = (DeleteObject_t)GetProcAddress(g, "DeleteObject");
+    DeleteDC_t DeleteDC_ = (DeleteDC_t)GetProcAddress(g, "DeleteDC");
+    GetDC_t GetDC2_ = (GetDC_t)GetProcAddress(u, "GetDC");
+    ReleaseDC_t ReleaseDC_ = (ReleaseDC_t)GetProcAddress(u, "ReleaseDC");
+    if (!CreateCompatibleDC_ || !CreateDIBSection_ || !SelectObject_ ||
+        !DeleteObject_ || !DeleteDC_ || !GetDC2_ || !ReleaseDC_ ||
+        !W.StretchDIBits_ || !W.SetStretchBltMode_)
+        return;
+
+    const int sw = ntr::active_w, sh = ntr::active_h;
+    const int dw = win_px(sw), dh = win_px(sh);
+    if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) return;
+
+    HDC screen = GetDC2_(0);
+    HDC mem = CreateCompatibleDC_(screen);
+    if (!mem) { if (screen) ReleaseDC_(0, screen); return; }
+    BITMAPINFO dbi;
+    memset(&dbi, 0, sizeof dbi);
+    dbi.bmiHeader.biSize = sizeof dbi.bmiHeader;
+    dbi.bmiHeader.biWidth = dw;
+    dbi.bmiHeader.biHeight = -dh;          /* top-down, like the source */
+    dbi.bmiHeader.biPlanes = 1;
+    dbi.bmiHeader.biBitCount = 32;
+    dbi.bmiHeader.biCompression = BI_RGB;
+    void *dbits = 0;
+    HBITMAP dib = CreateDIBSection_(mem, &dbi, DIB_RGB_COLORS, &dbits, 0, 0);
+    if (!dib || !dbits) {
+        DeleteDC_(mem);
+        ReleaseDC_(0, screen);
+        return;
+    }
+    SelectObject_(mem, dib);
+
+    /* the source header: the framebuffer's own STRIDE for the width and the
+       source rectangle's own height, which is exactly the pair present()
+       hands StretchDIBits. Built here rather than copied off the window's
+       g_bi because that one is set up when a window opens and this runs on a
+       path that may never have opened one. */
+    BITMAPINFO sbi;
+    memset(&sbi, 0, sizeof sbi);
+    sbi.bmiHeader.biSize = sizeof sbi.bmiHeader;
+    sbi.bmiHeader.biWidth = ntr::SCREEN_W;
+    sbi.bmiHeader.biHeight = -sh;
+    sbi.bmiHeader.biPlanes = 1;
+    sbi.bmiHeader.biBitCount = 32;
+    sbi.bmiHeader.biCompression = BI_RGB;
+    const uint32_t *src = &fb.px[0][0];
+
+    struct Arm { const char *name; int mode; const char *path; };
+    const Arm arms[2] = {
+        {"COLORONCOLOR", PRESENT_STRETCH_COLORONCOLOR,
+         "walk_window_present_coloroncolor.bmp"},
+        {"HALFTONE", PRESENT_STRETCH_HALFTONE,
+         "walk_window_present_halftone.bmp"},
+    };
+    for (int a = 0; a < 2; ++a) {
+        W.SetStretchBltMode_(mem, arms[a].mode);
+        if (arms[a].mode == PRESENT_STRETCH_HALFTONE && W.SetBrushOrgEx_)
+            W.SetBrushOrgEx_(mem, 0, 0, 0);
+        /* one warm blit first, so the measured ones are not paying for the
+           driver's first touch of a fresh DIB */
+        W.StretchDIBits_(mem, 0, 0, dw, dh, 0, 0, sw, sh, src, &sbi,
+                         DIB_RGB_COLORS, SRCCOPY);
+        LARGE_INTEGER freq, t0, t1;
+        QueryPerformanceFrequency(&freq);
+        QueryPerformanceCounter(&t0);
+        for (int i = 0; i < reps; ++i)
+            W.StretchDIBits_(mem, 0, 0, dw, dh, 0, 0, sw, sh, src, &sbi,
+                             DIB_RGB_COLORS, SRCCOPY);
+        QueryPerformanceCounter(&t1);
+        const double ms = freq.QuadPart
+                              ? (double)(t1.QuadPart - t0.QuadPart) * 1000.0 /
+                                    (double)freq.QuadPart / reps
+                              : 0.0;
+        const bool wrote =
+            ntr::ppu_write_bmp_px(arms[a].path, (const uint32_t *)dbits, dw, dh);
+        fprintf(stderr, "[present-bench] %-12s %dx%d -> %dx%d  %.3f ms per "
+                "blit over %d  %s\n", arms[a].name, sw, sh, dw, dh, ms, reps,
+                wrote ? arms[a].path : "(BMP not written)");
+    }
+    fflush(stderr);
+    DeleteObject_(dib);
+    DeleteDC_(mem);
+    ReleaseDC_(0, screen);
 }
 
 /* ---- FULLSCREEN (port mod) --------------------------------------------
@@ -7062,8 +7273,14 @@ static HWND host_window_open(int stacked, HDC *out_hdc, const char *title)
        grows it later, once, when the scene latches its G. */
     int stw = ntr::active_w, sth = ntr::active_h * 2;
     if (stacked) hal_sub_screen_stacked_size(&stw, &sth);
-    RECT r = stacked ? RECT{0, 0, stw, sth}
-                     : RECT{0, 0, ntr::active_w * ZOOM, ntr::active_h * ZOOM};
+    /* win_px on BOTH shapes, for the reason over its definition: the stacked
+       image is the active extent stacked, so a scaled run builds a taller one
+       and the client has to stay the size a default run's client is. At the
+       default extent win_px(x) IS x * ZOOM and the stacked arm's 1:1 is
+       win_px at ZOOM 1 on its own tier, so neither line moves with the key
+       absent. */
+    RECT r = stacked ? RECT{0, 0, win_px_1(stw), win_px_1(sth)}
+                     : RECT{0, 0, win_px(ntr::active_w), win_px(ntr::active_h)};
     W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW, FALSE);
     /* ---- WHERE IT OPENS (port mod, Tango's ask: "can it open center screen")
        CW_USEDEFAULT IS NOT A POSITION. It asks Windows for the next slot in
@@ -7449,8 +7666,12 @@ static void host_layout_follow_scene(HWND hwnd, int two_screen, const char *what
     g_present_stack_bi = 0;
     g_stack_gen = ~0u;
 
-    int cw = ntr::active_w * ZOOM, ch = ntr::active_h * ZOOM;
-    if (stacked) hal_sub_screen_stacked_size(&cw, &ch);
+    int cw = win_px(ntr::active_w), ch = win_px(ntr::active_h);
+    if (stacked) {
+        hal_sub_screen_stacked_size(&cw, &ch);
+        cw = win_px_1(cw);
+        ch = win_px_1(ch);
+    }
     if (hwnd && !g_user_sized && !g_fullscreen && W.AdjustWindowRect_ &&
         W.SetWindowPos_ && W.GetWindowLongA_) {
         RECT want = {0, 0, cw, ch};
@@ -8027,7 +8248,7 @@ static int scene_window_run(void)
     g_entry_hwnd = hwnd;
     g_entry_hdc = hdc;
 
-    const int rc = port_scene_begin(hwnd, ZOOM);
+    const int rc = port_scene_begin(hwnd, stylus_fallback_zoom());
     if (rc)
         return rc;
 
@@ -8055,8 +8276,8 @@ static int scene_window_run(void)
     int wsw = ntr::active_w, wsh = ntr::active_h * 2;
     if (stacked) hal_sub_screen_stacked_size(&wsw, &wsh);
     fprintf(stderr, "[scene] WINDOWED %dx%d, %s, %s\n",
-            stacked ? wsw : ntr::active_w * ZOOM,
-            stacked ? wsh : ntr::active_h * ZOOM,
+            stacked ? win_px_1(wsw) : win_px(ntr::active_w),
+            stacked ? win_px_1(wsh) : win_px(ntr::active_h),
             stacked ? "STACKED (both DS screens, stylus over the bottom half)"
                     : "corner inset panel",
             budget ? "frame budget set" : "runs until the window closes");
@@ -8435,7 +8656,36 @@ int main(void)
        reallocates, and at 0 every render, HUD, sub-screen and present path is
        byte-for-byte the 4:3 build. On a non-runtime tier configure_aspect is a
        no-op. */
-    ntr::configure_aspect(host_setting_aspect());
+    /* THE RenderScale KEY RIDES THE SAME CALL, because the two answer one
+       question between them -- how wide and how sharp -- and a second setter
+       would be a second chance for them to disagree about the extent. 0 is
+       the key absent and the extent is then derived exactly as it was before
+       the key existed, at every aspect; a value of 1..4 anchors the height at
+       that many host rows per DS row and derives the width from the aspect.
+       Either way the WINDOW opens at the default extent's size (win_px), so a
+       sharper picture is more pixels in the same window. */
+    ntr::configure_aspect(host_setting_aspect(), host_setting_render_scale());
+    if (ntr::render_scale())
+        fprintf(stderr, "[render] RenderScale %d: the 3D picture is %dx%d "
+                "(the default for this aspect is %dx%d) and the window opens "
+                "at %dx%d\n",
+                ntr::render_scale(), ntr::active_w, ntr::active_h,
+                ntr::default_active_w(), ntr::default_active_h(),
+                win_px(ntr::active_w), win_px(ntr::active_h));
+    /* THE OTHER TWO PICTURE SETTINGS ARE LATCHED HERE FOR THE SAME REASON,
+       and beside the aspect so there is one place in the program where the
+       picture's shape is decided. Both default to off, both are no-ops while
+       they are off, and with all three keys absent every one of these three
+       calls leaves the render path exactly as the build before them drew it.
+
+       HdTextures names a replacement texture pack and the directory to find
+       it in (ntr/hdtex.h); SmoothModels is the model subdivision level
+       (ntr/smooth.h). Neither reads anything back from the render path, so
+       the order of the three calls does not matter; they are together
+       because they answer one question. */
+    ntr::hdtex_configure(host_setting_hd_textures(),
+                         host_setting_hd_textures_dir());
+    ntr::smooth_configure(host_setting_smooth_models());
     /* fault_probe.h has been included here since gate 4 and was never armed,
        so every crash in the window build printed nothing at all. It costs
        nothing until something faults, and it prints a module-relative address
@@ -9864,7 +10114,7 @@ int main(void)
     unsigned ovl_mem_kb = 0;
 
     /* the bottom screen: dual OAM, the 2D frame, and the corner panel */
-    hal_sub_screen_init(hwnd, ZOOM);
+    hal_sub_screen_init(hwnd, stylus_fallback_zoom());
     hal_sub_screen_probe();
 
     /* boot complete: everything the boot queued in the stdout buffer goes to
@@ -12136,6 +12386,19 @@ int main(void)
                                 (int)data_0209f250,
                                 pz, psub, pnext, pcool, pbtn);
                     }
+                    /* THE ARRIVAL READ-OUT. [exitwatch] prints only when a word
+                       CHANGES, so a player who cannot move prints nothing and a
+                       row cannot tell "he is standing still" from "he is frozen".
+                       This is the position itself, on a fixed cadence, so
+                       bootab's exit arm can assert that the player MOVED after
+                       the level change instead of only that the change happened.
+                       Reads only, and only with SM64DS_EXIT_WATCH set. */
+                    if ((frame % 30) == 0)
+                        fprintf(stderr, "[exitpos] f%d level=%d pos=(%d,%d,%d)\n",
+                                frame, lvl,
+                                *(int *)(c + 0x5c) >> 12,
+                                *(int *)(c + 0x60) >> 12,
+                                *(int *)(c + 0x64) >> 12);
                 }
             }
 
@@ -15182,6 +15445,12 @@ int main(void)
             fprintf(stderr, "[layout] dsstate=%p..%p\n",
                     (void *)&dsstate_lo, (void *)&dsstate_hi);
             ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+            /* SM64DS_PRESENT_BENCH: the two StretchDIBits scalers timed on
+               this very frame and written out as two BMPs. Nothing at all
+               without the variable, so every existing selftest is unchanged.
+               After the dump, so the picture it measures is the picture the
+               dump carries. */
+            present_bench(fb);
             /* the other half of the boot's [heap] line: what the run itself
                spent out of the ROM's 0x3b000.
 
