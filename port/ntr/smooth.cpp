@@ -315,18 +315,34 @@ float env_float(const char *name, float dflt) {
 //  equal can land about 0.2 degrees apart after the VECTOR matrix), and the
 //  patch would be flat anyway.
 //
-//  max_radius and max_edge are the pillow guard. They are measured, not
-//  guessed: SM64DS_SMOOTH_CENSUS prints the per-triangle edge-length and
-//  curvature-radius histogram for a frame, and out/MDL/policy.md records the
-//  frames the shipped numbers were read off. Both are overridable from the
-//  environment so that sweep needs no rebuild.
-SmoothPolicy g_policy = {0, 0.99985f, 0.0f, 0.0f};
+//  max_radius 128 is the pillow guard, and it is a BACKSTOP rather than the
+//  rule that keeps stage geometry flat. SM64DS_SMOOTH_CENSUS histograms every
+//  submitted triangle's edge lengths and implied curvature radii per frame;
+//  measured over castle grounds, Bob-omb Battlefield, Whomp's Fortress, Cool
+//  Cool Mountain and Big Boo's Haunt (out/MDL/policy.md has the frames), the
+//  radius histogram is EMPTY above 128 world units on every one of them, and
+//  empty above 64 on three of the five. The reason is that this game's large
+//  surfaces are flat-shaded: about three quarters of every frame's triangles
+//  carry three normals that agree, and the flat rule leaves each of those
+//  exactly as it arrived. Every edge longer than about 32 units falls in that
+//  group. So the cap fires on nothing measured, costs nothing, and is here for
+//  the scene nobody measured.
+//
+//  max_edge 0 (off) is a decision, not an oversight. A blunt length cap would
+//  refuse a large object that is legitimately round -- a boss, a hill-sized
+//  prop -- while adding nothing, because the flat rule already excludes every
+//  long edge in the five levels above. It stays in the struct, and stays
+//  settable from the environment, so a scene that ever needs it needs no code.
+//
+//  Both are overridable from the environment so a sweep needs no rebuild:
+//  SM64DS_SMOOTH_FLAT_COS, SM64DS_SMOOTH_MAX_RADIUS, SM64DS_SMOOTH_MAX_EDGE.
+SmoothPolicy g_policy = {0, 0.99985f, 128.0f, 0.0f};
 int g_policy_loaded = 0;
 
 int g_census = -1;
 
 // One booked triangle for the crack census: view-space corners and normals.
-struct CensusTri { float p[3][3]; float n[3][3]; };
+struct CensusTri { float p[3][3]; float n[3][3]; int tf; };
 std::vector<CensusTri> g_census_tris;
 
 // Quantised view-space position, so two corners the game submitted as the
@@ -410,12 +426,13 @@ int smooth_census_on() {
 }
 
 void smooth_census_tri(const SmoothVertex &a, const SmoothVertex &b,
-                       const SmoothVertex &c) {
+                       const SmoothVertex &c, int tf) {
     if (!smooth_census_on()) return;
     // A frame of castle grounds is a few thousand triangles; the cap is only
     // here so a runaway scene cannot eat the machine.
     if (g_census_tris.size() >= 200000) return;
     CensusTri t;
+    t.tf = tf;
     const SmoothVertex *v[3] = {&a, &b, &c};
     for (int i = 0; i < 3; ++i) {
         t.p[i][0] = v[i]->x; t.p[i][1] = v[i]->y; t.p[i][2] = v[i]->z;
@@ -439,7 +456,11 @@ void census_report(uint64_t frame) {
     // Edge-length and curvature-radius histograms, decade buckets, for the
     // measurement the shipped caps are read off.
     int len_hist[12] = {0}, rad_hist[12] = {0};
-    int flat = 0, curved = 0;
+    // The same edge-length histogram over the triangles the policy ACCEPTED.
+    // This is the terrain proof: if nothing with a long edge is ever accepted,
+    // nothing large was curved, whatever the overall flat/curved split says.
+    int acc_hist[12] = {0};
+    int flat = 0, curved = 0, accepted = 0;
 
     static const int E0[3] = {0, 1, 2};
     static const int E1[3] = {1, 2, 0};
@@ -473,6 +494,7 @@ void census_report(uint64_t frame) {
             float l = len;
             while (l >= 1.0f && lb < 11) { l *= 0.5f; ++lb; }
             ++len_hist[lb];
+            if (t.tf > 1) ++acc_hist[lb];
             if (turn > 1e-6f) {
                 int rb = 0;
                 float r = len / turn;
@@ -481,6 +503,7 @@ void census_report(uint64_t frame) {
             }
         }
         if (any_turn) ++curved; else ++flat;
+        if (t.tf > 1) ++accepted;
     }
 
     int shared = 0, disagreeing = 0;
@@ -523,17 +546,49 @@ void census_report(uint64_t frame) {
     }
 
     fprintf(stderr,
-            "[smooth] f%llu tris %d (flat %d curved %d) edges %d shared %d "
-            "disagreeing %d worst_turn %.4f worst_gap %.4f\n",
+            "[smooth] f%llu tris %d (flat %d curved %d accepted %d) edges %d "
+            "shared %d disagreeing %d worst_turn %.4f worst_gap %.4f\n",
             (unsigned long long)frame, (int)g_census_tris.size(), flat, curved,
-            (int)edges.size(), shared, disagreeing, (double)worst_turn,
-            (double)worst_gap);
+            accepted, (int)edges.size(), shared, disagreeing,
+            (double)worst_turn, (double)worst_gap);
     fprintf(stderr, "[smooth] f%llu edgelen", (unsigned long long)frame);
     for (int i = 0; i < 12; ++i) fprintf(stderr, " %d", len_hist[i]);
+    fprintf(stderr, "\n[smooth] f%llu acceptlen", (unsigned long long)frame);
+    for (int i = 0; i < 12; ++i) fprintf(stderr, " %d", acc_hist[i]);
     fprintf(stderr, "\n[smooth] f%llu radius", (unsigned long long)frame);
     for (int i = 0; i < 12; ++i) fprintf(stderr, " %d", rad_hist[i]);
     fprintf(stderr, "\n");
     g_census_tris.clear();
+}
+
+int counters_on() {
+    static int on = -1;
+    if (on < 0) on = getenv("SM64DS_SMOOTH_COUNTERS") ? 1 : 0;
+    return on;
+}
+
+// One line per frame with the frame's DELTA, which is what a per-frame table
+// wants, and the running total, which is what a whole-run comparison wants.
+void counters_report(uint64_t frame) {
+    static SmoothCounters prev;
+    const SmoothCounters &c = g_counters;
+    fprintf(stderr,
+            "[smoothcnt] f%llu in %llu out %llu sub %llu | flat %llu nonrm %llu"
+            " rad %llu edge %llu w %llu mode3 %llu ortho %llu"
+            " | TOTin %llu TOTout %llu\n",
+            (unsigned long long)frame,
+            (unsigned long long)(c.tris_in - prev.tris_in),
+            (unsigned long long)(c.tris_out - prev.tris_out),
+            (unsigned long long)(c.tris_subdivided - prev.tris_subdivided),
+            (unsigned long long)(c.skip_flat - prev.skip_flat),
+            (unsigned long long)(c.skip_no_normal - prev.skip_no_normal),
+            (unsigned long long)(c.skip_radius - prev.skip_radius),
+            (unsigned long long)(c.skip_edge - prev.skip_edge),
+            (unsigned long long)(c.skip_w - prev.skip_w),
+            (unsigned long long)(c.skip_mode3 - prev.skip_mode3),
+            (unsigned long long)(c.skip_ortho - prev.skip_ortho),
+            (unsigned long long)c.tris_in, (unsigned long long)c.tris_out);
+    prev = c;
 }
 
 }  // namespace
@@ -541,6 +596,7 @@ void census_report(uint64_t frame) {
 void smooth_frame_mark() {
     ++g_counters.frames;
     if (smooth_census_on()) census_report(g_counters.frames);
+    if (counters_on()) counters_report(g_counters.frames);
 }
 
 // The counter block the geometry stage bumps. Out of line so gx.cpp holds no

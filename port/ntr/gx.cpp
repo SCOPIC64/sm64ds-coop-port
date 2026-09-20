@@ -649,12 +649,11 @@ int smooth_try(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
         s[i].u = in[i]->u; s[i].v = in[i]->v;
         s[i].color = in[i]->color;
     }
-    if (smooth_census_on()) smooth_census_tri(s[0], s[1], s[2]);
-
     /* Say WHY, so the measurement table can separate "the feature did nothing
        because the scene is flat" from "the caps are too tight". */
     int why = SMOOTH_WHY_OK;
     const int tf = smooth_tess_factor(s[0], s[1], s[2], pol, &why);
+    if (smooth_census_on()) smooth_census_tri(s[0], s[1], s[2], tf);
     if (tf <= 1) {
         switch (why) {
             case SMOOTH_WHY_NO_NORMAL: smooth_count(SMOOTH_COUNT_NO_NORMAL, 1); break;

@@ -195,7 +195,7 @@ void smooth_frame_mark();
 // edge control points. Rigid-skinned joints are where that is expected.
 int smooth_census_on();
 void smooth_census_tri(const SmoothVertex &a, const SmoothVertex &b,
-                       const SmoothVertex &c);
+                       const SmoothVertex &c, int tf);
 
 }  // namespace ntr
 
