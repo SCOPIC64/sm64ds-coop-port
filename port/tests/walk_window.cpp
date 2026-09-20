@@ -3275,15 +3275,19 @@ enum {
 
      RUN_BUTTON  what this program has always done. The bound key or pad
                  button sets 0x800 while it is held, the record stays on the
-                 D-pad branch, and letting go walks. The DEFAULT, so a player
-                 who never opens this menu is playing the same program.
+                 D-pad branch, and letting go walks.
      RUN_ANALOG  when a pad stick is actually pushed, the record is filled
                  from it instead -- touching set, magnitude and direction
                  from the deflection -- and the GAME's own thresholds do the
                  rest. Partial push walks, past ~87 percent runs, and the
-                 speed in between is the ROM's own multiply. With no pad, or
-                 with the stick inside its dead zone, this is button mode:
-                 there is no deflection to read off a keyboard.
+                 speed in between is the ROM's own multiply. THE DEFAULT, on
+                 Tango's order. With no pad, or with the stick inside its
+                 dead zone, this is button mode: there is no deflection to
+                 read off a keyboard, so a keyboard player still walks with
+                 the movement keys and still runs on the bound run key
+                 (shift), exactly as RUN_BUTTON always did. A selftest is
+                 pinned to RUN_BUTTON whatever the file says, which is why
+                 the sweeps do not move.
      RUN_AUTO    0x800 is held for you, always. No button, always running.
 
    The run BINDING is per device on purpose. Rebinding to a key leaves the
@@ -8205,6 +8209,15 @@ static int  g_fc_pad_live;
 static int  g_fc_menu_on;
 static int  g_fc_selftest;
 
+/* The camera-rotate request, stashed the same way g_fc_pad is: this is the
+   one Ctrl word the raw path cannot carry (host_btn_to_raw_keys' banner
+   above says why -- in mode 0 the two bits are the touch screen's arrows,
+   and passing them through as raw bits would land on R and L), so it rides
+   from the input phase to the publish and is merged where
+   Stage::CheckCameraInput's own write lands on hardware. */
+static unsigned short g_fc_cam_rot;      /* this frame's held rotate bits  */
+static unsigned short g_fc_cam_rot_prev; /* last frame's, for the edge     */
+
 extern "C" void port_frame_ctrl_publish(void)
 {
     const XPad &pad = g_fc_pad;
@@ -8219,6 +8232,27 @@ extern "C" void port_frame_ctrl_publish(void)
     const auto run_mode = [&]() -> int {
         return selftest ? RUN_BUTTON : g_run_mode;
     };
+
+    /* THE CAMERA-ROTATE BITS, MERGED WHERE THE CARTRIDGE MERGES THEM.
+       On the DS these two bits are Stage::CheckCameraInput's entire output
+       and it ORs them into the Ctrl block from inside Stage::Behavior,
+       between CheckInput and the actor walk. This function runs at exactly
+       that instant (hal/stage_frame.cpp's slot-6 thunk calls it after
+       Stage::Behavior returns and before any other actor's Behavior), so
+       the merge belongs here and nowhere above the tick: a write to
+       data_0209f49c in the input phase is overwritten by
+       port_frame_ctrl_prime at the head of Stage::Behavior and again by the
+       copy below. OR, never store: the pad word is already written and a
+       rotate request adds to it. */
+    {
+        char *r = (char *)data_0209f498 + (int)data_0209f250 * 0x18;
+        const unsigned short held = g_fc_cam_rot;
+        const unsigned short pressed =
+            (unsigned short)(g_fc_cam_rot & ~g_fc_cam_rot_prev);
+        g_fc_cam_rot_prev = g_fc_cam_rot;
+        *(unsigned short *)(r + 4) |= held;
+        *(unsigned short *)(r + 6) |= pressed;
+    }
 
             /* the matched TU writes its own data_0209f498 block; older
                TUs read per-field split symbols -- copy the record out
@@ -10642,13 +10676,14 @@ int main(void)
             if (!fc_boot) {
                 fc_boot = 1;
                 /* the window plays in the mode settings.json's CameraMode
-                   names (analog when it names none, which is what this line
-                   always did); the selftest stays DS-exact unless it is asked
+                   names (ds when it names none, on Tango's order -- the
+                   cartridge's own stepped rotate, and the mode the bumpers
+                   turn in); the selftest stays DS-exact unless it is asked
                    otherwise (see the mode block above). host_settings'
                    numbering IS the CAM_ numbering: 0 analog, 1 freecam, 2 ds.
                    The three environment knobs below still win over the file. */
                 cam_mode = selftest ? CAM_DS : host_setting_camera_mode();
-                if (cam_mode < CAM_ANALOG || cam_mode > CAM_DS) cam_mode = CAM_ANALOG;
+                if (cam_mode < CAM_ANALOG || cam_mode > CAM_DS) cam_mode = CAM_DS;
                 if (getenv("SM64DS_ANALOG_CAMERA")) cam_mode = CAM_ANALOG;
                 if (getenv("SM64DS_DS_CAMERA")) cam_mode = CAM_DS;
                 if (getenv("SM64DS_FREECAM")) cam_mode = CAM_FREE;
@@ -11075,6 +11110,12 @@ int main(void)
                steps every frame. While the freecam mod owns the view none of
                it is written -- the Camera actor is left following Mario so
                there is something clean to hand back to. */
+            /* The host's camera-rotate request for THIS frame. Declared here,
+               above the if, so it exists on every frame and not only DS-camera
+               ones: a frame that leaves DS mode (or opens the menu) must clear
+               it rather than leave the last value latched -- see the
+               g_fc_cam_rot assignment below. */
+            unsigned short cam_rot = 0;
             if (real_camera && cam_mode == CAM_DS) {
                 /* The two bits func_02009e70 reads, picked by the same
                    cam_turn the rig steps its heading with, so DS mode and
@@ -11083,17 +11124,29 @@ int main(void)
                    lowers it, and a rising heading is the view panning left,
                    so a rightward push takes 0x200 by default. Which host
                    control feeds which bit is the port's own choice: the DS
-                   had L and R and none of these controls. */
+                   had L and R and none of these controls.
+
+                   These bits used to fold into `btn` here, but `btn` is
+                   stored into data_0209f49c ABOVE the actor tick, and that
+                   store is overwritten twice inside Stage::Behavior before
+                   func_02009e70 ever reads it (port_frame_ctrl_prime copies
+                   the ROM's own Ctrl record over it at the head, and
+                   port_frame_ctrl_publish copies it again after
+                   Stage::CheckInput runs). host_btn_to_raw_keys' banner above
+                   says why they have no raw source. So they ride in
+                   g_fc_cam_rot instead and are merged inside
+                   port_frame_ctrl_publish, at the instant
+                   Stage::CheckCameraInput merges the cartridge's own arrows. */
                 const unsigned cam_bit_right = (cam_turn > 0) ? 0x100u : 0x200u;
                 const unsigned cam_bit_left  = (cam_turn > 0) ? 0x200u : 0x100u;
-                if (key_live('Q')) btn |= cam_bit_left;
-                if (key_live('E')) btn |= cam_bit_right;
+                if (key_live('Q')) cam_rot |= cam_bit_left;
+                if (key_live('E')) cam_rot |= cam_bit_right;
                 if (key_live('C')) btn |= 0x4000;
-                if (stick_rx < -10000) btn |= cam_bit_left;
-                if (stick_rx > 10000) btn |= cam_bit_right;
+                if (stick_rx < -10000) cam_rot |= cam_bit_left;
+                if (stick_rx > 10000) cam_rot |= cam_bit_right;
                 if (pad_live) {
-                    if (pad.buttons & 0x0100) btn |= cam_bit_left;   /* LB */
-                    if (pad.buttons & 0x0200) btn |= cam_bit_right;  /* RB */
+                    if (pad.buttons & 0x0100) cam_rot |= cam_bit_left;   /* LB */
+                    if (pad.buttons & 0x0200) cam_rot |= cam_bit_right;  /* RB */
                 }
                 /* orbit probe: hold one of func_02009e70's own rotate bits
                    from frame 20 -- the camera's heading and the angle it
@@ -11102,9 +11155,10 @@ int main(void)
                    cam_bit_right: this probes the ROM's reader, so it must
                    not move when a player's binding preference does. */
                 if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20)
-                    btn |= 0x100;
+                    cam_rot |= 0x100;
             }
             if (menu_on) btn = 0;   /* enter/A belong to the menu, not to him */
+            g_fc_cam_rot = menu_on ? 0 : cam_rot;
             /* TEMPORARY: fold the scripted probe's A/B into the button word so
                StartTalk's b==0 gate (data_0209f49e & 3) sees the press, and the
                camera-rotate readers do not (mask to bits 0-1). SM64DS_PROBE_INPUT. */
