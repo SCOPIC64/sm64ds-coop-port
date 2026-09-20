@@ -639,6 +639,13 @@ struct StackLayout {
     // what it was before this field existed.
     int pan_x0;        // first image column of the bottom panel; 0 on 4:3 tiers
     int pan_w;         // the bottom panel's image width; STACK_W on 4:3 tiers
+    int pan_h;         // the bottom panel's image height; SUB_H * scale, and the
+                       // height of the TOP picture too. The vertical twin of pan_w:
+                       // the region a screen sits in is this tall and no taller, so
+                       // the compose, the image height, the window and the stylus
+                       // inverse all read one number. Equal to active_h on every
+                       // aspect whose active_h is a whole multiple of 192 (native
+                       // and 16:9), smaller on every other.
 };
 
 enum { GAP_FILL_SOLID = 0, GAP_FILL_AMBIENT = 1, GAP_FILL_CUSTOM = 2 };

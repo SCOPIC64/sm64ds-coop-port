@@ -1432,6 +1432,9 @@ void hal_sub_screen_init(void *hwnd, int zoom);
    back into a framebuffer point and returns 0 for a point in the letterbox
    bars, which is outside the picture and therefore not a touch. */
 void hal_present_set_rect(int x, int y, int w, int h, int src_w, int src_h);
+/* THE FIT: the largest sw:sh rectangle centred inside cw x ch. present()
+   below and the layout selftest (hal/sub_screen.cpp) share this one copy. */
+void hal_present_fit(int cw, int ch, int sw, int sh, int *x, int *y, int *w, int *h);
 int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
 /* THE OTHER BAND OF THE SAME RECTANGLE. client_to_fb means the TOP screen in
    both layouts, so in the stacked layout it answers "outside" for every point
@@ -6198,20 +6201,11 @@ static void present(void)
         sw = ntr::active_w;
         sh = ntr::active_h;
     }
-    /* the largest sw:sh rectangle inside cw x ch. Compared as a cross
-       product so the choice is exact rather than a rounded ratio: wider than
-       the frame means pillarbox (height wins), taller means letterbox. */
-    int dw, dh;
-    if ((long long)cw * sh <= (long long)ch * sw) {
-        dw = cw;
-        dh = (int)(((long long)cw * sh) / sw);
-    } else {
-        dh = ch;
-        dw = (int)(((long long)ch * sw) / sh);
-    }
-    if (dw < 1) dw = 1;
-    if (dh < 1) dh = 1;
-    const int dx = (cw - dw) / 2, dy = (ch - dh) / 2;
+    /* the largest sw:sh rectangle inside cw x ch, via hal_present_fit (the
+       one copy of this arithmetic; see port/hal/sub_screen.cpp, next to
+       hal_present_set_rect). The layout selftest drives the same code. */
+    int dw, dh, dx, dy;
+    hal_present_fit(cw, ch, sw, sh, &dx, &dy, &dw, &dh);
 
     /* the four strips around it, black. Written before the picture so a
        stretch that lands a pixel wide of the arithmetic covers the bar
