@@ -2151,6 +2151,59 @@ static const int ZOOM = 2;
 #else
 static const int ZOOM = 3;
 #endif
+
+/* ---- THE WINDOW'S SIZE IS THE DEFAULT EXTENT'S, WHATEVER THE RenderScale ---
+ *
+ * ZOOM above is client pixels per FRAMEBUFFER pixel, which was one number
+ * because the framebuffer had one size. With the RenderScale key it does not:
+ * the same run can draw 256x192 or 1024x768 and the player is asking for a
+ * sharper picture in the SAME window, not for a window four times the size.
+ * So the window is sized off ntr::default_active_* -- the extent this run
+ * would have had with the key absent -- and present() scales the finished
+ * picture into it, which is what it already does on every resize.
+ *
+ * The ratio is a ratio and not an integer, and it has to be: at scale 3 the
+ * picture is 768x576 inside a 1024x768 client, which is four client pixels to
+ * three source pixels and no integer ZOOM can say that.
+ *
+ * THE DEFAULT RUN TAKES THE FIRST BRANCH AND IS THE OLD EXPRESSION TOKEN FOR
+ * TOKEN. That is the whole point of writing the equal case out rather than
+ * letting the multiply and divide cancel: `src * ZOOM` is what the three call
+ * sites did before this existed, and with the key absent it is still literally
+ * what they do.
+ */
+static int win_px(int src)
+{
+    const int a = ntr::active_h > 0 ? ntr::active_h : 1;
+    const int d = ntr::default_active_h();
+    if (d == a) return src * ZOOM;
+    return (int)((long long)src * d * ZOOM / a);
+}
+
+/* The same ratio WITHOUT the tier's ZOOM, for an image the window already
+ * shows one client pixel to one source pixel: the stacked (both-screens)
+ * presentation, which is built at the active extent and sized 1:1. With the
+ * key absent this returns its argument, so those lines do not move either. */
+static int win_px_1(int src)
+{
+    const int a = ntr::active_h > 0 ? ntr::active_h : 1;
+    const int d = ntr::default_active_h();
+    if (d == a) return src;
+    return (int)((long long)src * d / a);
+}
+
+/* The integer zoom the STYLUS FALLBACK takes before the first present has
+ * published a real rectangle (hal/sub_screen.cpp's client_to_src). Once a
+ * frame has presented, that rectangle is the mapping and this is not read at
+ * all. At the default extent it is ZOOM, exactly as it was. */
+static int stylus_fallback_zoom(void)
+{
+    const int a = ntr::active_h > 0 ? ntr::active_h : 1;
+    const int d = ntr::default_active_h();
+    if (d == a) return ZOOM;
+    const int z = d * ZOOM / a;
+    return z > 0 ? z : 1;
+}
 /* The level MeshCollider every ray in this file is cast against: the STAGE'S
    own, at Stage+0x91c, on the Stage-backed boot. RELOADRV's reverse scan named
    it as a host mirror of a world pointer; the restore re-seat re-derives it
@@ -7060,8 +7113,14 @@ static HWND host_window_open(int stacked, HDC *out_hdc, const char *title)
        grows it later, once, when the scene latches its G. */
     int stw = ntr::active_w, sth = ntr::active_h * 2;
     if (stacked) hal_sub_screen_stacked_size(&stw, &sth);
-    RECT r = stacked ? RECT{0, 0, stw, sth}
-                     : RECT{0, 0, ntr::active_w * ZOOM, ntr::active_h * ZOOM};
+    /* win_px on BOTH shapes, for the reason over its definition: the stacked
+       image is the active extent stacked, so a scaled run builds a taller one
+       and the client has to stay the size a default run's client is. At the
+       default extent win_px(x) IS x * ZOOM and the stacked arm's 1:1 is
+       win_px at ZOOM 1 on its own tier, so neither line moves with the key
+       absent. */
+    RECT r = stacked ? RECT{0, 0, win_px_1(stw), win_px_1(sth)}
+                     : RECT{0, 0, win_px(ntr::active_w), win_px(ntr::active_h)};
     W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW, FALSE);
     /* ---- WHERE IT OPENS (port mod, Tango's ask: "can it open center screen")
        CW_USEDEFAULT IS NOT A POSITION. It asks Windows for the next slot in
@@ -7447,8 +7506,12 @@ static void host_layout_follow_scene(HWND hwnd, int two_screen, const char *what
     g_present_stack_bi = 0;
     g_stack_gen = ~0u;
 
-    int cw = ntr::active_w * ZOOM, ch = ntr::active_h * ZOOM;
-    if (stacked) hal_sub_screen_stacked_size(&cw, &ch);
+    int cw = win_px(ntr::active_w), ch = win_px(ntr::active_h);
+    if (stacked) {
+        hal_sub_screen_stacked_size(&cw, &ch);
+        cw = win_px_1(cw);
+        ch = win_px_1(ch);
+    }
     if (hwnd && !g_user_sized && !g_fullscreen && W.AdjustWindowRect_ &&
         W.SetWindowPos_ && W.GetWindowLongA_) {
         RECT want = {0, 0, cw, ch};
@@ -8025,7 +8088,7 @@ static int scene_window_run(void)
     g_entry_hwnd = hwnd;
     g_entry_hdc = hdc;
 
-    const int rc = port_scene_begin(hwnd, ZOOM);
+    const int rc = port_scene_begin(hwnd, stylus_fallback_zoom());
     if (rc)
         return rc;
 
@@ -8053,8 +8116,8 @@ static int scene_window_run(void)
     int wsw = ntr::active_w, wsh = ntr::active_h * 2;
     if (stacked) hal_sub_screen_stacked_size(&wsw, &wsh);
     fprintf(stderr, "[scene] WINDOWED %dx%d, %s, %s\n",
-            stacked ? wsw : ntr::active_w * ZOOM,
-            stacked ? wsh : ntr::active_h * ZOOM,
+            stacked ? win_px_1(wsw) : win_px(ntr::active_w),
+            stacked ? win_px_1(wsh) : win_px(ntr::active_h),
             stacked ? "STACKED (both DS screens, stylus over the bottom half)"
                     : "corner inset panel",
             budget ? "frame budget set" : "runs until the window closes");
@@ -8403,7 +8466,22 @@ int main(void)
        reallocates, and at 0 every render, HUD, sub-screen and present path is
        byte-for-byte the 4:3 build. On a non-runtime tier configure_aspect is a
        no-op. */
-    ntr::configure_aspect(host_setting_aspect());
+    /* THE RenderScale KEY RIDES THE SAME CALL, because the two answer one
+       question between them -- how wide and how sharp -- and a second setter
+       would be a second chance for them to disagree about the extent. 0 is
+       the key absent and the extent is then derived exactly as it was before
+       the key existed, at every aspect; a value of 1..4 anchors the height at
+       that many host rows per DS row and derives the width from the aspect.
+       Either way the WINDOW opens at the default extent's size (win_px), so a
+       sharper picture is more pixels in the same window. */
+    ntr::configure_aspect(host_setting_aspect(), host_setting_render_scale());
+    if (ntr::render_scale())
+        fprintf(stderr, "[render] RenderScale %d: the 3D picture is %dx%d "
+                "(the default for this aspect is %dx%d) and the window opens "
+                "at %dx%d\n",
+                ntr::render_scale(), ntr::active_w, ntr::active_h,
+                ntr::default_active_w(), ntr::default_active_h(),
+                win_px(ntr::active_w), win_px(ntr::active_h));
     /* THE OTHER TWO PICTURE SETTINGS ARE LATCHED HERE FOR THE SAME REASON,
        and beside the aspect so there is one place in the program where the
        picture's shape is decided. Both default to off, both are no-ops while
@@ -9846,7 +9924,7 @@ int main(void)
     unsigned ovl_mem_kb = 0;
 
     /* the bottom screen: dual OAM, the 2D frame, and the corner panel */
-    hal_sub_screen_init(hwnd, ZOOM);
+    hal_sub_screen_init(hwnd, stylus_fallback_zoom());
     hal_sub_screen_probe();
 
     /* boot complete: everything the boot queued in the stdout buffer goes to

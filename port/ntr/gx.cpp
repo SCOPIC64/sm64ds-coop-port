@@ -1909,15 +1909,80 @@ RasterPool &pool(int threads) {
     return p;
 }
 
-/* The 3D coverage mask's storage. Declared out here rather than inside
-   gx_render because gx_coverage() below has to reach it and because the raster
-   bands are lambdas inside that function; a function-local static would work
-   and would read as a private buffer, which it is not. */
-uint8_t g_cover[SCREEN_H][SCREEN_W];
+/* ---- THE PER-PIXEL RASTER BUFFERS LIVE ON THE HEAP ------------------------
+ *
+ * Five buffers, one entry per pixel of the ALLOCATION (SCREEN_W x SCREEN_H,
+ * the largest extent the settings can ask for): the depth buffer, the 3D
+ * coverage mask, the shadow stencil, the polygon-id plane and the translucent
+ * attribute plane. Twelve bytes a pixel, and they used to be static arrays.
+ *
+ * THEY HAD TO COME OFF .bss, AND THE REASON IS AN ADDRESS AND NOT A SIZE.
+ * ntr/io.cpp reserves 02000000..02400000 at process start because that is the
+ * DS's own main RAM and the ROM's code holds pointers into it. A 32-bit image
+ * based at 0x400000 therefore has to END below 0x02000000, and the port was
+ * already using about 26 MB of that 28 MB. Growing this tier's allocation to
+ * 1368x768 for RenderScale 4 added roughly 9 MB of .bss, the image ran on to
+ * 0x02226000, and io.cpp refused the reservation and said so in plain words:
+ * "LOST 02000000..02400000 main memory ... 02000000..02226000 committed ->
+ * walk_window.exe". Every run then died at 0xC0000409 before a frame.
+ *
+ * Heap memory has no such constraint -- Windows hands these out well above the
+ * DS window, and ntr has already reserved that window by the time anything
+ * calls gx_render. So the buffers move and the IMAGE SHRINKS: 12 bytes a pixel
+ * of .bss go away, which is more than the growth from 1024x576 to 1368x768
+ * costs, and the port has more room under the ceiling than it started with.
+ *
+ * THE ROW TYPEDEFS ARE THE POINT OF THE SHAPE. `DepthRow *` indexes exactly
+ * like `float [][SCREEN_W]` does, so depth[y], depth[y][x] and
+ * memcpy(depth[y], ...) are the expressions they always were and not one use
+ * site in the raster changed. The stride is still the compile-time SCREEN_W,
+ * which is what every band and every bounds clamp already assumes.
+ *
+ * Allocated ONCE, on the first call that needs them, and never freed: they are
+ * live for as long as the program draws. calloc rather than malloc so the
+ * first frame reads zeros out of the coverage and attribute planes exactly as
+ * a .bss array gave it, and so the pages are the OS's zero pages until they
+ * are written.
+ */
+typedef float DepthRow[SCREEN_W];
+typedef uint8_t MaskRow[SCREEN_W];
+
+DepthRow *g_depth;
+MaskRow *g_cover;
+MaskRow *g_stencil;
+MaskRow *g_attrid;
+MaskRow *g_tlattr;
+
+/* True once every buffer is there. A refusal is FATAL and says so: a renderer
+   with nowhere to put a depth value cannot draw a frame, and a program that
+   carried on would fault somewhere else entirely and look like a render bug.
+   About 12.6 MB at this tier's allocation, so in practice this does not fail
+   on any machine that can open the window. */
+bool raster_buffers(void)
+{
+    if (g_depth) return true;
+    g_depth = (DepthRow *)std::calloc(SCREEN_H, sizeof(DepthRow));
+    g_cover = (MaskRow *)std::calloc(SCREEN_H, sizeof(MaskRow));
+    g_stencil = (MaskRow *)std::calloc(SCREEN_H, sizeof(MaskRow));
+    g_attrid = (MaskRow *)std::calloc(SCREEN_H, sizeof(MaskRow));
+    g_tlattr = (MaskRow *)std::calloc(SCREEN_H, sizeof(MaskRow));
+    if (g_depth && g_cover && g_stencil && g_attrid && g_tlattr) return true;
+    std::fprintf(stderr,
+                 "FATAL: the 3D renderer could not get its %d x %d buffers "
+                 "(about %.1f MB). There is not enough memory to draw.\n",
+                 SCREEN_W, SCREEN_H,
+                 (double)SCREEN_W * SCREEN_H * 12.0 / (1024.0 * 1024.0));
+    std::fflush(stderr);
+    std::exit(3);
+}
 
 }  // namespace
 
-const uint8_t *gx_coverage() { return &g_cover[0][0]; }
+const uint8_t *gx_coverage()
+{
+    raster_buffers();
+    return &g_cover[0][0];
+}
 
 void gx_render(Framebuffer &fb) {
     const int tm = frame_ms();
@@ -1927,14 +1992,38 @@ void gx_render(Framebuffer &fb) {
     texpx_report();
     mat_report();
     mtx_report(false);
-    /* Depth clear: 768KB at the window's 2x tier, every frame. 1e30f is not a
-       repeating byte pattern so memset cannot do it, but one row can be built
-       scalar and the rest copied from it, which is memcpy's problem rather
-       than a 196k-iteration scalar loop's. */
-    static float depth[SCREEN_H][SCREEN_W];
-    for (int x = 0; x < SCREEN_W; ++x) depth[0][x] = 1e30f;
-    for (int y = 1; y < SCREEN_H; ++y)
-        std::memcpy(depth[y], depth[0], SCREEN_W * sizeof(float));
+    /* ---- THE PER-FRAME CLEARS ARE OVER THE LIVE PICTURE, NOT THE BUFFER ----
+       Every buffer here is allocated at SCREEN_W x SCREEN_H, the largest
+       extent any settings combination can ask for, and the picture is
+       active_w x active_h in its top-left corner. Clearing the whole
+       allocation was clearing rows and columns nothing reads: the raster's
+       bounding box is clamped to the present rectangle, which is inside the
+       active extent, and the 2D compositor and the display capture both loop
+       to active_w / active_h. So the clear is the active rectangle and the
+       rest of the allocation is left holding last frame's numbers, which no
+       pass can reach.
+
+       IT IS A SPEED FIX AND NOT A PIXEL ONE, and it is the fix that lets the
+       allocation grow for RenderScale 4 without making the DEFAULT run
+       slower: at 512x384 in a 1368x768 allocation this is 196 KB of coverage
+       and 768 KB of depth a frame instead of 1.05 MB and 4.2 MB. Measured
+       per-frame numbers and the byte-identical BMP proof are in the lane's
+       report.
+
+       cw/ch are clamped to the allocation rather than trusted for the reason
+       every other clamp in this path exists: a wrong extent here is a write
+       past a static array. */
+    const int cw = active_w > 0 ? (active_w < SCREEN_W ? active_w : SCREEN_W) : 0;
+    const int ch = active_h > 0 ? (active_h < SCREEN_H ? active_h : SCREEN_H) : 0;
+
+    /* Depth clear. 1e30f is not a repeating byte pattern so memset cannot do
+       it, but one row can be built scalar and the rest copied from it, which
+       is memcpy's problem rather than a scalar loop's. */
+    raster_buffers();
+    DepthRow *const depth = g_depth;
+    for (int x = 0; x < cw; ++x) depth[0][x] = 1e30f;
+    for (int y = 1; y < ch; ++y)
+        std::memcpy(depth[y], depth[0], (size_t)cw * sizeof(float));
 
     /* THE 3D COVERAGE MASK, see gx_coverage() in ntr/gx.h. One byte per pixel,
        set beside every store into fb.px below and cleared here. It is what
@@ -1944,7 +2033,7 @@ void gx_render(Framebuffer &fb) {
        It is written from the raster bands, and that is safe for the reason
        the framebuffer itself is: a band owns the rows y == tid (mod nt) and
        no other band touches them. */
-    std::memset(g_cover, 0, sizeof g_cover);
+    for (int y = 0; y < ch; ++y) std::memset(g_cover[y], 0, (size_t)cw);
 
     /* --- shadow-polygon (POLYGON_ATTR mode 3) machinery -------------------
        GBATEK's two-step protocol, and the reason a per-pixel stencil bit and
@@ -1970,8 +2059,8 @@ void gx_render(Framebuffer &fb) {
        (run linkw, w4a review pinned it). The buffers clear per frame and the
        whole apparatus stays untouched -- one predictable branch -- for any
        frame that submits no mode-3 polygon. */
-    static uint8_t stencil[SCREEN_H][SCREEN_W];
-    static uint8_t attrid[SCREEN_H][SCREEN_W];
+    MaskRow *const stencil = g_stencil;
+    MaskRow *const attrid = g_attrid;
     /* The DS attribute word's OTHER half, the translucent one: bit 6 here says
        this pixel has already taken a translucent fragment THIS FRAME and bits
        0..5 are that fragment's polygon ID. The hardware refuses a translucent
@@ -1986,7 +2075,7 @@ void gx_render(Framebuffer &fb) {
        per covered pixel and comes out solid and patchy where she crosses
        herself. The flag is per frame (hardware clears it on the frame clear and
        on any opaque write), so the clear below is the whole of its lifetime. */
-    static uint8_t tlattr[SCREEN_H][SCREEN_W];
+    MaskRow *const tlattr = g_tlattr;
     bool have_shadow = false;
     bool have_translucent = false;
     for (const GxTriangle &t : g.tris) {
@@ -1994,13 +2083,17 @@ void gx_render(Framebuffer &fb) {
         if (t.translucent) have_translucent = true;
         if (have_shadow && have_translucent) break;
     }
+    /* The same active-rectangle clear as the depth and coverage buffers
+       above, and these two are already conditional on the frame submitting a
+       shadow or a translucent polygon at all. */
     if (have_shadow) {
-        std::memset(stencil, 0, sizeof stencil);
+        for (int y = 0; y < ch; ++y) std::memset(stencil[y], 0, (size_t)cw);
         /* 0 is the clear plane's polygon ID (CLEAR_COLOR bits 24-29 reset
            value); pixels no opaque polygon reaches keep it. */
-        std::memset(attrid, 0, sizeof attrid);
+        for (int y = 0; y < ch; ++y) std::memset(attrid[y], 0, (size_t)cw);
     }
-    if (have_translucent) std::memset(tlattr, 0, sizeof tlattr);
+    if (have_translucent)
+        for (int y = 0; y < ch; ++y) std::memset(tlattr[y], 0, (size_t)cw);
 
     /* SM64DS_TEX_ONLY=<hex teximage>: draw only the polygons that were
        bound to that texture, so a material can be located on screen
