@@ -182,6 +182,13 @@ static void ev_peer(const char *name, int joined)
     if (events && events->peer) events->peer(name, joined);
 }
 
+static void ev_state(const char *name, unsigned sequence, int area,
+                     int character, int x, int y, int z, int yaw)
+{
+    if (events && events->state)
+        events->state(name, sequence, area, character, x, y, z, yaw);
+}
+
 static void clean_name(const char *src, char *dst)
 {
     int i = 0;
@@ -344,6 +351,23 @@ static void handle_line(Peer *p, char *line)
             host_broadcast(msg, p);
         }
         ev_text(from, text);
+    } else if (!strncmp(line, "STATE ", 6)) {
+        char from[NAME_LEN];
+        unsigned sequence;
+        int area, character, x, y, z, yaw;
+        if (sscanf(line + 6, "%15s %u %d %d %d %d %d %d", from,
+                   &sequence, &area, &character, &x, &y, &z, &yaw) != 8)
+            return;
+        clean_name(from, from);
+        if (role_state == 1 && p->connected) {
+            /* The socket identity wins over a claimed sender name. */
+            snprintf(from, sizeof from, "%s", p->name);
+            char msg[LINE_MAX + 2];
+            snprintf(msg, sizeof msg, "STATE %s %u %d %d %d %d %d %d",
+                     from, sequence, area, character, x, y, z, yaw);
+            host_broadcast(msg, p);
+        }
+        ev_state(from, sequence, area, character, x, y, z, yaw);
     }
     /* unknown lines are ignored: forward-compat by design */
 }
@@ -521,6 +545,22 @@ void send_chat(const char *user, const char *text)
         snprintf(msg, sizeof msg, "CHAT %s %s", user, text);
         for (int i = 0; i < MAX_PEERS; ++i)
             if (peers[i].live && !peers[i].connecting)
+                peer_send(&peers[i], msg);
+    }
+}
+
+void send_state(unsigned sequence, int area, int character,
+                int x, int y, int z, int yaw)
+{
+    if (role_state == 0) return;
+    char msg[LINE_MAX + 2];
+    snprintf(msg, sizeof msg, "STATE %s %u %d %d %d %d %d %d",
+             self_name, sequence, area, character, x, y, z, yaw);
+    if (role_state == 1) {
+        host_broadcast(msg, 0);
+    } else {
+        for (int i = 0; i < MAX_PEERS; ++i)
+            if (peers[i].live && peers[i].connected && !peers[i].connecting)
                 peer_send(&peers[i], msg);
     }
 }

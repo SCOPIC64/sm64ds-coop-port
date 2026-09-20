@@ -1118,9 +1118,64 @@ static void lobby_on_text(const char *user, const char *msg)
 {
     chat_add_local(user, msg);
 }
+static void coop_remote_drop(const char *name);
 static void lobby_on_peer(const char *name, int joined)
 {
     toast("%s %s", name, joined ? "joined" : "left");
+    if (!joined) coop_remote_drop(name);
+}
+
+enum { COOP_REMOTE_MAX = 8 };
+struct CoopRemote {
+    char name[16];
+    unsigned sequence;
+    int area, character, pos[3], yaw;
+    unsigned long long seen_frame;
+    int live;
+};
+static CoopRemote g_coop_remote[COOP_REMOTE_MAX];
+
+static void coop_remote_drop(const char *name)
+{
+    for (int i = 0; i < COOP_REMOTE_MAX; ++i)
+        if (g_coop_remote[i].live &&
+            !strcmp(g_coop_remote[i].name, name)) {
+            memset(&g_coop_remote[i], 0, sizeof g_coop_remote[i]);
+            return;
+        }
+}
+
+static CoopRemote *coop_remote_for(const char *name)
+{
+    CoopRemote *free_slot = 0;
+    for (int i = 0; i < COOP_REMOTE_MAX; ++i) {
+        if (g_coop_remote[i].live &&
+            !strcmp(g_coop_remote[i].name, name))
+            return &g_coop_remote[i];
+        if (!g_coop_remote[i].live && !free_slot)
+            free_slot = &g_coop_remote[i];
+    }
+    return free_slot;
+}
+
+static void lobby_on_state(const char *name, unsigned sequence, int area,
+                           int character, int x, int y, int z, int yaw)
+{
+    CoopRemote *remote = coop_remote_for(name);
+    if (!remote || (remote->live && sequence <= remote->sequence)) return;
+    if (!remote->live) {
+        memset(remote, 0, sizeof *remote);
+        snprintf(remote->name, sizeof remote->name, "%s", name);
+        remote->live = 1;
+    }
+    remote->sequence = sequence;
+    remote->area = area;
+    remote->character = character;
+    remote->pos[0] = x;
+    remote->pos[1] = y;
+    remote->pos[2] = z;
+    remote->yaw = yaw;
+    remote->seen_frame = g_frame_no;
 }
 static sm64ds::lobby::NetEvents lobby_ev;   /* registered once at boot */
 
@@ -2232,6 +2287,7 @@ int main(void)
        a peer is actually connected, see the poll site) */
     lobby_ev.text = lobby_on_text;
     lobby_ev.peer = lobby_on_peer;
+    lobby_ev.state = lobby_on_state;
     sm64ds::lobby::set_events(&lobby_ev);
     if (const char *ln = std::getenv("SM64DS_LOBBY_NAME")) {
         strncpy(g_username, ln, sizeof g_username - 1);
@@ -5317,6 +5373,40 @@ int main(void)
         size_t tris_before = 0;
         if (selftest) ntr::gx_polygons(tris_before);
         hal_render_player_world(player);
+        /* Remote peers are visual replicas, not local simulation actors.
+           Re-seat the already-loaded native player model at each latest
+           snapshot, draw through the normal BMD path, then restore every
+           local gameplay field before the frame continues. */
+        if (g_lobby_state != 0) {
+            int saved_pos[3] = {*(int *)(c + 0x5c), *(int *)(c + 0x60),
+                                *(int *)(c + 0x64)};
+            const short saved_yaw = *(short *)(c + 0x8e);
+            const int saved_param = *(int *)(c + 8);
+            const unsigned char saved_character =
+                *(unsigned char *)(c + 0x6db);
+            for (int i = 0; i < COOP_REMOTE_MAX; ++i) {
+                CoopRemote *remote = &g_coop_remote[i];
+                if (!remote->live || remote->area != (int)data_02092120 ||
+                    g_frame_no > remote->seen_frame + 150)
+                    continue;
+                *(int *)(c + 0x5c) = remote->pos[0];
+                *(int *)(c + 0x60) = remote->pos[1];
+                *(int *)(c + 0x64) = remote->pos[2];
+                *(short *)(c + 0x8e) = (short)remote->yaw;
+                const int resource = remote->character >= 0 &&
+                                     remote->character < 4
+                                         ? remote->character : 2;
+                *(int *)(c + 8) = (saved_param & ~0xff) | resource;
+                *(unsigned char *)(c + 0x6db) = (unsigned char)resource;
+                hal_render_player_world(player);
+            }
+            *(int *)(c + 0x5c) = saved_pos[0];
+            *(int *)(c + 0x60) = saved_pos[1];
+            *(int *)(c + 0x64) = saved_pos[2];
+            *(short *)(c + 0x8e) = saved_yaw;
+            *(int *)(c + 8) = saved_param;
+            *(unsigned char *)(c + 0x6db) = saved_character;
+        }
         ph_end(PH_SUBMIT, t_phase);
         if (selftest) {
             size_t tn = 0;
@@ -5476,6 +5566,14 @@ int main(void)
         }
         sm64ds::lobby::poll();   /* host accept / line pump / reconnect */
         g_lobby_state = sm64ds::lobby::role();   /* menus mirror the transport */
+        if (game_ticked && g_lobby_state != 0) {
+            static unsigned coop_sequence;
+            sm64ds::lobby::send_state(
+                ++coop_sequence, (int)data_02092120,
+                (int)*(unsigned char *)(c + 0x6db),
+                *(int *)(c + 0x5c), *(int *)(c + 0x60),
+                *(int *)(c + 0x64), (int)*(short *)(c + 0x8e));
+        }
         {
             /* headless lobby proof: send once a peer is really connected.
                (roster fills on WELCOME/HELLO, so peer_count > 0 means the

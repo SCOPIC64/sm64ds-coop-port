@@ -13,9 +13,8 @@
 //   JOIN <name>             host tells everyone somebody arrived
 //   LEAVE <name>            somebody left (or the socket died)
 //   CHAT <sender> <text>    a chat line, relayed by the host
-//
-// The game sim is untouched: transport carries presence + chat only.
-// Gameplay state sync is a later layer on top of these sockets.
+//   STATE <sender> <sequence> <area> <character> <x> <y> <z> <yaw>
+//                           latest gameplay snapshot, relayed by the host
 //
 // Threading: none. Everything is nonblocking and pumped from poll(),
 // which the frame loop already calls every present.
@@ -34,6 +33,9 @@ struct NetEvents {
     void (*text)(const char *user, const char *msg);
     /* a peer arrived (joined=1) or left (joined=0) */
     void (*peer)(const char *name, int joined);
+    /* a remote player's newest authoritative transform arrived */
+    void (*state)(const char *name, unsigned sequence, int area,
+                  int character, int x, int y, int z, int yaw);
 };
 void set_events(const NetEvents *ev);
 
@@ -41,6 +43,8 @@ void host_start(void);              /* listen; stays playable */
 void join(const char *addr);        /* "ip", "ip:port", "localhost:port" */
 void leave(void);                   /* drop everything, back to offline */
 void send_chat(const char *user, const char *text);
+void send_state(unsigned sequence, int area, int character,
+                int x, int y, int z, int yaw);
 void poll(void);
 bool hosting(void);
 bool joined(void);
