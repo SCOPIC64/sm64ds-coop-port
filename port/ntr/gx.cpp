@@ -1530,12 +1530,15 @@ void gx_invalidate_textures() { g_vram_tex_cache.clear(); }
 
 void gx_reset() {
     ++g_resets;
-    /* MDL, the ONE line this lane adds outside its own regions of this file.
-       gx_reset is the host's own "begin a frame's command stream" (see the
-       long note below), so it is the frame boundary the smoother's counters
-       and its crack census are keyed to. It is also the flush point a
-       buffering smoother would need; this one buffers nothing, so today it
-       only counts. Costs an increment when the census is off. */
+    /* MDL. gx_reset is the host's own "begin a frame's command stream" (see
+       the long note below), so it is the frame boundary the smoother's
+       counters and its crack census are keyed to. It is also the flush point
+       a buffering smoother would need; this one buffers nothing, so today it
+       only counts. Costs an increment when the census is off.
+       This lane's other lines outside its own regions of this file are the
+       ntr/smooth.h include, and one assignment each in the COLOR (0x20),
+       NORMAL (0x21) and DIF_AMB (0x30) cases of exec(), all four listed in
+       the lane's report. */
     smooth_frame_mark();
     /* rung R3b/BSWAP: a reset ENDS the frame the pending swap was asking
        about, so it retires the request rather than letting it stand into
