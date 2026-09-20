@@ -6263,6 +6263,144 @@ static void present(void)
     hal_present_set_rect(dx, dy, dw, dh, sw, sh);
 }
 
+/* ---- THE PRESENT FILTER, MEASURED OFF SCREEN ---------------------------
+ *
+ * SM64DS_PRESENT_BENCH=<repeats> times the two StretchDIBits scalers -- the
+ * nearest one the port presents with (COLORONCOLOR) and the filtered one
+ * SM64DS_PRESENT_FILTER=halftone selects -- on the finished framebuffer, and
+ * writes one BMP of each so the two can be looked at side by side. It runs at
+ * the end of a selftest, once, and a run that does not set it does nothing.
+ *
+ * WHY IT IS OFF SCREEN AND NOT THROUGH present(). Every automated run in this
+ * project launches minimised and never activated, and a minimised window has a
+ * zero-by-zero client area, so present() returns before it blits (see its own
+ * first lines). There is no way to measure the real present path from a run
+ * that obeys the house rule. So the same GDI call is made into a MEMORY DIB of
+ * the window's own client size: the same StretchDIBits, the same stretch mode,
+ * the same source rectangle and the same destination size. What that does NOT
+ * measure is the display driver's own path to the screen, which can differ, so
+ * these numbers are the scaler's cost and not the whole present's. Said here
+ * rather than left to be discovered.
+ *
+ * THE DESTINATION IS THE WINDOW'S CLIENT SIZE, which is the default extent's
+ * size at every RenderScale (win_px above). That is the whole question this
+ * measures: at scale 4 the source is 1024x768 and the destination is 1024x768,
+ * so there is nothing to scale; at scale 3 it is 768x576 into 1024x768, an
+ * upscale; and the interesting row is a high scale presented DOWN into a
+ * smaller client, which is supersampling. Whether it looks better is Tango's
+ * call and these files are for him; this function only counts milliseconds.
+ */
+static void present_bench(const ntr::Framebuffer &fb)
+{
+    const char *e = getenv("SM64DS_PRESENT_BENCH");
+    if (!e) return;
+    int reps = atoi(e);
+    if (reps < 1) reps = 60;
+
+    /* gdi32/user32 by hand, the rule this whole port follows: a static import
+       table maps over 0x02000000 and the ROM's address space lives there. */
+    HMODULE g = LoadLibraryA("gdi32.dll");
+    HMODULE u = LoadLibraryA("user32.dll");
+    if (!g || !u) return;
+    typedef HDC(WINAPI * CreateCompatibleDC_t)(HDC);
+    typedef HBITMAP(WINAPI * CreateDIBSection_t)(HDC, const BITMAPINFO *, UINT,
+                                                 void **, HANDLE, DWORD);
+    typedef HGDIOBJ(WINAPI * SelectObject_t)(HDC, HGDIOBJ);
+    typedef BOOL(WINAPI * DeleteObject_t)(HGDIOBJ);
+    typedef BOOL(WINAPI * DeleteDC_t)(HDC);
+    typedef HDC(WINAPI * GetDC_t)(HWND);
+    typedef int(WINAPI * ReleaseDC_t)(HWND, HDC);
+    CreateCompatibleDC_t CreateCompatibleDC_ =
+        (CreateCompatibleDC_t)GetProcAddress(g, "CreateCompatibleDC");
+    CreateDIBSection_t CreateDIBSection_ =
+        (CreateDIBSection_t)GetProcAddress(g, "CreateDIBSection");
+    SelectObject_t SelectObject_ = (SelectObject_t)GetProcAddress(g, "SelectObject");
+    DeleteObject_t DeleteObject_ = (DeleteObject_t)GetProcAddress(g, "DeleteObject");
+    DeleteDC_t DeleteDC_ = (DeleteDC_t)GetProcAddress(g, "DeleteDC");
+    GetDC_t GetDC2_ = (GetDC_t)GetProcAddress(u, "GetDC");
+    ReleaseDC_t ReleaseDC_ = (ReleaseDC_t)GetProcAddress(u, "ReleaseDC");
+    if (!CreateCompatibleDC_ || !CreateDIBSection_ || !SelectObject_ ||
+        !DeleteObject_ || !DeleteDC_ || !GetDC2_ || !ReleaseDC_ ||
+        !W.StretchDIBits_ || !W.SetStretchBltMode_)
+        return;
+
+    const int sw = ntr::active_w, sh = ntr::active_h;
+    const int dw = win_px(sw), dh = win_px(sh);
+    if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) return;
+
+    HDC screen = GetDC2_(0);
+    HDC mem = CreateCompatibleDC_(screen);
+    if (!mem) { if (screen) ReleaseDC_(0, screen); return; }
+    BITMAPINFO dbi;
+    memset(&dbi, 0, sizeof dbi);
+    dbi.bmiHeader.biSize = sizeof dbi.bmiHeader;
+    dbi.bmiHeader.biWidth = dw;
+    dbi.bmiHeader.biHeight = -dh;          /* top-down, like the source */
+    dbi.bmiHeader.biPlanes = 1;
+    dbi.bmiHeader.biBitCount = 32;
+    dbi.bmiHeader.biCompression = BI_RGB;
+    void *dbits = 0;
+    HBITMAP dib = CreateDIBSection_(mem, &dbi, DIB_RGB_COLORS, &dbits, 0, 0);
+    if (!dib || !dbits) {
+        DeleteDC_(mem);
+        ReleaseDC_(0, screen);
+        return;
+    }
+    SelectObject_(mem, dib);
+
+    /* the source header: the framebuffer's own STRIDE for the width and the
+       source rectangle's own height, which is exactly the pair present()
+       hands StretchDIBits. Built here rather than copied off the window's
+       g_bi because that one is set up when a window opens and this runs on a
+       path that may never have opened one. */
+    BITMAPINFO sbi;
+    memset(&sbi, 0, sizeof sbi);
+    sbi.bmiHeader.biSize = sizeof sbi.bmiHeader;
+    sbi.bmiHeader.biWidth = ntr::SCREEN_W;
+    sbi.bmiHeader.biHeight = -sh;
+    sbi.bmiHeader.biPlanes = 1;
+    sbi.bmiHeader.biBitCount = 32;
+    sbi.bmiHeader.biCompression = BI_RGB;
+    const uint32_t *src = &fb.px[0][0];
+
+    struct Arm { const char *name; int mode; const char *path; };
+    const Arm arms[2] = {
+        {"COLORONCOLOR", PRESENT_STRETCH_COLORONCOLOR,
+         "walk_window_present_coloroncolor.bmp"},
+        {"HALFTONE", PRESENT_STRETCH_HALFTONE,
+         "walk_window_present_halftone.bmp"},
+    };
+    for (int a = 0; a < 2; ++a) {
+        W.SetStretchBltMode_(mem, arms[a].mode);
+        if (arms[a].mode == PRESENT_STRETCH_HALFTONE && W.SetBrushOrgEx_)
+            W.SetBrushOrgEx_(mem, 0, 0, 0);
+        /* one warm blit first, so the measured ones are not paying for the
+           driver's first touch of a fresh DIB */
+        W.StretchDIBits_(mem, 0, 0, dw, dh, 0, 0, sw, sh, src, &sbi,
+                         DIB_RGB_COLORS, SRCCOPY);
+        LARGE_INTEGER freq, t0, t1;
+        QueryPerformanceFrequency(&freq);
+        QueryPerformanceCounter(&t0);
+        for (int i = 0; i < reps; ++i)
+            W.StretchDIBits_(mem, 0, 0, dw, dh, 0, 0, sw, sh, src, &sbi,
+                             DIB_RGB_COLORS, SRCCOPY);
+        QueryPerformanceCounter(&t1);
+        const double ms = freq.QuadPart
+                              ? (double)(t1.QuadPart - t0.QuadPart) * 1000.0 /
+                                    (double)freq.QuadPart / reps
+                              : 0.0;
+        const bool wrote =
+            ntr::ppu_write_bmp_px(arms[a].path, (const uint32_t *)dbits, dw, dh);
+        fprintf(stderr, "[present-bench] %-12s %dx%d -> %dx%d  %.3f ms per "
+                "blit over %d  %s\n", arms[a].name, sw, sh, dw, dh, ms, reps,
+                wrote ? arms[a].path : "(BMP not written)");
+    }
+    fflush(stderr);
+    DeleteObject_(dib);
+    DeleteDC_(mem);
+    ReleaseDC_(0, screen);
+}
+
 /* ---- FULLSCREEN (port mod) --------------------------------------------
    F12, borderless, and never a mode change. Exclusive fullscreen would mean
    asking the display for a resolution, which can fail, can leave the desktop
@@ -15222,6 +15360,12 @@ int main(void)
             fprintf(stderr, "[layout] dsstate=%p..%p\n",
                     (void *)&dsstate_lo, (void *)&dsstate_hi);
             ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+            /* SM64DS_PRESENT_BENCH: the two StretchDIBits scalers timed on
+               this very frame and written out as two BMPs. Nothing at all
+               without the variable, so every existing selftest is unchanged.
+               After the dump, so the picture it measures is the picture the
+               dump carries. */
+            present_bench(fb);
             /* the other half of the boot's [heap] line: what the run itself
                spent out of the ROM's 0x3b000.
 

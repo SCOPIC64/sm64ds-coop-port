@@ -793,8 +793,37 @@ void ppu_display_capture(const uint32_t *src, int w, int h) {
     if (off + need > kBankSize) return;      // would run off the end of the bank
 
     /* NEAREST, not averaged; see the note in ntr/ppu.h. The ratio is a whole
-       number at every tier the port builds. */
+       number at every 4:3 extent the port can be configured at, because
+       configure_aspect anchors a scaled height on a whole multiple of 192 and
+       the native-sentinel width on the same multiple of 256. */
     const int rx = w / SUB_W, ry = h / SUB_H;
+
+    /* THE FIRST CAPTURE SAYS WHAT IT IS, once, on stderr. This unit is the
+       whole basis of the four dual-screen minigames -- the game READS the
+       picture it writes -- and it is also the one place the render extent
+       reaches a buffer the GAME consumes rather than a buffer the player
+       looks at. So a run that performs a capture states the extent it
+       sampled and the whole-number ratio it sampled at, which is what turns
+       "the capture is still exact at RenderScale 4" from an argument into a
+       line in a log. One line per process, on the success path only: the two
+       refusals above already have theirs. */
+    {
+        static int said;
+        if (!said) {
+            said = 1;
+            std::fprintf(stderr,
+                         "  [capture] DISPCAPCNT %08x: %dx%d from the live "
+                         "%dx%d picture (stride %d) into block %u at +%05x, "
+                         "nearest at %d x %d per DS pixel%s\n",
+                         cap, cw, ch, w, h, SCREEN_W, block, off, rx, ry,
+                         (rx * SUB_W == w && ry * SUB_H == h)
+                             ? " (an exact whole-number downsample)"
+                             : " (the extent is not a whole DS multiple; the "
+                               "sample walks, as it does on every odd aspect "
+                               "this port already shipped)");
+            std::fflush(stderr);
+        }
+    }
     uint16_t *dst = reinterpret_cast<uint16_t *>(lcdc_addr(block) + off);
     for (int y = 0; y < ch; ++y) {
         const int sy = ry > 0 ? y * ry : (y * h) / SUB_H;
