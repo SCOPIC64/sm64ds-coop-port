@@ -4220,6 +4220,11 @@ StackLayout stack_layout(int gap_ds, int head_ds, int obj_shift_ds,
        stacked image, pan_x0 0) or 1024x576 (scale 3, width 1024, pan_x0 128). */
     l.scale = active_h / SUB_H;
     l.w = active_w;
+    /* THE PANEL BOX FIRST, because the regions are sized from it. See the
+       note on pan_x0 / pan_w / pan_h in ntr/ppu.h. */
+    l.pan_w = SUB_W * l.scale;
+    l.pan_h = SUB_H * l.scale;
+    l.pan_x0 = (active_w - l.pan_w) / 2;
     l.head_h = head_ds * l.scale;
     /* EVERY BAND SHIFTS TOGETHER, which is the whole reason the headroom is a
        field of this struct rather than a second arithmetic somewhere: the
@@ -4227,10 +4232,10 @@ StackLayout stack_layout(int gap_ds, int head_ds, int obj_shift_ds,
        mappers read top_y / band_y / bottom_y and none of them recomputes them.
        With head_h zero all four are exactly what they were. */
     l.top_y = l.head_h;
-    l.band_y = l.head_h + active_h;
+    l.band_y = l.head_h + l.pan_h;
     l.band_h = gap_ds * l.scale;
     l.bottom_y = l.band_y + l.band_h;
-    l.h = l.head_h + active_h * 2 + l.band_h;
+    l.h = l.head_h + l.pan_h * 2 + l.band_h;
     l.fill_mode = fill_mode == GAP_FILL_SOLID   ? GAP_FILL_SOLID
                   : fill_mode == GAP_FILL_CUSTOM ? GAP_FILL_CUSTOM
                                                  : GAP_FILL_AMBIENT;
@@ -4277,8 +4282,6 @@ StackLayout stack_layout(int gap_ds, int head_ds, int obj_shift_ds,
        0 -- the panel fills the width exactly as it did before this field, and the
        compose's wide branch (gated on pan_x0 > 0) never fires. The first tier
        where they differ is NTR_WIDE169: scale 3, pan_w 768, pan_x0 128. */
-    l.pan_w = SUB_W * l.scale;
-    l.pan_x0 = (active_w - l.pan_w) / 2;
     return l;
 }
 
@@ -4502,7 +4505,7 @@ void ppu_compose_stacked(const uint32_t *top, const SubFramebuffer &sub,
         const int ry = active_h / SUB_H;   /* uniform scale, both axes */
 
         /* Engine A verbatim and full width, exactly as the square path does it. */
-        for (int y = 0; y < active_h; ++y)
+        for (int y = 0; y < lay.pan_h; ++y)
             std::memcpy(dst + (size_t)(a_y + y) * dst_w,
                         top + (size_t)y * SCREEN_W, (size_t)active_w * 4);
 
@@ -4514,7 +4517,7 @@ void ppu_compose_stacked(const uint32_t *top, const SubFramebuffer &sub,
            identity left to mask against. evy/to_white stay live below for the
            gap band's own seam/straddle fade, a host UI element and not part
            of the DS raster. */
-        for (int y = 0; y < active_h; ++y) {
+        for (int y = 0; y < lay.pan_h; ++y) {
             const int sy = y / ry;
             const uint32_t *src = sub.px[sy < SUB_H ? sy : SUB_H - 1];
             uint32_t *out = dst + (size_t)(b_y + y) * dst_w;
