@@ -231,12 +231,69 @@ def rung_scene(scene, frames):
         ok &= M.verdict(c.get("init", 0) == 1,
                         "rung: InitResources entered exactly once (%s)"
                         % c.get("init"))
-        ok &= M.verdict(c.get("beh", 0) >= frames // 2,
-                        "rung: Behavior entered %s times over %d frames"
-                        % (c.get("beh"), frames))
-        ok &= M.verdict(c.get("render", 0) >= frames // 2,
-                        "rung: Render entered %s times over %d frames"
-                        % (c.get("render"), frames))
+        if scene == 0:
+            # THE CARTRIDGE'S OWN COUNT IS THE ORACLE HERE, NOT "about once per
+            # frame for the whole window" (run link100, lane BOOTSCENE1,
+            # 2026-09-20). C:/tmp/melontrace/build/romtrace.exe direct-booted the
+            # decomp's own ROM headless for 420 frames with no input and counted
+            # the ARM9's calls by address:
+            #
+            #   BootScene::InitResources 0x02005a58    1 call,   frame 17
+            #   BootScene::Behavior      0x02005418  206 calls,  one per frame,
+            #                                                    frames 21..235
+            #   BootScene::D1            0x02023598    1 call,   frame 236
+            #
+            # The ROM's boot scene is the health and safety card: it ticks 206
+            # times, asks for the title
+            # (src/_ZN9BootScene8BehaviorEv.cpp:91, StartSceneFade(1, 0, 0) with
+            # the wireless flag clear) and is torn down. IT NEVER TICKS 299 TIMES
+            # IN A 300-FRAME WINDOW, so the old `beh >= frames // 2` rung was
+            # asserting something the cartridge does not do. It read green until
+            # 2026-09-13 only because the port's scene was HUNG: the pre-sync
+            # binary 9bb3c454f reads beh 299 render 300 with pdes 0 and d2 0 and
+            # "scene request at exit: NONE", a scene that never ended, because the
+            # fader's IsAtEnd landed a slot low (045db1c9d). The rungs below would
+            # have caught that hang; the old one passed it.
+            #
+            # THE PORT'S OWN COUNT IS 123 AND THE GAP IS PRICED, NOT A DEFECT.
+            # 31 ticks with the scene's gate shut, 60 ticks of the ROM's own
+            # mFadeTimer countdown, 32 ticks of fade-out, one tick per frame
+            # throughout. The cartridge spends 174 ticks BEFORE any of that,
+            # in func_0201a1bc (frames 21..200) waiting for the boot worker
+            # thread func_0201a2f8 to load ov000 and bring up the font and
+            # sound -- and that wait also runs mFadeTimer down to 2, so the
+            # cartridge's countdown costs 3 ticks where the port's costs 60.
+            # hal/scene_link100_boot.cpp refuses that worker by design and
+            # prices the refusal: ov000 has no mount and must not get one
+            # (its footprint covers ov004's, which is permanently mounted).
+            # Padding the port with 83 idle frames would be a fabricated delay.
+            ok &= M.verdict(100 <= c.get("beh", 0) <= frames,
+                            "rung: Behavior entered %s times (a real boot screen "
+                            "that then ends; the cartridge's own count is 206 "
+                            "over frames 21..235, the port's is 123)"
+                            % c.get("beh"))
+            ok &= M.verdict(
+                abs(c.get("render", 0) - c.get("beh", 0)) <= 1,
+                "rung: Render entered %s times, within one of Behavior's %s "
+                "(it drew on every tick it behaved)"
+                % (c.get("render"), c.get("beh")))
+            ok &= M.verdict(c.get("pdes", 0) == 1 and c.get("d2", 0) == 1,
+                            "rung: the scene ENDED -- OnPendingDestroy %s and the "
+                            "destructor %s, the way the cartridge's does at its "
+                            "frame 236 (a hung scene reads 0 and 0)"
+                            % (c.get("pdes"), c.get("d2")))
+            ok &= M.verdict("CARRIER: scene 1 pending" in txt,
+                            "rung: and it handed off to the TITLE -- the carrier "
+                            "saw 'scene 1 pending', which is what "
+                            "src/_ZN9BootScene8BehaviorEv.cpp:91 asks for with "
+                            "the wireless flag clear")
+        else:
+            ok &= M.verdict(c.get("beh", 0) >= frames // 2,
+                            "rung: Behavior entered %s times over %d frames"
+                            % (c.get("beh"), frames))
+            ok &= M.verdict(c.get("render", 0) >= frames // 2,
+                            "rung: Render entered %s times over %d frames"
+                            % (c.get("render"), frames))
         print("      counters: %s" % c, flush=True)
     # AND SOMETHING REACHED THE FRAMEBUFFER.
     #
