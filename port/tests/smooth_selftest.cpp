@@ -1,4 +1,4 @@
-// Standalone selftest for the PN-triangle smoothing kernel (ntr/smooth_core_MDL).
+// Standalone selftest for the PN-triangle smoothing kernel (ntr/smooth).
 //
 // It needs no CMake target, no build lock, no ROM and no window: compile it
 // with the two source files named in out/MDL/smooth_selftest_MDL.cmd and run
@@ -27,7 +27,7 @@
 //   (new) policy decisions                   -> POLICY
 //   (new) degenerate input                   -> DEGENERATE
 
-#include "ntr/smooth_core_MDL.h"
+#include "ntr/smooth.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -438,7 +438,7 @@ static void test_uvcolor() {
 }
 
 int main() {
-    printf("smooth_selftest (ntr/smooth_core_MDL) -- PN triangles, "
+    printf("smooth_selftest (ntr/smooth) -- PN triangles, "
            "MAX_LEVEL=%d, MAX_TF=%d\n", (int)ntr::SMOOTH_MAX_LEVEL,
            (int)ntr::SMOOTH_MAX_TF);
     printf("test         verdict measurement\n");

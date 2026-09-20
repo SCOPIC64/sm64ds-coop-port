@@ -7,7 +7,7 @@
 #include "ntr/gx.h"
 
 #include "ntr/mmio.h"
-#include "ntr/smooth_core_MDL.h"
+#include "ntr/smooth.h"
 #include "ntr/texture.h"
 
 #include <chrono>
