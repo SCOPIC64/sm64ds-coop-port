@@ -29,6 +29,22 @@ struct GxVertex {
     float x, y, z, w;      // x/y in pixels, z in [0,1] after divide
     float u, v;            // texel coordinates (DS TEXCOORD is 1.4 fixed point)
     uint32_t color;        // 0xAARRGGBB
+
+    // --- appended for the model smoother; see ntr/smooth.h ------------------
+    // THE VIEW-SPACE VERTEX, carried alongside the clip-space one above.
+    // "View space" here is after the DS POSITION matrix and before the
+    // projection. It is the last space in which a curved patch can be built
+    // linearly: the perspective divide and the near clip both come after it,
+    // and subdividing past either of them bends straight edges by the near
+    // plane's distance. vw is the fourth component the position matrix
+    // produced -- 1 for every affine matrix the game loads, and the smoother
+    // refuses a triangle where it is not.
+    float vx, vy, vz, vw;
+    // The NORMAL command's own vector after the VECTOR matrix (which is the
+    // position matrix without translation, so it lands in the same space as
+    // the position above), unit length. (0,0,0) when the polygon carried no
+    // NORMAL, which is how an unlit polygon says it has no surface to curve.
+    float nx, ny, nz;
 };
 
 // The bound texture travels with the triangle. Material state is set by the

@@ -7,6 +7,7 @@
 #include "ntr/gx.h"
 
 #include "ntr/mmio.h"
+#include "ntr/smooth_core_MDL.h"
 #include "ntr/texture.h"
 
 #include <chrono>
@@ -97,6 +98,23 @@ struct State {
     int16_t vx = 0, vy = 0, vz = 0;
     std::vector<GxVertex> strip;   // vertices accumulated in the current primitive
     int strip_parity = 0;
+
+    /* THE LATCHED VERTEX NORMAL, for the model smoother (ntr/smooth.h).
+       NORMAL (0x21) is a latch on hardware exactly like TEXCOORD is: it holds
+       until the next one, and a vertex submitted without a fresh NORMAL is
+       lit with the last one. So this is kept the same way, in the same space
+       the lighting used it in -- after the VECTOR matrix, normalised.
+
+       normal_live is the part that is not just a mirror. It says the CURRENT
+       vertex colour came from lighting a real surface normal, and it is
+       cleared by the two commands that take the colour from somewhere else:
+       COLOR (0x20) and a DIF_AMB with bit 15 set. Both mean "this polygon is
+       not being lit", and a polygon that is not being lit -- a particle
+       billboard, a fog quad, the HUD's own 3D geometry -- has no surface for
+       a curved patch to follow. Without this, such a polygon would inherit
+       whatever normal the last lit model happened to leave behind. */
+    float nrm[3] = {0, 0, 0};
+    int normal_live = 0;
 
     /* THE PRESENT RECTANGLE, not the whole extent: a scene presented at the
        native 4:3 field draws into the centred sub-rectangle and leaves the
@@ -302,9 +320,27 @@ int stargeo_on() {
     return g_stargeo.on;
 }
 
+/* VIEW SPACE -> CLIP SPACE, factored out of project() and out of nothing
+   else. The model smoother (ntr/smooth.h) projects the vertices it invents
+   through THIS function rather than through a copy of these six lines, so a
+   subdivided vertex cannot drift away from the corner it came from: the
+   projection matrix, the widescreen widen and its perspective test are one
+   piece of code with one caller each. Byte-identical to what project() did
+   inline before, same expression, same order. */
+Vec4 view_to_clip(const Vec4 &view) {
+    Vec4 c = mul(view, g.proj);
+    if (g.proj.m[3] != 0.0f || g.proj.m[7] != 0.0f || g.proj.m[11] != 0.0f) {
+        const float widen =
+            (4.0f / 3.0f) * ((float)present_h() / (float)present_w());
+        c.x *= widen;
+    }
+    return c;
+}
+
 GxVertex project(int16_t x, int16_t y, int16_t z) {
     const Vec4 v{x * FX12, y * FX12, z * FX12, 1.0f};
-    Vec4 c = mul(mul(v, current_pos()), g.proj);
+    const Vec4 view = mul(v, current_pos());
+    Vec4 c = view_to_clip(view);
 
     /* WIDESCREEN 3D FIELD (16:9 Hor+). The ROM builds its projection with a
        4:3 aspect (G3i::PerspectiveW_ divides the x scale by 0x1555). Presented
@@ -319,17 +355,16 @@ GxVertex project(int16_t x, int16_t y, int16_t z) {
        untouched here. clip.x scales by native/target = (4/3) / (active_w/
        active_h): 0.75 at 16:9, and EXACTLY 1.0 at any 4:3 aspect, so with the
        runtime toggle off (active 512x384) this multiply is the identity and the
-       4:3 field is byte-for-byte the old one -- no #ifdef needed. */
-    if (g.proj.m[3] != 0.0f || g.proj.m[7] != 0.0f || g.proj.m[11] != 0.0f) {
-        /* OFF THE PRESENT RECTANGLE, which is the active extent on every run
-           that widens and the centred 256:192 sub-rectangle on a scene
-           presented natively. 256:192 is 4:3 exactly, so on that path this
-           factor is EXACTLY 1.0 and the field is the cartridge's own -- the
-           same way it is already exactly 1.0 at any 4:3 aspect. */
-        const float widen =
-            (4.0f / 3.0f) * ((float)present_h() / (float)present_w());
-        c.x *= widen;
-    }
+       4:3 field is byte-for-byte the old one -- no #ifdef needed.
+
+       OFF THE PRESENT RECTANGLE, which is the active extent on every run that
+       widens and the centred 256:192 sub-rectangle on a scene presented
+       natively. 256:192 is 4:3 exactly, so on that path this factor is
+       EXACTLY 1.0 and the field is the cartridge's own -- the same way it is
+       already exactly 1.0 at any 4:3 aspect.
+
+       The multiply itself now lives in view_to_clip() just above, because the
+       smoother has to apply the same one to the vertices it invents. */
 
     if (stargeo_on()) {
         StarGeo &G = g_stargeo;
@@ -394,6 +429,14 @@ GxVertex project(int16_t x, int16_t y, int16_t z) {
     out.u = g.u;
     out.v = g.v;
     out.color = g.color;
+    /* MDL: the view-space half, for the smoother. Written on every path so
+       the struct is fully determined -- smoke_gx memcmps whole GxTriangles
+       between the two submit paths and an unwritten field would make that
+       comparison a coin toss. */
+    out.vx = view.x; out.vy = view.y; out.vz = view.z; out.vw = view.w;
+    out.nx = g.normal_live ? g.nrm[0] : 0.0f;
+    out.ny = g.normal_live ? g.nrm[1] : 0.0f;
+    out.nz = g.normal_live ? g.nrm[2] : 0.0f;
     return out;
 }
 
@@ -417,6 +460,18 @@ GxVertex clip_lerp(const GxVertex &a, const GxVertex &b, float t) {
     o.w = a.w + (b.w - a.w) * t;
     o.u = a.u + (b.u - a.u) * t;
     o.v = a.v + (b.v - a.v) * t;
+    /* MDL: the appended view-space fields are interpolated too. They have to
+       be written on this path as well -- see the note in project() about the
+       whole struct being determined -- and linear interpolation is right:
+       clipping is a linear operation in the space above, and the near-plane
+       intersection of the view-space edge is the same point. */
+    o.vx = a.vx + (b.vx - a.vx) * t;
+    o.vy = a.vy + (b.vy - a.vy) * t;
+    o.vz = a.vz + (b.vz - a.vz) * t;
+    o.vw = a.vw + (b.vw - a.vw) * t;
+    o.nx = a.nx + (b.nx - a.nx) * t;
+    o.ny = a.ny + (b.ny - a.ny) * t;
+    o.nz = a.nz + (b.nz - a.nz) * t;
     uint32_t ca = a.color, cb = b.color, c = 0;
     for (int s = 0; s < 32; s += 8) {
         const float ch = ((ca >> s) & 0xFF) +
@@ -451,6 +506,11 @@ void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
         t.mode == 3);
     t.dbg_tex = g_teximage;
     g.tris.push_back(t);
+    /* MDL: what actually reached the polygon list. Paired with
+       SMOOTH_COUNT_IN in emit_tri, this is the submitted-versus-emitted row
+       of the measurement table, and the two move together on every triangle
+       the smoother declined. */
+    smooth_count(SMOOTH_COUNT_OUT, 1);
 }
 
 // Does the active projection put a near plane in front of the camera? It
@@ -471,7 +531,7 @@ float near_dist(const GxVertex &v, bool persp) {
     return persp ? v.z + v.w : v.w - NEAR_EPS;
 }
 
-void emit_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
+void emit_tri_near(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
     // Sutherland-Hodgman against the near plane.
     //
     // THE DISTANCE IS z + w, NOT w. Clipping a perspective triangle at
@@ -510,6 +570,124 @@ void emit_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
         push_screen_tri(s0, prev, cur);
         prev = cur;
     }
+}
+
+/* ===========================================================================
+   MODEL SMOOTHING (the "SmoothModels" setting; ntr/smooth.h has the kernel
+   and the whole argument). It sits HERE, between the assembler and the near
+   clip, for three reasons:
+
+   WHY BEFORE THE CLIP. A curved patch is only meaningful in a linear space.
+   After the near clip a triangle may be a quad, and after the perspective
+   divide straight edges are no longer straight in the coordinates being
+   interpolated. So the input is the view-space vertex project() carried down
+   here, the new vertices are projected by project()'s own view_to_clip(), and
+   every one of them then goes through the SAME near clip, the same
+   to_screen() and the same push_screen_tri() as an ordinary triangle. The
+   clip therefore never sees anything it has not always seen.
+
+   WHY NOTHING IS BUFFERED. The normals are the model's own, out of the
+   display list's NORMAL commands, so a patch depends only on the three
+   corners in front of it. Nothing has to be held back to the end of a model
+   to be welded, which means the triangles reach the polygon list in exactly
+   the submission order the game chose -- the order translucent sorting and
+   the mode-3 shadow stencil protocol both depend on -- and each one is
+   stamped with the state that was live when the GAME submitted it, because
+   that state is still live. There is no flush point to get wrong.
+
+   WHAT THE GAME SEES. Nothing. tris_in below is the count the game
+   assembled; every game-visible counter in this file (the command census,
+   the stream hash, the matrix-stack levels GXSTAT publishes, the MTX_STORE
+   count) is fed from the command stream, which is untouched. The port
+   enforces no polygon-RAM or vertex-RAM limit anywhere -- grep 2048 and 6144
+   in this file -- so there is no limit for a smoothed list to overrun.
+   =========================================================================== */
+
+/* The sub-triangle sink: project the invented vertices and send them down the
+   ordinary path. */
+void smooth_sink(void *, const SmoothVertex &a, const SmoothVertex &b,
+                 const SmoothVertex &c);
+
+int smooth_try(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
+    const SmoothPolicy &pol = smooth_policy();
+
+    /* A mode-3 polygon is a shadow volume. Its stencil protocol compares the
+       mask pass against the draw pass PIXEL FOR PIXEL, so both have to be the
+       same geometry; a curved shadow volume would not close. */
+    if (((g.poly_attr >> 4) & 3) == 3) {
+        smooth_count(SMOOTH_COUNT_MODE3, 1);
+        return 0;
+    }
+    /* A constant-w projection is an ortho one: the HUD's own 3D geometry and
+       every 2D framing trick in the port. No view volume, no surface. */
+    if (g.proj.m[3] == 0.0f && g.proj.m[7] == 0.0f && g.proj.m[11] == 0.0f) {
+        smooth_count(SMOOTH_COUNT_ORTHO, 1);
+        return 0;
+    }
+    /* A non-affine position matrix would make the view-space positions below
+       projective, and a patch built in projective coordinates is not the
+       patch anyone meant. No matrix the game loads is like this; the guard is
+       here so that stays a measured fact rather than an assumption. */
+    if (a.vw != 1.0f || b.vw != 1.0f || c.vw != 1.0f) {
+        smooth_count(SMOOTH_COUNT_W, 1);
+        return 0;
+    }
+
+    SmoothVertex s[3];
+    const GxVertex *in[3] = {&a, &b, &c};
+    for (int i = 0; i < 3; ++i) {
+        s[i].x = in[i]->vx; s[i].y = in[i]->vy; s[i].z = in[i]->vz;
+        s[i].nx = in[i]->nx; s[i].ny = in[i]->ny; s[i].nz = in[i]->nz;
+        s[i].u = in[i]->u; s[i].v = in[i]->v;
+        s[i].color = in[i]->color;
+    }
+    if (smooth_census_on()) smooth_census_tri(s[0], s[1], s[2]);
+
+    /* Say WHY, so the measurement table can separate "the feature did nothing
+       because the scene is flat" from "the caps are too tight". */
+    int why = SMOOTH_WHY_OK;
+    const int tf = smooth_tess_factor(s[0], s[1], s[2], pol, &why);
+    if (tf <= 1) {
+        switch (why) {
+            case SMOOTH_WHY_NO_NORMAL: smooth_count(SMOOTH_COUNT_NO_NORMAL, 1); break;
+            case SMOOTH_WHY_FLAT:      smooth_count(SMOOTH_COUNT_FLAT, 1); break;
+            case SMOOTH_WHY_EDGE:      smooth_count(SMOOTH_COUNT_EDGE, 1); break;
+            case SMOOTH_WHY_RADIUS:    smooth_count(SMOOTH_COUNT_RADIUS, 1); break;
+            default: break;
+        }
+        return 0;
+    }
+
+    smooth_count(SMOOTH_COUNT_SUBDIVIDED, 1);
+    smooth_subdivide(s[0], s[1], s[2], tf, smooth_sink, 0);
+    return 1;
+}
+
+void emit_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
+    smooth_count(SMOOTH_COUNT_IN, 1);
+    /* OFF IS ONE COMPARE. smooth_level() is a load of a file-scope int that
+       walk_window sets once at boot; with the setting absent it is 0 and this
+       function is the same call it always was. */
+    if (smooth_level() > 0 && smooth_try(a, b, c)) return;
+    emit_tri_near(a, b, c);
+}
+
+void smooth_sink(void *, const SmoothVertex &a, const SmoothVertex &b,
+                 const SmoothVertex &c) {
+    GxVertex out[3];
+    const SmoothVertex *in[3] = {&a, &b, &c};
+    for (int i = 0; i < 3; ++i) {
+        const Vec4 view{in[i]->x, in[i]->y, in[i]->z, 1.0f};
+        const Vec4 clip = view_to_clip(view);
+        GxVertex &o = out[i];
+        o.x = clip.x; o.y = clip.y; o.z = clip.z; o.w = clip.w;
+        o.u = in[i]->u; o.v = in[i]->v; o.color = in[i]->color;
+        o.vx = view.x; o.vy = view.y; o.vz = view.z; o.vw = view.w;
+        o.nx = in[i]->nx; o.ny = in[i]->ny; o.nz = in[i]->nz;
+    }
+    /* Straight to the near clip: a sub-triangle must never re-enter
+       smooth_try, and this is where that is enforced. */
+    emit_tri_near(out[0], out[1], out[2]);
 }
 
 // Assemble according to the active BEGIN_VTXS primitive type.
@@ -760,7 +938,10 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             else { g.pos = mul(m, g.pos); if (g.mode == MTX_POSVEC) g.vec = mul(m, g.vec); }
             break;
         }
-        case 0x20: g.color = bgr555_to_argb(static_cast<uint16_t>(p[0] & 0x7FFF)); break;
+        case 0x20:                                               // COLOR
+            g.color = bgr555_to_argb(static_cast<uint16_t>(p[0] & 0x7FFF));
+            g.normal_live = 0;   /* MDL: colour set by hand, not by lighting */
+            break;
         case 0x21: {                                             // NORMAL
             if (mat_log()) mat_note_normal(g.poly_attr);
             // 3 x 10-bit signed, 1.9 fixed point.
@@ -788,6 +969,12 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             nx = len > 1e-6f ? tx / len : 0;
             ny = len > 1e-6f ? ty / len : 0;
             nz = len > 1e-6f ? tz / len : 1;
+
+            /* MDL: latch it for the smoother. Same value, same space, same
+               moment the hardware uses it: nothing below this line reads
+               these two fields, so lighting is bit-for-bit what it was. */
+            g.nrm[0] = nx; g.nrm[1] = ny; g.nrm[2] = nz;
+            g.normal_live = 1;
 
             /* WHICH LIGHTS ARE ON IS THE POLYGON'S OWN BUSINESS. GBATEK puts
                the four light-enable flags in POLYGON_ATTR bits 0-3, so the
@@ -895,6 +1082,7 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
                 auto ch = [](float f) { return static_cast<uint32_t>(f * 255.0f + 0.5f); };
                 g.color = 0xFF000000u | (ch(g.diffuse[0]) << 16)
                           | (ch(g.diffuse[1]) << 8) | ch(g.diffuse[2]);
+                g.normal_live = 0;   /* MDL: colour set by hand, as case 0x20 */
             }
             break;
         }
@@ -1335,6 +1523,13 @@ void gx_invalidate_textures() { g_vram_tex_cache.clear(); }
 
 void gx_reset() {
     ++g_resets;
+    /* MDL, the ONE line this lane adds outside its own regions of this file.
+       gx_reset is the host's own "begin a frame's command stream" (see the
+       long note below), so it is the frame boundary the smoother's counters
+       and its crack census are keyed to. It is also the flush point a
+       buffering smoother would need; this one buffers nothing, so today it
+       only counts. Costs an increment when the census is off. */
+    smooth_frame_mark();
     /* rung R3b/BSWAP: a reset ENDS the frame the pending swap was asking
        about, so it retires the request rather than letting it stand into
        the next frame. This is the path a scene body's own SWAP_BUFFERS
