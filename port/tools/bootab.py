@@ -2,6 +2,25 @@
 usage: python bootab.py <walk_window.exe> <outdir> [frames] [budget_s]
        [levels=2,4,5 | scenes=4,5 | levels=all | scenes=all] [idle=1] [aspect=<ratio>]
        [smooth=<0..3>]
+       [workers=<n>]
+workers=<n> (run link100, lane SWEEPPAR1) runs up to n rows at a time instead of one
+after another. Default 1 is this tool's whole history, byte for byte: nobody who does
+not name workers= (or export SM64DS_SWEEP_WORKERS, an equivalent default) sees any
+difference at all -- same one exe, same one directory, same output. n>1 gives each
+worker its OWN COPY of the exe in its own scratch directory under this script's own
+tree's tmp/sweep-workers/ (never under the tree the exe under test lives in, which can
+be someone else's read-only build), because crash.txt/exit.txt/startup_error.txt are
+EXE-RELATIVE, not cwd-relative, and two rows sharing a folder would have the second
+faulting row overwrite the first's report -- battery.py's level_workers/worker_dirs
+design (see the comment above run link100 lane SLOT's code in battery.py), reused
+here rather than invented fresh. Rows are submitted and reported in the SAME ORDER a
+serial run would visit them regardless of which one finishes first, so the sweep.tsv
+and the SUMMARY line are identical in shape and order to a workers=1 run of the same
+filter, just faster. The ceiling is derived from the box's own CPU count and capped
+well under it, since this box runs many other lanes at once; see the WORKER WIDTH
+comment further down for the measured number. Every arm below grades PASS/FAIL from
+a return code and the log text, never from a rate or a wall-clock time, so none of
+them needed to be forced back to serial width.
 The SM64DS_TEST_LOCK* variables are passed through (every other inherited SM64DS_* is dropped),
 so exporting SM64DS_TEST_LOCK=1 SM64DS_TEST_LOCK_PATH=C:/tmp/sm64ds-test-slot/slot.lock
 SM64DS_TEST_LOCK_TIMEOUT=10800 before running makes every row take the machine-wide test slot.
@@ -87,7 +106,8 @@ is still a finding: its position barely moves under the held-forward walk while
 record 0's travels. Scene rows are untouched by the arm, and a sweep that does
 not name it is byte-identical to one from before the arm existed.
 """
-import os, sys, time, shutil, subprocess
+import os, sys, time, shutil, subprocess, queue, threading, signal
+from concurrent.futures import ThreadPoolExecutor
 EXE = os.path.abspath(sys.argv[1]); OUT = os.path.abspath(sys.argv[2])
 FRAMES = sys.argv[3] if len(sys.argv) > 3 else "600"
 BUDGET = int(sys.argv[4]) if len(sys.argv) > 4 else 90
@@ -118,10 +138,37 @@ for a in sys.argv[5:]:
 ENTRANCE = ""
 for a in sys.argv[5:]:
     if a.startswith("entrance="): ENTRANCE = a[9:]
+
+# WORKER WIDTH (run link100, lane SWEEPPAR1). Default 1 is today's behaviour,
+# byte for byte: no workers= argument and no SM64DS_SWEEP_WORKERS in the
+# environment runs the exact old serial loop below, one exe, no copies, no
+# new directories. Set either one to run rows N at a time. The ceiling is not
+# battery.py's fixed MAX_LEVEL_WORKERS=8 -- this box runs however many other
+# orchestration lanes, fixers and builds alongside one sweep, not just this
+# tool alone -- so it is derived from the box's own CPU count and then kept
+# well under it. Measured on this box (2026-09-20): os.cpu_count() = 12
+# (PowerShell Get-CimInstance Win32_Processor: 6 physical cores, 12 logical
+# with hyperthreading). cpu_count // 3 leaves two-thirds of the logical count
+# free for everything else sharing the machine tonight; on this box that is
+# 4, which is also the width every PROOF in the commit was measured at. The
+# min(8, ...) keeps it from ever exceeding battery.py's own proven width on a
+# bigger box.
+def _workers_env_default():
+    v = os.environ.get("SM64DS_SWEEP_WORKERS", "")
+    try:
+        return int(str(v).strip())
+    except ValueError:
+        return 1
+MAX_SWEEP_WORKERS = max(1, min(8, (os.cpu_count() or 12) // 3))
+WORKERS = _workers_env_default()
+for a in sys.argv[5:]:
+    if a.startswith("workers="): WORKERS = int(a[8:])
+WORKERS = max(1, min(WORKERS, MAX_SWEEP_WORKERS))
+
 # the row filter is positional but the flags are not, so a run that passes only a
 # flag must not have that flag read as a filter (it would then match no prefix and
 # sweep everything by accident)
-if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=", "exit=", "entrance=", "smooth=")): FILTER = ""
+if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=", "exit=", "entrance=", "smooth=", "workers=")): FILTER = ""
 if FILTER.startswith("levels="):
     sel = FILTER[7:]; SCENES = ()
     if sel != "all": LEVELS = tuple(i for i in LEVELS if str(i) in sel.split(","))
@@ -187,16 +234,110 @@ def entrance_counts(root):
 
 ENTCOUNT = entrance_counts(ROOT) if ENTRANCE == "all" else {}
 ART = ("crash.txt", "exit.txt")
-def clear():
+
+# THE PROCESS TABLE. Every child this script starts is tracked here for its
+# whole lifetime, so a Ctrl-C (or any other reason to stop early) kills only
+# what THIS process spawned, never a game window someone else started (a
+# walk_window.exe this script did not launch is not this script's to touch).
+_proc_lock = threading.Lock()
+_active_procs = set()
+
+def _run_proc(cmd, cwd, env, timeout):
+    """subprocess.Popen + communicate, tracked, same shape subprocess.run gave
+    the caller before: (rc, combined stdout+stderr), rc == "TIMEOUT" on a
+    timeout with whatever output had already been produced, exactly as
+    subprocess.run's own TimeoutExpired handling captured it."""
+    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, text=True, errors="replace",
+                         creationflags=NOCON, startupinfo=SI)
+    with _proc_lock:
+        _active_procs.add(p)
+    try:
+        try:
+            out, err = p.communicate(timeout=timeout)
+            return p.returncode, (out or "") + (err or "")
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, err = p.communicate()
+            return "TIMEOUT", (out or "") + (err or "")
+    finally:
+        with _proc_lock:
+            _active_procs.discard(p)
+
+_orig_sigint = signal.getsignal(signal.SIGINT)
+def _sigint_handler(signum, frame):
+    # kill only the children THIS process spawned, then fall through to the
+    # normal Ctrl-C behaviour (KeyboardInterrupt) so the run still stops.
+    with _proc_lock:
+        procs = list(_active_procs)
+    for p in procs:
+        try: p.kill()
+        except OSError: pass
+    if callable(_orig_sigint):
+        _orig_sigint(signum, frame)
+    else:
+        raise KeyboardInterrupt
+signal.signal(signal.SIGINT, _sigint_handler)
+
+# WORKER DIRECTORIES (run link100, lane SWEEPPAR1). Reuses battery.py's
+# worker_dirs() design -- one private directory per worker, each holding its
+# own copy of the exe, because crash.txt/exit.txt/startup_error.txt are
+# EXE-RELATIVE (port/hal/instance_tag.h), not cwd-relative, so two rows
+# sharing one folder would have the second faulting row overwrite the
+# first's report -- but NOT battery.py's code, because battery.py copies
+# into ROOT/build/battery-workers, and ROOT here is derived from the EXE
+# under test (dirname of dirname of EXEDIR), which for this lane's own test
+# binary is the READ-ONLY C:/tmp/sm64ds-playable: nothing may ever be
+# written there. The scratch directory instead lives under THIS SCRIPT'S own
+# tree (SELFROOT, three dirname()s up from bootab.py itself -- port/tools ->
+# port -> the worktree root), so it always lands under whichever worktree is
+# running the sweep, never under the tree that owns the exe being tested.
+SELFROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+WORKER_BASE = os.path.join(SELFROOT, "tmp", "sweep-workers")
+
+def make_worker_dirs(n, src_exe):
+    """Return n directories, each with its own copy of src_exe. n<=1 returns
+    [EXEDIR] and copies nothing, so the single-worker path touches no new
+    files at all (same guarantee as battery.py's worker_dirs)."""
+    if n <= 1:
+        return [EXEDIR]
+    dirs = []
+    for i in range(n):
+        d = os.path.join(WORKER_BASE, "w%d" % i)
+        os.makedirs(d, exist_ok=True)
+        dst = os.path.join(d, os.path.basename(src_exe))
+        if (not os.path.exists(dst)
+                or os.path.getmtime(dst) < os.path.getmtime(src_exe)
+                or os.path.getsize(dst) != os.path.getsize(src_exe)):
+            shutil.copy2(src_exe, dst)
+        # a stale crash.txt/exit.txt beside a worker reads as THIS run's,
+        # exactly the "stale artifact looks fresh" trap battery.py's
+        # worker_dirs guards against the same way.
+        for name in ART + ("startup_error.txt",):
+            p = os.path.join(d, name)
+            if os.path.exists(p):
+                try: os.remove(p)
+                except OSError: pass
+        dirs.append(d)
+    return dirs
+
+def clear(wdir):
     for a in ART:
-        p = os.path.join(EXEDIR, a)
+        p = os.path.join(wdir, a)
         if os.path.exists(p):
             try: os.remove(p)
             except OSError: pass
-def run(kind, ident, label, ent=None):
-    clear()
+def run(kind, ident, label, ent=None, wdir=None):
+    if wdir is None: wdir = EXEDIR
+    clear(wdir)
     env = dict(base_env)
     env[kind] = str(ident)
+    if wdir != EXEDIR:
+        # the two names the port itself suffixes (startup_error.txt,
+        # savestate.bin) and the window title, so a worker's own artifacts
+        # never collide with another worker's -- battery.py's SM64DS_INSTANCE
+        # convention, reused as-is.
+        env["SM64DS_INSTANCE"] = os.path.basename(wdir)
     if ent is not None:
         # the PENDING entrance; Stage's own latch copies it to the current one
         # and level_boot passes that to LoadClsnAndObjects as the record index
@@ -268,14 +409,9 @@ def run(kind, ident, label, ent=None):
     # to one from before this argument existed, and naming it is the only way
     # to reach the model smoother from here.
     if SMOOTH: env["SM64DS_SMOOTH_MODELS"] = SMOOTH
-    t0 = time.time(); out = ""; rc = "TIMEOUT"
-    try:
-        p = subprocess.run([EXE], cwd=EXEDIR, env=env, capture_output=True, text=True,
-                           errors="replace", timeout=BUDGET, creationflags=NOCON, startupinfo=SI)
-        rc = p.returncode; out = (p.stdout or "") + (p.stderr or "")
-    except subprocess.TimeoutExpired as e:
-        def s(v): return "" if v is None else (v if isinstance(v, str) else v.decode("utf-8", "replace"))
-        out = s(e.stdout) + s(e.stderr)
+    exe_path = os.path.join(wdir, os.path.basename(EXE))
+    t0 = time.time()
+    rc, out = _run_proc([exe_path], wdir, env, BUDGET)
     dt = time.time() - t0
     ok = rc == 0
     note = ""
@@ -318,7 +454,7 @@ def run(kind, ident, label, ent=None):
                                           "" if ent is None else "_e%d" % ent))
         os.makedirs(d, exist_ok=True)
         for a in ART:
-            p = os.path.join(EXEDIR, a)
+            p = os.path.join(wdir, a)
             if os.path.exists(p): shutil.copy2(p, d)
         with open(os.path.join(d, "stdout.txt"), "w", encoding="utf-8", errors="replace") as f: f.write(out)
         # one-line fault summary from the play log
@@ -326,8 +462,23 @@ def run(kind, ident, label, ent=None):
             if line.startswith("FAULT") or "UNHOSTED" in line or "WRONG BYTES" in line:
                 note += " | " + line.strip()[:160]; break
     return ok, rc, round(dt, 1), note
+
 rows = []
+def emit(label, i, ent, verdict, rc, dt, note):
+    # ONE PLACE both the serial and the N-wide path print/record a finished
+    # row, so the two cannot drift and the tsv/SUMMARY are identical in
+    # shape whichever path ran them.
+    if ENTRANCE:
+        rows.append((label, i, "" if ent is None else ent, verdict, rc, dt, note))
+        line = ("%-5s %-3d %-4s %-4s rc=%-12s %6.1fs %s"
+                % (label, i, "" if ent is None else "e%d" % ent, verdict, rc, dt, note))
+    else:
+        rows.append((label, i, verdict, rc, dt, note))
+        line = "%-5s %-3d %-4s rc=%-12s %6.1fs %s" % (label, i, verdict, rc, dt, note)
+    print(line, flush=True)
+
 plan = [("SM64DS_LEVEL", LEVELS, "level"), ("SM64DS_SCENE", SCENES, "scene")]
+jobs = []  # (kind, id, label, entrance) in the exact order the serial loop below would visit them
 for kind, ids, label in plan:
     for i in ids:
         if ENTRANCE and kind == "SM64DS_LEVEL":
@@ -335,17 +486,39 @@ for kind, ids, label in plan:
         else:
             recs = [None]
         for ent in recs:
-            ok, rc, dt, note = run(kind, i, label, ent)
-            verdict = "PASS" if ok else "FAIL"
-            if ENTRANCE:
-                rows.append((label, i, "" if ent is None else ent, verdict, rc, dt, note))
-            else:
-                rows.append((label, i, verdict, rc, dt, note))
-            print("%-5s %-3d %-4s %-4s rc=%-12s %6.1fs %s"
-                  % (label, i, "" if ent is None else "e%d" % ent, verdict, rc, dt, note)
-                  if ENTRANCE else
-                  "%-5s %-3d %-4s rc=%-12s %6.1fs %s" % (label, i, verdict, rc, dt, note),
-                  flush=True)
+            jobs.append((kind, i, label, ent))
+
+if WORKERS <= 1:
+    # UNCHANGED FROM BEFORE THIS LANE: one exe, one directory (EXEDIR, via
+    # run()'s wdir=None default), rows run and printed one after another.
+    for kind, i, label, ent in jobs:
+        ok, rc, dt, note = run(kind, i, label, ent)
+        emit(label, i, ent, "PASS" if ok else "FAIL", rc, dt, note)
+else:
+    # N ROWS AT A TIME (run link100, lane SWEEPPAR1), battery.py's own
+    # design reused: a private directory per worker, checked OUT of a queue
+    # for a row's whole lifetime and handed back when it finishes (never
+    # indexed by i % workers -- see make_worker_dirs' docstring and
+    # battery.py's level_row for why that matters), submitted in row order
+    # and REPORTED in row order regardless of which one finishes first, so
+    # the tsv and SUMMARY read exactly like a serial run, only faster.
+    wdirs = make_worker_dirs(WORKERS, EXE)
+    print("sweep: %d rows at a time, each in its own directory under %s"
+          % (WORKERS, WORKER_BASE), flush=True)
+    free_dirs = queue.Queue()
+    for d in wdirs: free_dirs.put(d)
+    def _job(kind, i, label, ent):
+        d = free_dirs.get()
+        try:
+            return run(kind, i, label, ent, wdir=d)
+        finally:
+            free_dirs.put(d)
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        futs = [pool.submit(_job, kind, i, label, ent) for (kind, i, label, ent) in jobs]
+        for (kind, i, label, ent), f in zip(jobs, futs):
+            ok, rc, dt, note = f.result()
+            emit(label, i, ent, "PASS" if ok else "FAIL", rc, dt, note)
+
 with open(os.path.join(OUT, "sweep.tsv"), "w") as f:
     f.write("kind\tid\tentrance\tverdict\trc\tseconds\tnote\n" if ENTRANCE
             else "kind\tid\tverdict\trc\tseconds\tnote\n")
