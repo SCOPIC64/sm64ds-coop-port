@@ -1713,33 +1713,48 @@ static void front_draw(ntr::Framebuffer &fb)
             front_row(fb, 162, "Rename", front_sel == 4);
             front_row(fb, 176, "Back", front_sel == 5);
         } else if (front_page == FRONT_LOBBY) {
-            char st[64];
+            char st[64], code[16] = {0};
+            const int hosting = sm64ds::lobby::role() == 1;
+            if (hosting) sm64ds::lobby::host_code(code, sizeof code);
             sm64ds::lobby::status_text(st, sizeof st);
+            int ly = 104;
             snprintf(line, sizeof line, "Status: %s", st);
-            front_row(fb, 104, line, false);
-            if (sm64ds::lobby::role() == 1)
-                front_row(fb, 120, "Stop hosting", front_sel == 0);
+            front_row(fb, ly, line, false);
+            if (code[0]) {
+                ly += 16;
+                snprintf(line, sizeof line, "Code: %s", code);
+                front_row(fb, ly, line, false);
+            }
+            ly += 16;
+            if (hosting)
+                front_row(fb, ly, "Stop hosting", front_sel == 0);
             else
-                front_row(fb, 120, "Host co-op (local)", front_sel == 0);
+                front_row(fb, ly, "Host co-op (local)", front_sel == 0);
+            ly += 14;
             if (sm64ds::lobby::role() == 2)
-                front_row(fb, 134, "Disconnect", front_sel == 1);
+                front_row(fb, ly, "Disconnect", front_sel == 1);
             else
-                front_row(fb, 134, "Join a lobby", front_sel == 1);
+                front_row(fb, ly, "Join a lobby", front_sel == 1);
+            ly += 14;
             snprintf(line, sizeof line, "Host IP: %s",
                      g_lobby_ip[0] ? g_lobby_ip : "(blank)");
-            front_row(fb, 148, line, front_sel == 2);
+            front_row(fb, ly, line, front_sel == 2);
+            ly += 14;
             snprintf(line, sizeof line, "Name: %s", g_username);
-            front_row(fb, 162, line, front_sel == 3);
-            front_row(fb, 176, "Back", front_sel == 4);
+            front_row(fb, ly, line, front_sel == 3);
+            ly += 14;
+            front_row(fb, ly, "Back", front_sel == 4);
             /* roster: you first, then whoever the transport knows about --
                plain info lines, not selectable */
+            ly += 16;
             snprintf(line, sizeof line, "* %s (you)", g_username);
-            ovl_text(fb, 26, 192, line, UI_DIM);
+            ovl_text(fb, 26, ly, line, UI_DIM);
             for (int i = 0, n = sm64ds::lobby::peer_count();
-                 i < n && i < 4; ++i) {
+                 i < n && i < (code[0] ? 3 : 4); ++i) {
+                ly += 14;
                 snprintf(line, sizeof line, "  %s",
                          sm64ds::lobby::peer_name(i));
-                ovl_text(fb, 26, 206 + i * 14, line, UI_DIM);
+                ovl_text(fb, 26, ly, line, UI_DIM);
             }
         } else if (front_page == FRONT_CHARACTER) {
             /* CoopDX-style select: every character, what it does best,
@@ -3187,9 +3202,19 @@ int main(void)
                         sm64ds::lobby::leave();
                         sm64ds::lobby::set_name(g_username);
                         sm64ds::lobby::host_start();
-                        if (sm64ds::lobby::hosting())
+                        if (sm64ds::lobby::hosting()) {
+                            char code[16];
                             toast("Hosting as %s", g_username);
-                        else
+                            if (sm64ds::lobby::host_code(code,
+                                                         sizeof code)) {
+                                char cmsg[96];
+                                snprintf(cmsg, sizeof cmsg,
+                                         "lobby code %s (friends type it "
+                                         "into Host IP)",
+                                         code);
+                                chat_add_local("Lobby", cmsg);
+                            }
+                        } else
                             toast("Host failed (port busy?)");
                     } else if (front_sel == 1) {
                         front_page = FRONT_LOBBY;
@@ -3367,9 +3392,19 @@ int main(void)
                             sm64ds::lobby::set_name(g_username);
                             front_on = 0;
                             sm64ds::lobby::host_start();
-                            if (sm64ds::lobby::hosting())
+                            if (sm64ds::lobby::hosting()) {
+                                char code[16];
                                 toast("Hosting as %s", g_username);
-                            else
+                                if (sm64ds::lobby::host_code(code,
+                                                             sizeof code)) {
+                                    char cmsg[96];
+                                    snprintf(cmsg, sizeof cmsg,
+                                             "lobby code %s (friends type "
+                                             "it into Host IP)",
+                                             code);
+                                    chat_add_local("Lobby", cmsg);
+                                }
+                            } else
                                 toast("Host failed (port busy?)");
                         }
                     } else if (front_sel == 1) {
@@ -3377,14 +3412,22 @@ int main(void)
                             sm64ds::lobby::leave();
                             toast("Disconnected");
                         } else if (!g_lobby_ip[0]) {
-                            toast("Enter a host IP first");
+                            toast("Enter a host IP or code first");
                         } else {
+                            /* the box takes a code ("XXXX-XXXX-XX") or a
+                               plain address; codes decode to ip:port */
+                            char target[128];
+                            if (!sm64ds::lobby::decode_code(g_lobby_ip,
+                                                            target,
+                                                            sizeof target))
+                                snprintf(target, sizeof target, "%s",
+                                         g_lobby_ip);
                             sm64ds::lobby::leave();
                             sm64ds::lobby::set_name(g_username);
                             front_on = 0;
-                            sm64ds::lobby::join(g_lobby_ip);
+                            sm64ds::lobby::join(target);
                             if (sm64ds::lobby::joined())
-                                toast("Joining %s...", g_lobby_ip);
+                                toast("Joining %s...", target);
                             else
                                 toast("Join failed");
                         }

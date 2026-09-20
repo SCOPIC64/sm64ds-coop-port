@@ -48,6 +48,13 @@ bool joined(void);
 int role(void);
 /* human status for the LOBBY page, e.g. "Hosting :21330 (2)" */
 void status_text(char *out, int cap);
+/* lobby code: a typable short form of the host's LAN address + port.
+   host_code writes e.g. "7F3K-9D2M-QA" while hosting, "" otherwise;
+   decode_code turns a code (dashes/spaces/case ignored) back into
+   "ip:port" for join(). A friend on the same network types the code
+   instead of an address. */
+int host_code(char *out, int cap);
+int decode_code(const char *in, char *addr_out, int addr_cap);
 /* connected peer names (host + joiners, not self) */
 int peer_count(void);
 const char *peer_name(int i);

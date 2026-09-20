@@ -28,9 +28,15 @@ HOW TO PLAY
 
 The game opens on a CoopDX-style menu: HOST enters the castle grounds
 while hosting a lobby, JOIN opens the lobby page (host locally, or join
-a friend by typing their address into the blank Host IP box), OPTIONS
-holds controls, name and mods, QUIT leaves. Everything is remembered
-between sessions.
+a friend with their lobby code), OPTIONS holds controls, name and mods,
+QUIT leaves. Everything is remembered between sessions.
+
+TO PLAY WITH A FRIEND ON THE SAME NETWORK: the host presses HOST (or
+LOBBY, then Host co-op) and reads the lobby code from the LOBBY page or
+the chat box -- it looks like XXXX-XXXX-XX. The friend opens LOBBY,
+types the code into the Host IP box (a plain IP address works too) and
+presses Join a lobby. The host's port is 21330; over the internet the
+host additionally needs that port reachable (port forward).
 
 TIP: the grounds are big and quiet. Pick a character and a color in MODS,
 hop in the moat (mash jump to swim), walk up to a sign, face it and punch
@@ -149,9 +155,10 @@ You spawn on the castle grounds as the selected character (Mario, Luigi,
 Wario or Yoshi) in your name and outfit. You can walk, run, jump, punch,
 crouch, swim and talk around them, with sound, and the DS bottom screen is
 drawn as a small corner panel over the main view. Chat with T; lobbies
-carry presence plus chat (host on port 21330, join by IP address -- the
-box ships blank, nothing is hardcoded). Peers do not share the world
-yet: no remote players, just names and chat.
+carry presence plus chat (host on port 21330, join with the host's
+lobby code or a plain IP address -- both boxes ship blank, nothing is
+hardcoded). Peers do not share the world yet: no remote players, just
+names and chat.
 
 This is a port in progress rather than a finished game. Castle doors stay
 locked (their interiors are not loaded), sign text auto-advances (the DS

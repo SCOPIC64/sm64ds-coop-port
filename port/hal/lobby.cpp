@@ -45,7 +45,9 @@ struct NetAddrInfo {
 enum {
     NET_AF_INET = 2,
     NET_SOCK_STREAM = 1,
+    NET_SOCK_DGRAM = 2,
     NET_TCP = 6,
+    NET_UDP = 17,
     NET_SOL_SOCKET = 0xffff,
     NET_SO_ERROR = 0x1007,
     NET_FIONBIO = 0x8004667e,
@@ -73,6 +75,7 @@ struct NetApi {
                                  NetAddrInfo **);
     void (__stdcall *freeaddrinfo)(NetAddrInfo *);
     int (__stdcall *getsockopt)(NetSocket, int, int, char *, int *);
+    int (__stdcall *getsockname)(NetSocket, void *, int *);
     int (__stdcall *geterror)(void);
 };
 static NetApi N;
@@ -112,6 +115,7 @@ static int net_load(void)
     NETSYM(getaddrinfo, "getaddrinfo");
     NETSYM(freeaddrinfo, "freeaddrinfo");
     NETSYM(getsockopt, "getsockopt");
+    NETSYM(getsockname, "getsockname");
     NETSYM(geterror, "WSAGetLastError");
 #undef NETSYM
     /* WSAStartup(2.2): version word 0x0202, high byte major */
@@ -380,6 +384,122 @@ static void peer_pump(Peer *p)
 
 }  // namespace
 
+/* ---- lobby codes ----------------------------------------------------------
+   A code is the host's LAN IPv4 + port as 48 bits, Crockford base32,
+   shown XXXX-XXXX-XX. Same-network friends type it instead of an
+   address; decode turns it back into "ip:port" for join(). */
+
+static const char kB32[] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/* Crockford base32: "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+   (no I/L/O/U). Values: 0-9 -> 0-9, A-H -> 10-17, J/K -> 18/19,
+   M -> 20, N/P -> 21/22, Q-T -> 23-26, V-Z -> 27-31.
+   Decode also forgives I/L -> 1 and O -> 0. */
+static int b32_val(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    switch (c) {
+    case 'A': case 'a': return 10;
+    case 'B': case 'b': return 11;
+    case 'C': case 'c': return 12;
+    case 'D': case 'd': return 13;
+    case 'E': case 'e': return 14;
+    case 'F': case 'f': return 15;
+    case 'G': case 'g': return 16;
+    case 'H': case 'h': return 17;
+    case 'I': case 'i': case 'L': case 'l': return 1;
+    case 'J': case 'j': return 18;
+    case 'K': case 'k': return 19;
+    case 'M': case 'm': return 20;
+    case 'N': case 'n': return 21;
+    case 'O': case 'o': return 0;
+    case 'P': case 'p': return 22;
+    case 'Q': case 'q': return 23;
+    case 'R': case 'r': return 24;
+    case 'S': case 's': return 25;
+    case 'T': case 't': return 26;
+    case 'V': case 'v': return 27;
+    case 'W': case 'w': return 28;
+    case 'X': case 'x': return 29;
+    case 'Y': case 'y': return 30;
+    case 'Z': case 'z': return 31;
+    default: return -1;
+    }
+}
+
+/* the LAN address a joiner would dial: UDP "connect" to TEST-NET-1
+   (192.0.2.1, never a real host) sends no packets, it only asks the
+   stack which interface would carry it. */
+static int local_ip(unsigned *out)
+{
+    if (!net_load()) return 0;
+    NetSocket s = N.socket(NET_AF_INET, NET_SOCK_DGRAM, NET_UDP);
+    if (s == NET_INVALID) return 0;
+    NetAddr dst;
+    memset(&dst, 0, sizeof dst);
+    dst.family = NET_AF_INET;
+    dst.port = net_htons(80);
+    dst.ip = (unsigned)(192 | (0 << 8) | (2 << 16) | (1 << 24));
+    N.connect(s, &dst, sizeof dst);
+    NetAddr mine;
+    memset(&mine, 0, sizeof mine);
+    int len = sizeof mine;
+    int ok = N.getsockname(s, &mine, &len) == 0 && mine.ip != 0 &&
+             mine.ip != 0x0100007fu; /* never loopback: useless to a friend */
+    N.closesocket(s);
+    if (!ok) return 0;
+    /* s_addr is network order: octet i sits at byte i in memory */
+    unsigned v = mine.ip;
+    unsigned o0 = v & 0xff, o1 = (v >> 8) & 0xff;
+    unsigned o2 = (v >> 16) & 0xff, o3 = (v >> 24) & 0xff;
+    *out = (o0 << 24) | (o1 << 16) | (o2 << 8) | o3;
+    return 1;
+}
+
+int host_code(char *out, int cap)
+{
+    if (role_state != 1) {
+        if (cap > 0) out[0] = 0;
+        return 0;
+    }
+    unsigned ip;
+    if (!local_ip(&ip)) {
+        if (cap > 0) out[0] = 0;
+        return 0;
+    }
+    unsigned long long v =
+        ((unsigned long long)ip << 16) | (unsigned)default_port();
+    v <<= 2; /* 48 bits -> 50, ten 5-bit chars */
+    char raw[11];
+    for (int i = 0; i < 10; ++i)
+        raw[i] = kB32[(v >> (45 - 5 * i)) & 31];
+    raw[10] = 0;
+    snprintf(out, cap, "%.4s-%.4s-%.2s", raw, raw + 4, raw + 8);
+    return 1;
+}
+
+int decode_code(const char *in, char *addr_out, int addr_cap)
+{
+    char clean[11];
+    int n = 0;
+    if (in)
+        for (; *in && n < 10; ++in) {
+            if (*in == '-' || *in == ' ' || *in == '\t') continue;
+            if (b32_val(*in) < 0) return 0;
+            clean[n++] = *in;
+        }
+    if (n != 10) return 0;
+    unsigned long long v = 0;
+    for (int i = 0; i < 10; ++i) v = (v << 5) | (unsigned)b32_val(clean[i]);
+    v >>= 2;
+    unsigned ip = (unsigned)((v >> 16) & 0xffffffffu);
+    unsigned port = (unsigned)(v & 0xffffu);
+    if (!port) return 0;
+    snprintf(addr_out, addr_cap, "%u.%u.%u.%u:%u", (ip >> 24) & 0xff,
+             (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff, port);
+    return 1;
+}
+
 /* ---- public API ----------------------------------------------------------- */
 
 int default_port(void) { return 21330; }
@@ -417,6 +537,12 @@ void host_start(void)
     listen_sock = s;
     role_state = 1;
     std::printf("[net] hosting on :%d as %s\n", default_port(), self_name);
+    {
+        char code[16];
+        if (host_code(code, sizeof code))
+            std::printf("[net] lobby code: %s (friends type it as Host IP)\n",
+                        code);
+    }
 }
 
 void join(const char *addr)
@@ -425,6 +551,13 @@ void join(const char *addr)
     int port = default_port();
     if (role_state != 0) leave();
     if (!net_load()) return;
+    /* the box takes a lobby code ("XXXX-XXXX-XX") or a plain address:
+       codes decode to ip:port here so every caller (UI, env, Lua) shares
+       the funnel. A decoded address is never a code, so this is safe. */
+    {
+        char decoded[128];
+        if (decode_code(addr, decoded, sizeof decoded)) addr = decoded;
+    }
     if (addr) {
         /* "host", "host:port" -- split on the last colon when the tail
            is numeric, else the whole thing is the host. No defaults

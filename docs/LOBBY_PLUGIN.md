@@ -24,6 +24,13 @@ every frame, and incoming chat lands in the same box local typing uses
 (via a no-rebroadcast path, so relayed lines never echo-storm). No menu,
 game-tick, or render changes were needed.
 
+Lobby codes: `host_code` encodes the host's LAN IPv4 + port as 48 bits
+of Crockford base32 (`XXXX-XXXX-XX`); `decode_code` turns it back into
+`ip:port` inside `join()`, so the box (and any future caller) accepts a
+code or an address interchangeably. The LAN address comes from a
+no-traffic UDP route lookup against TEST-NET-1, never from a hardcoded
+or public-IP service; loopback is refused as useless to a friend.
+
 ## Suggested shape (when you build it)
 
 - Host: `host_start` binds a socket, `poll` accepts peers and steps them.
