@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": 4,
+  "name": "Waluigi",
+  "gameplayProfile": "wario",
+  "assetFormat": "sm64ds-native",
+  "assets": {
+    "body": "assets/waluigi_model.bmd",
+    "headCap": "assets/waluigi_head_cap.bmd",
+    "headNoCap": "assets/waluigi_head_nocap.bmd"
+  },
+  "source": {
+    "project": "sm64coopdx",
+    "character": "waluigi",
+    "redistribution": "local-import-only"
+  },
+  "fallback": null
+}
