@@ -1,0 +1,413 @@
+# SLICE FOLD2 -- run link100, lane FOLD2, batch 1: the ov006 minigame rows.
+#
+# Nine host copies in port/unmatched whose stated reason was the MSVC
+# DESTRUCTOR FOLD and nothing else. Lane SLOT5F respelled the ROM's D1/D0 pair
+# as two plain virtuals under _MSC_VER in include/ModelBase.h and its five
+# siblings, so every host model-family table is ROM-numbered again:
+#
+#   _ZTV5Model           0x0208e90c  [3] 0x02016c98 Model::UpdateVerts
+#                                    [4] 0x02016bb8 Model::Virtual10
+#                                    [5] 0x02016b78 Model::Render
+#   _ZTV9ModelAnim       0x0208e980  [3] 0x0201686c ModelAnim::UpdateVerts
+#                                    [4] 0x0201682c ModelAnim::Virtual10
+#                                    [5] 0x020167f8 ModelAnim::Render
+#   _ZTV10ModelAnim2     0x0208e9b4  [3][4][5] the same three words
+#   _ZTV14BlendModelAnim 0x0208e94c  [3] 0x02016578 BlendModelAnim::UpdateVerts
+#                                    [4] 0x02016518 BlendModelAnim::Virtual10
+#                                    [5] 0x020164e4 BlendModelAnim::Render
+#
+# read out of config/arm9/relocs.txt at each table's own address, and every
+# destination resolved in config/arm9/symbols.txt. That is the ROM word behind
+# every row below: each matched source models a model-family member with a
+# LOCAL shadow class counted in ROM/Itanium numbering and dispatches index 5
+# (Render) or index 3 (UpdateVerts). The folded host table put Virtual18 on
+# index 5 and Virtual10 on index 3; it does not now, so the shadow reaches the
+# body its source means and the host copies have nothing left to work around.
+#
+# hal/cxxname_bridge.cpp fills those tables at the ROM index (its own comment
+# says so at hal_fill_model_vtable and hal_fill_modelanim2_vtable, and the dual
+# fill of _ZTV5Model[5] is gone), and hal/model_dtor_seat.cpp seats the ROM's
+# deleting half at slot 1 of all three model-family tables.
+#
+# NO FACE IS ADDED FOR ANY ROW IN THIS BATCH. All nine ROM bodies are
+# address-named ov006 functions that their matched sources define at C linkage
+# under exactly the name their callers use, so nothing bridges anything.
+#
+# Every row: the ROM referrer, then the matched TU's own function record and
+# the first three words of its ARM body read out of
+# extracted/overlays/overlay_0006.bin at base 0x020bfec0. None of the nine
+# carries the "recovered from vtable slot identity" guess marker, so
+# inferred_stub_guard.py has nothing to refuse.
+
+# 1. src/_ZN17dMg3DEspAnimSet_c6RenderEv.cpp -- dScMg3DEsp_c, the THREE-ModelAnim draw at
+#    the sub-object's +0x84 (an array of three at stride 0x64, established from
+#    the constructor at src/_ZN17dMg3DEspAnimSet_cC1Ev.cpp, which runs ModelAnim's C1/D1
+#    through __cxa_vec_ctor). RETIRES port/unmatched/
+#    Mg3DEsp_ModelAnimRender_020e777c.cpp (whole file). Its only delta was the
+#    shadow's `m(zero)` spelled as ((ModelAnim *)r5)->Render(0).
+#    REFERRER: an arm_call from its own sibling --
+#    from:0x020e7bd8 kind:arm_call to:0x020e777c (_ZN15dMg3DEspModel_c6RenderEv + 0x94).
+#    RECORD: _ZN17dMg3DEspAnimSet_c6RenderEv kind:function(arm,size=0x9c) addr:0x020e777c,
+#    body e92d41f0 e1a07000 e59f0088.
+src/_ZN17dMg3DEspAnimSet_c6RenderEv.cpp
+
+# 2. src/_ZN15dMg3DEspModel_c6RenderEv.cpp -- the same class's render half, on the plain
+#    ModelAnim at the sub-object's +0xc (constructor src/_ZN15dMg3DEspModel_cC1Ev.cpp
+#    runs _ZN9ModelAnimC1Ev there). RETIRES port/unmatched/
+#    Mg3DEsp_ModelAnimRender_020e7b44.cpp (whole file). The host copy is the
+#    one hal/cxxname_bridge.cpp predicted in writing; that prediction is now
+#    retracted in the same file.
+#    REFERRER: from:0x020e9dbc kind:arm_call to:0x020e7b44
+#    (_ZN12dScMg3DEsp_c6RenderEv + 0xa0, the class's slot-9 Render).
+#    RECORD: _ZN15dMg3DEspModel_c6RenderEv kind:function(arm,size=0xa4) addr:0x020e7b44,
+#    body e92d4010 e1a04000 e59f2090.
+src/_ZN15dMg3DEspModel_c6RenderEv.cpp
+
+# 3. src/func_ov006_020c06dc.cpp -- dScMgMemory2_c, the shadow at +0x18 whose
+#    four-virtual `m()` is ROM index 3, UpdateVerts. RETIRES port/unmatched/
+#    MgMemory2_ShadowSlot_020c06dc.cpp (whole file). This is the slot where the
+#    wrong body ALSO returned `ret 4` and unbalanced the stack, so it is the
+#    one row of the batch whose old symptom was two frames from its cause.
+#    REFERRER: from:0x020c07ac kind:arm_call to:0x020c06dc
+#    (func_ov006_020c07a0 + 0xc).
+#    RECORD: func_ov006_020c06dc kind:function(arm,size=0xc4) addr:0x020c06dc,
+#    body e92d4030 e24dd004 e1a04000.
+src/func_ov006_020c06dc.cpp
+
+# 4. src/actors/dScMgRoulette_c.cpp -- dScMgRoulette_c's two plain Models at +0x10
+#    and +0x60, both drawn through a six-virtual shadow's `m(0)`. RETIRES
+#    port/unmatched/MgRoulette_ModelRender_02107d80.cpp (whole file).
+#    REFERRER: from:0x02109a38 kind:arm_call to:0x02107d80
+#    (_ZN15dScMgRoulette_c6RenderEv + 0x204).
+#    RECORD: func_ov006_02107d80 kind:function(arm,size=0x38) addr:0x02107d80,
+#    body e92d4010 e1a04000 e2840010.
+# UN-QUARANTINED, run link100 lane HOSTGEN2. The one host copy left inside this
+# TU was unmatched/MgRoulette_WheelDispatch.cpp's func_ov006_02107db8, and both
+# of its deltas now come out of the decomp's own text: hostgen's PMF_SEAM routes
+# the wheel object's member-pointer dispatch to port_mg_roulette_call0 and
+# hostgen's VIRTUAL_CALL respells the shadow-class call of ROM slot 3 as
+# Model::UpdateVerts. The TU is on the PORT_HOSTGEN_TU list for both.
+# The row stays on THIS slice, where lane FOLD2 put it, and not on slice_rlt.txt:
+# slice_rlt's own assertion still refuses it there for the factory host copy,
+# which is a separate TU and a separate ruling.
+src/actors/dScMgRoulette_c.cpp
+
+# 5. src/func_ov006_020c1f4c.cpp -- dScMgSlot3_c's sub-object update, whose
+#    four-virtual shadow calls `v3()` on the BlendModelAnim at +0x10: ROM index
+#    3, UpdateVerts. RETIRES port/unmatched/MgSlot3_SubObjUpdate_020c1f4c.cpp
+#    (whole file).
+#    REFERRER: from:0x020c2128 kind:arm_call to:0x020c1f4c
+#    (func_ov006_020c201c + 0x10c).
+#    RECORD: func_ov006_020c1f4c kind:function(arm,size=0xd0) addr:0x020c1f4c,
+#    body e92d4030 e24dd004 e1a04000.
+src/func_ov006_020c1f4c.cpp
+
+# 6. src/func_ov006_020cafb4.cpp -- dScMgTrampoline_c's 3D Mario element, one
+#    six-virtual shadow call at +0x6c with data_ov006_0212e038 as the scale.
+#    RETIRES port/unmatched/MgTrmpln3DMario_ModelRender.cpp (whole file).
+#    REFERRER: from:0x020cd360 kind:arm_call to:0x020cafb4
+#    (func_ov006_020cd270 + 0xf0).
+#    RECORD: func_ov006_020cafb4 kind:function(arm,size=0x28) addr:0x020cafb4,
+#    body e92d4000 e24dd004 e5b0206c.
+src/func_ov006_020cafb4.cpp
+
+# ---------------------------------------------------------------------------
+# THREE MORE ROWS ARE IN THIS BATCH AND ARE NOT LISTED HERE, because they do
+# not build from src/ directly. Each carries the fold AND a raw store into the
+# DS I/O window -- the geometry engine's LIGHT_VECTOR at 0x040004c8 and
+# LIGHT_COLOR at 0x040004cc -- which tools/hostgen.py's MMIO_DEREF rewrite
+# turns into NTR_MMIO. On the host those stores are NOT harmless: the ntr layer
+# maps real memory at the DS I/O addresses, so an unrewritten store latches
+# into dead memory and the geometry engine never sees the light (the finding
+# hostgen.py's own header records for MTX_SCALE). They build from
+# ${CMAKE_BINARY_DIR}/host-src, wired in port/CMakeLists.txt's FOLD2 hostgen
+# block, and hostgen's rewrite is the MMIO substitution and NOTHING ELSE --
+# diffed line by line against src/ before this batch was applied.
+#
+#   src/func_ov006_020c3bf4.cpp  1 MMIO rewrite. dScMgFlower_c's ModelAnim at
+#       +0xd18 through a six-virtual shadow's f5(0); the file's own header
+#       quotes the ROM at 020c3cb4 ldr r2,[r2,#0x14] / blx r2. RETIRES
+#       unmatched/MgFlower_ModelRender_020c3bf4.cpp.
+#       REFERRER: from:0x0212ac44 kind:arm_call to:0x020c3bf4
+#       (_ZN13dScMgFlower_c6RenderEv + 0x178).
+#       RECORD: kind:function(arm,size=0x124) addr:0x020c3bf4,
+#       body e92d4070 e24dd010 e59f20f4.
+#   src/func_ov006_020c1804.cpp  2 MMIO rewrites. A BlendModelAnim at +0x1c
+#       and a plain Model at +0x8c, both through a six-virtual shadow's f5(0).
+#       RETIRES unmatched/MgMemory2_ModelRender_020c1804.cpp.
+#       REFERRER: eight arm_calls, the nearest
+#       from:0x020dabc0 kind:arm_call to:0x020c1804
+#       (_ZN11dScMgCard_c6RenderEv + 0x1fc); the others are at 0x020f5370,
+#       0x020f7440, 0x020f8680, 0x020fa110, 0x02109a48, 0x021254a0 and
+#       ov007's 0x020b77b4. A shared draw, not one scene's.
+#       RECORD: kind:function(arm,size=0x1cc) addr:0x020c1804,
+#       body e92d4010 e24dd020 e59f21a4.
+#   src/func_ov006_020c29dc.cpp  4 MMIO rewrites. The dScMgSingle3DBase_c body
+#       shared by the cup and boombox slices: a BlendModelAnim at +0x8 and a
+#       plain Model at +0x78. RETIRES unmatched/
+#       MgShared4f38_ModelRender_020c29dc.cpp, which was listed by BOTH
+#       SLICE_CUP_SOURCES and SLICE_BOX_SOURCES.
+#       REFERRER: from:0x020e01e0 kind:arm_call to:0x020c29dc
+#       (_ZN10dScMgCup_c6RenderEv + 0x178), and from:0x0211c70c
+#       (_ZN12dScMgSound_c6RenderEv + 0x48).
+#       RECORD: kind:function(arm,size=0x1b0) addr:0x020c29dc,
+#       body e92d4070 e24dd018 e59f2180.
+#
+# ---------------------------------------------------------------------------
+# THE ONE ov006 ROW OF THE TEN THAT STAYS, and why.
+#
+#   unmatched/MgSnowball_ModelRender.cpp  (src/_ZN15dScMgSnowball_c6RenderEv.cpp)
+#       The fold is dead here too, but it is not this file's only reason. Its
+#       matched source does not dispatch through a shadow class at all: it
+#       reads the vtable word by hand and calls it CDECL --
+#
+#           void (*fn)(void*, int*) =
+#               *(void(**)(void*, int*))((char*)(*(void**)self) + 0x14);
+#           fn(self, vecArr);
+#
+#       Byte +0x14 is ROM index 5 and _ZTV5Model[5] is Model::Render, so the
+#       SLOT is right; the CONVENTION is not. hal/cxxname_bridge.cpp's mv_render
+#       is `static void __fastcall mv_render(void *self, void *, const void *s)`
+#       -- `this` in ecx, the way a host C++ virtual call passes it -- and a
+#       cdecl call through the same word puts `self` on the stack and reads the
+#       scale out of the slot that held it. That is the receiver drop the two
+#       MgShared4f38 headers describe at 0x020c2924, and the repair is a
+#       VIRTUAL_CALL row in port/tools/hostgen.py, which lane FOLD2 does not
+#       own. Named and left. Two more MMIO stores in the same body would be
+#       handled by the same hostgen pass, so the file is one table row away
+#       from retiring.
+#       REFERRER, for whoever takes it: from:0x02140030 kind:load to:0x02127d10
+#       (_ZTV15dScMgSnowball_c + 4*9, the class's own slot 9).
+#       RECORD: kind:function(arm,size=0x694) addr:0x02127d10,
+#       body e92d4ff0 e24dd024 e59f1630.
+
+# ===========================================================================
+# BATCH 2 -- the actor-class rows, fifteen host copies and SIXTEEN matched TUs
+# ===========================================================================
+#
+# The same reason as batch 1 and the same ROM words: each matched source models
+# a model-family member with a LOCAL shadow class counted in ROM/Itanium
+# numbering and dispatches index 5 (Render) or index 3 (UpdateVerts), which the
+# folded host table used to spend on Virtual18 and Virtual10. The four tables'
+# own slot words are quoted at the top of this file.
+#
+# TEN of the sixteen need a cdecl FACE, because their fill site declares the
+# ROM's Itanium name at C linkage and calls it while the matched source defines
+# a __thiscall METHOD. The faces are in port/hal/fold2_faces.cpp, one line each,
+# with the vtable word and the function record per row; not one fill site
+# changes. Verified with dumpbin before the build: that object's ten UNDEF
+# externals are exactly the ten ?Render@Class@@QAEHXZ / ?Behavior@... symbols
+# these matched TUs define.
+#
+# Every row's referrer is the class's own vtable slot in
+# config/arm9/overlays/<ov>/relocs.txt (slot 9 is ActorBase::Render, slot 6 is
+# ActorBase::Behavior), the destination is a kind:function(arm,size=..) record
+# in that overlay's symbols.txt, and each body's first word is a real ARM push
+# read out of extracted/overlays/overlay_00<ov>.bin.
+
+# 7. src/_ZN9JetStream6RenderEv.cpp -- the plain Model at +0xd4.
+#    RETIRES port/unmatched/BowserPuzzle_Render.cpp (whole file). FACE.
+#    REFERRER: _ZTV19BowserPuzzleManager 0x0211c25c + 4*9 = from:0x0211c280
+#    kind:load to:0x02119088 module:overlay(64); the fill is
+#    hal/actor_classes_bowserpuzzle.cpp:327.
+#    RECORD: kind:function(arm,size=0x28) addr:0x02119088, body e92d4000
+#    e24dd004 e5b020d4.
+src/_ZN9JetStream6RenderEv.cpp
+
+# 8. src/game/actors/d_a_bakubaku.cpp -- BUBBA's Render, the ModelAnim at +0x34c
+#    behind the 0x40000 flag gate. RETIRES port/unmatched/Bubba_Render.cpp
+#    (whole file). No face: the matched source defines the address name at C
+#    linkage, which is what hal/actor_classes_ov032.cpp:446 calls.
+#    REFERRER: from:0x02113848 kind:load to:0x02112164 module:overlay(32), the
+#    word at 0x02113824 + 4*9 (symbols.txt names the table's interior at
+#    data_ov032_0211382c, so the base is quoted from the ARM store order).
+#    RECORD: kind:function(arm,size=0x50) addr:0x02112164, body e92d4000
+#    e24dd004 e59010b0.
+src/game/actors/d_a_bakubaku.cpp
+
+# 9. src/_ZN6Cannon6RenderEv.cpp -- the Model at +0xd4, UpdateVerts then Render,
+#    ROM indices 3 and 5 through the same six-virtual shadow. RETIRES
+#    port/unmatched/Cannon_Render.cpp (whole file). FACE.
+#    REFERRER: _ZTV7daCnn_c 0x0213c6a0 + 4*9 = from:0x0213c6c4 kind:load
+#    to:0x0213b214 module:overlay(98); the fill is hal/actor_classes.cpp:1718.
+#    RECORD: kind:function(arm,size=0x58) addr:0x0213b214, body e92d4010
+#    e1a04000 e5940180.
+src/_ZN6Cannon6RenderEv.cpp
+
+# 10. src/actors/daPgDfdr_c.cpp -- DA_PG_DFDR's Render, a TextureSequence
+#     update then the ModelAnim at +0x320. RETIRES port/unmatched/
+#     DaPgDfdr_Render.cpp (whole file). No face: address-named C symbol.
+#     THE SOURCE CARRIES THE GUESS MARKER and is ADJUDICATED: line 1803 of
+#     port/tools/inferred_stub_adjudicated.txt reads REAL_DECOMP, "slot 9
+#     Render, addr 0x02111e00 size 0x34; match.py MATCHING at 2004/b56 with
+#     reloc destinations checked", so inferred_stub_guard.py admits it.
+#     REFERRER: from:0x02113ab4 kind:load to:0x02111e00 module:overlay(27), the
+#     word at 0x02113a90 + 4*9 (the vptr address the class's own D0 stores, per
+#     the same adjudication file); the fill is hal/actor_classes_ov027.cpp:667.
+#     RECORD: kind:function(arm,size=0x34) addr:0x02111e00, body e92d4010
+#     e1a04000 e2840fe1.
+src/actors/daPgDfdr_c.cpp
+
+# 11. src/actors/Eyerok.cpp -- the Model at +0x3d0 on one arm, the
+#     BlendModelAnim at +0x360 on the other. RETIRES port/unmatched/
+#     Eyerok_Render.cpp (whole file). No face: this matched source defines the
+#     C++ METHOD, and hal/actor_classes_ov066.cpp:489 already calls
+#     ((Eyerok *)s)->Eyerok::Render() rather than the C name -- so the matched
+#     TU simply becomes the definition of the symbol the host copy provided.
+#     src/actors/Eyerok.cpp also LEAVES the ov066 duplicate guard in
+#     port/CMakeLists.txt, which existed to refuse it while it was host-copied.
+#     REFERRER: _ZTV6Eyerok 0x0211ad64 + 4*9 = from:0x0211ad88 kind:load
+#     to:0x021197a4 module:overlay(66).
+#     RECORD: kind:function(arm,size=0x94) addr:0x021197a4, body e92d4010
+#     e1a04000 e594049c.
+# UN-QUARANTINED, run link100 lane HOSTGEN2. The last host copy inside this TU
+# was port/unmatched/Eyerok_ClosestPlayerRead.cpp's func_ov066_02119398, and the
+# ruling it rested on -- ClosestPlayer's receiver riding r0 -- is gone from main's
+# text, which declares the call with a receiver and passes it at all three sites.
+# That body is commented out there and closestplayer_guard.py checks the reading
+# before every configure. The two pointer-to-member dispatches this TU carries
+# both read cells hal/actor_classes_ov066.cpp seats with host addresses: the
+# per-frame half holds a zero-argument __fastcall face, which is how MSVC enters
+# a member-pointer call under /vmg /vmm, and the enter half is reached through
+# func_ov066_02119454, the one-call forwarder lane PMF2 measured as a tail jump
+# (port/slice_pmf2.txt, the cdecl-seat list).
+src/actors/Eyerok.cpp
+
+# 12. src/game/actors/d_a_obj_rc_carpet.cpp -- FLYING_CARPET's Render, the ModelAnim at
+#     +0x450 behind the halfword gate at +0x428. RETIRES port/unmatched/
+#     FlyingCarpet_Render.cpp (whole file). No face: address-named C symbol.
+#     REFERRER: _ZTV15daObjRcCarpet_c + 4*9 = from:0x02113fc0 kind:load
+#     to:0x02112378 module:overlay(36); the fill is
+#     hal/actor_classes_ov036.cpp:825.
+#     RECORD: kind:function(arm,size=0x50) addr:0x02112378, body e92d4000
+#     e24dd004 e2801b01.
+src/game/actors/d_a_obj_rc_carpet.cpp
+
+# 13. src/_ZN6Klepto6RenderEv.cpp -- the BlendModelAnim at +0x334. RETIRES
+#     port/unmatched/Klepto_Render.cpp (whole file). FACE.
+#     REFERRER: _ZTV9daJango_c 0x0211dd5c + 4*9 = from:0x0211dd80 kind:load
+#     to:0x0211c920 module:overlay(62); the fill is
+#     hal/actor_classes_koopa_chuckya.cpp:535.
+#     RECORD: kind:function(arm,size=0x2c) addr:0x0211c920, body e92d4000
+#     e24dd004 e2800fcd.
+src/_ZN6Klepto6RenderEv.cpp
+
+# 14. src/_ZN5Koopa6RenderEv.cpp -- the shell/material swap, then the ModelAnim
+#     at +0x300 with the saved scale triple. RETIRES port/unmatched/
+#     Koopa_Render.cpp (whole file). FACE.
+#     REFERRER: _ZTV8daNknk_c 0x0211dab4 + 4*9 = from:0x0211dad8 kind:load
+#     to:0x02118f84 module:overlay(62); the fill is
+#     hal/actor_classes_koopa_chuckya.cpp:370.
+#     RECORD: kind:function(arm,size=0x168) addr:0x02118f84, body e92d4010
+#     e24dd010 e1a04000.
+src/_ZN5Koopa6RenderEv.cpp
+
+# 15. src/_ZN6Bowser6RenderEv.cpp -- BOWSER's own Render, the ModelAnim at +0xd4
+#     with the scale triple at +0x80. FACE.
+#     REFERRER: _ZTV7daKpa_c 0x0211a6b8 + 4*9 = from:0x0211a6dc kind:load
+#     to:0x02115f0c module:overlay(60); the fill is
+#     hal/actor_classes_ov060.cpp:633.
+#     RECORD: kind:function(arm,size=0x50) addr:0x02115f0c, body e92d4010
+#     e1a04000 e5d4041c.
+src/_ZN6Bowser6RenderEv.cpp
+
+# 16. src/_ZN16BowserShockwaves6RenderEv.cpp -- the SECOND body in the same host
+#     copy: six texture/material updates then two ModelAnim draws. Together with
+#     row 15 this RETIRES port/unmatched/Ov060_Renders.cpp (whole file), which
+#     is why fifteen files carry sixteen TUs. No face: the matched source
+#     defines the Itanium name at C linkage, which is what
+#     hal/actor_classes_runtime_spawns.cpp:324 calls.
+#     REFERRER: _ZTV9daFRing_c 0x0211ab54 + 4*9 = from:0x0211ab78 kind:load
+#     to:0x02118e1c module:overlay(60).
+#     RECORD: kind:function(arm,size=0x9c) addr:0x02118e1c, body e92d4010
+#     e24dd010 e1a04000.
+src/_ZN16BowserShockwaves6RenderEv.cpp
+
+# 17. src/_ZN13PrincessPeach8BehaviorEv.cpp -- the one BEHAVIOR row of the
+#     lane, and the one that lands on index 3 rather than 5: its four-virtual
+#     shadow's g3() over the ModelAnim at +0xd4 is ROM UpdateVerts. RETIRES
+#     port/unmatched/Ov085_PrincessPeach_Behavior.cpp (whole file). FACE.
+#     REFERRER: _ZTV9daPeach_c 0x0212ffc0 + 4*6 = from:0x0212ffd8 kind:load
+#     to:0x0212a52c module:overlay(85); the fill is
+#     hal/actor_classes_ov085.cpp:509.
+#     RECORD: kind:function(arm,size=0x5c) addr:0x0212a52c, body e92d4010
+#     e1a04000 ebffffbd.
+src/_ZN13PrincessPeach8BehaviorEv.cpp
+
+# 18. src/_ZN3Key6RenderEv.cpp -- the ModelAnim at +0x114 on both arms and the
+#     Model at +0x178 behind the state table. RETIRES port/unmatched/
+#     Ov089_Renders.cpp (whole file -- it held this one body). FACE.
+#     REFERRER: _ZTV3Key 0x02132ba8 + 4*9 = from:0x02132bcc kind:load
+#     to:0x021320f0 module:overlay(89); the fill is
+#     hal/actor_classes_ov089.cpp:247.
+#     RECORD: kind:function(arm,size=0xa4) addr:0x021320f0, body e92d4010
+#     e1a04000 e59400b0.
+src/_ZN3Key6RenderEv.cpp
+
+# 19. src/_ZN13RacingPenguin6RenderEv.cpp -- a TextureSequence update then the
+#     ModelAnim at +0xd4 with the scale at +0x80. RETIRES port/unmatched/
+#     RacingPenguin_Render.cpp (whole file). FACE, spelled with a char*
+#     receiver because hal/actor_classes_ov019_w3e.cpp:143 declares the C name
+#     that way and calls it with a cast.
+#     REFERRER: _ZTV13RacingPenguin 0x02113310 + 4*9 = from:0x02113334
+#     kind:load to:0x02112360 module:overlay(19).
+#     RECORD: kind:function(arm,size=0x34) addr:0x02112360, body e92d4010
+#     e1a04000 e2840f4e.
+src/_ZN13RacingPenguin6RenderEv.cpp
+
+# 20. src/_ZN9Whirlpool6RenderEv.cpp -- a TextureTransformer update then the
+#     ModelAnim at +0x114. RETIRES port/unmatched/Whirlpool_Render.cpp (whole
+#     file; the file name is the port's, the ROM class is Submarine -- the
+#     Whirlpool/Submarine name shift is ov026's). FACE.
+#     REFERRER: _ZTV9Submarine 0x02113d54 + 4*9 = from:0x02113d78 kind:load
+#     to:0x02111fd8 module:overlay(26); the fill is
+#     hal/actor_classes_ov026.cpp:579.
+#     RECORD: kind:function(arm,size=0x34) addr:0x02111fd8, body e92d4010
+#     e1a04000 e2840f5e.
+src/_ZN9Whirlpool6RenderEv.cpp
+
+# 21. src/_ZN7Wiggler6RenderEv.cpp -- five segments, each a TextureSequence
+#     update and a ModelAnim draw at stride 0x64. RETIRES port/unmatched/
+#     Wiggler_Render.cpp (whole file). FACE.
+#     REFERRER: _ZTV7Wiggler 0x021144bc + 4*9 = from:0x021144e0 kind:load
+#     to:0x02112af4 module:overlay(34); the fill is
+#     hal/actor_classes_ov034.cpp:514.
+#     RECORD: kind:function(arm,size=0x68) addr:0x02112af4, body e92d40f0
+#     e24dd004 e59f1054.
+src/_ZN7Wiggler6RenderEv.cpp
+
+# 22. src/func_ov002_020e4768.cpp -- the Player's head-model matrix seat, whose
+#     five-virtual shadow calls index 4: ROM Virtual10, which the fold had put
+#     Render on. RETIRES port/unmatched/func_ov002_020e4768_hostcopy.cpp (whole
+#     file). No face: an address-named C symbol.
+#     REFERRER: from:0x020e4ccc kind:arm_call to:0x020e4768 module:overlay(2)
+#     (func_ov002_020e4bb8 + 0x114) -- a direct call, not a vtable slot.
+#     RECORD: kind:function(arm,size=0x204) addr:0x020e4768, body e92d4030
+#     e24dd004 e1a04000.
+src/func_ov002_020e4768.cpp
+
+# ---------------------------------------------------------------------------
+# THE ROWS OF THE THIRTY THAT STAY, with the measured reason for each.
+#
+#   unmatched/MgSnowball_ModelRender.cpp   the receiver convention, above.
+#   unmatched/Ukiki_Behavior.cpp           the fold IS dead for its shadow (a
+#       four-virtual v3() on the ModelAnim at +0xd4, ROM UpdateVerts), but its
+#       OTHER reason is alive and its own header measures it: the matched
+#       source declares func_ov030_021141a8 with ONE argument and the real body
+#       takes two, because mwcc emitted `mov r1,#1` for a strb one instruction
+#       earlier and the call rides it (0x02114324 mov r1,#1 / 0x02114328 strb
+#       r1,[r4,#0x3c8] / 0x0211432c bl 0x21141a8). Cdecl cannot ride a
+#       register, so the callee would index data_ov030_02115e0c with whatever
+#       the stack held. A register ride-through, not the fold.
+#   unmatched/Snowman_InitResources.cpp    lane UNMATCH's ruling, re-read and
+#       agreed: the TextureSequence::Prepare register ride-through.
+#   unmatched/Player_CleanupResources.cpp  lane UNMATCH's ruling: the fold half
+#       is dead, but the matched TU re-declares five functions decl_common.h
+#       already declares and MSVC refuses it (C2733 x5 plus one C2664).
+#   unmatched/Ov002_ModelAnimD0_020f6778.cpp  lane UNMATCH's ruling: a
+#       DIFFERENT null slot, _ZTV15TextureSequence[1], which
+#       hal/model_dtor_seat.cpp leaves empty because TextureSequence is not one
+#       of the six classes SLOT5F respelled.
+#   unmatched/Door_Render.cpp              ruled a virtual-shadow dispatch of a
+#       different family by SEAT3's census and named again by PMF3; left where
+#       two lanes put it.

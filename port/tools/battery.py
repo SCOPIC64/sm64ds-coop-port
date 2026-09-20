@@ -1,0 +1,2339 @@
+#!/usr/bin/env python3
+"""The port's full verification battery, one command.
+
+Everything the merge gate runs, in order, stopping at the first failure:
+
+  1. build            port/build-port.cmd (32-bit MSVC, ninja)
+  2. smoke suite      every smoke_*.exe in build/port, exit 0 each
+  3. level selftests  walk_window.exe, SM64DS_WINDOW_SELFTEST=300 and
+                      SM64DS_FAULTS_FATAL=1, on every mounted level -- the ids
+                      are read out of port_level_table[] in hal/level_boot.cpp
+                      at run time, so a new mount is covered the moment it
+                      lands and no list here can go stale. A level whose
+                      blocker belongs to another lane runs with that lane's
+                      class skipped, named in LEVEL_SKIPS below and re-probed
+                      bare on every run so the skip cannot outlive the bug
+  4. scene selftests  walk_window.exe, SM64DS_SCENE=<id> and
+                      SM64DS_FAULTS_FATAL=1, on every hosted NON-LEVEL scene --
+                      the ids are read out of port_scene_classes[] in
+                      hal/scene_boot.cpp at run time, the same rule the level
+                      list follows and for the same reason. A scene whose
+                      blocker belongs to another lane runs with SCENE_SKIPS
+                      naming it and is re-probed bare on every run
+  4c. default boot    walk_window.exe with NO SM64DS_* environment at all
+                      beyond the harness minimum, which since the owner's
+                      boot-to-title ruling is a title run rather than a level
+                      one. Asserts rc 0, the title chain's own two probe lines
+                      and a written frame. It replaces no level row: this is
+                      the question "where does a launch with no arguments go",
+                      which nothing here could ask while the answer was a level
+  5. linkage          port/tools/linkage.py -- the linked count is printed and
+                      compared against --linked-floor if given (a merge must
+                      never lower it)
+  6. ptr_audit        port/tools/ptr_audit.py -- unhosted code pointers must
+                      stay at zero
+  7. shipping config  THE OTHER CONFIGURATION. Steps 1-6 build and run exactly
+                      one of the two configurations this tree has -- build/port,
+                      the developer build -- and the binary that actually goes
+                      out is PORT_ROM_CLEAN against the static CRT, which is a
+                      different compile and a different link and breaks on its
+                      own. This arm configures and builds it into its own
+                      build/port-kit and fails the battery if configure, build
+                      or link fails, then runs that exe's headless selftest ONCE
+                      as a liveness check. Before any of that it reads two
+                      files and refuses a build/port-kit left over from an
+                      older romdata blob, which is a stale directory rather
+                      than a broken change and used to arrive as a runtime
+                      refusal an hour in (shipcfg_stale_kit). --no-shipcfg opts
+                      out, loudly. The configure step itself is skipped only
+                      when build/port-kit/CMakeCache.txt PROVES it is still
+                      configured PORT_ROM_CLEAN, Release and the static CRT
+                      under Ninja (shipcfg_configure_decision); any
+                      disagreement, missing key or missing cache runs the full
+                      configure instead of trusting a present build.ninja
+                      alone. The long form is at THE SHIPPING CONFIGURATION
+                      below
+
+    python port/tools/battery.py [repo-root] [--linked-floor N] [--skip-build]
+                                 [--no-shipcfg]
+
+Exit 0 all green, 1 first red, with a one-line verdict per step so a log tail
+reads as a checklist.
+
+SM64DS_BATTERY_WORKERS=N runs the LEVEL rows N at a time, each in its own
+directory, holding the windowed slot once for the phase instead of once per
+launch. Unset or 1 is exactly the run this file has always made, in level order
+out of build/port with the per-launch lock. See RUNNING THE LEVEL ROWS N-WIDE
+below for what the directories are for and why the slot has to be held across
+the phase for any of it to help.
+
+LOCKING BY PHASE (run link100, lane BATTLOCK). Before this lane, battery.py
+opted into the windowed SLOT lock itself (SM64DS_TEST_LOCK) but never the
+BUILD lock -- a caller that wanted the full build serialised against every
+other lane's build had to wrap the WHOLE invocation in `build_lock.py run`,
+which holds the build lock for the wrapped child's ENTIRE lifetime. That is
+not the ~5 minutes battery.py spends actually building; it is that PLUS the
+ten to fifteen minutes it spends on its 87 windowed rows, which never touch
+the build tree at all. One battery under that wrapper therefore blocked every
+OTHER lane's build for the whole battery, doing no building itself for most
+of it -- the one thing pacing every lane on a night with several builds and
+batteries queued.
+
+battery.py now takes BOTH locks itself, each scoped to only the phases that
+need it, so the two are never held at the same time and neither is held while
+WAITING for the other:
+
+  phase                            lock held    gated by
+  --------------------------------  -----------  -------------------
+  the rebuild (build-port.cmd)      BUILD        SM64DS_BUILD_LOCK
+  smoke suite                       neither (no window opened, nothing built)
+  level rows + scene rows +         SLOT         SM64DS_TEST_LOCK
+    the default boot (one phase,
+    full_windowed_phase)
+  linkage.py / ptr_audit.py         neither
+  shipcfg configure+build           BUILD        SM64DS_BUILD_LOCK
+  shipcfg selftest                  SLOT         SM64DS_TEST_LOCK
+
+Both stay opt-in exactly as before: with the corresponding env var unset,
+battery.py takes neither lock for that phase and runs it byte-for-byte as it
+always has. See build_phase() and full_windowed_phase() below for the code.
+
+RECOMMENDED INVOCATION. Run battery.py directly rather than wrapping it in
+`build_lock.py run` -- the wrapper cannot release the build lock between
+phases (it holds the lock for the CHILD PROCESS'S WHOLE LIFETIME, which is
+exactly the problem LOCKING BY PHASE above closes), so a lane invoked that
+way blocks every other lane's build for its whole battery, not just for the
+few minutes it is actually building. Export both opt-ins and their _PATH
+variables (as COMMON.md already has every lane do) and run the script itself:
+
+    export SM64DS_BUILD_LOCK=1 SM64DS_BUILD_LOCK_PATH=C:/tmp/sm64ds-test-slot/port_build.lock
+    export SM64DS_TEST_LOCK=1 SM64DS_TEST_LOCK_PATH=C:/tmp/sm64ds-test-slot/slot.lock
+    python port/tools/battery.py <root> --linked-floor N
+
+Invoked the OLD way -- as the child of `build_lock.py run` -- battery.py
+detects it (the current holder is this process's own parent or a nearer
+ancestor; see _build_lock_held_by_ancestor) and prints a one-line notice
+naming the recommended invocation instead of trying to acquire a lock that is
+already its own ancestor's, which would deadlock rather than queue. That
+invocation still WORKS and is still CORRECT battery-wise; it is only slower
+for every other lane waiting on the build lock while this one runs its rows.
+
+THE SELFTEST BMP TRACKS THE HOSTED-GLOBAL LAYOUT, NOT ONLY THE .dsstate BASE.
+
+Read this before treating a walk_window_selftest.bmp diff as a rendering
+regression, and before reading a clean diff as proof that nothing moved.
+
+Some hosted DS data reaches the geometry stream as a pointer VALUE, so the
+rendered frame can depend on the ABSOLUTE ADDRESS of a hosted global. Two
+separate things move those addresses and both change the frame:
+
+  * the .dsstate section base, which shifts whenever a change grows the
+    preceding sections past a 4 KB page boundary, however unrelated that
+    change is to rendering;
+  * the layout INSIDE .dsstate, which shifts every hosted global past the
+    insertion point while leaving the section base exactly where it was.
+
+An equal .dsstate base is therefore necessary for a byte-exact comparison and
+it is NOT sufficient. The comparison with meaning holds the whole hosted
+layout constant, base and span both.
+
+Measured 2026-08-16 at 7f994ccdb with the ov009 sizing line named below
+REVERTED, so the table shows the defect that line fixes. walk_window.exe,
+level 1, the .dsstate span as printed by tools/dsstate_guard.py at link time.
+Every run ended at the same player position as the unpadded build:
+
+  perturbation                   .dsstate base   span     296 frames   300
+  none                           0xbb0000        959200   --           --
+  +4 KB inert .data, base moves  0xbb1000        959200   1 px, ch 2   same
+  +64 B interior to .dsstate     0xbb0000        959272   1354 px,     same
+                                                          ch 16
+
+300 IS A FRAME COUNT ON WHICH BOTH PERTURBATIONS HAPPEN TO AGREE, and 300 is
+the count this battery runs. A clean 300-frame BMP compare across a layout
+change is not evidence that the layout stayed out of the frame. A sweep of the
+same two binaries over counts 290-310, recorded in the same session and not
+re-measured line by line for this note, found six counts where the frames
+differ -- 291, 292, 296, 298, 302, 303 -- and 300 is not one of them; 292 and
+299 were re-measured here and behave as that sweep says. Whether the last
+rendered frame is layout dependent is a property of where the animation sits
+when the run stops.
+
+The two perturbations also differ by three orders of magnitude, and that gap
+is a fingerprint of the cause below rather than a difference in how hard they
+push: a 4 KB shift is a whole number of periods of the 32x32 water texture and
+very nearly cancels, so it leaves one pixel where 64 bytes leaves 1354.
+
+"ADD A LITTLE INERT .bss" IS NOT A PERTURBATION. Two earlier measurements used
+one -- a "base + 16 bytes of inert .bss, no movement" row in the 2026-08-14
+table this block used to carry, and a 32-byte version a later lane built an
+argument on. Neither moves anything. Measured 2026-08-16: `volatile char
+x[32];` in an anonymous namespace is DROPPED, absent from the recompiled .obj
+and not merely from the map, because volatile constrains accesses and does not
+force emission (`extern "C" volatile char x[32];` is worse: [dcl.link]/7 makes
+it a declaration and it emits nothing at all). A spelling that does survive,
+`__declspec(dllexport) volatile char x[32];`, present in the map, still leaves
+the .dsstate base and span untouched and the frame byte-identical at 296 and
+at 300. A null result from a .bss pad is a null result about nothing. Check
+any pad for PRESENCE in the .obj or the map before believing what it measures.
+
+The two recipes that do move something, both measured above:
+
+  move the base, at file scope in any hal TU outside a DSSTATE bracket --
+
+    extern "C" __declspec(dllexport) unsigned char rev_pad_data[4096] = {1};
+
+  shift the interior without moving the base, in hal/dsstate_seg.cpp --
+
+    #pragma section(".dsstate$aab", read, write)
+    extern "C" __declspec(allocate(".dsstate$aab"))
+        __declspec(dllexport) unsigned char pad64[64] = {1};
+
+Read the resulting base and span off the dsstate_guard line the link prints.
+
+So: a PR whose selftest positions match to the digit but whose BMP differs,
+and whose dsstate_guard line reports a different base or a different span than
+the baseline, is not by itself a render regression. Rebuild the baseline with
+inert padding that lands .dsstate at the same base and the same span, and
+compare there. The general method: hold everything but the change under test
+constant and see whether the BMP follows the change or follows the footprint.
+A worked case -- a touch-hosting PR's 318-pixel, max-channel-13 delta was
+reproduced exactly by keeping the PR's probe code and REMOVING the change
+under test, which proved the delta belonged to the probe's own footprint.
+
+THE CAUSE IS KNOWN AND THE FIX IS IN THIS TREE.
+
+It was never the render path reading an uninitialised field. The castle moat
+water's S/T translation is a 91-frame BTA track at ov009 DS 0x021122ec, one
+contiguous ramp of 0 to 0x1000 ending exactly where __sinit_ov009_02112458
+begins. Nothing named it, so the only thing hosting it was the synthetic gap
+block port_ov009_gap_0211222c, which dsd sized at 0xf4 bytes against the first
+of eleven `ambiguous` boundaries it guessed inside the track's span -- thirteen
+of the ninety-one words. From animation frame 13 the read ran off the block
+into whatever the linker placed next, which is port_ov009_gap_02112b7c, laid
+down immediately after it with no padding between: the ASCII "water_mat" and
+two words the patch pass overwrites with REBASED HOST POINTERS. The overrun
+starts on the string and reaches the first pointer three words later, and
+func_02044b30 folds the track value into the water's texture-matrix
+translation as -(value << 9), so a host address decided pixels.
+
+port/ov009_syms.txt now names the array with its ROM extent
+(`data_ov009_021122ec:0x16c`), which pins all 91 frames on hosted storage. With
+the line in place the interior shift is byte-identical to the unpadded build at
+291, 292, 296, 298, 300, 302 and 303 -- every count on which it moved the frame
+before, plus the one this battery runs -- and the base move is byte-identical at
+296 and 300. The frames themselves change, because the water now animates off
+its own ROM data instead of off a host address: 2962 pixels of the level 1
+moat at 300 frames, same player position to the digit.
+
+The fix is one line and a rebase can drop it silently, so check the generated
+source rather than trusting this paragraph:
+
+    cd build/port/host-src
+    grep -cF "data_ov009_021122ec[364]" ov009_syms.c      -> 1
+    grep -cF "port_ov009_gap_0211222c[244]" ov009_syms.c  -> 0
+
+The gap block does not disappear when the line is present, it shrinks 244 to
+40 bytes, so its mere presence in the map proves nothing either way.
+
+Five more truncations of the same class are known and NOT fixed here: two
+ov009 path tables, ov016 CLPS, an ov021 class-name string, and an ov070 curve
+cut at its apex. port/tools/gapaudit.py is the detector. Until those land a
+layout change can still reach the frame through one of them, so the comparison
+rule above stands whether or not the ov009 line is in the tree. The long form,
+with the gap audit and the leftovers, is notes/port-selftest-bmp-gate.md on
+main.
+
+A SELFTEST DOES NOT ALWAYS END ON THE LEVEL IT STARTED.
+
+Every selftest log carries TWO [census] blocks -- one after boot and one at the
+end of the run -- and the census reports the live actor set at print time.
+Often the two match: level 1 prints "82 spawned (22 classes), 0 skipped" twice,
+and so do levels 0, 32 and 46.
+
+TWO MATCHING BLOCKS ARE NOT A PROOF THAT THE LEVEL STAYED PUT, and the
+converse is not a proof that it warped. The census counts what is ALIVE, and a
+level can spawn more of something over 300 frames without going anywhere:
+level 30 stays on suisou the whole run, carries no "[lvl] change:" line, and
+still goes from 71 spawned to 106 in nine classes. Reading two matching blocks
+as "did not warp" happens to be right on most levels, which is what makes it
+dangerous.
+
+Levels 19, 20, 26, 34, 35, 39 and 49 warp within the 300 frames. Their logs carry a
+"[lvl] change: level N -> M" line, and the second census is then M's, not N's:
+level 26 warps to 1 and its second block is level 1's 82/22 exactly, level 39
+warps to 5 and drops from 96 spawned to 64. (26 and 39 confirmed on this tree
+2026-08-15; the rest are as reported by the mount lanes.)
+
+Level 34 joined that list the day it was mounted, and it is the clearest case
+of why the rule is the rule rather than a curiosity: rainbow_mario is Wing
+Mario Over the Rainbow, a stage made of platforms over nothing, so the
+selftest's idle player walks off and the game sends him to the castle grounds
+-- "[lvl] change: level 34 -> 1, entrance 10, reason 0" -- exactly as it
+should. Its second census is level 1's.
+
+The battery only reads exit codes and does not care. Anything that reads a
+census OFF one of these logs must take the FIRST [census] block, before the
+first "[lvl] change:" line -- taking the last one silently files the
+destination level's actors under the level that was asked for. Two blocks by
+itself is not the warp signal; a "[lvl] change:" line is.
+
+THE SHIPPING CONFIGURATION IS A SECOND CONFIGURATION, AND IT BREAKS ALONE.
+
+Steps 1 to 6 build and run build/port, the developer build. The binary that
+actually goes out is not that one. It is PORT_ROM_CLEAN against the static CRT,
+configured by tools/portable_kit/package_kit.ps1 into its own build/port-kit,
+and for four days in August 2026 it did not compile at all while this battery
+kept printing ALL GREEN.
+
+port/release_hardening.txt is the write-up. b91d34ed7 added the camera's
+optional mouse capture; three of its helpers call ClientToScreen_, which sat
+inside an #ifndef PORT_ROM_CLEAN fence; the shipping build stopped compiling
+with five C2039s in walk_window.cpp and nothing noticed. That note also names
+the reason nothing noticed, and the reason was this file:
+
+    nobody saw it for four days because nothing builds PORT_ROM_CLEAN
+    routinely (the battery cannot: under that flag the emitters zero every ROM
+    table and only walk_window/_hires link the loader, so every other smoke
+    goes red).
+
+THAT PARENTHESIS IS ABOUT RUNNING AND NOT ABOUT COMPILING, which is the whole
+reason this arm can exist. Under PORT_ROM_CLEAN the smoke exes still BUILD
+perfectly well; they fail when RUN, because their ROM tables are zeroed and
+they do not link the loader that would fill them back in. So the arm builds the
+shipping configuration and runs exactly one thing out of it: walk_window, which
+is the target that ships. Nothing here ever runs a smoke exe out of
+build/port-kit, and adding one would reintroduce the exact red that kept this
+arm out of the battery for so long.
+
+WHICH LEAVES ONE GAP, AND IT IS NAMED RATHER THAN GLOSSED. The quote above says
+walk_window AND walk_window_hires link the loader, so walk_window is not the
+only target that could run out of this directory. It is the only one this arm
+BUILDS, because tools/portable_kit/package_kit.ps1 builds only walk_window and
+that is the exe the kit ships; the ninja line here is `ninja -C <dir>
+walk_window` and matching the packaging script was the deliberate choice. The
+consequence is that a ROM_CLEAN break confined to walk_window_hires -- its own
+target_compile_definitions block in port/CMakeLists.txt, or anything it links
+that walk_window does not -- is caught by NOTHING: not by this arm, not by
+package_kit.ps1, and not by the developer steps above, which never define the
+flag at all. That is a smaller hole than the one this arm closes, and it is
+still a hole. Adding walk_window_hires to the ninja line would close it at the
+cost of a second link; whoever wants that should know they are also making this
+arm stop matching what the kit actually builds.
+
+ITS OWN BINARY DIRECTORY, NOT A RECONFIGURE OF build/port. The two
+configurations disagree about a preprocessor symbol that reaches most of the
+tree, so sharing one directory would throw away every object file on each
+alternation and make the battery unusable. package_kit.ps1 already keeps them
+apart for that reason and this arm uses the same directory it does, so the two
+share a cache instead of fighting over one.
+
+THE BMP HERE IS A LIVENESS CHECK, NOT A RASTER COMPARISON, and it is not
+compared against the developer build's BMP either. THE SELFTEST BMP TRACKS THE
+HOSTED-GLOBAL LAYOUT above is the long form: a comparison with meaning holds
+the whole hosted layout constant, base and span both, and a different
+configuration is a different compile and a different link, so it holds neither.
+port/tools/kit_smoke.py states the same rule for the same reason over the
+packaged exe. What is being asked of this run is only "did it reach the
+renderer and write a frame". Anyone who later turns this into a picture compare
+will be comparing two binaries that were never comparable.
+
+DEFAULT ON, BECAUSE AN OFF-BY-DEFAULT ARM CANNOT CATCH A SILENT BREAK. That is
+not a preference, it is the entire finding of the four days: the check that
+exists and is not run is worth what the check that does not exist is worth.
+--no-shipcfg opts a fast iteration loop out and prints a warning saying the
+shipping configuration was not built, so a green carrying that line cannot be
+read as the same green as one without it.
+
+LAST, AND THAT ORDERING IS LOAD-BEARING. A tree-wide breakage -- a crashing
+actor, a bad seat -- breaks both configurations, and the developer steps above
+diagnose it far better than this one can, with the skip and blocked machinery
+and a named level or scene. Running those first means every red this arm ever
+prints arrives on a tree whose developer configuration is already green, which
+makes it a CONFIGURATION-SPECIFIC red by construction. Moving this arm earlier
+would buy a few minutes of latency and spend the only thing that makes its
+failures easy to read.
+"""
+
+import contextlib
+import os
+import queue
+import re
+import shutil
+import subprocess
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+# The windowed test slot lock lives beside this file. Importing it is free and
+# never changes behaviour on its own -- run() below consults slot_lock.enabled()
+# (the SM64DS_TEST_LOCK opt-in) before it takes the lock, so an unset
+# environment launches walk_window exactly as it always did. See slot_lock.py.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import slot_lock
+import build_lock
+
+SELFTEST_FRAMES = "300"
+STEP_TIMEOUT = 600
+
+# THE SHIPPING CONFIGURATION. Spelled exactly as
+# tools/portable_kit/package_kit.ps1 spells it, because two checks that
+# disagree about what the shipping build IS are worse than one -- the same
+# rule kit_smoke.py's ROM_CLEAN_MARK is kept spelled the same way for.
+SHIPCFG_BUILD = os.path.join("build", "port-kit")
+# A FROM-SCRATCH configure and build of a second whole configuration, so this
+# is not STEP_TIMEOUT. Once the directory exists ninja is incremental and the
+# arm costs a link; the leash is sized for the first run in a fresh worktree.
+SHIPCFG_BUILD_TIMEOUT = 5400
+SHIPCFG_RUN_TIMEOUT = 600
+SHIPCFG_BMP = "walk_window_selftest.bmp"
+
+# The two files the stale-kit precheck below reads. Both are build products
+# that exist on disk before this arm runs, which is the whole reason the check
+# can be free: neither number has to be learned by launching anything.
+#
+# port/tools/romblob.py writes both, in the same run. It emits the consolidated
+# blob build/assets/romdata.bin with a header line in
+# build/assets/romdata.manifest reading "# romdata-manifest v1 <sha256> <len>",
+# and it stamps the SAME sha and length into the generated dispatch TU as
+# port_romdata_expect_sha / port_romdata_expect_len, beside the per-part base
+# offsets it computed from that exact blob. hal/romdata_loader.cpp compares the
+# two at startup and refuses the pair if they disagree, because a blob from
+# another build has that build's parts at other offsets and every ROM table
+# would be filled from the wrong slice in silence.
+SHIPCFG_KIT_DISPATCH = os.path.join("build", "port-kit", "host-src",
+                                    "romdata_dispatch.c")
+ROMDATA_MANIFEST = os.path.join("build", "assets", "romdata.manifest")
+
+# THE SHIPPING CONFIGURATION'S ENFORCED CACHE SETTINGS -- ONE TABLE FOR BOTH
+# THE CONFIGURE COMMAND AND THE FAST-PATH CHECK (run link100, lane SHIPCACHE,
+# closing Andrew's #2474 round-3 P2). Before CFGFIX (run link100, lane
+# CFGFIX) this arm always ran cmake -S -B; CFGFIX made it skip that call
+# whenever build/port-kit/build.ninja already existed, on the same "configure
+# only when there is something to configure" rule build-port-j4.cmd uses for
+# the developer build. Andrew's finding: that guard tests only for A
+# configure, not for THIS ONE -- a build/port-kit left over from any other
+# invocation (hand-testing, an aborted run, a copied directory) reads
+# "already configured" and the fast path then builds it with whatever
+# PORT_ROM_CLEAN/CMAKE_BUILD_TYPE/CRT it already had, silently skipping every
+# one of the settings this arm exists to assert. shipcfg_configure_decision()
+# below closes that: the fast path is available only when
+# build/CMakeCache.txt PROVES it still holds every one of these values, not
+# merely when build.ninja happens to be present. shipcfg_cache_defines()
+# builds the configure command's -D flags from this SAME table, so the two
+# can never again say different things about what "the shipping
+# configuration" means.
+#
+# CMAKE_MSVC_RUNTIME_LIBRARY is the static-CRT switch; it reads
+# "MultiThreaded" for the Release/static combination this arm builds
+# (MultiThreadedDLL is the dynamic-CRT opposite Andrew's report found
+# surviving the old guard). The generator is checked separately, off
+# CMAKE_GENERATOR, because "-G Ninja" is not a -D flag on the command line at
+# all.
+SHIPCFG_CACHE_TABLE = (
+    ("PORT_ROM_CLEAN", "ON"),
+    ("CMAKE_BUILD_TYPE", "Release"),
+    ("CMAKE_MSVC_RUNTIME_LIBRARY", "MultiThreaded"),
+)
+SHIPCFG_GENERATOR = "Ninja"
+
+TABLE_OPEN = "static const PortLevelDesc port_level_table[] = {"
+SCENE_TABLE_OPEN = "static const PortSceneClass port_scene_classes[] = {"
+
+# A HOSTED SCENE WHOSE BLOCKER IS NOT THE SCENE BOOT, AND WHAT BLOCKS IT.
+# Same contract as LEVEL_SKIPS above, one row down: scene id -> (env to set,
+# who owns the fix, what it looks like). The env is applied on top of the scene
+# selftest's own, and the bare run is re-probed on every pass so a skip cannot
+# outlive its bug. Empty is the goal.
+SCENE_SKIPS = {
+    # SCENE 390 (0x186), dScMgFlower_c, RETIRED by run mg5 lane Y3D. The row
+    # stood from lane FLW, which seated the class and found that it booted and
+    # ticked but could not RENDER:
+    #
+    #   flw_render (slot 9) -> _ZN13dScMgFlower_c6RenderEv -> func_ov006_020c3bf4
+    #     -> ModelAnim::Virtual18 -> ModelAnim::Virtual10
+    #   FAULT c0000005 accessing 00000000, eax=0
+    #
+    # The row named it a model/animation seam question and left NOT MEASURED
+    # whether the ModelAnim at +0xd18 ever received a file. It had one; the
+    # null was never the object. src/func_ov006_020c3bf4.cpp calls that virtual
+    # through a LOCAL SHADOW CLASS, so its `f5(0)` is the ROM's vtable byte
+    # +0x14 -- the sixth Itanium word, which on Model and ModelAnim alike is
+    # Render(scale). MSVC folds the D1/D0 pair into one slot, so on the host
+    # that byte is Virtual18(mat, scale), the one-argument call handed it
+    # mat = 0, and Model::Virtual10 read address zero. The MATRIX was null, not
+    # the model. Same defect port/unmatched/Door_Render.cpp records on the same
+    # two classes; the seat is
+    # port/unmatched/MgFlower_ModelRender_020c3bf4.cpp.
+    #
+    # Scene 390 now runs 300 frames bare under SM64DS_FAULTS_FATAL=1 with
+    # nothing switched off, slot hits init 1, behavior 253, RENDER 300, and
+    # SM64DS_PPU_AUDIT reports POLYGONS 878 on all 300 samples where it read 0
+    # before. If the host copy is ever dropped, the scene's ordinary selftest
+    # row goes red, which is a stronger signal than this entry was.
+    #
+    # Scene 4's SM64DS_SCENE_SLOT9=0 entry retired 2026-08-15 (run
+    # link60, lane L1): the blocker was never the model loader the entry named.
+    # func_0205a358's spin-wait on GXSTAT bit 25 could not fall through because
+    # ntr modelled GXSTAT as a plain latch and func_0205583c's store of 0 wiped
+    # the read-only FIFO-status bits. Fixed in port/ntr/io.cpp; the bare probe
+    # went 300 frames clean with render-slot hits 300 and the gate printed
+    # SKIP RETIRED on its first run over the fixed tree. The entry shape is
+    # documented in the skip section above; new debts go here with the scene,
+    # the owning lane, and the evidence.
+}
+
+# A HOSTED SCENE THAT CANNOT COMPLETE A SELFTEST AT ALL, AND WHY.
+#
+# SCENE_SKIPS above is for a scene that PASSES once one slot is switched off.
+# This is the row below that: a scene whose blocker is upstream of any frame,
+# so there is no env that makes 300 frames happen and a skip would be a lie.
+# The scene is still HOSTED -- its ACTOR_SPAWN_TABLE row is the ROM's own edge
+# and it is what /OPT:REF follows to keep the class's TUs in the binary -- so
+# leaving it out of port_scene_classes to dodge the battery would delete real
+# linkage to make a number look better.
+#
+# scene id -> (who owns the fix, a STRING THAT MUST APPEAR in the run's output,
+#              what it looks like)
+#
+# THIS IS NOT A SKIP AND IT IS NOT WEAKER THAN ONE, in the direction that
+# matters. A skip asserts "it passes with this env". This asserts the OPPOSITE
+# and checks it: the battery still runs the scene bare, and it FAILS the
+# battery unless the run reproduces THE NAMED BLOCKER. A different crash is a
+# regression and reads as one, and a run that unexpectedly SUCCEEDS prints
+# BLOCK RETIRED, exactly like a retired skip. The marker string is what pins
+# it: without one, any new fault would read as the known one.
+SCENE_BLOCKED = {
+    # SCENE 390 (0x186), dScMgFlower_c, WAS HERE FOR ONE RUN AND IS RETIRED,
+    # run mg5 lane FLW. The row named an ov004 ARM ARGUMENT RIDE-THROUGH two
+    # calls into the class's own InitResources -- the third instance of the
+    # family port/mg_fanout_costs.txt section 6 records for slots 5 and 7, and
+    # the first of the three found by running instead of by reading:
+    #
+    #   flw_init -> _ZN13dScMgFlower_c13InitResourcesEv (slot 0) +0xa
+    #            -> func_ov004_020ad8b8 +0x10 -> func_ov004_020adc3c +0x6
+    #   FAULT c0000005 accessing 0x00000009
+    #
+    # The ROM at 0x020ad8c4 does `ldr r0,[r0]` off data_ov004_020beb68 and then
+    # `bl 0x20adc3c` without touching r0, so one register does the null test
+    # and carries the argument. src/func_ov004_020ad8b8.c declares the callee
+    # (void) and calls it with none; src/func_ov004_020adc3c.c takes void* and
+    # reads c+8 first statement, so on the host it read [esp+4], which held 1.
+    #
+    # RETIRED BY THE FIX SECTION 6 PRESCRIBES, not by a workaround and not by a
+    # skip: port/unmatched/MgFlower_InitScore.cpp is a host copy of
+    # func_ov004_020ad8b8 that places the argument, src/ untouched, and it cost
+    # the one linked function that made it the coordinator's ruling to grant.
+    # Scene 390 now runs 300 frames bare under SM64DS_FAULTS_FATAL=1 with
+    # nothing switched off and its REAL slot-0 InitResources, so it is an
+    # ordinary scene selftest row above and this dict is empty again.
+    #
+    # THE ROW'S REPLACEMENT IS THAT ORDINARY ROW. If the host copy is ever
+    # dropped, scene 390 faults in InitResources again and goes red on the next
+    # battery, which is a stronger signal than a marker string.
+    # SCENE 1 WAS HERE AND IS RETIRED, run link60 Stage 5 lane MR1. The row
+    # had been CONVERTED FOUR TIMES and every conversion was a real blocker
+    # retired by a real seat: func_ov007_020c9688 (lane L2, host transcription
+    # by lane SC1), func_ov007_020b2998 (SC1, MATCHED by CK1, brought across by
+    # PC2), the ARM register ride-through at func_ov007_020be980 (PC2, seated
+    # by RT1) and the implicit r0 argument at func_ov007_020ae558 (RT1, seated
+    # by AE1). The fifth blocker was the FIRST of the four that was not an
+    # argument at all: src/func_ov007_020bbff0.c reached
+    # ModelComponents::Render through an /alternatename onto a __thiscall
+    # member, so the receiver was never delivered and all three arguments
+    # landed one slot along.
+    #
+    # MR1 STOOD A RECEIVER-BRIDGING FACE in hal/scene_boot.cpp, in the shape
+    # Scene::SetFaders twelve lines above it uses, deleted the directive, and
+    # the scene ran. THE COUNTERS ARE THE EVIDENCE AND THE RENDER SLOT IS THE
+    # ONE THAT MOVED: init 1, behavior 299, RENDER 300, cleanup 0,
+    # pending-destroy 0, over a bare 300-frame run with SM64DS_FAULTS_FATAL=1
+    # and NOTHING switched off. Every earlier clean scene-1 run in this file's
+    # history was taken with the Render slot no-op'd; this one is not, and the
+    # difference is the whole point.
+    #
+    # SO THIS IS A RETIREMENT, NOT A FIFTH CONVERSION: the scene has no blocker
+    # left to name, and it runs as an ordinary scene selftest row above.
+    # The marker and its predicate STAY in the tree on purpose. The predicate
+    # in port/CMakeLists.txt is now anchored to the pragma line (MR1 closed the
+    # unanchored-comment hole the AE1 review demonstrated, in the same commit
+    # that created the comment that would have fooled it), so restoring the
+    # receiver-dropping alias arms the marker again and the scene's own row
+    # goes red at the same time. Two independent signals instead of one.
+    #
+    # AND THE FRAME IS NOT A TITLE SCREEN. The Render slot RUNS, which is the
+    # milestone and is what retires this row; what it draws is three colors.
+    # Decomposed in seat section 5f: 93.52% flat clear color, one solid 128x96
+    # magenta rectangle (the sub panel) and its 452-pixel outline, nothing
+    # else. Nobody should read this retirement as the title screen appearing.
+    #
+    # Full write-up, with the disassembled face and the five proof configures:
+    # port/ov007_seat.txt sections 5f, 7 and 8.
+    # SCENE 374 (0x176) WAS HERE AND IS RETIRED, run link60 lane FDR2. The
+    # row had been CONVERTED TWICE and each conversion was a seat that landed:
+    # lane MG2 recorded the arm9 fader (data_0209f61c's vptr was zero because
+    # nothing ran its constructor), lane FDR retired that by running the ROM's
+    # own src/__sinit_02074f80.c and converted the row to the NitroSDK
+    # open-by-name file system, and lane NFS retired THAT by running the ROM's
+    # own archive registration behind a host read face. The third blocker was
+    # the fader again and it was not a missing body: Scene::BeforeBehavior
+    # pushes two arguments into vtable slot 0x0c and cleans nothing, because
+    # MSVC's __thiscall is callee-cleans, and the fader seat's trap stub was
+    # declared `int __fastcall(void *, void *)` -- both parameters in
+    # registers, cleaning nothing -- so eight bytes leaked and the caller's
+    # epilogue read them back as esi, ebp and a return address.
+    #
+    # FDR2 re-declared the two stubs for the shape their call sites emit and
+    # audited all twelve (port/fader_boot_map.txt section 9). Scene 374 then
+    # ran 300 frames under SM64DS_FAULTS_FATAL=1 with exit 0, no fault, no
+    # quarantine line in the playlog, and the state machine dispatching 32,557
+    # calls with 0 unhandled addresses. So this is a RETIREMENT and not a
+    # fourth conversion: the scene has no blocker left to name.
+    #
+    # WHAT WAS STILL MISSING WAS NOT A BLOCKER EITHER, and it is no longer
+    # missing. The paragraph this replaces said the three dWipe_c motion slots
+    # were still named traps and that hal/scene_mg.cpp printed a FADE MOTION
+    # MISSING advisory keyed on port_fdr_motion_slots_unseated(), "which goes
+    # quiet by itself when the ROM bodies are seated". Run link60 Stage 5 lane
+    # SEAT8 seated the last of them (slot 0x08, _ZN7dWipe_c11AdvanceFadeEv) and wired the
+    # ROM's own driver for it, so the predicate and the advisory are both
+    # retired. The rule they were written under stands unchanged: an advisory
+    # is not a battery row and must not become one again.
+
+    # SCENE 376 (0x178) WAS HERE AND IS RETIRED, run mg5 lane SMBSEAT. The row
+    # had been CONVERTED ONCE and the conversion was a real seat: lane SMB
+    # recorded that two of the class's nine vtable overrides had no source at
+    # all, lane INTEG retired slot 0 InitResources and the aux ball-table
+    # seeder, and the blocker moved one floor deeper to "a sub-object whose
+    # ov006 vtable at 0x0213eca0 holds raw DS addresses (_ZN19cMgSmartball_ball_c14RestoreInitialEv,
+    # not seated), so its first method call jumps into DS space".
+    #
+    # THAT LAST BLOCKER WAS NOT A DECOMP GAP AND THE ADDRESS IN IT WAS OFF BY
+    # ONE TABLE, which is the part worth keeping. _ZN19cMgSmartball_ball_c14RestoreInitialEv was
+    # already in src/ here and always had been -- it was simply in no slice,
+    # which reads identically to "no body" from a symbol search and is not the
+    # same thing. And 0x0213eca0 is not a vtable: it is the WORD that holds
+    # 0x02114458, the third slot of a table whose vptr is 0x0213ec98. An
+    # Itanium record walk of overlay_0006.bin finds TWELVE such tables between
+    # 0x0213ec90 and 0x0213eda0, one per cMgSmartball_ class, THREE slots each
+    # -- not the five the config symbol span reads, because config names each
+    # table's vptr rather than its head and the span therefore runs into the
+    # next class's own offset-to-top and typeinfo. Filling five would have
+    # overwritten a neighbour's RTTI with a host code address.
+    #
+    # SMBSEAT RELOCATED ALL TWELVE with the same address-keyed fill every scene
+    # class in hal/scene_mg.cpp already used, seated the thirty-six bodies they
+    # dispatch (thirty-five already in src/, two of those under wrong recovered
+    # names; one, cMgSmartball_board_c::SaveSnapshot at 0x0210f564, brought
+    # across from origin/main by address and re-verified with tools/match.py at
+    # 2004/b56 against overlay_0006.bin in this worktree), and stood slot 9
+    # Render on main's matched __thiscall member behind a cdecl forwarder --
+    # the MgPachinko_Faces section 3 shape, because an alias cannot cross a
+    # calling convention.
+    #
+    # THE COUNTERS ARE THE EVIDENCE AND THE RENDER SLOT IS ONE OF THEM. A bare
+    # 300-frame run with SM64DS_FAULTS_FATAL=1 and nothing switched off:
+    # rc 0, "300 frames of scene 376 (SCENE_MG_SMARTBALL), clean", ov006 slot
+    # hits init 1 / behavior 253 / RENDER 300, 16941 slot entries across the
+    # 36-slot table, dScMgSmartball_c traps entered 0 total, and 8310
+    # dispatches through the twelve relocated three-slot tables. That last
+    # number is the one that cannot be faked by a fill: a table can be
+    # relocated and never entered, and those two look identical from outside.
+    # Neither FILL INCOMPLETE line printed, so zero raw DS words are left in
+    # the class table or in any of the twelve.
+    #
+    # SO THIS IS A RETIREMENT, NOT A SECOND CONVERSION: the scene has no
+    # blocker left to name, and it runs as an ordinary scene selftest row
+    # above. ONE new trap did arrive with the enlarged closure and it is NOT a
+    # blocker -- func_ov006_02115248, named in symbols.txt at size 0x238 with
+    # no delink block here and the identical gap on origin/main, reached from
+    # cMgSmartball_kinoko_c's Update closure. It was not entered on any run in
+    # this lane. It is a named, self-reporting trap in
+    # port/unmatched/MgSmartball_Traps.cpp on the func_ov006_020e1854
+    # precedent, its counter is in the atexit report, and an advisory is not a
+    # battery row and must not become one.
+}
+
+# A MOUNTED LEVEL WHOSE BLOCKER IS NOT THE MOUNT, AND THE CLASS THAT BLOCKS IT.
+#
+# level id -> (SM64DS_SKIP_CLASS value, who owns the fix, what it looks like)
+#
+# The alternative to this table is worse in both directions. Leave the level
+# out of the table in level_boot.cpp and a proven mount goes unshipped because
+# somebody else's actor is broken; leave it in and run it bare and the battery
+# is red on every lane until that actor is fixed. So the mount lands, the
+# battery covers it, and the one class that is not the mount's responsibility
+# is named here in the open.
+#
+# A SKIP HERE IS A DEBT, AND THE BATTERY COLLECTS IT. Every entry is re-probed
+# BARE on every run (retire_probe below). The moment the owning lane's fix
+# lands, the bare run goes green and the battery says so in capitals, so the
+# skip cannot quietly become permanent -- which is the only way a mechanism
+# like this stays honest. Deleting a retired entry is the whole maintenance
+# burden.
+LEVEL_SKIPS = {
+    # Level 33's SNUFIT entry retired 2026-08-15: the w19 slot-5 fix and the
+    # level-33 mount met at the wave's final merge, the bare run went 300
+    # frames clean, and the battery printed SKIP RETIRED on its first run over
+    # the combined tree. The entry shape is documented in this file's skip
+    # section; new debts go here with the class, the owning lane, and the
+    # evidence, never a raw fault offset.
+    #
+}
+# The bare re-probe is expected to FAULT while the debt stands, and a fault
+# under FAULTS_FATAL exits fast. A probe that instead hangs is not evidence of
+# anything, so it gets a short leash and is read as "still needed".
+RETIRE_PROBE_TIMEOUT = 120
+
+
+def mounted_levels(root):
+    """Every mounted level id, read out of port_level_table[] at run time.
+
+    This list used to be a literal here, and a literal is how the battery
+    silently under-tests: run linkw wave 8 mounted sixteen levels and the tuple
+    sat at nineteen ids for the rest of the wave, so the shipped battery
+    covered 19 of 35 mounts and every lane that ran it read a green it had not
+    earned. Deriving it is the only form that cannot go stale.
+
+    A parse failure is fatal on purpose. Falling back to a built-in list would
+    reintroduce exactly the bug this replaced -- a battery that keeps printing
+    greens while testing a set nobody has checked in months.
+    """
+    path = os.path.join(root, "port", "hal", "level_boot.cpp")
+    with open(path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+
+    i = text.find(TABLE_OPEN)
+    if i < 0:
+        raise SystemExit(f"battery: no port_level_table[] in {path}")
+    i += len(TABLE_OPEN)
+    j = text.find("\n};", i)
+    if j < 0:
+        raise SystemExit(f"battery: unterminated port_level_table[] in {path}")
+
+    # The table carries per-wave comment blocks that quote ROM tables and row
+    # fields, so strip comments before matching or a quoted id becomes a level.
+    body = re.sub(r"/\*.*?\*/", " ", text[i:j], flags=re.S)
+    body = re.sub(r"//[^\n]*", " ", body)
+
+    # A row is {<id>, "<name>", "ov0NN", 0x0......., ...}; the name string is
+    # what keeps the pattern off any other brace in the span.
+    ids = [int(n) for n in re.findall(r"\{\s*(\d+)\s*,\s*\"", body)]
+    if not ids:
+        raise SystemExit(f"battery: port_level_table[] parsed empty in {path}")
+
+    dupes = sorted({n for n in ids if ids.count(n) > 1})
+    if dupes:
+        # port_level_desc_for() returns the first match, so a duplicate id is a
+        # dead row, not a harmless one.
+        raise SystemExit(f"battery: duplicate level ids in port_level_table[]:"
+                         f" {dupes}")
+
+    return tuple(sorted(ids))
+
+
+def hosted_scenes(root):
+    """Every hosted NON-LEVEL scene id, read out of port_scene_classes[].
+
+    Derived rather than listed, for the reason mounted_levels() is derived: a
+    literal here goes stale the first time a lane seats a scene, and a battery
+    that keeps printing green over a set nobody has looked at is the exact bug
+    that list replaced. A parse failure is fatal for the same reason; an ABSENT
+    table is not, because a tree with no scene boot at all is a legitimate
+    state and there is nothing to under-test in it.
+    """
+    path = os.path.join(root, "port", "hal", "scene_boot.cpp")
+    if not os.path.exists(path):
+        return ()
+    with open(path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+
+    i = text.find(SCENE_TABLE_OPEN)
+    if i < 0:
+        raise SystemExit(f"battery: no port_scene_classes[] in {path}")
+    i += len(SCENE_TABLE_OPEN)
+    j = text.find("\n};", i)
+    if j < 0:
+        raise SystemExit(f"battery: unterminated port_scene_classes[] in {path}")
+
+    body = re.sub(r"/\*.*?\*/", " ", text[i:j], flags=re.S)
+    body = re.sub(r"//[^\n]*", " ", body)
+    # a row is {<id>, "<NAME>", <info>, <factory>, <fill>}; the terminator
+    # {0, 0, 0, 0, 0} has no string and does not match.
+    # HEX IS ACCEPTED, run link60 lane MG2. This used to read \d+ only, and a
+    # scene written {0x176, "..."} -- which is the natural spelling, because an
+    # actor id is hex everywhere else in the tree -- simply did not match. The
+    # failure is SILENT UNDER-TESTING, the exact shape this function's own
+    # docstring says it exists to prevent: the scene is hosted, the battery
+    # does not know it exists, and the run stays green over it. It surfaced
+    # here only because SCENE_BLOCKED named an id the parse had dropped and the
+    # orphan check caught the disagreement.
+    ids = [int(n, 0) for n in
+           re.findall(r"\{\s*(0[xX][0-9a-fA-F]+|\d+)\s*,\s*\"", body)]
+    if not ids:
+        raise SystemExit(f"battery: port_scene_classes[] parsed empty in {path}")
+
+    dupes = sorted({n for n in ids if ids.count(n) > 1})
+    if dupes:
+        raise SystemExit(f"battery: duplicate scene ids in port_scene_classes[]:"
+                         f" {dupes}")
+    return tuple(sorted(ids))
+
+
+# CREATE_NO_WINDOW. Every exe this battery runs is a CONSOLE-subsystem binary
+# (measured: walk_window.exe's PE subsystem is 3), so when the battery is
+# launched by something that has no console of its own -- a lane agent, a
+# scheduled task, an editor's run button -- Windows makes a NEW CONSOLE WINDOW
+# for each child, and each of those windows appears on the desk and competes for
+# the foreground. Roughly a hundred of them over one battery run.
+#
+# capture_output=True already pipes all three handles, so no child here has any
+# use for a console. This flag is therefore a pure removal of windows nobody was
+# reading. It is ignored on non-Windows, where the attribute does not exist.
+#
+# This is the CONSOLE half of the focus problem. The GAME WINDOW half is
+# SM64DS_NO_FOCUS, set in selftest_env below.
+NO_CONSOLE = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+# SW_SHOWMINNOACTIVE. CREATE_NO_WINDOW silences the console and SM64DS_NO_FOCUS
+# stops the game window taking the keyboard, but the game window still APPEARED,
+# and a battery paints roughly a hundred of them over the desk in seven minutes.
+# walk_window honours the launcher's STARTUPINFO show request (host_show_mode(),
+# the other half of the run mg12 no-focus work), so asking for
+# SW_SHOWMINNOACTIVE here starts every game window minimized and unactivated:
+# nothing appears, nothing flashes, and the selftest BMP is written from the
+# port's own framebuffer so the picture cannot depend on the window being
+# visible -- proven by md5 A/B before this shipped (port/no_focus.txt section 9).
+if hasattr(subprocess, "STARTUPINFO"):
+    SI_MIN = subprocess.STARTUPINFO()
+    SI_MIN.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    SI_MIN.wShowWindow = 7  # SW_SHOWMINNOACTIVE
+else:
+    SI_MIN = None
+
+
+def _is_windowed_cmd(cmd):
+    """Is this a walk_window launch -- the one command that opens the windowed
+    test slot? Only these serialise through the lock; the build cmd, the smoke
+    exes, linkage.py and ptr_audit.py do not open a game window and are left to
+    run in parallel with another lane's non-windowed work."""
+    if not cmd:
+        return False
+    base = os.path.basename(str(cmd[0])).lower()
+    return base.startswith("walk_window") and base.endswith(".exe")
+
+
+def run(cmd, cwd, env=None, timeout=STEP_TIMEOUT):
+    # EXCLUSIVE WINDOWED SLOT. When SM64DS_TEST_LOCK is set (opt-in, see
+    # slot_lock.py) every walk_window launch this battery makes holds the one
+    # machine-wide windowed slot for its lifetime, so two lanes' windowed tests
+    # cannot overlap and throw the random cross-level rc=1 that this lock exists
+    # to end. Unset, or for a non-windowed command, this is a plain
+    # subprocess.run and the battery behaves exactly as before.
+    # slot_reentrant rather than slot: identical when this is the only hold --
+    # it acquires and releases exactly as before -- and free when the caller is
+    # already holding the slot for a whole phase (see windowed_phase below), so
+    # a lane can run several of its own rows at once without the per-launch lock
+    # serialising the lane against itself. See slot_lock.py's phase banner.
+    if slot_lock.enabled() and _is_windowed_cmd(cmd):
+        with slot_lock.slot_reentrant(
+                label=f"battery {os.path.basename(str(cmd[0]))}"):
+            return subprocess.run(cmd, cwd=cwd, env=env, timeout=timeout,
+                                  capture_output=True, text=True,
+                                  creationflags=NO_CONSOLE, startupinfo=SI_MIN)
+    return subprocess.run(cmd, cwd=cwd, env=env, timeout=timeout,
+                          capture_output=True, text=True,
+                          creationflags=NO_CONSOLE, startupinfo=SI_MIN)
+
+
+# ---- RUNNING THE LEVEL ROWS N-WIDE (run link100, lane SLOT) ----------------
+#
+# WHY. The level phase is fifty windowed runs, one after another, and it is most
+# of the battery's quarter of an hour. Every one of them is an independent
+# question about an independent level, so the only reason they were sequential
+# is that the windowed slot lock made them so -- a per-launch lock serialises a
+# lane against ITSELF as much as against another lane. With the phase hold below
+# taking the slot once, the rows can go N at a time and the whole battery stops
+# being the thing eight lanes queue behind.
+#
+# DEFAULT 1, WHICH IS TODAY'S BEHAVIOUR BYTE FOR BYTE: one worker runs the rows
+# in level order out of build/port itself, with no copied exe and no phase hold,
+# which is the code path that shipped. N>1 is a lane's explicit choice.
+#
+# EACH WORKER GETS ITS OWN DIRECTORY, and that is not tidiness. Everything a run
+# writes is named relative to either the working directory or the exe, and
+# port/hal/instance_tag.h's survey is the list: walk_window_selftest.bmp,
+# sub_screen.bmp and the tex dumps are cwd-relative; crash.txt and exit.txt are
+# exe-relative and are DELIBERATELY NOT per-instance (that header's banner
+# explains at length why editing fault_probe.h is off the table), so two rows
+# sharing one folder would have the second faulting row overwrite the first's
+# report. A directory per worker separates every one of those names at once,
+# with no code change in the game and nothing to keep in sync -- which is
+# exactly the answer that header calls "already separable".
+#
+# SM64DS_INSTANCE rides along so the two names the port DOES suffix itself
+# (startup_error.txt, savestate.bin) and the window title are per worker too.
+MAX_LEVEL_WORKERS = 8
+
+
+def level_workers():
+    """How many level rows to run at once. 1 (the default) is the old path."""
+    v = os.environ.get("SM64DS_BATTERY_WORKERS", "")
+    try:
+        n = int(str(v).strip())
+    except ValueError:
+        n = 1
+    return max(1, min(n, MAX_LEVEL_WORKERS))
+
+
+def worker_dirs(root, build, n):
+    """One private directory per worker, each with its own walk_window.exe.
+
+    Returns a list of n directories; with n == 1 it is [build] and nothing is
+    copied, so the single-worker path touches no new files at all.
+    """
+    if n <= 1:
+        return [build]
+    base = os.path.join(root, "build", "battery-workers")
+    dirs = []
+    for i in range(n):
+        d = os.path.join(base, "w%d" % i)
+        os.makedirs(d, exist_ok=True)
+        src = os.path.join(build, "walk_window.exe")
+        dst = os.path.join(d, "walk_window.exe")
+        # Copy when the exe is newer or missing. A stale copy would test a
+        # binary nobody built, which is the failure this whole file is careful
+        # about elsewhere (shipcfg_stale_kit), so the mtime+size test is the
+        # cheap version of the same refusal.
+        if (not os.path.exists(dst)
+                or os.path.getmtime(dst) < os.path.getmtime(src)
+                or os.path.getsize(dst) != os.path.getsize(src)):
+            shutil.copy2(src, dst)
+        # The exe-adjacent post-mortems from an earlier battery must not be
+        # read as this one's: a stale crash.txt beside a worker is exactly the
+        # "stale artifact looks fresh" shape.
+        for name in ("crash.txt", "exit.txt", "startup_error.txt"):
+            p = os.path.join(d, name)
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+        dirs.append(d)
+    return dirs
+
+
+@contextlib.contextmanager
+def windowed_phase(workers, rows, label):
+    """Hold the windowed slot for a whole phase, or do nothing.
+
+    Taken ONLY when the rows are going to run more than one wide: with a single
+    worker every launch takes the per-launch lock exactly as it always did, so
+    the default path's locking is unchanged. With several, the phase hold is
+    what makes the per-launch locks free (slot_lock.slot_reentrant) instead of
+    serialising this lane against itself.
+    """
+    if workers > 1 and slot_lock.enabled():
+        # DECLARE THE LENGTH. A phase hold is legitimately longer than one
+        # windowed run, and slot_lock's stale backstop breaks an UNDECLARED
+        # overlong hold on purpose -- that is how a lane that wedged holding the
+        # slot is recovered -- so a phase that did not say how long it would be
+        # would eventually be broken into the very collision the lock exists to
+        # stop. The number is this phase's own worst case: every row taking the
+        # full per-step timeout, `workers` of them at a time. slot_lock floors
+        # it at its own default, so a small phase cannot shorten the leash.
+        worst = STEP_TIMEOUT * -(-rows // max(1, workers))
+        with slot_lock.slot_reentrant(label=label, max_hold=worst):
+            yield
+    else:
+        yield
+
+
+@contextlib.contextmanager
+def full_windowed_phase(total_rows, label):
+    """Hold the windowed SLOT across level rows + scene rows + the default
+    boot as ONE phase (run link100, lane BATTLOCK), the sibling of
+    windowed_phase above at a wider scope.
+
+    windowed_phase takes the slot for one sub-phase, and only when that
+    sub-phase runs several rows wide; at the default of one worker every
+    launch still takes and drops the per-launch lock in run() on its own, so
+    across levels, scenes and the default boot the lockfile is created and
+    removed roughly ninety times regardless of width. That is harmless by
+    itself -- the property THIS function exists for is not fewer lock file
+    operations, it is that the slot is demonstrably free BEFORE the shipcfg
+    BUILD phase that follows asks build_phase() for the build lock, so a
+    battery invoked directly (not under an outer `build_lock.py run`) never
+    holds one lock while waiting for the other. Taking one continuous hold
+    here, sized to the WORST case of every row in the phase (levels + scenes
+    + the one default-boot row) at STEP_TIMEOUT each, guarantees that even if
+    every inner windowed_phase() and per-launch lock were somehow skipped the
+    outer hold alone would still cover the whole span; slot_reentrant makes
+    the inner ones free once this one holds the lockfile, per its own nesting
+    contract (see slot_lock.py's HOLDING IT ACROSS A PHASE).
+    """
+    if slot_lock.enabled():
+        worst = STEP_TIMEOUT * total_rows
+        with slot_lock.slot_reentrant(label=label, max_hold=worst):
+            yield
+    else:
+        yield
+
+
+# ---- THE BUILD LOCK, PER PHASE (run link100, lane BATTLOCK) ---------------
+#
+# THE PROBLEM THIS SECTION CLOSES. Before this lane, battery.py opted into
+# neither lock itself -- it always took the SLOT lock (above), but never the
+# BUILD lock. A caller that wanted the full build serialised against every
+# other lane's build had exactly one way to get that: wrap the WHOLE
+# invocation in `build_lock.py run --label <lane> --root <root> -- python
+# port/tools/battery.py <root> ...`. That wrapper holds the build lock for
+# the CHILD PROCESS'S ENTIRE LIFETIME, which is not the ~5 minutes battery.py
+# spends actually building -- it is that PLUS the ten to fifteen minutes it
+# spends on its 87 windowed rows, which never touch the build tree at all.
+# One battery run under that wrapper therefore blocked every OTHER lane's
+# build for the whole battery, doing no building itself for most of it: the
+# one thing pacing every lane on a night with three builds and two batteries
+# queued.
+#
+# THE FIX. battery.py now takes the BUILD lock itself, scoped to only the two
+# phases that build -- the rebuild (build-port.cmd) and the shipcfg
+# configure+build -- and releases it before every windowed phase, exactly
+# symmetrically with how it has always taken the SLOT lock only around
+# windowed launches (full_windowed_phase and windowed_phase, above). Opt-in
+# exactly as before: with SM64DS_BUILD_LOCK unset, build_phase() is a no-op
+# and the battery runs byte-for-byte as it always has. See the module
+# docstring's LOCKING BY PHASE section for the resulting phase table.
+#
+# THE ONE CASE THIS CANNOT FIX: an outer `build_lock.py run` wrapper.
+# build_lock.acquire() is deliberately NOT re-entrant (build_lock.py mirrors
+# slot_lock.py's own contract here on purpose), so if battery.py is invoked
+# as ITS child, an ANCESTOR process already holds the lock for the child's
+# whole lifetime -- battery.py cannot release what it does not hold, and
+# trying to acquire it anyway would not queue, it would DEADLOCK: a child
+# waiting on its own ancestor to release a lock the ancestor will not release
+# until the child exits is not a wait, it is a wedge that only times out.
+# _build_lock_held_by_ancestor detects that shape -- the current holder's pid,
+# read back through build_lock.holder(), is this process's parent or a nearer
+# ancestor -- and build_phase() prints a one-line notice instead of trying to
+# acquire: the wrapper holds the lock for the whole run, so nothing below can
+# release it between phases. The fix is not code, it is the invocation: run
+# battery.py directly (see RECOMMENDED INVOCATION in the module docstring).
+
+_wrapper_notice_shown = False
+
+
+def _parent_pid(pid):
+    """The parent pid of a Windows process, or None if it cannot be read.
+
+    CreateToolhelp32Snapshot + Process32First/Next is the standard win32 way
+    to answer "who is PID N's parent" -- there is no simpler call, and this
+    file's own NO_CONSOLE/SI_MIN and build_lock.py/slot_lock.py's _pid_alive
+    already assume Windows throughout, so a Windows-only implementation here
+    matches the rest of the tree rather than adding a new assumption.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    TH32CS_SNAPPROCESS = 0x00000002
+
+    class PROCESSENTRY32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_char * 260),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    snap = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    if snap in (0, -1):
+        return None
+    try:
+        entry = PROCESSENTRY32()
+        entry.dwSize = ctypes.sizeof(PROCESSENTRY32)
+        if not kernel32.Process32First(snap, ctypes.byref(entry)):
+            return None
+        while True:
+            if entry.th32ProcessID == pid:
+                return entry.th32ParentProcessID
+            if not kernel32.Process32Next(snap, ctypes.byref(entry)):
+                return None
+    finally:
+        kernel32.CloseHandle(snap)
+
+
+def _build_lock_held_by_ancestor(max_hops=16):
+    """Does an ANCESTOR of this process hold the build lock right now?
+
+    True only when SM64DS_BUILD_LOCK is set, the lock is actually held, and
+    walking th32ParentProcessID from our own pid reaches the holder's pid
+    within max_hops steps -- the shape `build_lock.py run -- python
+    battery.py ...` makes (build_lock.py is our direct parent under
+    subprocess.Popen; a shell layer in between costs one more hop, which is
+    why this walks rather than checking os.getppid() alone). A holder that is
+    NOT our own ancestor is another lane entirely, running concurrently, and
+    must be queued behind normally by build_phase() below -- this function
+    answers a narrower question than "is the lock held": specifically,
+    "would OUR acquiring it deadlock against our own parent".
+    """
+    if not build_lock.enabled():
+        return False
+    pid, _, _, _ = build_lock.holder()
+    if not pid:
+        return False
+    walk = os.getpid()
+    for _ in range(max_hops):
+        if walk == pid:
+            return True
+        parent = _parent_pid(walk)
+        if not parent or parent == walk:
+            return False
+        walk = parent
+    return False
+
+
+@contextlib.contextmanager
+def build_phase(label, root):
+    """Hold the BUILD lock for one build phase (the rebuild, or the shipcfg
+    configure+build), or do nothing. See THE BUILD LOCK, PER PHASE above.
+
+    Opt-in on SM64DS_BUILD_LOCK, exactly like slot_lock's SM64DS_TEST_LOCK:
+    unset, this is a plain yield and battery.py builds exactly as it always
+    has. Set, and NOT nested under an outer `build_lock.py run` wrapper, this
+    acquires and releases build_lock.py's one machine-wide build lock for the
+    block. Set and nested under that wrapper, an ancestor already holds the
+    lock for the whole run -- acquiring here would deadlock rather than queue
+    -- so this prints one notice (not once per phase; a module-level flag
+    keeps it to once per process) and proceeds without touching the lock,
+    which is exactly correct: the ancestor already holds it for this whole
+    call.
+    """
+    global _wrapper_notice_shown
+    if not build_lock.enabled():
+        yield
+        return
+    if _build_lock_held_by_ancestor():
+        if not _wrapper_notice_shown:
+            print(
+                "[battery] running under an outer `build_lock.py run` "
+                "wrapper: it holds the build lock for this process's WHOLE "
+                "lifetime, so battery.py cannot release it between phases -- "
+                "every windowed row below waits behind it too, blocking "
+                "every other lane's build for no reason. Recommended: run "
+                "battery.py directly instead (it takes the build lock itself, "
+                "per phase) -- `python port/tools/battery.py <root> "
+                "--linked-floor N` with SM64DS_BUILD_LOCK=1 and "
+                "SM64DS_TEST_LOCK=1 exported (and their _PATH variables set "
+                "as usual).", file=sys.stderr)
+            _wrapper_notice_shown = True
+        yield
+        return
+    with build_lock.build(label=label, root=root):
+        yield
+
+
+def selftest_env(lvl, skip=None):
+    env = dict(os.environ,
+               SM64DS_LEVEL=str(lvl),
+               SM64DS_FAULTS_FATAL="1",
+               SM64DS_WINDOW_SELFTEST=SELFTEST_FRAMES)
+    if skip:
+        env["SM64DS_SKIP_CLASS"] = skip
+    else:
+        # The battery's own environment must not decide what a level runs. An
+        # SM64DS_SKIP_CLASS inherited from whoever invoked it would let a lane
+        # skip its way to a green over levels this table says need nothing.
+        env.pop("SM64DS_SKIP_CLASS", None)
+    # SM64DS_DUAL_SCREEN forces the stacked layout on or off (hal/sub_screen.cpp).
+    # A level is inset by default and the selftest BMP this step compares is the
+    # 512x384 framebuffer in either layout, but an inherited force-on would still
+    # change what the run presents and what its window is shaped like, and the
+    # comparator must measure the default rather than the caller's preference.
+    env.pop("SM64DS_DUAL_SCREEN", None)
+    # SM64DS_CLICK_TEST (lane TCH2) is dropped here as well as in scene_env. The
+    # driver already refuses to arm under a selftest, so this is the second of
+    # two locks rather than the only one -- and it is the cheap one to keep.
+    env.pop("SM64DS_CLICK_TEST", None)
+    # SM64DS_TOUCH_PROBE is the third member of the injected-input class and
+    # the one with NO selftest gate of its own: it injects synthetic stylus
+    # presses outside the g_headless guard. Review TCR1 measured an inherited
+    # one changing the level-1 selftest BMP (524 probe lines, d2cec869 instead
+    # of the baseline). It is dropped in both env builders for that reason.
+    env.pop("SM64DS_TOUCH_PROBE", None)
+    # run mg15 lane MP1: the four-slot input route and its per-frame readout,
+    # dropped in both env builders for the reason the four above it are.
+    env.pop("SM64DS_COMMS_FANOUT", None)
+    env.pop("SM64DS_COMMS_REPORT", None)
+    # run mg16 lane MP2: the loopback carrier's four knobs, dropped for the
+    # reason the two above are and then some. SM64DS_COMMS_ROLE makes the run
+    # open a UDP socket and hunt for a peer; on a battery box that is a bind
+    # that may fail, a wait bound that may expire, and either way a run whose
+    # input path came off a wire instead of off the harness. The other three
+    # are its arguments.
+    env.pop("SM64DS_COMMS_ROLE", None)
+    env.pop("SM64DS_COMMS_PORT", None)
+    env.pop("SM64DS_COMMS_SLOT", None)
+    env.pop("SM64DS_COMMS_INJECT", None)
+    # SM64DS_EDITOR_CHANNEL, the last member of that family and the only knob in
+    # the port that names a FIXED machine-wide number: hal/editor_channel.cpp
+    # binds loopback port 7355. See the longer note at the same entry in
+    # scene_env below -- run link100 lane SLOT scanned the linked exe and found
+    # no named kernel object of any kind, which makes 7355 the single name two
+    # concurrent runs on this box can contend for. Inherited, it also hands an
+    # outside process a live spawn/warp interface into a comparator run.
+    env.pop("SM64DS_EDITOR_CHANNEL", None)
+    # SM64DS_RNG_MENU_FRAMES (run mg5, lane RNGSEED) pins the minigame RNG's
+    # menu dwell and forces the seed, which moves data_0209d4b8 off the .bss
+    # zero every draw in this tree is measured from. It is DETERMINISTIC -- the
+    # same n is the same state -- so an inherited one could not make a row
+    # flaky, only wrong in a stable way, which is the harder kind to notice.
+    # Dropped in both env builders for the reason the four above it are.
+    env.pop("SM64DS_RNG_MENU_FRAMES", None)
+    # SM64DS_NO_FOCUS: the level selftests are the only step in this battery
+    # that opens a game window, and a battery run opens one per mounted level.
+    # Each of those took the foreground off whoever was using the machine, which
+    # on the shared box is the owner, mid-sentence, once per level.
+    #
+    # The battery DECIDES this rather than inheriting it, the same way it decides
+    # the four knobs popped above -- and for the stronger reason that this one
+    # must be provably invisible to the artifact this step compares. The flag is
+    # presentation OF THE WINDOW: WS_EX_NOACTIVATE plus SW_SHOWNOACTIVATE, no
+    # pixel and no frame touched. Measured before it was wired here, level 1 at
+    # SELFTEST_FRAMES, flag off vs on: walk_window_selftest.bmp byte-identical.
+    #
+    # A lane that needs the real foreground -- anything driving SM64DS_CLICK_TEST
+    # -- does not go through this battery, and walk_window overrides the flag by
+    # itself when that driver is armed.
+    env["SM64DS_NO_FOCUS"] = "1"
+    return env
+
+
+def retire_probe(build, lvl):
+    """Does level `lvl` still need its skip? (True still needed, False retired).
+
+    Runs the level BARE. While the debt stands this faults under FAULTS_FATAL
+    and returns quickly; when the owning lane's fix lands it returns 0 and the
+    entry in LEVEL_SKIPS is dead weight.
+    """
+    try:
+        r = run([os.path.join(build, "walk_window.exe")], build,
+                env=selftest_env(lvl), timeout=RETIRE_PROBE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return True, "the bare run did not finish inside %ds" % \
+            RETIRE_PROBE_TIMEOUT
+    if r.returncode:
+        return True, "bare rc=%d" % r.returncode
+    return False, "bare rc=0"
+
+
+def scene_env(scene, extra=None):
+    """The scene selftest's environment. SM64DS_SCENE takes the whole run
+    (walk_window hands over to hal/scene_boot.cpp's port_scene_run before the
+    first level-shaped statement), so SM64DS_LEVEL and the level knobs are not
+    just unnecessary here, they are inapplicable -- and SM64DS_LEVEL is dropped
+    so an inherited one cannot make a scene run read as a level run.
+    Same frame count as the level selftests, for the same reason: a number that
+    two steps disagree on is a number a reader has to look up."""
+    env = dict(os.environ,
+               SM64DS_SCENE=str(scene),
+               SM64DS_SCENE_FRAMES=SELFTEST_FRAMES,
+               SM64DS_FAULTS_FATAL="1")
+    # EVERY scene knob is dropped before the table's own is applied, not just
+    # the level ones. The battery's own environment must not decide what a
+    # scene runs: an inherited SM64DS_SCENE_SLOT9=0 would let a lane skip its
+    # way to a green over a scene this table says needs nothing, which is the
+    # identical hole SM64DS_SKIP_CLASS is popped for one line up.
+    # SM64DS_DUAL_SCREEN is in the list for the same reason the rest are. A
+    # minigame scene defaults to the stacked layout out of the ROM's own
+    # IsMinigameActorID and a non-minigame scene defaults to the inset panel;
+    # an inherited force would have the caller decide that instead of the code
+    # under test, in both directions.
+    # SM64DS_SCENE_WINDOW AND SM64DS_CLICK_TEST ARE IN THE LIST BECAUSE A
+    # HEADLESS ROW MUST STAY HEADLESS. Measured by run link60 lane SWR1: with
+    # SM64DS_SCENE_WINDOW inherited from the shell a battery scene row opens a
+    # REAL window, which puts a live mouse into poll_touch and a machine-global
+    # TAB into the panel latch, and both of those move the frame this step is
+    # comparing. The lane that added the variable wrote "nothing in the battery
+    # sets it", which was true and is not the same claim as "the battery cannot
+    # receive it". SM64DS_CLICK_TEST (lane TCH2's scripted stylus) is dropped
+    # in the same breath and for the identical reason: a click script inherited
+    # from a shell would drive synthetic presses into a comparison run.
+    # SM64DS_PAD_TEST joins them, and its absence was a real hole rather than a
+    # deliberate omission: a scene row does NOT set SM64DS_WINDOW_SELFTEST, so
+    # g_selftest is false on this path and the scripted pad is live. An
+    # inherited one would press buttons into a scene the battery is measuring,
+    # and the click and the pad are the same class of input with the same
+    # exposure.
+    # SM64DS_MG_SCORE_TRACE JOINS THEM FOR A REASON THAT IS NOT PRINTING. Run
+    # mg5 lane HISCORE added it, and most of what it does is read-only, but one
+    # arm of it -- hal/scene_mg.cpp's pch_award_abi_check -- CALLS GAME CODE
+    # (func_ov006_020fb7e0 and the award routine behind it) on a scratch object
+    # during the pachinko fill. It parks data_ov004_020beb68 so it cannot reach
+    # the live score, and it is off unless the variable is set, but an inherited
+    # value would still run two ov006 bodies inside a row this step is
+    # measuring. Same class as the pad and the click: not input, but not
+    # nothing either.
+    for k in ("SM64DS_LEVEL", "SM64DS_SKIP_CLASS", "SM64DS_SCENE_NO_RENDER",
+              "SM64DS_SCENE_BMP", "SM64DS_SCENE_BMP_STACKED",
+              "SM64DS_SCENE_TRACE", "SM64DS_SCENE_SLOT9",
+              "SM64DS_SCENE_SUBLEVEL", "SM64DS_DUAL_SCREEN", "PORT_WATCHDOG",
+              "SM64DS_SCENE_WINDOW", "SM64DS_CLICK_TEST", "SM64DS_PAD_TEST",
+              "SM64DS_TOUCH_PROBE", "SM64DS_MG_SCORE_TRACE",
+              # run mg15 lane MP1: SM64DS_COMMS_FANOUT routes TouchInfo[4] and
+              # PadData[4] through the ROM's four comms records instead of the
+              # port's direct writes, and SM64DS_COMMS_REPORT prints four lines
+              # a frame. An inherited fanout would change the whole input path
+              # of a row this step is measuring -- the same class as the five
+              # above, and the more consequential one.
+              "SM64DS_COMMS_FANOUT", "SM64DS_COMMS_REPORT",
+              # run mg16 lane MP2: the loopback carrier's four. An inherited
+              # SM64DS_COMMS_ROLE opens a socket and hunts for a peer on a box
+              # whose whole job is to answer one question about one scene.
+              "SM64DS_COMMS_ROLE", "SM64DS_COMMS_PORT",
+              "SM64DS_COMMS_SLOT", "SM64DS_COMMS_INJECT",
+              # THE LAST MEMBER OF THAT FAMILY, and the only thing in the whole
+              # port that names a FIXED machine-wide number: hal/editor_channel
+              # .cpp binds loopback port 7355. Run link100 lane SLOT scanned the
+              # linked walk_window.exe for every named kernel object --
+              # CreateMutex, CreateFileMapping, CreateEvent, CreateSemaphore,
+              # CreateNamedPipe, and any "Global\\" or "Local\\" name string --
+              # and found NONE, so 7355 is the one name two concurrent runs on
+              # this box could contend for at all. It costs more than the
+              # contention: an inherited channel hands an outside process a live
+              # spawn / warp / objlist interface into a run whose whole job is
+              # to be deterministic. Same class as SM64DS_COMMS_ROLE directly
+              # above, and it was the one knob in that class neither env builder
+              # dropped.
+              "SM64DS_EDITOR_CHANNEL",
+              "SM64DS_RNG_MENU_FRAMES"):
+        env.pop(k, None)
+    if extra:
+        for kv in extra.split(","):
+            k, _, v = kv.partition("=")
+            env[k] = v or "1"
+    return env
+
+
+def scene_retire_probe(build, scene):
+    """Does scene `scene` still need its skip? Same contract as retire_probe,
+    with one difference that matters: scene 4's debt is a HANG, not a fault, so
+    the bare probe does not exit fast the way a FAULTS_FATAL crash does. It
+    runs out the leash instead, and the timeout IS the evidence. Read
+    "did not finish inside Ns" as "still needed", the same as a nonzero rc."""
+    try:
+        r = run([os.path.join(build, "walk_window.exe")], build,
+                env=scene_env(scene), timeout=RETIRE_PROBE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return True, "the bare run did not finish inside %ds" % \
+            RETIRE_PROBE_TIMEOUT
+    if r.returncode:
+        return True, "bare rc=%d" % r.returncode
+    return False, "bare rc=0"
+
+
+def shipcfg_cache_defines():
+    """The configure command's -D flags, built from SHIPCFG_CACHE_TABLE.
+
+    shipcfg_configure_decision() below reads the SAME table's keys back off
+    an existing CMakeCache.txt before it will agree to skip this command, so
+    the command line and the fast-path check are one table read two ways and
+    cannot say different things about what "the shipping configuration" is.
+    """
+    return " ".join('-D%s=%s' % (k, v) for k, v in SHIPCFG_CACHE_TABLE)
+
+
+def _cmake_cache_entries(cachefile):
+    """{key: value} out of a CMakeCache.txt, or {} if it cannot be read.
+
+    A cache line is NAME:TYPE=VALUE. The type is dropped rather than checked
+    -- port/tools/gate.py's cache_value() reads a cache the same way, for the
+    same reason: CMake does not keep the type spelling stable across entries
+    or versions (CMAKE_MSVC_RUNTIME_LIBRARY reads UNINITIALIZED here, not
+    STRING, though it is set the same -D way as CMAKE_BUILD_TYPE), and the
+    value is the only part either caller needs.
+    """
+    entries = {}
+    try:
+        with open(cachefile, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or line.startswith("//"):
+                    continue
+                name, sep, rest = line.partition(":")
+                if not sep or "=" not in rest:
+                    continue
+                entries[name] = rest.split("=", 1)[1]
+    except OSError:
+        return {}
+    return entries
+
+
+def shipcfg_configure_decision(build):
+    """May the shipcfg configure step be skipped for this build directory?
+
+    Returns (status, detail). status is the literal string "fast path" when
+    build.ninja already exists AND build/CMakeCache.txt carries every
+    SHIPCFG_CACHE_TABLE key at its enforced value AND CMAKE_GENERATOR reads
+    SHIPCFG_GENERATOR; otherwise status is the literal string "refused" and
+    detail names the missing file, the missing cache, or the one offending
+    key and the value found in place of the enforced one. detail is always a
+    complete sentence fragment fit to print after "shipcfg configure: ok, ".
+
+    A PURE FILE READ, the same shape as shipcfg_stale_kit above: no cmake is
+    invoked and nothing is launched, so calling this before every configure
+    costs nothing and it is what test_battery_shipcfg.py exercises directly,
+    never through a real configure.
+
+    WHY THIS EXISTS (Andrew's #2474 round-3 P2). CFGFIX's fast path skipped
+    the configure call whenever build/port-kit/build.ninja was already on
+    disk, on the same "configure only when there is something to configure"
+    rule build-port-j4.cmd uses for the developer build. That rule is safe
+    for the DEVELOPER build because CMAKE_CONFIGURE_DEPENDS (port/CMakeLists
+    .txt, run link100 lane CMAKEDEPS) makes ninja itself reconfigure the
+    moment any registered input changes -- but nothing registers "was this
+    cache ever configured with PORT_ROM_CLEAN=ON, Release and the static CRT
+    in the first place" as an input, because those are values CHOSEN on the
+    configure command line, not files CMake reads. A build/port-kit left
+    behind by any other invocation -- a hand test of the Debug/DLL developer
+    settings pointed at this same directory, an aborted run, a copied
+    directory -- carries a build.ninja that is completely current for
+    whatever it WAS configured with, so ninja's own freshness edge has
+    nothing to fire on and the old fast path shipped a binary built from
+    wrong settings while printing green. Measured on exactly that fixture in
+    test_battery_shipcfg.py: PORT_ROM_CLEAN=OFF, CMAKE_MSVC_RUNTIME_LIBRARY=
+    MultiThreadedDLL, CMAKE_BUILD_TYPE=Debug, a real build.ninja alongside
+    it, and the tree's own tooling returning success throughout.
+    """
+    ninja_file = os.path.join(build, "build.ninja")
+    if not os.path.isfile(ninja_file):
+        return "refused", ("no build.ninja in %s -- nothing configured yet"
+                           % build)
+
+    cachefile = os.path.join(build, "CMakeCache.txt")
+    if not os.path.isfile(cachefile):
+        return "refused", ("build.ninja exists but %s does not, so the cache "
+                           "cannot be validated" % cachefile)
+
+    cache = _cmake_cache_entries(cachefile)
+
+    got_gen = cache.get("CMAKE_GENERATOR")
+    if got_gen != SHIPCFG_GENERATOR:
+        return "refused", ("CMAKE_GENERATOR is %r in %s, not the enforced %r"
+                           % (got_gen, cachefile, SHIPCFG_GENERATOR))
+
+    for key, want in SHIPCFG_CACHE_TABLE:
+        got = cache.get(key)
+        if got != want:
+            return "refused", ("%s is %r in %s, not the enforced %r"
+                               % (key, got, cachefile, want))
+
+    return "fast path", ("%s carries every enforced setting (%s, generator "
+                         "%s)"
+                         % (cachefile,
+                            ", ".join("%s=%s" % kv
+                                      for kv in SHIPCFG_CACHE_TABLE),
+                            SHIPCFG_GENERATOR))
+
+
+def shipcfg_script(root, build):
+    """Write the cmd that configures (if the cache proves it may skip that)
+    and builds the shipping configuration.
+
+    Toolchain located the way port/build-port.cmd locates it, switched the way
+    tools/portable_kit/package_kit.ps1 switches it, and the target is
+    walk_window ALONE for the reason the doctrine block gives. A file rather
+    than a command line because vcvars32.bat has to leave its environment
+    behind for cmake in the same shell, which a single subprocess call cannot
+    arrange.
+
+    Returns (script path, no_vcvars, decision, detail). On a missing
+    vcvars32.bat, script is None, no_vcvars names the path that is not there,
+    and decision/detail are both None. Otherwise no_vcvars is None and
+    decision/detail are shipcfg_configure_decision(build)'s verdict, already
+    BAKED into the generated script: "fast path" writes a configure step
+    guarded by the same build.ninja test CFGFIX added; "refused" writes an
+    UNCONDITIONAL configure, so a stale, missing or wrong-valued cache can
+    never again ride a present build.ninja to a skipped configure. See
+    shipcfg_configure_decision's docstring for why the guard alone is not
+    enough here the way it is for the developer build.
+    """
+    pf = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+    vs = os.path.join(pf, "Microsoft Visual Studio", "2022", "BuildTools")
+    vcvars = os.path.join(vs, "VC", "Auxiliary", "Build", "vcvars32.bat")
+    cm = os.path.join(vs, "Common7", "IDE", "CommonExtensions", "Microsoft",
+                      "CMake")
+    if not os.path.isfile(vcvars):
+        return None, vcvars, None, None
+
+    decision, detail = shipcfg_configure_decision(build)
+    configure_cmd = ('cmake -S "%s" -B "%s" -G %s %s '
+                     '-DCMAKE_MAKE_PROGRAM="%s\\Ninja\\ninja.exe" || exit /b 1'
+                     % (os.path.join(root, "port"), build, SHIPCFG_GENERATOR,
+                        shipcfg_cache_defines(), cm))
+    if decision == "fast path":
+        # CONFIGURE ONLY WHEN THERE IS SOMETHING TO CONFIGURE, the same rule
+        # port/build-port-j4.cmd uses for the developer build -- safe HERE
+        # only because shipcfg_configure_decision just proved the existing
+        # cache still reads every SHIPCFG_CACHE_TABLE value and the Ninja
+        # generator, not merely that a build.ninja is present.
+        configure_block = ('if not exist "%s\\build.ninja" (\r\n'
+                           '  %s\r\n'
+                           ')\r\n' % (build, configure_cmd))
+    else:
+        # REFUSED: shipcfg_configure_decision found the cache missing, stale
+        # or wrong-valued, so this configure is unconditional. Ninja's own
+        # RERUN_CMAKE / CMAKE_CONFIGURE_DEPENDS edge is not trusted to fix a
+        # wrong-VALUED cache -- it only fires on a changed INPUT file, and a
+        # wrong PORT_ROM_CLEAN, CRT or build type is neither a changed file
+        # nor something that edge was ever told to watch.
+        configure_block = '%s\r\n' % configure_cmd
+
+    # Under build/, which is gitignored, so the arm leaves nothing in the tree.
+    # A FIXED name rather than a temporary one: it is overwritten every run,
+    # and it is the honest answer to "what exactly did the arm build" for
+    # anyone reading a red.
+    path = os.path.join(root, "build", "shipcfg_build.cmd")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    header = ("@echo off\r\n"
+             'call "%s" >nul || exit /b 1\r\n'
+             'set "PATH=%s\\CMake\\bin;%s\\Ninja;%%PATH%%"\r\n'
+             % (vcvars, cm, cm))
+    footer = 'ninja -C "%s" walk_window\r\n' % build
+    with open(path, "w", encoding="ascii", newline="") as f:
+        f.write(header + configure_block + footer)
+    return path, None, decision, detail
+
+
+def shipcfg_missing_inputs(root):
+    """Which of port/kit_assets.txt's required paths this tree does not have.
+
+    THE LIST IS READ, NOT RESTATED HERE. port/kit_assets.txt is the tree's one
+    answer to "what does a run of the shipping exe need", and it is the list
+    kit_smoke.py already checks the packaged exe and the player's extractor
+    against in both directions. A copy of it in this file would be a second
+    answer, and it would go stale the first time the first one moved -- which
+    is the failure port/kit_assets.txt itself was created to end.
+
+    TWO of the eight paths on it the arm's own BUILD produces: romdata.bin and
+    romdata.manifest are outputs of the romblob_ready_ww target that
+    walk_window depends on under PORT_ROM_CLEAN (port/CMakeLists.txt). That
+    target also writes romdata.recipe.tsv, but the recipe is NOT on this list
+    and must not be counted as one of them: it is the shippable how -- offsets
+    and hashes for the player's own extractor -- and the exe never opens it, so
+    kit_assets.txt does not name it. Counting it here would report the tree one
+    input better off than it is.
+
+    Five more are the NitroFS catalog -- files.tsv, handles.tsv, nitrofs.tsv
+    and the card's own FNT and FAT images -- and that is SETUP rather than a
+    build product: it comes from `python tools/asset_catalog.py generate <rom>`
+    and a fresh worktree has none of it. gate.py already names that same state
+    for the developer selftests. The eighth is the unpacked filesystem's
+    sentinel, extracted/dsd/files/data/sound_data.sdat.
+
+    WHICH OF THOSE CAN ACTUALLY REACH THE NOT-RUN BRANCH IN A FULL BATTERY IS
+    NARROWER THAN THE LIST LOOKS, and it is worth knowing before anyone reads
+    a missing-input partial as the common case. hal/fs_names.cpp's asset_root()
+    resolves the catalog in BOTH configurations, so the developer selftests
+    need those same five files: measured with nitrofs.tsv moved aside, level 1
+    exits 2 with "FATAL: NitroFS table index missing" and the battery is red at
+    step 3, hundreds of lines before this arm. The two romdata files cannot
+    reach it either, because the arm's own build regenerates them before this
+    function is called. So in practice the branch that fires under a full
+    battery is the kit_assets.txt one above, and this branch is a guard for a
+    tree assembled some other way rather than a routine outcome.
+    """
+    path = os.path.join(root, "port", "kit_assets.txt")
+    if not os.path.isfile(path):
+        # No list is not "nothing is required", so do not answer as if it were.
+        return None
+    missing = []
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if not os.path.exists(os.path.join(root, *line.split("/"))):
+                missing.append(line)
+    return missing
+
+
+def default_boot_env():
+    """THE ENVIRONMENT A PLAYER GETS, plus the harness minimum.
+
+    An ALLOWLIST, and it has to be. Every other env builder in this file starts
+    from os.environ and pops the knobs it knows about, which is right when the
+    row names its own destination -- an inherited SM64DS_SKIP_CLASS cannot make
+    a level row pass, because the row still says SM64DS_LEVEL=<n>. This row
+    names NOTHING, and that is the whole point of it: what it measures is what
+    the game does when nobody has said anything. A pop-list would leave exactly
+    the two names that decide this row's answer -- an inherited SM64DS_LEVEL or
+    SM64DS_SCENE turns "prove the default boots the title" into "prove a level
+    boots", silently and greenly. So this builds the environment from nothing
+    and adds four names.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("SM64DS_")}
+    # SM64DS_ASSET_ROOT IS PUT BACK, and it is the one exception. It is a
+    # LOCATION, not a behaviour knob: it says where the game's data is, the
+    # launcher passes it on every real launch, and the other arms in this file
+    # inherit it because they build from os.environ without popping it. Dropping
+    # it here would make this the only row that resolves assets differently from
+    # the forty-six above it, which is a divergence that would surface as a
+    # confusing red rather than as the thing this row is asking about. Unset in
+    # the caller's environment it stays unset, which is the developer build's
+    # normal state -- hal/fs_names.cpp then resolves against the tree.
+    if "SM64DS_ASSET_ROOT" in os.environ:
+        env["SM64DS_ASSET_ROOT"] = os.environ["SM64DS_ASSET_ROOT"]
+    # The rest are what the harness owes every run in this file: a bounded
+    # headless run (WINDOW_SELFTEST also forces the scene path headless -- see
+    # port_scene_want_window), faults that end the process instead of being
+    # quarantined and counted, and the quiet rule.
+    env["SM64DS_WINDOW_SELFTEST"] = SELFTEST_FRAMES
+    env["SM64DS_FAULTS_FATAL"] = "1"
+    env["SM64DS_NO_FOCUS"] = "1"
+    env["SM64DS_VOLUME"] = "0"
+    return env
+
+
+def default_boot_arm(build):
+    """Arm 4c: THE BARE LAUNCH REACHES THE TITLE.
+
+    The owner ruled that the game boots to its own first screen, so the run
+    with no environment at all stopped being a level boot and became the title
+    chain. Nothing in this battery covered that before, because before this
+    lane there was nothing to cover: a bare run was a level run and the level
+    rows measured it forty-six times over.
+
+    WHAT IT ASSERTS, and every line of it is the chain's own rather than this
+    file's opinion of it:
+
+      rc 0 under SM64DS_FAULTS_FATAL=1   the run finished and nothing faulted.
+                                         Read the caveat in section 9 of
+                                         port/ov007_seat.txt before trusting rc
+                                         alone -- which is why the two probe
+                                         lines below are also required.
+      "[scene] 1 = "                     hal/scene_boot.cpp's own boot line,
+                                         printed by port_scene_boot after the
+                                         ROM's spawn spine returned a scene
+                                         object. It is how the run says the
+                                         TITLE is what came up rather than
+                                         something that merely did not crash.
+      "frames of scene 1"                port_scene_finish's census, which the
+                                         same section 9 names as the line a run
+                                         must END with before any reading of it
+                                         counts. A truncated run and a clean
+                                         run that never got there otherwise
+                                         look identical.
+      walk_window_selftest.bmp           the run reached the renderer. Liveness
+                                         only, deliberately -- the pixels are
+                                         not compared, for the reason the
+                                         shipcfg arm gives at length. Deleted
+                                         first so a file an earlier row left
+                                         behind cannot answer for this one.
+
+    THIS ARM IS NOT A WEAKENED LEVEL ROW. It replaces nothing: all forty-six
+    level rows still run, still name their level and still compare their BMP.
+    This is a new question -- "where does a launch with no arguments go" --
+    that the tree could not previously ask.
+    """
+    exe = os.path.join(build, "walk_window.exe")
+    bmp = os.path.join(build, "walk_window_selftest.bmp")
+    if os.path.exists(bmp):
+        os.remove(bmp)
+    try:
+        r = run([exe], build, env=default_boot_env())
+    except subprocess.TimeoutExpired:
+        print(f"default boot: FAIL, a bare launch did not finish "
+              f"{SELFTEST_FRAMES} frames inside {STEP_TIMEOUT}s")
+        return False
+    out = (r.stdout or "") + (r.stderr or "")
+    if r.returncode:
+        print(f"default boot: FAIL rc={r.returncode} -- a launch with no "
+              f"SM64DS_* environment at all did not complete "
+              f"{SELFTEST_FRAMES} frames.")
+        print(out[-1500:])
+        return False
+    for probe, why in (("[scene] 1 = ",
+                        "the title scene never came up (no boot line from "
+                        "port_scene_boot)"),
+                       ("frames of scene 1",
+                        "the run never reached port_scene_finish's census, so "
+                        "it did not finish the title run it started")):
+        if probe not in out:
+            print(f"default boot: FAIL rc=0 but {why}. Expected {probe!r} in "
+                  f"the output.")
+            print(out[-1500:])
+            return False
+    if not os.path.isfile(bmp):
+        print("default boot: FAIL, rc=0 and the title ran but no "
+              "walk_window_selftest.bmp was written -- the run never reached "
+              "the renderer.")
+        return False
+    print(f"default boot: ok -- a bare launch reaches the TITLE, "
+          f"{SELFTEST_FRAMES} frames clean, and writes its frame "
+          f"({os.path.getsize(bmp):,} bytes, liveness only)")
+    return True
+
+
+def shipcfg_env(root):
+    """The shipping exe's environment: an ALLOWLIST, not a pop-list.
+
+    selftest_env and scene_env above drop knobs one at a time, and their own
+    comments record what that costs -- a knob per lane, each one added after
+    somebody noticed an inherited value moving a row that was supposed to be
+    measuring something else. kit_smoke.py's launch_env answers the same
+    question the other way round for the packaged exe: keep nothing that starts
+    with SM64DS_, then set exactly what the run needs. A NEW arm can start from
+    that shape at no cost, and unlike a pop-list it cannot go stale.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("SM64DS_")}
+    # Not optional the way it is for the developer build: this configuration
+    # has NO PORT_REPO_ROOT fallback (hal/asset_root_refuse.cpp), so without
+    # this the exe refuses to start, on purpose.
+    env["SM64DS_ASSET_ROOT"] = root
+    env["SM64DS_WINDOW_SELFTEST"] = SELFTEST_FRAMES
+    # For the reason the level selftests set it: without it a quarantined
+    # access violation freezes one actor, the run keeps ticking and exits 0. A
+    # liveness check that accepts that is not a liveness check.
+    env["SM64DS_FAULTS_FATAL"] = "1"
+    # A modal box would hang the battery until somebody clicked it.
+    # SM64DS_WINDOW_SELFTEST already implies this (tests/walk_window.cpp), so
+    # it is the second of two locks rather than the only one.
+    env["SM64DS_NO_DIALOG"] = "1"
+    # The window half of the quiet-desk plumbing, as everywhere else in this
+    # file. The console half (CREATE_NO_WINDOW) and the show-mode half
+    # (SW_SHOWMINNOACTIVE) are applied by run() itself, so this child is as
+    # silent as every other one the battery spawns.
+    env["SM64DS_NO_FOCUS"] = "1"
+    return env
+
+
+def shipcfg_stale_kit(root):
+    """Refuse a build/port-kit that was linked against a different romdata blob.
+
+    Returns None when there is nothing to say, or the text of a FAIL line the
+    caller must print before it stops.
+
+    THIS IS A CHECKABLE INVARIANT AND IT USED TO ARRIVE AS A MYSTERY. On
+    2026-09-02 the shipcfg arm went red at the selftest and the red landed on
+    the change that happened to be in flight, which had nothing to do with it.
+    An unrelated hotfix had cleared build/port-kit at some point and the two
+    halves of the pair stopped being rebuilt together: the kit's
+    walk_window.exe had been linked against a romdata blob of 939074 bytes
+    while the developer build had since regenerated build/assets/romdata.bin at
+    939046. hal/romdata_loader.cpp did exactly what it says it does and refused
+    the pair, but it refused it three quarters of an hour into the battery, in
+    a step whose whole job is to say "the shipping configuration is broken".
+    Nothing about that message pointed at a stale directory.
+
+    Both numbers are sitting on disk before the arm starts, so the answer costs
+    a file read rather than a build and a launch, and it can be given at the
+    top where it is cheap to act on.
+
+    WHAT IS COMPARED, AND WHY IT IS THE HONEST PAIR. The expectation is not
+    recoverable from the exe as a number -- port_romdata_expect_len is a u64 in
+    .data with nothing around it to anchor a search on -- so it is read from
+    the generated TU the exe was compiled from, build/port-kit/host-src/
+    romdata_dispatch.c, where romblob.py wrote it as text. That would only
+    speak for the exe if the exe were actually linked from that TU, so the
+    second half of the check asks the exe: port_romdata_expect_sha is a plain
+    string literal and survives into the image, so a byte search for it either
+    finds the dispatch's sha in walk_window.exe or proves the exe is older than
+    its own generated source. Both outcomes are the same staleness with the
+    same remedy, and they are reported separately so the reader knows which
+    half went first.
+
+    IT MUST NOT FIRE ON A TREE THAT IS MERELY YOUNG. Every path that cannot
+    establish both sides returns None: no build/port-kit, no dispatch TU, no
+    linked exe yet, no manifest in build/assets, a header this parser does not
+    recognise. A kit that does not exist is about to be configured and built
+    from scratch against the blob that is there now, which is consistent by
+    construction, and a false red here would be worse than the bug it is
+    named for.
+    """
+    dispatch = os.path.join(root, SHIPCFG_KIT_DISPATCH)
+    manifest = os.path.join(root, ROMDATA_MANIFEST)
+    exe = os.path.join(root, SHIPCFG_BUILD, "walk_window.exe")
+    if not (os.path.isfile(dispatch) and os.path.isfile(manifest)
+            and os.path.isfile(exe)):
+        return None
+
+    try:
+        gen = open(dispatch, "r", encoding="utf-8", errors="replace").read()
+    except OSError:
+        return None
+    m_sha = re.search(r'port_romdata_expect_sha\[\]\s*=\s*"([0-9a-fA-F]+)"',
+                      gen)
+    m_len = re.search(r"port_romdata_expect_len\s*=\s*(\d+)", gen)
+    if not (m_sha and m_len):
+        # An older kit directory from before romblob.py started stamping, or a
+        # spelling this parser does not know. Silence is the right answer: the
+        # check has no expectation to compare and inventing one is how a guard
+        # earns its reputation for crying wolf.
+        return None
+    want_sha = m_sha.group(1).lower()
+    want_len = int(m_len.group(1))
+
+    try:
+        head = open(manifest, "r", encoding="utf-8",
+                    errors="replace").readline()
+    except OSError:
+        return None
+    m_man = re.match(r"#\s*romdata-manifest v1 ([0-9a-fA-F]+) (\d+)\s*$", head)
+    if not m_man:
+        return None
+    have_sha = m_man.group(1).lower()
+    have_len = int(m_man.group(2))
+
+    remedy = (f"Delete {SHIPCFG_BUILD} and let this arm configure and build it "
+              f"again, so the exe and the blob it addresses are made in the "
+              f"same pass. Nothing in build/port needs touching.")
+
+    if want_sha != have_sha:
+        return (f"shipcfg romdata: FAIL, {SHIPCFG_BUILD} is STALE against "
+                f"build/assets and no build or run below this line would have "
+                f"said so. The kit's walk_window.exe was linked against a "
+                f"romdata blob of {want_len:,} bytes (sha {want_sha[:12]}), "
+                f"and {ROMDATA_MANIFEST} now describes one of {have_len:,} "
+                f"bytes (sha {have_sha[:12]}). The developer build "
+                f"regenerated the blob after the kit was linked, so the kit's "
+                f"baked per-part offsets no longer address it and "
+                f"hal/romdata_loader.cpp will refuse the pair at startup. This "
+                f"is a stale directory, not a fault in whatever change is in "
+                f"flight. {remedy}")
+
+    try:
+        image = open(exe, "rb").read()
+    except OSError:
+        return None
+    if want_sha.encode("ascii") not in image:
+        return (f"shipcfg romdata: FAIL, {SHIPCFG_BUILD} is STALE inside "
+                f"itself. Its generated {SHIPCFG_KIT_DISPATCH} was written for "
+                f"a blob of {want_len:,} bytes (sha {want_sha[:12]}), which is "
+                f"the blob {ROMDATA_MANIFEST} describes at {have_len:,} bytes, "
+                f"but walk_window.exe does not carry that sha anywhere in its "
+                f"image, so the exe was linked from an EARLIER dispatch and "
+                f"the offsets it holds are that earlier blob's. The numbers on "
+                f"disk agree with each other and the exe agrees with neither. "
+                f"{remedy}")
+    return None
+
+
+def shipcfg_arm(root):
+    """Build the shipping configuration, and prove the exe it makes still runs.
+
+    Returns (ok, carry): ok is False if the battery must stop, and carry is
+    None or the text of a `skips:` line main() must restate at the end.
+
+    THE CARRY IS NOT DECORATION. This arm has a PARTIAL outcome -- the build
+    half ran and the run half did not, because the inputs for it are setup
+    rather than build products -- and a partial that returns green with no
+    standing line is indistinguishable in a gate tail from a full green.
+    gate.py keeps lines matching ^skips: whatever the return code was, and
+    that is the only channel a partial has. Every NOT RUN path below therefore
+    hands one back, the same way --no-shipcfg does.
+
+    The long form -- why it exists, why its own directory, why walk_window
+    only and what that leaves uncovered, and why the BMP is not compared
+    against anything -- is THE SHIPPING CONFIGURATION in this file's docstring.
+    """
+    # FIRST, AND BEFORE ANYTHING IS SPENT. shipcfg_stale_kit reads two files
+    # and answers a question that otherwise only surfaces as a runtime refusal
+    # at the far end of a configure, a link and a launch, wearing the face of
+    # whatever change is in flight. Its docstring has the incident.
+    stale = shipcfg_stale_kit(root)
+    if stale:
+        print(stale)
+        return False, None
+
+    build = os.path.join(root, SHIPCFG_BUILD)
+    script, no_vcvars, decision, detail = shipcfg_script(root, build)
+    if script is None:
+        print(f"shipcfg build: FAIL, no vcvars32.bat at {no_vcvars}")
+        return False, None
+    print(f"shipcfg configure: {decision} -- {detail}")
+
+    t0 = time.time()
+    try:
+        with build_phase("battery shipcfg build", root):
+            r = run(["cmd", "/c", script], root, timeout=SHIPCFG_BUILD_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        print(f"shipcfg build: FAIL, configure and build did not finish "
+              f"inside {SHIPCFG_BUILD_TIMEOUT}s")
+        return False, None
+    except build_lock.BuildLockTimeout as e:
+        print(f"shipcfg build: FAIL, could not acquire the build lock -- {e}")
+        return False, None
+    except build_lock.BuildLockMisconfigured as e:
+        print(f"shipcfg build: FAIL, build lock misconfigured -- {e}")
+        return False, None
+    secs = time.time() - t0
+    if r.returncode:
+        print(f"shipcfg build: FAIL rc={r.returncode} after {secs:.0f}s -- the "
+              f"SHIPPING configuration (PORT_ROM_CLEAN, static CRT) does not "
+              f"build. Every step above this line is green, so this is a break "
+              f"in the configuration that ships and in no other.")
+        print((r.stdout or "")[-3000:])
+        print((r.stderr or "")[-3000:])
+        return False, None
+    exe = os.path.join(build, "walk_window.exe")
+    if not os.path.isfile(exe):
+        # ninja can report success over a target that produced nothing if the
+        # link line is wrong in the right way, so ask the filesystem.
+        print(f"shipcfg build: FAIL, rc=0 but there is no walk_window.exe at "
+              f"{exe}")
+        return False, None
+    print(f"shipcfg build: ok, walk_window.exe linked in {SHIPCFG_BUILD} "
+          f"(PORT_ROM_CLEAN, static CRT, {secs:.0f}s)")
+
+    missing = shipcfg_missing_inputs(root)
+    if missing is None:
+        print("shipcfg selftest: NOT RUN, port/kit_assets.txt is not in this "
+              "tree, so what the run half needs cannot be established. The "
+              "BUILD half above ran.")
+        return True, ("the shipping exe was BUILT but NOT RUN "
+                      "(port/kit_assets.txt is not in this tree)")
+    if missing:
+        shown = ", ".join(missing[:3]) + (", ..." if len(missing) > 3 else "")
+        print(f"shipcfg selftest: NOT RUN, this tree is missing {len(missing)} "
+              f"of the inputs port/kit_assets.txt requires ({shown}). The "
+              f"BUILD half above ran, and it is the half that catches a "
+              f"shipping-config compile break; `python "
+              f"tools/asset_catalog.py generate <rom>` gets the run half too.")
+        return True, (f"the shipping exe was BUILT but NOT RUN ({len(missing)} "
+                      f"of port/kit_assets.txt's inputs are missing: {shown})")
+
+    bmp = os.path.join(build, SHIPCFG_BMP)
+    if os.path.exists(bmp):
+        # Otherwise "a BMP is there" is satisfied by one an earlier run left,
+        # and the check passes over an exe that wrote nothing at all.
+        os.remove(bmp)
+    t0 = time.time()
+    try:
+        r = run([exe], build, env=shipcfg_env(root),
+                timeout=SHIPCFG_RUN_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        print(f"shipcfg selftest: FAIL, the shipping exe did not finish "
+              f"{SELFTEST_FRAMES} frames inside {SHIPCFG_RUN_TIMEOUT}s")
+        return False, None
+    secs = time.time() - t0
+    if r.returncode:
+        print(f"shipcfg selftest: FAIL rc={r.returncode} -- the shipping "
+              f"configuration builds, but the exe it makes cannot complete a "
+              f"headless selftest.")
+        print(((r.stdout or "") + (r.stderr or ""))[-1500:])
+        return False, None
+    if not os.path.isfile(bmp):
+        print(f"shipcfg selftest: FAIL, rc=0 but no {SHIPCFG_BMP} was written "
+              f"-- the run exited cleanly without ever reaching the renderer.")
+        return False, None
+    print(f"shipcfg selftest: ok, rc=0 and {SHIPCFG_BMP} written "
+          f"({os.path.getsize(bmp):,} bytes, {secs:.0f}s) -- LIVENESS ONLY, "
+          f"not a raster comparison and not compared against the developer "
+          f"build's BMP (see THE SHIPPING CONFIGURATION above)")
+    return True, None
+
+
+def main():
+    args = [a for a in sys.argv[1:]]
+    if "--help" in args or "-h" in args:
+        print(__doc__)
+        return 0
+    floor = 0
+    if "--linked-floor" in args:
+        i = args.index("--linked-floor")
+        floor = int(args[i + 1])
+        del args[i:i + 2]
+    skip_build = "--skip-build" in args
+    if skip_build:
+        args.remove("--skip-build")
+    # SEPARATE FROM --skip-build ON PURPOSE. --skip-build means "reuse what is
+    # in build/port"; it says nothing about the other configuration, which
+    # lives in another directory and has its own ninja cache. A lane that wants
+    # both fast paths asks for both.
+    skip_shipcfg = "--no-shipcfg" in args
+    if skip_shipcfg:
+        args.remove("--no-shipcfg")
+    root = os.path.abspath(args[0] if args else ".")
+    build = os.path.join(root, "build", "port")
+
+    if not skip_build:
+        try:
+            with build_phase("battery rebuild", root):
+                r = run(["cmd", "/c",
+                        os.path.join(root, "port", "build-port.cmd")], root)
+        except build_lock.BuildLockTimeout as e:
+            print(f"build: FAIL, could not acquire the build lock -- {e}")
+            return 1
+        except build_lock.BuildLockMisconfigured as e:
+            print(f"build: FAIL, build lock misconfigured -- {e}")
+            return 1
+        if r.returncode:
+            print("build: FAIL")
+            print(r.stdout[-2000:])
+            print(r.stderr[-2000:])
+            return 1
+        print("build: ok")
+
+    smokes = sorted(f for f in os.listdir(build)
+                    if f.startswith("smoke") and f.endswith(".exe"))
+    for exe in smokes:
+        r = run([os.path.join(build, exe)], build)
+        tail = (r.stdout.strip().splitlines() or [""])[-1][:90]
+        if r.returncode:
+            print(f"{exe}: FAIL rc={r.returncode} {tail}")
+            return 1
+        print(f"{exe}: ok  {tail}")
+
+    # FAULTS_FATAL is not optional here. Without it a level can take an access
+    # violation inside a quarantined actor, freeze that actor, keep ticking and
+    # exit 0 -- so the battery passes a level that is visibly broken. Every
+    # lane's own census runs set it; the battery did not, which was the same
+    # class of unearned green as the hand-maintained level list it used to run.
+    levels = mounted_levels(root)
+    print(f"levels: {len(levels)} mounted, from hal/level_boot.cpp")
+
+    # A skip for a level that is not mounted is the staleness bug that killed
+    # the hand-maintained level list, in miniature: the entry reads as covered
+    # and tests nothing. Refuse it rather than skip past it.
+    orphans = sorted(set(LEVEL_SKIPS) - set(levels))
+    if orphans:
+        print(f"levels: FAIL, LEVEL_SKIPS names unmounted level(s) {orphans}")
+        return 1
+
+    # THE SCENE TABLE IS READ AND VALIDATED HERE NOW, MOVED UP FROM JUST
+    # BEFORE THE SCENE ROWS (run link100, lane BATTLOCK). The combined
+    # windowed SLOT phase below (full_windowed_phase) holds the slot across
+    # level rows + scene rows + the default boot as ONE span and needs both
+    # row counts to size its max_hold before it opens, so both tables are now
+    # read and checked before either phase starts. See THE SCENE SELFTESTS
+    # below for what the table means; this is only the validation half moved
+    # earlier, nothing about the checks themselves changed.
+    scenes = hosted_scenes(root)
+    print(f"scenes: {len(scenes)} hosted, from hal/scene_boot.cpp")
+    # A skip for a scene that is not hosted reads as covered and tests nothing,
+    # the same staleness bug the level orphan check refuses. It also makes the
+    # final "skips:" line load-bearing: a non-empty SCENE_SKIPS can only reach
+    # that print if every one of its ids was hosted AND its selftest passed, so
+    # an ALL GREEN carrying a scene skip is proof the scene step really ran.
+    scene_orphans = sorted(set(SCENE_SKIPS) - set(scenes))
+    if scene_orphans:
+        print(f"scenes: FAIL, SCENE_SKIPS names unhosted scene(s) "
+              f"{scene_orphans}")
+        return 1
+    scene_block_orphans = sorted(set(SCENE_BLOCKED) - set(scenes))
+    if scene_block_orphans:
+        print(f"scenes: FAIL, SCENE_BLOCKED names unhosted scene(s) "
+              f"{scene_block_orphans}")
+        return 1
+    both = sorted(set(SCENE_BLOCKED) & set(SCENE_SKIPS))
+    if both:
+        print(f"scenes: FAIL, scene(s) {both} are in BOTH SCENE_SKIPS and "
+              f"SCENE_BLOCKED -- a scene cannot both pass with an env and be "
+              f"unable to run.")
+        return 1
+
+    # ONE LEVEL'S WHOLE ROW, in one place, so the sequential and the N-wide
+    # paths cannot drift: the selftest, and for a skipped level the bare
+    # re-probe that decides whether the skip has retired. `wdir` is this
+    # worker's own directory and is build/port itself when there is one worker.
+    def level_row(lvl, wdir=None):
+        # THE DIRECTORY IS TAKEN, NOT INDEXED. Handing row i the directory
+        # i % workers looks equivalent and is not: the pool is free to start row
+        # 4 while rows 1-3 are still going, and rows 0 and 4 would then be two
+        # processes in one folder, which is the exact collision the per-worker
+        # directory exists to prevent. A row checks a directory out for its
+        # whole lifetime -- the selftest AND its retire probe -- and hands it
+        # back, so at most `workers` are ever in use and never two at once.
+        if wdir is None:
+            wdir = free_dirs.get()
+            try:
+                return level_row(lvl, wdir)
+            finally:
+                free_dirs.put(wdir)
+        skip = LEVEL_SKIPS.get(lvl)
+        env = selftest_env(lvl, skip[0] if skip else None)
+        if wdir != build:
+            env["SM64DS_INSTANCE"] = os.path.basename(wdir)
+        r = run([os.path.join(wdir, "walk_window.exe")], wdir, env=env)
+        if r.returncode:
+            return lvl, r.returncode, r.stdout, skip, None, None
+        if not skip:
+            return lvl, 0, r.stdout, None, None, None
+        still, how = retire_probe(wdir, lvl)
+        return lvl, 0, r.stdout, skip, still, how
+
+    def report_row(lvl, rc, out, skip, still, how):
+        """Print one finished row and say whether the battery must stop."""
+        if rc:
+            print(f"selftest level {lvl}: FAIL rc={rc}"
+                  + (f" (SM64DS_SKIP_CLASS={skip[0]})" if skip else ""))
+            print((out or "")[-1500:])
+            return False
+        if not skip:
+            print(f"selftest level {lvl}: ok")
+            return True
+        print(f"selftest level {lvl}: ok with SM64DS_SKIP_CLASS={skip[0]}"
+              f", owned by {skip[1]} ({how})")
+        if not still:
+            retired.append(lvl)
+        return True
+
+    # THE COMBINED WINDOWED PHASE (run link100, lane BATTLOCK). Level
+    # rows, scene rows and the default boot are held under ONE SLOT
+    # phase now, rather than each sub-phase (or, at one worker, each
+    # launch) taking and dropping the lock on its own -- and, the
+    # property the BUILD lock split in build_phase() needs on the other
+    # side, the slot is fully released before the shipcfg BUILD phase
+    # that follows asks for the build lock. windowed_phase() below still
+    # runs inside it for the level and scene sub-phases; slot_reentrant
+    # nests for free, so those inner holds just see the slot already
+    # theirs and neither re-acquire nor re-release it. See the module
+    # docstring's LOCKING BY PHASE section for the phase table this is
+    # half of.
+    total_windowed_rows = len(levels) + len(scenes) + 1  # +1 default boot
+    with full_windowed_phase(total_windowed_rows, "battery windowed phase"):
+        retired = []
+        workers = level_workers()
+        wdirs = worker_dirs(root, build, workers)
+        if workers > 1:
+            print(f"levels: {workers} rows at a time, each in its own directory "
+                  f"({os.path.join('build', 'battery-workers')}); the windowed slot "
+                  f"is held once for the phase rather than per launch")
+        # THE PHASE HOLD, and it is taken for BOTH the sequential and the parallel
+        # arm of the branch below so the two differ only in width. With one worker
+        # it is a no-op and each launch takes the per-launch lock as before.
+        level_phase_t0 = time.time()
+        with windowed_phase(workers, len(levels), "battery level phase"):
+            if workers == 1:
+                for lvl in levels:
+                    if not report_row(*level_row(lvl, build)):
+                        return 1
+            else:
+                # Submitted in level order and REPORTED in level order, because a
+                # battery log that reads as a checklist is the point of this file;
+                # only the running is out of order. The first failure in LEVEL order
+                # is the one that stops the run, which keeps the verdict independent
+                # of how the box happened to schedule the rows -- a battery that
+                # blamed whichever red finished first would not be reproducible.
+                free_dirs = queue.Queue()
+                for d in wdirs:
+                    free_dirs.put(d)
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    futs = [pool.submit(level_row, lvl) for lvl in levels]
+                    for f in futs:
+                        if not report_row(*f.result()):
+                            for g in futs:
+                                g.cancel()
+                            return 1
+
+        # The one number that says whether the width is worth anything, printed
+        # whatever the width is so the two are comparable from two logs.
+        print(f"levels: {len(levels)} rows in {time.time() - level_phase_t0:.0f}s "
+              f"at {workers} wide")
+
+        for lvl in retired:
+            skip = LEVEL_SKIPS[lvl]
+            print(f"SKIP RETIRED: level {lvl} now runs 300 frames clean BARE. "
+                  f"{skip[0]} is fixed, so delete level {lvl} from LEVEL_SKIPS in "
+                  f"port/tools/battery.py -- the level is being tested with a "
+                  f"class switched off for no reason.")
+
+        # THE SCENE SELFTESTS. Same shape as the level ones a few lines up, over a
+        # different mode of the game: SM64DS_SCENE=<id> hands walk_window's whole
+        # run to hal/scene_boot.cpp's port_scene_run, which boots the scene through
+        # the ROM's own Scene::SetSceneToSpawn -> Scene::SpawnIfNecessary chain and
+        # runs the same five actor phases for the same 300 frames. FAULTS_FATAL for
+        # the same reason: without it a quarantined fault reads as a pass. `scenes`
+        # itself and its SCENE_SKIPS/SCENE_BLOCKED validation already happened
+        # above, before this phase opened (see THE SCENE TABLE IS READ AND
+        # VALIDATED HERE NOW) -- this phase only runs the rows.
+        # THE SCENE ROWS RUN N-WIDE TOO, on the same shape as the level rows above:
+        # one function does a whole row, the rows are reported in scene order
+        # whatever order they ran in, and each worker keeps its own directory for
+        # its whole row. The scene rows are the cheaper half -- measured on this box
+        # at 1.8s against a level row's 3.5s -- and they are also the half that
+        # opens NO WINDOW AT ALL: port_scene_want_window refuses a window to a scene
+        # run that names a frame budget, which every row here does, and run link100
+        # lane SLOT confirmed it from the logs (twenty concurrent scene runs, not
+        # one "[win]" line between them).
+        def scene_row(sc, wdir=None):
+            if wdir is None:
+                wdir = free_dirs.get()
+                try:
+                    return scene_row(sc, wdir)
+                finally:
+                    free_dirs.put(wdir)
+            exe = os.path.join(wdir, "walk_window.exe")
+            block = SCENE_BLOCKED.get(sc)
+            if block:
+                env = scene_env(sc)
+                if wdir != build:
+                    env["SM64DS_INSTANCE"] = os.path.basename(wdir)
+                r = run([exe], wdir, env=env)
+                # BOTH streams: the unmatched-body trap that names the blocker
+                # writes to stderr (unbuffered, so a fault cannot swallow it) and
+                # the scene's own progress lines go to stdout.
+                return sc, r.returncode, r.stdout, (r.stdout or "") + (r.stderr or ""), \
+                    block, None, None, None
+            skip = SCENE_SKIPS.get(sc)
+            env = scene_env(sc, skip[0] if skip else None)
+            if wdir != build:
+                env["SM64DS_INSTANCE"] = os.path.basename(wdir)
+            r = run([exe], wdir, env=env)
+            if r.returncode or not skip:
+                return sc, r.returncode, r.stdout, "", None, skip, None, None
+            still, how = scene_retire_probe(wdir, sc)
+            return sc, 0, r.stdout, "", None, skip, still, how
+
+        def report_scene(sc, rc, out, both, block, skip, still, how):
+            if block:
+                if not rc:
+                    print(f"selftest scene {sc}: BLOCK RETIRED -- the bare run "
+                          f"now completes. Delete scene {sc} from SCENE_BLOCKED "
+                          f"in port/tools/battery.py.")
+                    scene_unblocked.append(sc)
+                    return True
+                if block[1] not in both:
+                    print(f"selftest scene {sc}: FAIL rc={rc} -- it "
+                          f"failed, but NOT with its recorded blocker. "
+                          f"SCENE_BLOCKED expects {block[1]!r} in the output and "
+                          f"it is not there, so this is a different failure.")
+                    print(both[-1500:])
+                    return False
+                print(f"selftest scene {sc}: BLOCKED as recorded, owned by "
+                      f"{block[0]} (rc={rc}, blocker reproduced)")
+                return True
+            if rc:
+                print(f"selftest scene {sc}: FAIL rc={rc}"
+                      + (f" ({skip[0]})" if skip else ""))
+                print((out or "")[-1500:])
+                return False
+            if not skip:
+                print(f"selftest scene {sc}: ok")
+                return True
+            print(f"selftest scene {sc}: ok with {skip[0]}, owned by {skip[1]}"
+                  f" ({how})")
+            if not still:
+                scene_retired.append(sc)
+            return True
+
+        scene_retired = []
+        scene_unblocked = []
+        scene_phase_t0 = time.time()
+        with windowed_phase(workers, len(scenes), "battery scene phase"):
+            if workers == 1:
+                for sc in scenes:
+                    if not report_scene(*scene_row(sc, build)):
+                        return 1
+            else:
+                free_dirs = queue.Queue()
+                for d in wdirs:
+                    free_dirs.put(d)
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    futs = [pool.submit(scene_row, sc) for sc in scenes]
+                    for f in futs:
+                        if not report_scene(*f.result()):
+                            for g in futs:
+                                g.cancel()
+                            return 1
+        print(f"scenes: {len(scenes)} rows in {time.time() - scene_phase_t0:.0f}s "
+              f"at {workers} wide")
+
+        for sc in scene_retired:
+            skip = SCENE_SKIPS[sc]
+            print(f"SKIP RETIRED: scene {sc} now runs {SELFTEST_FRAMES} frames "
+                  f"clean BARE. {skip[0]} is no longer needed, so delete scene "
+                  f"{sc} from SCENE_SKIPS in port/tools/battery.py.")
+
+        if not default_boot_arm(build):
+            return 1
+
+    r = run([sys.executable, os.path.join(root, "port", "tools", "linkage.py"),
+             root], root)
+    m = re.search(r"linked into walk_window\s*:\s*(\d+)\s*\(([\d.]+)%\)",
+                  r.stdout)
+    if not m:
+        print("linkage: FAIL (no linked count in output)")
+        return 1
+    linked = int(m.group(1))
+    print(f"linkage: {linked} ({m.group(2)}%)")
+    if floor and linked < floor:
+        print(f"linkage: FAIL, below the floor of {floor}")
+        return 1
+
+    r = run([sys.executable, os.path.join(root, "port", "tools", "ptr_audit.py")],
+            root)
+    m = re.search(r"^(\d+) carry code pointers AND no host TU names them",
+                  r.stdout, re.M)
+    if not m:
+        print("ptr_audit: FAIL (no verdict line)")
+        return 1
+    if int(m.group(1)) != 0:
+        print(f"ptr_audit: FAIL, {m.group(1)} unhosted code pointers")
+        return 1
+    print("ptr_audit: 0 unhosted code pointers")
+
+    # THE SHIPPING CONFIGURATION, LAST. Everything above tests build/port, the
+    # developer build; this is the other one, the one that goes out. It is last
+    # so that a tree-wide breakage is diagnosed by the steps above -- which name
+    # a level or a scene and carry the skip machinery -- and every red this arm
+    # prints therefore lands on a tree whose developer configuration is already
+    # green. That makes its failures configuration-specific by construction.
+    shipcfg_carry = None
+    if skip_shipcfg:
+        print("shipcfg: SKIPPED by --no-shipcfg -- the SHIPPING configuration "
+              "(PORT_ROM_CLEAN, static CRT) was NOT built or run by this "
+              "battery, so a break in it is not covered by this green.")
+        shipcfg_carry = "the SHIPPING configuration was NOT built (--no-shipcfg)"
+    else:
+        ok, shipcfg_carry = shipcfg_arm(root)
+        if not ok:
+            return 1
+
+    # gate.py tails this output, so the debt is restated where a tail will see
+    # it rather than only next to the level it belongs to.
+    if LEVEL_SKIPS:
+        print("skips: " + ", ".join(
+            f"level {lvl} without {LEVEL_SKIPS[lvl][0]} ({LEVEL_SKIPS[lvl][1]})"
+            for lvl in sorted(LEVEL_SKIPS)))
+    if SCENE_SKIPS:
+        print("skips: " + ", ".join(
+            f"scene {sc} with {SCENE_SKIPS[sc][0]} ({SCENE_SKIPS[sc][1]})"
+            for sc in sorted(SCENE_SKIPS)))
+    if retired:
+        print("skips: RETIRED and removable -- " +
+              ", ".join(f"level {lvl}" for lvl in retired))
+    if scene_retired:
+        print("skips: RETIRED and removable -- " +
+              ", ".join(f"scene {sc}" for sc in scene_retired))
+    # A blocked scene is debt too, and louder debt than a skip, so it is
+    # restated on the same line gate.py tails rather than only next to the
+    # scene it belongs to.
+    if SCENE_BLOCKED:
+        print("skips: " + ", ".join(
+            f"scene {sc} BLOCKED, cannot run at all ({SCENE_BLOCKED[sc][0]})"
+            for sc in sorted(SCENE_BLOCKED)))
+    if scene_unblocked:
+        print("skips: BLOCK RETIRED and removable -- " +
+              ", ".join(f"scene {sc}" for sc in scene_unblocked))
+    # An opted-out arm is debt like any other skip, and so is a PARTIAL one --
+    # built but not run, because the run half's inputs are setup rather than
+    # build products. Both are restated on the line gate.py's BATTERY_CARRY
+    # tails. A green carrying one of these lines and a green without one are
+    # not the same green, and a reader of a tail should not have to know the
+    # arm's internals to see the difference.
+    if shipcfg_carry:
+        print("skips: " + shipcfg_carry)
+
+    print("battery: ALL GREEN")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

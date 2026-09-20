@@ -1,0 +1,1290 @@
+TOUCH: THE DERIVATION MAP
+=========================
+
+Run link60 Stage 5, lane TCH. Worktree C:/tmp/tch, branch s5-touch-scout, off
+6f7bc744d. Private build C:/tmp/tch/build/port, CMAKE_HOME_DIRECTORY verified
+C:/tmp/tch/port.
+
+This is a MEASUREMENT, not a change. Nothing outside this file moves. It exists
+so the lane that cuts the touch seam cuts from a derivation instead of from a
+guess, the way port/ov007_seat.txt and port/fader_boot_map.txt served the seats
+that came after them.
+
+GATE BASELINE AT THE START COMMIT (recorded, clean tree)
+    git_sha 6f7bc744d869a414b11e9563904a3d013f9d9779, dirty false
+    linked  5831 / 11250 (51.8%), unlinked 5419
+    battery ALL GREEN
+    skips   scene 1 BLOCKED, cannot run at all (the ov007 ride-through at
+            func_ov007_020be980, a HOST ABI seam)
+    verdict GREEN
+
+THE HEADLINE, AND IT CORRECTS THE BRIEF THIS LANE WAS GIVEN
+------------------------------------------------------------
+
+The brief opens "no minigame layer has ever read a tap on this port". That is
+measured FALSE, on the gate baseline binary, with no source change at all.
+
+dScMgCurling_c reads a scripted tap, consumes it, and advances its own state
+machine on it. Section 5 carries the run and section 6 turns it into an
+acceptance line. port/mg_fanout_costs.txt section 9's "TOUCH DOES NOT EXIST"
+and section 10's "TOUCH IS STILL UNMEASURED" were both true when written and
+are both superseded here.
+
+What does NOT exist is the ROM's own delivery chain. The port publishes the
+stylus state directly into the LAST link of that chain and hosts none of the
+five links above it. Section 2 is the chain, section 3 is what the port has,
+section 4 is what that costs, and it is not nothing: the title screen's menu
+input comes off a link the port does not fill, so the file select and the
+route into the minigame menu read zeros.
+
+
+1. WHERE THE NUMBERS COME FROM
+-------------------------------
+
+Every symbol below is named from config/arm9/symbols.txt or an overlay's own
+symbols.txt in this tree. Every linked/absent verdict is a grep of THIS lane's
+build/port/walk_window.map, taken off the gate baseline binary above. Every
+runtime number is a run in this worktree, quoted with its environment.
+
+Two disassemblies are quoted. Both are dumpbin on this tree's own objects under
+build/port/CMakeFiles/walk_window.dir, not on anything inherited.
+
+Where a prior note said the same thing, this file says so and gives its own
+measurement rather than restating it, because a restated claim is the failure
+mode the run keeps meeting. ONE claim here is carried and not re measured, the
+"unmodelled IO reads 0" half of section 6a, and section 7 names it as carried.
+
+
+2. THE ROM SIDE: SIX LINKS FROM THE PANEL TO THE READER
+--------------------------------------------------------
+
+The chain is NitroSDK's TP library with the game's own aggregation on top. It
+runs bottom to top once per frame.
+
+LINK 0. THE HARDWARE, WHICH IS ARM7'S AND IS NOT IN THIS REPO'S ARM9.
+    The touchscreen controller sits on SPI and only the ARM7 can talk to it.
+    The ARM7 posts the result into the shared block in main RAM:
+
+        0x027FFFA8   the extended key word (X, Y, the pen bit, the lid bit)
+        0x027FFFAA   raw touch, low half
+        0x027FFFAC   raw touch, high half
+
+    and raises the PXI message the ARM9 handler dispatches. The two touch words
+    are ONE packed record, not two coordinates: x is 12 bits, y is 12 bits,
+    then a 1 bit valid and a 2 bit range field. src/func_0205f300.c carries
+    that layout as a bitfield and reads both halfwords into a union.
+
+LINK 1. THE PXI CALLBACK, func_0205f300 (arm9, 0x0205f300).
+    On message bit 0x10 it advances the ring cursor at data_020a80cc+0xc,
+    wraps it at the count in data_020a80cc+0x14, and writes one 8 byte entry
+    {x, y, touch, validity} into the ring the game handed it. It is the ONLY
+    thing anywhere in arm9 that reads 0x027FFFAA or 0x027FFFAC.
+
+LINK 2. THE RING, data_020a0df8, NINE ENTRIES.
+    func_0203bbc0 (0x0203bbc0) is the game's touch bring-up and it names the
+    whole of the library setup in nine calls:
+
+        func_0205f270()                        TP init
+        func_0205f1e4(&data_020a0de0)          read the calibration
+        func_0205f0e0(&data_020a0de0)          compute the calibration params
+        func_0205edd8(3, 0x1e)                 set the stability params (IPC)
+        func_0205ea10(8) / func_0205e9fc(8)    wait, then check the error bit
+        func_0205eeac(0, 4, &data_020a0df8, 9) start auto sampling into the ring
+        func_0205ea10(2) / func_0205e9fc(2)    wait, then check again
+
+    THE ADDRESSES AND THE ARGUMENTS ARE READ OFF func_0203bbc0. THE LABELS ARE
+    NOT. They are this lane's gloss from what each body does and from the shape
+    of the NitroSDK touch library, and func_0205edd8's in particular is a
+    guess at intent: what its body demonstrably does is send two IPC commands
+    and set or clear a status bit. A seam lane should read the body it is about
+    to seat rather than the label here.
+
+    The ring is nine entries of eight bytes. That is not read off the call:
+    config/arm9/symbols.txt puts data_020a0e40 at exactly 0x48 above
+    data_020a0df8, and 0x48 is 9 times 8. The size argument and the symbol
+    spacing agree independently, which is why the ring's extent is a fact here
+    and not an assumption.
+
+LINK 3. THE PER FRAME SMOOTHER, func_0203b9bc (0x0203b9bc).
+    Reads the newest cursor through func_0205edc8 (which returns
+    data_020a80cc+0xc), walks the four entries ending one before it (modulo 9),
+    drops any entry whose range field is set, and accepts a point only when
+    three consecutive entries carry a valid touch. The accepted raw point goes
+    through func_0205ea28, the calibration transform, into data_020a0dd8.
+
+    func_0205ea28 is where DS pixels are made: it clamps x to 0..0xff and y to
+    0..0xbf, which is 256 by 192. data_020a0dd8 is exactly 8 bytes wide by
+    symbol spacing (data_020a0de0 is the next name), so it holds exactly one
+    calibrated point. When nothing is down it publishes x 0xff, y 0xff,
+    touch 0.
+
+LINK 4. THE LOCAL RECORD AND THE PER PLAYER FAN OUT.
+    func_0203df40 (0x0203df40) is the frame's input poll. It does two things.
+
+    First the pad, and this is the KEYINPUT two latch item the run's queue
+    already carries, in the ROM's own words:
+
+        data_020a1040.unkE =
+            ((*(u16 *)0x4000130 | *(u16 *)0x27fffa8) ^ 0x2fff) & 0x2fff;
+
+    the ARM9 visible key register ORed with the ARM7 posted extended word,
+    inverted and masked. Same expression as func_02013f4c.
+
+    Then the stylus: it calls func_0203b9bc and stores the returned quad into
+    data_020a1040 at +4, +6, +8, +0xa (x, y, touch, validity).
+
+    data_020a1040 is the LOCAL comms record, 0x24 bytes. data_020a1154 is FOUR
+    records of the same 0x24 shape, one per controller. In single player,
+    func_0203e0ac (0x0203e0ac) broadcasts the local record into all four: the
+    touch quad at +4 of each, the key word at +0xe of each. In the wireless
+    modes func_0203ea5c or func_0203e20c fill them from the link instead, which
+    is what the four slots are actually for.
+
+LINK 5. THE FLATTENER, func_0203bb60 (0x0203bb60), AND THE READER'S RECORD.
+    Once per frame it walks the four records and packs each one into four
+    bytes at data_020a0de8:
+
+        p[1] = (u8)(rec.touch ^ p[0]);   the edge, new XOR old
+        p[0] = (u8)rec.touch;            touched
+        p[2] = (u8)rec.x;                x, 0..255 fits a byte
+        p[3] = (u8)rec.y;                y, 0..191 fits a byte
+
+    data_020a0de8 is TouchInfo[4], sixteen bytes, and it is the record every
+    consumer in the game actually reads. func_0203bb14 (0x0203bb14) is the
+    matching clear: it zeroes the touched and edge bytes of every slot.
+
+    The four dsd names data_020a0de8, data_020a0de9, data_020a0dea and
+    data_020a0deb are one byte apart and are the four FIELDS of slot 0. Readers
+    index their own name by slot times 4. port/hal/auto_bss.cpp already carries
+    that derivation and this lane re measured it at runtime rather than
+    restating it: see section 3.
+
+WHO CONSUMES data_020a0de8. Not a short list. Across src/ the readers include
+Stage::CheckInput and Stage::CheckCameraInput (the main game's touch driving
+and touch camera), Message::Update (the dialogue box), TouchArea_Update in
+ov001 (the framework's hit test widget), the ov004 base state at
+func_ov004_020aeb24, and minigame bodies in ov003, ov004, ov005 and ov006.
+
+ONE ROW AN EARLIER DRAFT PUT IN THE WRONG COLUMN. dMgPsOpt_c's options panel,
+func_ov004_020b8f78, does NOT read data_020a0de8. It calls TouchArea_Update
+eight times over eight widget rectangles and reads touch only through it. It is
+a consumer one indirection off, which matters because it means the whole
+options panel rides on the ov001 widget rather than on the record directly.
+
+WHO CONSUMES data_020a1154 INSTEAD. func_0203dabc(idx) returns a pointer to the
+touch quad at +4 of record idx; func_0203dae4(idx) returns the key word at
++0xe. THREE CALL SITES IN src/, and they do not agree with each other or with
+the header. An earlier draft of this file said there was one, which was wrong
+and made section 4's fix look like a one line header edit.
+
+    src/func_0203bb60.c:9,16    calls func_0203dabc(i), argument PASSED, and
+                                declares it locally as `struct R *(int idx)`.
+                                This is Link 5, the flattener.
+    src/func_0203bc7c.c:15,24   calls func_0203dae4(i), argument PASSED, and
+                                declares it locally as `u16 (int idx)`. This is
+                                the pad half of the same fan out.
+    src/_ZN9dScDSMT_c8BehaviorEv.cpp:30,33  calls BOTH bare, on the header's
+                                no argument declarations. dScDSMT_c::Behavior,
+                                the TITLE SCREEN, and the read path for the
+                                file select, the options and the route into the
+                                minigame menu.
+
+FOUR SPELLINGS OF TWO FUNCTIONS, and no two of them match:
+
+    definitions   src/func_0203dabc.c  int *(int idx)
+                  src/func_0203dae4.c  int  (int idx)
+    header        include/decl_common.h  u16 *(void)  and  int (void)
+    local extern  func_0203bb60.c  struct R *(int idx)
+    local extern  func_0203bc7c.c  u16 (int idx)
+
+The two argument passing callers BYPASS decl_common.h entirely with their own
+externs, at return types that differ from the header AND from the definitions.
+So this is the decl_common redecl trap, not a missing parameter. Section 4
+measures what the bare pair does today; section 6b prices the fix against these
+three sites and two conflicting local prototypes rather than against a header
+line.
+
+THE INDEX. Two different globals answer "which slot".
+    data_020a0f10, returned by func_0203da9c, is the comms slot. ov007 uses it.
+    data_020a0e40 is the local player index. ov004 and ov006 use it, and so do
+    Stage and Player. In the port it is written only by Player::Behavior, which
+    a minigame scene never runs, so on a scene it holds the host BSS zero. That
+    was confirmed by reading it out of a live curling run: section 5.
+
+
+3. THE PORT SIDE: WHAT IS THERE TODAY
+--------------------------------------
+
+3a. THE READERS ARE LINKED. THE WHOLE PRODUCER CHAIN IS NOT.
+
+Grep of build/port/walk_window.map at the baseline commit:
+
+    LINKED                          ABSENT
+    ------------------------------  ------------------------------------
+    func_0203da9c   (comms index)   func_0203bbc0  (touch bring-up)
+    func_0203dabc   (touch quad)    func_0203bb60  (the flattener)
+    func_0203dae4   (key word)      func_0203bb14  (the clear)
+    func_0203e0ac   (the fan out)   func_0203df40  (the frame poll)
+    func_0205ea28   (calibration)   func_0203b9bc  (the smoother)
+    SetTouchScreenDelay             func_0205f300  (the PXI callback)
+    TouchArea_Update                func_0205eeac  (auto sampling start)
+    func_ov004_020b8f78             func_0205edc8  (the ring cursor)
+    func_ov004_020aeb24             func_0205edd8  (stability params)
+    func_ov006_020e1b54             func_0205f0e0, func_0205f1e4, func_0205f270
+    func_ov006_020e26f8
+    _ZN9dScDSMT_c8BehaviorEv
+    func_ov007_020b7090
+
+Links 0 through 3 do not exist on the host at all. Link 4 exists as storage but
+nothing drives it. Link 5's writer is absent and its record is written by the
+host instead.
+
+func_0203e0ac is linked and never runs: its only ROM caller is func_0203df40,
+which is absent, and hal/camera_bridges.cpp points Camera vtable slot 6 at a
+harness that returns 1, with a comment naming that slot "Behavior +
+func_0203e0ac". So data_020a1154 is host BSS zero for the life of the process.
+
+3b. THE GLOBALS.
+
+    data_020a0de8..deb   HOSTED, one contiguous block, correct.
+                         hal/auto_bss.cpp gives the four names ordered
+                         .dsstate$touch0000..0003 slots so the linker
+                         concatenates them. Re measured at runtime here rather
+                         than taken on the note's word: every [touch] line of
+                         every run in section 5 prints d=(1,2,3) for the three
+                         address deltas, which is the property the layout has
+                         to have. It is inside the .dsstate capture, so a save
+                         state rolls it back.
+
+    data_020a0df8        NOT HOSTED. No such symbol in the map. The ring has
+                         nowhere to live.
+    data_020a0dd8        NOT HOSTED. Same.
+
+    data_020a1040        HOSTED by hal/camera_bridges.cpp as eight ordered
+    data_020a1154 ..     .dsstate$camcomm and .dsstate$camrec slots, and that
+    data_020a11c4        file asserts the interior offsets at bring up
+                         (hal_camera_check_layout). The four records ARE ROM
+                         shaped. Nothing fills them.
+
+    data_020a80cc        HOSTED WRONG, and this one is a trap for the seam.
+    data_020a80e4        hal/scene_boot.cpp defines them as two disjoint
+                         arrays, 24 and 32 bytes, sized by the gap to the next
+                         dsd name. On the DS they are two names INSIDE ONE TP
+                         work struct, and THREE accessors reach past the 0x18
+                         boundary between them:
+                           func_0205ea28 reads data_020a80cc[0x18] as a
+                             halfword, which is byte +0x30, and IT IS LINKED
+                             TODAY. This is the one an earlier draft missed,
+                             and it is the worst of the three because it is the
+                             only one already in the binary.
+                           func_0205efe0 reads a flag at +0x34, also linked.
+                           func_0205f300 reads and writes status words at +0x34
+                             and +0x36, absent.
+                         All three land inside data_020a80e4's span. In the map
+                         the two host arrays are 0x44 apart and in the WRONG
+                         ORDER (data_020a80e4 sits below data_020a80cc), so
+                         those reads do not even land in the neighbour they
+                         would have hit on hardware. Same class as the stylus
+                         record before auto_bss fixed it, and it has to be
+                         fixed the same way before any part of link 1, 2 or 3
+                         is hosted. Nothing on an exercised path calls any of
+                         the three today, which is the only reason this has not
+                         bitten.
+
+    data_020a0e40        HOSTED. Zero on a scene, measured, section 5.
+    data_020a0f10        HOSTED. Nothing writes it.
+
+3c. WHAT ACTUALLY DELIVERS A TAP TODAY.
+
+hal/sub_screen.cpp's poll_touch, called from hal_sub_screen_frame_begin at the
+top of every frame on BOTH the walk_window frame loop and the scene runner's
+loop (hal/scene_boot.cpp). It writes slot 0 of data_020a0de8 directly:
+
+    touched from the left mouse button while the cursor is over the sub screen
+    panel, with the present rectangle run backwards to get DS pixels;
+    edge  = touched now XOR touched last frame, which is link 5's own
+            expression. Run mg5 lane PLUNGER corrected this: it read
+            "touched now AND touched last frame" when this file was written,
+            and section 5's trace below is that defect rather than the rule;
+    x, y  written only while touched, so the last position persists on release.
+
+That is link 5's output, produced by the host, with links 0 through 4 skipped.
+
+SM64DS_TOUCH_PROBE is a scripted stylus on the same write, frame ranges with
+optional coordinates, and it logs the four names before and after the write.
+It works headless, which is why the whole of section 5 is possible without a
+window.
+
+TWO LIMITS OF poll_touch AS IT STANDS:
+    it publishes SLOT 0 ONLY. Slots 1 to 3 stay zero. Every reader that
+    indexes by data_020a0e40 or data_020a0f10 is therefore correct only while
+    that index is zero.
+    it publishes NOTHING to data_020a1154. The ov007 title path reads there.
+
+3d. THE PAD, FOR CONTRAST, BECAUSE IT IS THE SAME SHAPE AND WAS SOLVED WORSE.
+
+data_020a0e58 is PadData[4] with stride 4 and data_020a0e5a IS pad 0's pressed
+field on hardware. In the port they are two disjoint auto_bss symbols, so
+hal/input_probe.cpp writes BOTH to make one scripted press reach both
+consumers. The stylus record hit the identical problem and auto_bss fixed the
+STORAGE instead of duplicating the write. When the seam lane touches the pad
+mirror it should take the stylus record's fix, not the pad probe's workaround.
+
+
+4. THE TITLE SCREEN READS A LINK THE PORT DOES NOT FILL
+--------------------------------------------------------
+
+_ZN9dScDSMT_c8BehaviorEv, dScDSMT_c::Behavior, is LINKED. Its input read is:
+
+    func_0203da9c();
+    u16 *p = func_0203dabc();
+    func_0203da9c();
+    arg4 = func_0203dae4();
+    result = func_ov007_020b7090(p[0], p[1], p[2], p[3], arg4);
+
+p[0..3] are x, y, touch and validity out of data_020a1154[idx], and arg4 is
+that record's key word. func_ov007_020b7090 hands them to func_ov007_020b2e64
+and func_ov007_020c1db0 and returns a menu verdict: 2, 3, 4, 5, 6 or 7.
+result 7 is StartMinigameMenu. So the ROUTE INTO THE MINIGAME MENU is gated on
+a record the port never writes.
+
+TWO SEPARATE DEFECTS SIT ON THAT READ, AND THEY ARE DIFFERENT PROBLEMS.
+
+FIRST, THE RECORD IS ZERO. Section 3a. Nothing fills data_020a1154.
+
+SECOND, THE INDEX IS GARBAGE. This is a HOST ABI ride through and it is
+distinct from the one the gate's scene 1 skip already names
+(func_ov007_020be980). include/decl_common.h declares both accessors with no
+parameters:
+
+    extern int  func_0203da9c(void);
+    extern int  func_0203dae4(void);
+    extern u16 *func_0203dabc(void);
+
+while src/func_0203dabc.c and src/func_0203dae4.c both DEFINE a parameter. On
+the DS that is correct and deliberate: func_0203da9c leaves the index in r0 and
+the next call reads r0. On x86 the return comes back in eax and nothing is
+pushed. dumpbin on this tree's own objects, walk_window.dir:
+
+    _ZN9dScDSMT_c8BehaviorEv.c.obj
+        00000036: 56              push  esi
+        00000037: E8 ...          call  _func_0203da9c
+        0000003C: E8 ...          call  _func_0203dabc     no argument pushed
+        00000041: 8B F0           mov   esi,eax
+        00000043: E8 ...          call  _func_0203da9c
+        00000048: E8 ...          call  _func_0203dae4     no argument pushed
+
+    func_0203dabc.c.obj
+        00000000: 55              push  ebp
+        00000001: 8B EC           mov   ebp,esp
+        00000003: 8B 45 08        mov   eax,dword ptr [ebp+8]
+        00000006: 8D 04 C0        lea   eax,[eax+eax*8]
+        00000009: 8D 04 85 ...    lea   eax,_data_020a1154[eax*4+4]
+
+The callee reads [ebp+8], the first stack argument slot. The caller never
+pushed one, so that slot holds the esi the caller saved at 0x36, which is the
+esi the CALLER was entered with. func_0203dae4 is the same shape over
+data_020a1162. Both then scale by 0x24 and index. Today that is an unbounded
+out of bounds read on every title screen frame.
+
+IT IS NOT REACHED TODAY. This lane INFERRED that from the gate's scene 1 skip.
+The review MEASURED it, and the measurement is recorded here as the review's:
+zero Behavior entries, with the scene 1 crash stack resolving through the known
+func_ov007_020be980 seam instead. So the ride through has never run, which is
+why it has never faulted.
+
+It becomes live the moment scene 1 boots. IT MUST BE FIXED BEFORE THE TOUCH
+SEAM, not with it: filling data_020a1154 while the index is garbage produces a
+read that is wrong in a new way rather than a right one.
+
+AND THE FIX IS NOT A HEADER LINE. Section 2 lists the three call sites and the
+four disagreeing spellings. Two callers pass the argument through their own
+local externs at return types that match neither the header nor the definition,
+so widening decl_common.h alone leaves those two declaring something else again.
+This is the decl_common redecl trap and it has to be priced as three call sites
+plus two conflicting local prototypes.
+
+ONE MORE ON THAT PATH, NOT REACHED AND WORTH KNOWING. func_ov007_020c1db0 takes
+the quad by pointer, and when that pointer is null it falls back to
+func_0205f040 and func_0205efc0, which read data_020a80cc at +0x34. Section 3b
+says why that would be out of bounds on the host. The title path always passes
+a non null pointer, so the branch is dead there, but it is one null away.
+
+
+5. THE MEASUREMENT: A MINIGAME READS A TAP
+--------------------------------------------
+
+Scene 374 is SCENE_MG_CURLING, dScMgCurling_c, actor id 0x176. It runs 300
+frames clean under FAULTS_FATAL on the baseline binary, which is what makes it
+the right place to ask the question.
+
+THE CURLING TOUCH GATE, DERIVED BEFORE IT WAS RUN.
+
+    dScMgCurling_c::InitResources (_ZN14dScMgCurling_c13InitResourcesEv) sets the top state
+    index at self+0x4eac to 1.
+    Behavior (_ZN14dScMgCurling_c8BehaviorEv, host copied in
+    port/unmatched/MgCurling_StateDispatch.cpp) dispatches
+    data_ov006_02141950[index]. Index 1 is func_ov006_020e3078.
+    func_ov006_020e3078 dispatches data_ov006_021418b0[self+0x4ee4]. Slot 0 is
+    func_ov006_020e1b54. Slot 1 is 0x020e1854.
+    func_ov006_020e1b54 IS the touch state. It reads
+    data_020a0de8[data_020a0e40 * 4] and returns immediately unless BOTH
+    touched and held are set. On a drag it computes the aim vector into
+    self+0x4ec0 and +0x4ec4 from the stylus position, requests sound 0x1d2, and
+    SETS self+0x4ee4 TO 1.
+
+So a consumed tap moves the sub state from slot 0 to slot 1, and slot 1 is
+0x020e1854, the one state in the class with no delink block and no src file.
+port/unmatched/MgCurling_StateDispatch.cpp already prints a named line when
+that address is dispatched. The port therefore already had a production signal
+for "a tap was consumed" and nobody had ever tripped it.
+
+THE RUNS. Same binary as the gate baseline, no source change, all headless.
+
+    CONTROL
+      SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300 SM64DS_FAULTS_FATAL=1
+      exit 0. playlog carries no 0x020e1854 line.
+
+    TAP
+      SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300 SM64DS_FAULTS_FATAL=1
+      SM64DS_TOUCH_PROBE="0-299:120:150"
+      exit 0. playlog carries, once:
+        [scene] dScMgCurling_c STATE 0x020e1854 HAS NO DECOMPILED BODY
+        (slot 1 of data_ov006_021418b0, index -1) ...
+
+    The same line appears in three more poked runs and in neither control run.
+    EVERY PROBE STRING BELOW IS QUOTED IN FULL AND IS COPY PASTEABLE. The
+    grammar needs the coordinates: a bare "60-64" logs the frame and pokes
+    NOTHING, so a shorthand that drops ":120:150" is a control run wearing a
+    poke run's name.
+
+        SM64DS_TOUCH_PROBE="30-299:120:150"                  300 frames, line
+        SM64DS_TOUCH_PROBE="60-1999:120:150"                2000 frames, line
+        SM64DS_TOUCH_PROBE="60-64:120:150,100,150-154:33:44,299"
+                                                             300 frames, line
+
+    ONE POKED RUN DID NOT TRIP IT, and it is not a counterexample, it is the
+    warm up. SM64DS_SCENE_FRAMES=20 with SM64DS_TOUCH_PROBE="0-19:120:150"
+    produced no line. func_ov006_020e3078 opens by decrementing a timer at
+    self+0x4ee2 and returning while it is nonzero, so the sub state is not
+    dispatched at all for the first stretch of the scene. The counters below
+    measure that stretch exactly: 020e3078 entered 299 and 020e1b54 entered
+    235, so 64 frames went to the timer. A tap that is released before roughly
+    frame 65 is never seen, and the acceptance line in section 6d holds the
+    press across the whole run for that reason.
+
+THE STYLUS RECORD DURING THOSE RUNS, from poll_touch's own log:
+
+    f0   poke yes, post touched 1, held 0, x 120, y 150, d=(1,2,3)
+    f1   poke yes, post touched 1, held 1, x 120, y 150, d=(1,2,3)
+    slots 1, 2 and 3 all zero throughout.
+
+THAT SECOND LINE WAS THE PORT'S BUG AND THIS FILE ONCE READ IT AS THE RULE.
+The paragraph here used to say "held comes up on the second frame of a hold,
+which is the ROM's own edge rule". It is not. Section 2 link 5 above quotes
+the ROM's own producer, src/func_0203bb60.c, and its byte +1 is
+p[1] = touch XOR p[0] -- a CHANGE EDGE, set on the frame the stylus goes
+down and again on the frame it comes up, clear for the whole hold in
+between. poll_touch was writing "down and was down", the opposite shape, so the
+trace above is the defect and not the derivation. Run mg5 lane PLUNGER
+measured what it cost on scene 368 and corrected the store; the two frames
+now read touched 1 edge 1 then touched 1 edge 0, and func_ov006_020e1b54
+consumes on the first of them rather than the second.
+
+A THROWAWAY PROBE, SINCE STRIPPED, COUNTED THE STATES. It added per address
+counters to port/unmatched/MgCurling_StateDispatch.cpp and reported at exit.
+The file was restored from a byte copy afterwards and the tree is clean; the
+numbers are recorded here because they are the shape of the answer, not because
+anything depends on the probe still existing.
+
+    control   020e1b54 entered 235,  020e1854 entered   0
+    tap       020e1b54 entered   1,  020e1854 entered 234
+    both      020e3078 entered 299,  data_020a0e40 = 0
+
+The two right hand columns sum to 235 in both runs, which is the check that the
+tap moved the machine rather than adding dispatches to it.
+
+Read that pair carefully, because it is the whole finding. In the control the
+touch state is dispatched 235 times and reads zeros 235 times. Under the tap it
+is dispatched ONCE, consumes the tap on that one dispatch, sets the sub state,
+and the remaining 234 dispatches go to the hole. The tap is not merely visible
+to the minigame. It is acted on, and it moves the machine.
+
+data_020a0e40 = 0 on a scene, measured, so poll_touch's slot 0 is the slot the
+curling states read. That is the whole reason the existing single slot bridge
+is enough for this class.
+
+WHAT THE SCENE REPORT CANNOT SEE. The stdout [scene] block is BYTE IDENTICAL
+between control and tap, at 300 frames and at 2000. The dispatch counter says
+"32557 calls, 0 UNHANDLED" either way, because routing to the hole is still a
+routed call. The evidence is on STDERR, in the playlog. A lane that diffs the
+scene report alone will conclude touch does nothing, which is what this lane
+concluded for its first four runs.
+
+
+6. THE SEAM PROPOSAL
+----------------------
+
+6a. WHERE THE HONEST SEAM SITS.
+
+The fs seam and the fader seam both cut at the hardware boundary and let the
+ROM's own code run above it. The touch equivalent is link 0: host the ARM7
+posted words at 0x027FFFA8, 0x027FFFAA and 0x027FFFAC, fill them from the mouse
+over the sub screen viewport, and raise the PXI message so func_0205f300 runs.
+Everything above that is matched ROM code the port would then be running for
+real.
+
+THIS LANE DOES NOT RECOMMEND CUTTING THERE FIRST, and the reason is that the
+boundary is not only memory. An earlier draft of this section said the host
+raises no interrupts, and that is FALSE: the scene runner is the display timing
+authority and delivers IRQ 2, which the curling run's own report counts at
+78637 HBlank deliveries over 300 frames. What is missing is narrower and worse.
+
+    THE IPC FIFO HAS NO MODEL. IPCSend is LINKED (src/IPCSend.c, via
+    slice_gate10). It tests IPCFIFOCNT at 0x04000184 and writes IPCFIFOSEND at
+    0x04000188. Nothing in port/ntr or port/hal implements either register, so
+    the control word reads 0, IPCSend takes its success path and returns 0, and
+    the write lands in unmodelled IO space. Seat func_0203bbc0 as it stands and
+    every one of its setup calls reports success while no sample ever arrives.
+    A silent success is worse than an absence, and it is what link 0 would be
+    built on top of.
+
+    THERE IS NO ARM7 AT ALL. Link 0's writer is the other processor. Cutting
+    there means writing a host stand in for the ARM7's TSC service and a
+    delivery path for its message, which is a larger seam than the two steps
+    below and buys the same tap.
+
+6b. THE CUT THIS LANE PROPOSES, IN TWO STEPS THAT ARE SEPARATELY USEFUL.
+
+STEP 1, LINK 5, AND IT IS SMALL. Widen poll_touch from slot 0 to all four
+slots, so a reader that indexes by a nonzero player index still finds the
+stylus. Cost: a loop, no new symbols, no new TU. It is a correctness fix for
+what already exists rather than a seam.
+
+STEP 2, LINK 4, AND IT IS THE ONE THAT UNBLOCKS THE TITLE SCREEN. Publish the
+same stylus state into data_020a1040 at +4, +6, +8, +0xa and let the ROM's own
+func_0203e0ac broadcast it into data_020a1154. func_0203e0ac is ALREADY LINKED
+and already correct; what it needs is a filled source record and a caller.
+
+"A CALLER" IS TWO CHOICES, NOT A DETAIL. The ROM's caller is func_0203df40,
+which also carries the pad expression the port currently synthesises elsewhere,
+so seating it replaces a host stand in with the ROM body rather than adding
+one. The port's OWN intended caller is Camera vtable slot 6, which
+hal/camera_bridges.cpp parks at cs_harness with the comment "Behavior +
+func_0203e0ac", because Behavior may not run twice once the ROM's processing
+lists are also dispatching it. So step 2 is either seating func_0203df40 or
+unparking that slot, and the second option carries camera_bridges' own
+double dispatch reason with it. This lane does not rule between them.
+
+    what it costs
+      TUs to add to a slice: func_0203df40 (matched, in src/, in no slice
+        today) and its callees that are not yet linked. func_0203b9bc is one of
+        them and it pulls links 2 and 3 behind it, so a first cut may prefer to
+        seat func_0203df40 with a host copy of only its stylus arm.
+      globals to host: none new for link 4. data_020a1040 and data_020a1154 are
+        already hosted with ROM spacing and already asserted at bring up.
+      globals to host if links 2 and 3 come too: data_020a0df8 (0x48, nine TP
+        entries), data_020a0dd8 (8, one calibrated point), and a REBUILD of
+        data_020a80cc and data_020a80e4 as one contiguous ROM shaped object
+        (section 3b). The last of those is not optional and is the single
+        largest hidden cost in this section.
+      the window transform: written, and UNEXERCISED BY EVERY RUN IN THIS
+        FILE. poll_touch's client to framebuffer to DS pixel path, including
+        the letterbox gate, is the transform. It is gated on a real cursor over
+        a real window, and SM64DS_TOUCH_PROBE forces DS pixels straight past
+        it, so every measurement in section 5 went around it. No new code is
+        needed and no evidence here says the existing code is right. A seam
+        lane that trusts it because touch works headless is trusting an
+        untested path.
+      calibration: nothing. The host produces DS pixels directly, so
+        func_0205ea28 has nothing to do. If links 2 and 3 are ever seated, the
+        host must write RAW panel coordinates into the ring instead and let the
+        ROM calibrate, or the transform gets applied twice.
+
+    what it does NOT fix
+      the ride through in section 4. func_0203dabc and func_0203dae4 are still
+      called with no argument from _ZN9dScDSMT_c8BehaviorEv. Filling data_020a1154
+      without fixing the index makes the title screen read a filled record at a
+      garbage offset. Order matters: the index fix comes first.
+
+6c. THE CURLING SPECIFIC PATH, FOR THE LANE THAT WANTS A PLAYABLE MINIGAME.
+
+Touch already reaches dScMgCurling_c (section 5), so nothing in 6b is needed to
+make the class READ a tap. What blocks the class is downstream of the read:
+
+    self+0x4eac  1 = func_ov006_020e3078, the sub state dispatcher
+                 2 = func_ov006_020e2f78, which 020e3078 advances to only after
+                     its five entity loop reports count 0
+    self+0x4ee4  0 = func_ov006_020e1b54, WAIT FOR A DRAG. Touch gates here.
+                 1 = 0x020e1854, NO DECOMPILED BODY. The shot cannot be taken.
+
+    self+0x4688  selects data_ov006_02141910 per entity inside 020e3078's loop.
+                 Slot 3 is func_ov006_020e26f8, the second touch reader in the
+                 class, which drags an entity under the stylus and clamps its
+                 x. It was entered ZERO times in every run above, control and
+                 tap alike.
+
+WHY 020e26f8 NEVER RUNS, AND IT IS NOT WHAT AN EARLIER DRAFT OF THIS SECTION
+SAID. That draft said the loop found no entity with its active byte at +0x4689
+set. That is wrong, and this file's own numbers refute it without needing a new
+run.
+
+    The scene report gives ov006 behavior 299. The probe counters give
+    020e3078 entered 299. So EVERY Behavior tick dispatched index 1, which
+    means self+0x4eac never became 2 in 300 frames.
+    020e3078 sets self+0x4eac to 2 at the bottom of its body, and it reaches
+    that bottom unless it returns early: on the 0x4ee2 timer before the entity
+    loop, or on count != 0 after it. The timer accounts for exactly 64 of the
+    299 (section 5), so on the other 235 frames it ran the entity loop and did
+    NOT advance.
+    count is incremented ONLY inside `if (*(u8 *)(p + 0x4689) != 0)`. count
+    != 0 on all 235 of those frames therefore requires an active entity on all
+    235 of those frames.
+
+So entities are active every dispatched frame, and the reason slot 3 never runs
+is that THE PER ENTITY SELECTOR AT self+0x4688 NEVER TAKES THE VALUE 3. That is
+where a lane chasing the second touch reader should look. Reviewer counters
+corroborate it from the other side and are recorded as the reviewer's, not this
+lane's: 020e2f78 entered 0 with 020e3078 entered 299, and slot 0 of the same
+table (func_ov006_020e2c08) entered 235 in BOTH runs, which is one dispatch per
+non timer frame at selector 0.
+
+So the honest curling statement is: one of the class's two touch states runs
+and works, the other is never dispatched because its selector never selects it,
+and the state a consumed tap advances to has no body in the decomp. Seating
+0x020e1854 is a MATCHING job, not a port job, and it is the next thing that
+stands between this class and a shot being taken.
+
+6d. THE ACCEPTANCE TEST.
+
+The brief asked for "dScMgBase_c's input word changing when the host injects a
+tap". The measurable version of that is sharper, is already instrumented, and
+does not need a probe build:
+
+    ACCEPTANCE: on the gate baseline binary, scene 374, 300 frames,
+    FAULTS_FATAL=1,
+
+      with SM64DS_TOUCH_PROBE unset          the playlog contains NO
+                                             "0x020e1854 HAS NO DECOMPILED
+                                             BODY" line
+      with SM64DS_TOUCH_PROBE="0-299:120:150" the playlog contains EXACTLY ONE
+
+    and both runs exit 0.
+
+    The line is emitted by production code (port/unmatched/
+    MgCurling_StateDispatch.cpp), not by a probe. The only way to reach that
+    address is for func_ov006_020e1b54 to have read touched AND held out of
+    data_020a0de8 and written self+0x4ee4. So the line IS the assertion "the
+    minigame consumed a tap", with no instrumentation to trust.
+
+    HOLD THE PRESS FOR THE WHOLE RUN. The sub state is not dispatched for the
+    first 64 frames of the scene (section 5), so a short poke window near the
+    start reads as a pass when it is a miss.
+
+    THE TRAP: read the PLAYLOG, not stdout. walk_window freopens stderr to
+    build/port/playlog/play_<stamp>.log and the [scene] stdout block is
+    identical either way (section 5).
+
+    A SECOND, STRICTER ONE, once step 2 of 6b lands, on the same shape: with
+    scene 1 unblocked, a tap over the file select region should move
+    func_ov007_020b7090's return away from 0. That one cannot be written yet
+    because scene 1 does not boot.
+
+
+7. WHAT THIS LANE COULD NOT SETTLE
+------------------------------------
+
+THIRTEEN ITEMS. The count is stated because a list this long is easy to skim
+past, and three of them arrived from the review of this file rather than from
+writing it.
+
+  - WHAT SETS self+0x4688, AND WHY IT NEVER REACHES 3. Section 6c proves the
+    entities are active and the selector is the reason func_ov006_020e26f8
+    never runs. It does NOT say what writes that byte or what value would
+    select slot 3. That is the next question for the curling lane and this lane
+    did not open it.
+
+  - THREE COUNTERS IN SECTION 6C ARE THE REVIEWER'S, NOT THIS LANE'S.
+    020e2f78 entered 0, and slot 0 of data_ov006_02141910 entered 235 in both
+    runs, come from the review's own re instrumentation. They corroborate a
+    conclusion this file derives from its own two counters plus the source, and
+    they are marked as carried at the point of use. This lane did not re run
+    them.
+
+  - THE WINDOW TRANSFORM IS UNEXERCISED BY EVERY RUN HERE. poll_touch's client
+    to framebuffer to DS pixel path is gated on a real cursor over a real
+    window and SM64DS_TOUCH_PROBE forces DS pixels past it. Nothing in this
+    file is evidence that the transform is correct. See section 6b.
+
+  - THE ARM7 SIDE IS NOT IN THIS REPO. Links 0 and 1 are described from the
+    arm9 code that reads their output (func_0205f300's bitfield and the three
+    shared addresses) and from the DS memory map. No ARM7 body was read. The
+    packed field order (x 12, y 12, valid 1, range 2) is func_0205f300's own
+    struct and is trusted to that extent and no further.
+
+  - WHY func_0205ea28 IS IN THE MAP. It is linked, and its ROM caller
+    func_0203b9bc is absent. func_0205efe0 also calls it and is also linked,
+    and func_0205efe0's caller func_0205efc0 was not checked. Nothing on any
+    exercised path calls any of them, so this is a curiosity rather than a
+    hazard today, but the chain was not walked to its root.
+
+  - THE RIDE THROUGH IS NOT REACHED, SO ITS EFFECT IS NOT OBSERVED. Section 4
+    proves from the disassembly that func_0203dabc reads an unpushed argument.
+    It does NOT show what value that is at runtime, or whether the resulting
+    pointer faults, because scene 1 never reaches Behavior. The claim here is
+    exactly "the callee reads a slot the caller never wrote", which the
+    disassembly settles, and nothing more.
+
+  - data_020a0e40 = 0 WAS MEASURED ON ONE SCENE. Curling, 300 frames. The
+    reasoning that it must be zero on every scene (only Player::Behavior writes
+    it, and a minigame scene has no Player) is derivation, not measurement, and
+    no other scene was checked.
+
+  - THE FOUR SLOT QUESTION IS UNTESTED. poll_touch writes slot 0 only. No run
+    in this lane had a nonzero index, so "readers indexing by a nonzero slot
+    read zeros" is derived from the layout, not observed.
+
+  - NO FRAME WAS LOOKED AT. Every run here was headless and judged on stderr
+    and exit codes. Whether the curling aim indicator visibly moves when the
+    tap is consumed is unknown, and per the repo's standing rule this lane does
+    not judge rendered output for itself.
+
+  - THE TP WORK AREA'S TRUE EXTENT IS BOUNDED, NOT KNOWN. Section 3b shows
+    reads at data_020a80cc+0x34 and +0x36, so the struct is at least 0x38
+    bytes and the two dsd names are inside it. Where it actually ends was not
+    established, and a lane that hosts it must derive the size rather than take
+    0x38 from here.
+
+  - THE 2000 FRAME RUNS PROVE NO MORE THAN THE 300 FRAME ONES. The touch state
+    starts being dispatched at frame 65 and the machine leaves the sub state on
+    the first consumed tap, so a longer run explores no new state. Recorded
+    because it was run, not because it adds coverage.
+
+  - THE IPC FIFO CLAIM IS A GREP, NOT A RUN. Section 6a says 0x04000184 and
+    0x04000188 have no model because nothing in port/ntr or port/hal names
+    them, and that IPCSend therefore returns 0. No run was made that calls
+    IPCSend and reads its return, because nothing on an exercised path calls
+    it. The read of 0 at unmodelled IO addresses is taken from
+    port/ppu_gap_audit.txt's measurement of the neighbouring SPI registers,
+    which is one address family away from the ones asserted here.
+
+  - THE 64 FRAME WARM UP WAS COUNTED, NOT DERIVED. It is the difference
+    between two probe counters on one scene at one frame count. What sets
+    self+0x4ee2 to that value, and whether it is the same on every entry to
+    the class, was not established.
+
+
+8. THE WINDOWED MOUSE, MEASURED (2026-08-17, run link60 lane TCH2)
+--------------------------------------------------------------------
+
+Sections 1 to 7 proved the touch chain with SM64DS_TOUCH_PROBE, which writes DS
+pixels straight into data_020a0de8. That starts DOWNSTREAM of the window, the
+present rectangle and the transform, so it could not answer the question a
+player asks: does clicking the bottom half of a minigame window work. Lane SW1
+gave the scene path a window; this section answers it for the mouse.
+
+THE REPORTED FAULT. The owner played curling in the new 512x768 stacked window
+and touch did nothing. The playlog carried, about fifteen times,
+
+    [mouse] click off-picture (letterbox bar), not published
+
+and exactly one "[mouse] click 230,193 fb". The obvious reading -- the present
+rectangle is wrong or unpublished, so the transform rejects every click -- is
+WRONG, and this section exists because it cost a lane to find that out.
+
+
+8a. THE RECTANGLE WAS ALWAYS RIGHT.
+-------------------------------------
+
+Measured on the UNCHANGED SW1 binary (6482ce682), scene 374, windowed, with
+SM64DS_TOUCH_CLIENT_PROBE, which drives the same two mappers poll_touch drives:
+
+    [touchmap] rect x0 y0 w512 h768 src 512x768, layout stacked
+    [touchmap] client (256,100) -> top IN  fb(256,100) | sub out ds(128,0)
+    [touchmap] client (256,383) -> top IN  fb(256,383) | sub out ds(128,0)
+    [touchmap] client (256,384) -> top out fb(256,383) | sub IN  ds(128,0)
+    [touchmap] client (256,500) -> top out fb(256,383) | sub IN  ds(128,58)
+    [touchmap] client (10,700)  -> top out fb(10,383)  | sub IN  ds(5,158)
+    [touchmap] client (500,760) -> top out fb(500,383) | sub IN  ds(250,188)
+
+Client 512x768, image 512x768, so dx=dy=0 and no bar exists on either axis. The
+seam is exact: 383 is the top screen, 384 is row 0 of the bottom screen.
+scene_window_run calls the SAME present() the level loop calls -- there is one
+copy of the fit arithmetic and one call to hal_present_set_rect -- so there was
+never a second rectangle to get wrong.
+
+
+8b. THE TWO MOUSE PATHS, AND WHY THE LOG SAID THE OPPOSITE OF THE TRUTH.
+--------------------------------------------------------------------------
+
+THE WINDOWED BUILD HAS TWO INDEPENDENT MOUSE READERS and only one of them is
+the stylus. This is the whole misdiagnosis and it is worth stating flatly:
+
+  walk_window.cpp wndproc, WM_LBUTTONDOWN
+      asks hal_present_client_to_fb, publishes g_mouse_click_x/y/new.
+      Its own comment says NOTHING IN THIS FILE READS ANY OF IT. It is a
+      publisher with no consumer, kept for a touch bridge that was built
+      somewhere else instead.
+  hal/sub_screen.cpp poll_touch, from hal_sub_screen_frame_begin
+      polls GetCursorPos + GetAsyncKeyState(VK_LBUTTON), asks
+      hal_present_client_to_sub in the stacked layout, and writes
+      data_020a0de8. THIS is the stylus. It never looks at a window message.
+
+hal_present_client_to_fb MEANS THE TOP SCREEN IN BOTH LAYOUTS -- correctly; its
+own banner says so. So in a stacked run every click on the bottom half returns
+"outside" from it, and the wndproc handler reported that as a letterbox bar.
+Those were the only touch-shaped lines in the log, because poll_touch printed
+nothing at all unless SM64DS_TOUCH_PROBE was set and no play session sets it.
+
+    A SESSION WHERE THE STYLUS WORKED PERFECTLY AND A SESSION WHERE IT WAS
+    NEVER POLLED PRODUCED THE SAME PLAYLOG, and the wrong one of the two was
+    the reading everybody took.
+
+The single published "[mouse] click 230,193 fb" is a click at client (230,193),
+in the TOP half, which is the one kind of click that path still reports.
+
+Both halves are fixed. The wndproc handler asks the sub band before it names
+the surface, and poll_touch now records press, release and refusal with DS
+coordinates.
+
+
+8c. THE SCRIPTED STYLUS: SM64DS_CLICK_TEST.
+---------------------------------------------
+
+There was no way to drive a mouse from a script, so every claim about where a
+click lands rested on somebody's hand. tests/walk_window.cpp now carries
+
+    SM64DS_CLICK_TEST="cx,cy@f0[-f1][,cx,cy>dx,dy@f0-f1,...]"
+
+client pixels, held across the named frames, ">" for a linear drag. Inert
+unless set and unreachable from a selftest, the same two locks SM64DS_PAD_TEST
+has, and it is popped by battery.py's scene_env and selftest_env.
+
+IT DRIVES THE OS, NOT THE WINDOW QUEUE. SetCursorPos plus SendInput, because
+poll_touch reads GetCursorPos and GetAsyncKeyState and a PostMessage'd
+WM_LBUTTONDOWN would exercise only the dead path in 8b -- proving the half that
+has no consumer green while the live half stayed dark. A real button edge
+reaches both, through every layer of arithmetic either of them uses.
+
+TWO THINGS IT COST, both recorded because both looked like port bugs:
+  * The first cut hand-rolled the INPUT struct at 36 bytes where the 32-bit one
+    is 28. SendInput validates cbSize and returns 0 without injecting, so the
+    run logged eleven presses and zero touches -- which is EXACTLY what a
+    broken touch bridge looks like. The return is checked now, and the struct
+    is windows.h's own.
+  * The pointer is shared with the desktop. A press can land a few pixels off
+    if anything else moves the mouse. poll_touch logs the client point it
+    ACTUALLY read, not the one the fixture asked for, so contention is visible
+    in the log instead of silently shifting the answer.
+It is pid-gated: it refuses to press when the window under the pointer is not
+this process's, so it cannot click another lane's proof window on a shared
+desktop.
+
+
+8d. THE GRID. Both layouts, every point exact.
+------------------------------------------------
+
+Verified by recomputing each published DS pixel from the client point on the
+same log line and the rectangle the same run printed; 22 lines, 0 disagreements.
+
+STACKED, scene 374, client 512x768. DS = (cx/2, (cy-384)/2):
+
+    [touch] f10 PRESS client(64,416)  -> DS (32,16)   on the bottom (stacked)
+    [touch] f30 PRESS client(448,416) -> DS (224,16)
+    [touch] f50 PRESS client(256,576) -> DS (128,96)
+    [touch] f90 PRESS client(448,736) -> DS (224,176)
+    [touch] f100 press client(256,64)  is NOT on the stylus surface:
+            it is on the TOP screen -- no touch published
+    [touch] f110 press client(256,320) is NOT on the stylus surface:
+            it is on the TOP screen -- no touch published
+
+  nine of nine bottom-half points published at the exact DS pixel; two of two
+  top-half points refused and NAMED as the top screen rather than as a bar.
+
+INSET, level 1, client 1024x768, panel at fb (376,280)..(503,375):
+
+    [touch] f11 PRESS client(752,560)  -> DS (0,0)     on the bottom (inset)
+    [touch] f31 PRESS client(1000,744) -> DS (248,184)
+    [touch] f45 PRESS client(780,600)  -> DS (28,40)
+    [touch] f61 press client(222,128) is NOT on the stylus surface:
+            it is on the TOP screen -- no touch published
+
+  THE LEVEL PATH IS THE REGRESSION SURFACE and it does not move. poll_touch's
+  inset arithmetic is untouched by this lane -- the diff adds a capture of the
+  client point and the log lines, and changes no term of the transform.
+
+
+8e. THE MINIGAME CONSUMES IT. And then it stops.
+--------------------------------------------------
+
+Section 6d's acceptance test, re-run through the WINDOW and a real mouse
+instead of through SM64DS_TOUCH_PROBE. Scene 374, windowed, 200 frames,
+FAULTS_FATAL=1, the two runs identical but for the click script:
+
+    control (no SM64DS_CLICK_TEST)          0 "0x020e1854" lines, exit 0
+    drag    SM64DS_CLICK_TEST="256,620>256,470@80-150"
+                                            1 "0x020e1854" line,  exit 0
+
+    [touch] f80  PRESS client(256,620) -> DS (128,118) on the bottom (stacked)
+    [touch] f151 release after 71 frame(s), last DS (128,43)
+
+Per 6d that line IS the assertion "the minigame consumed a tap": the only way
+to reach that address is for func_ov006_020e1b54 to have read touched AND held
+out of data_020a0de8 and written self+0x4ee4. So the mouse, the window, the
+present rectangle, the transform, the record and the ROM's own reader are
+proven end to end on the path a player actually uses.
+
+AND NOTHING MOVES ON SCREEN, which is the second defect and not a doubt about
+the first. SM64DS_SCENE_BMP_STACKED captures at four frame counts are BYTE
+IDENTICAL between the control and the drag:
+
+    frames= 90  control 2D6CD7047C40  drag 2D6CD7047C40  IDENTICAL
+    frames=100  control AB737A31B0D5  drag AB737A31B0D5  IDENTICAL
+    frames=120  control 4807C74B20E0  drag 4807C74B20E0  IDENTICAL
+    frames=200  both md5 1aa356598f72c6cd861afddb717a8406  IDENTICAL
+
+The consumed tap advances self+0x4ee4 from 0 to 1, and slot 1 is
+func_ov006_020e1854 -- 0x300 bytes with a symbol in ov006/symbols.txt, no
+delink block, and no src file. The class cannot take the shot, so the FIRST
+drag a player makes moves the machine into a state with no body and every later
+drag is ignored. That is what "touch does not work in curling" is, and it is
+consistent with the owner's own playlog, which carries exactly one
+"0x020e1854" line (curling_no_body prints once) followed by eleven more
+unanswered clicks.
+
+IT CANNOT BE FIXED FROM THE PORT SIDE. The port recompiles C to x86 and cannot
+execute the overlay's ARM, so delinking the bytes is not an option the way it
+is for a ROM build; the address has to become C. Section 6c already called
+seating 0x020e1854 a MATCHING job and this section is the measurement that it
+is now the ONLY thing between this class and a playable shot. Everything
+upstream of it is green.
+
+
+8f. WHAT THIS SECTION DID NOT SETTLE.
+---------------------------------------
+
+  - POLL_TOUCH HAS NO FOCUS GATE, and this lane did not close it.
+    GetAsyncKeyState is machine-global, so a left click in ANOTHER window while
+    the game runs is still read as a stylus press attempt. Observed in the
+    level grid run: two presses at client (2102,-864) and (1594,-258), points
+    outside the window, refused as letterbox bars only because they fell
+    outside the picture. A click that happened to land on the panel's client
+    rectangle while another window had focus WOULD publish. hal_window_focused
+    already exists and everything else interactive routes through it; the
+    stylus does not. Left alone deliberately -- it changes behaviour on the
+    level path the owner click-tested, and it is not what was reported.
+  - WHY THE OWNER SAW EXACTLY ONE CONSUMED TAP is inferred from the single
+    "0x020e1854" line in their playlog plus the once-only static in
+    curling_no_body, not from a re-run of their session.
+  - THE DRAG PATH BETWEEN THE TWO ENDS is not logged. Press and release carry
+    DS coordinates; the frames between them do not, and SM64DS_TOUCH_PROBE is
+    still the tool for a per-frame record.
+  - THE SECOND TOUCH READER IS STILL NEVER DISPATCHED. Section 6c's finding
+    about func_ov006_020e26f8 and the self+0x4688 selector is untouched by this
+    lane; nothing here looked at it.
+
+================================================================================
+9. THE STUCK BUTTON, AND WHY A CONTROL RUN CAN DRIVE INPUT (run link60, CT1)
+================================================================================
+
+READ THIS BEFORE TRUSTING ANY CONTROL RUN TAKEN AFTER A SM64DS_CLICK_TEST RUN
+ON THE SAME DESKTOP.
+
+Review CTR1 measured a CONTROL run of scene 374 -- no SM64DS_CLICK_TEST, no
+SM64DS_TOUCH_PROBE, nothing scripted -- entering dScMgCurling_c's aim state 96
+times. A control that enters a touch-only state 96 times is not a control. The
+cause was not the scene and not the state: the physical left mouse button was
+still held down from the PREVIOUS click-driver run, and
+GetAsyncKeyState(VK_LBUTTON) read 1 until it was cleared by hand.
+
+WHY IT COULD HAPPEN. click_test_finish released the button only
+`if (g_ct_down)`. That flag is the driver's own bookkeeping, not the button:
+
+  * click_test_button leaves g_ct_down untouched when SendInput refuses an edge,
+    so a refused release records as "still down" while a refused press records
+    as "not down" -- the flag can disagree with the hardware in both directions;
+  * the pid gate returns before pressing, so a run can end with the flag and the
+    button out of step;
+  * poll_touch reads GetAsyncKeyState, which is machine-global and outlives the
+    process, so the next run inherits the state.
+
+THE FIX (this lane): the release in click_test_finish is now UNCONDITIONAL. A
+spurious LEFTUP when nothing is held costs nothing; a missed one contaminates
+every run that follows, and it contaminates them SILENTLY, which is the part
+that matters. The exit line says which case it was:
+
+    [click] release at exit
+    [click] release at exit (button was not marked down; released anyway)
+
+WHAT THIS DOES NOT COVER, stated rather than assumed away: click_test_finish is
+armed with atexit and only when the driver is armed. A click-driver run that is
+KILLED rather than exited still leaves the button down, and a run that never set
+SM64DS_CLICK_TEST has nothing registered to clear it. So the rule for anyone
+reading a control:
+
+    a control run taken right after a click-driver run is only a control if the
+    click run's playlog carries a "[click] release at exit" line.
+
+If it does not, the control is suspect. Check the state-entry count against a
+run taken from a cold desktop before believing it.
+
+THE FIX NOT TAKEN, so the next lane does not have to rediscover the choice: the
+complete cure is a LEFTUP at STARTUP as well, which would clear an inherited
+press whatever left it behind, including a killed run. It is not done here
+because poll_touch is machine-global in both directions -- a startup release
+would also cancel a press the PERSON at the keyboard is making, on a path the
+owner click-tests by hand -- and that is a behaviour change on the level path to
+fix a hazard only the scripted driver creates. If a lane ever wants it, gate it
+on the driver being armed rather than doing it unconditionally.
+
+VERIFIED, run link60 lane CT1: a scene-374 click-driver run now ends with
+
+    [click] release at exit (button was not marked down; released anyway)
+
+which is the branch the old `if (g_ct_down)` skipped entirely.
+
+================================================================================
+10. THE DRAG THAT LEFT THE SCREEN (2026-08-20, run mg5, lane DRAGCAP)
+================================================================================
+
+Worktree C:/tmp/sm64ds-snd, branch port/drag-capture, off 0c0419c75. Private
+build C:/tmp/sm64ds-snd/build/port, CMAKE_HOME_DIRECTORY verified
+C:/tmp/sm64ds-snd/port.
+
+REPORTED FROM LIVE PLAY: "when i drag off screen it releases the touch. Can it
+not do that incase i go off screen so it doesnt release on accident."
+
+
+10a. WHAT WAS ACTUALLY HAPPENING
+----------------------------------
+
+poll_touch gated `down` on the surface test and on nothing else. Cross any edge
+of the bottom screen with the button still held and the next poll published
+down = 0, which is byte +1's release edge (section 5 and src/func_0203bb60.c).
+The port has four such edges and the DS has none: the letterbox bars, the hinge
+band, the top screen, and the desktop past the window.
+
+Measured on scene 368 (Bob-omb Squad), stacked, client 512x832, G = 32, so the
+bottom screen is client rows 448..831 and DS = (cx / 2, (cy - 448) / 2). The
+plunger rests at DS (128,40), client (256,528). One gesture, driven by
+SM64DS_CLICK_TEST, pressing on the plunger and dragging out of the window
+bottom and back before letting go:
+
+    SM64DS_CLICK_TEST="256,528@60-99,256,528>256,950@100-139,
+                       256,950@140-179,256,950>256,528@180-219,256,528@220-259"
+
+    BEFORE      [touch] f60  PRESS client(256,528) -> DS (128,40)
+                [touch] f129 release after 69 frame(s), last DS (128,191)
+                [touch] f129 press client(256,841) is NOT on the stylus
+                             surface: it is in a letterbox bar
+                [touch] f191 PRESS client(256,831) -> DS (128,191)
+                [touch] f260 release after 69 frame(s), last DS (128,40)
+
+                de8 runs   1..59 = 0, 60..128 = 1, 129..190 = 0,
+                           191..259 = 1, 260.. = 0
+                de9 edges  60, 129, 191, 260        FOUR, for one gesture
+
+THE GAME BELIEVED IT. dScMgPachinko_c slot 0's state byte at +0x4f0d went
+
+                frames 17..60   st = 0    idle
+                frames 61..129  st = 1    grabbed, tracking the stylus
+                frames 130..194 st = 2    THE SHOT, fired by the accident
+                frames 195      st = 4
+                frames 272..    st = 0    respawned
+
+src/func_ov006_020fe394.cpp is one branch on `data_020a0de8[k * 4] != 0`, and its
+else side writes 2 into +0x4f0d and snaps or launches the ball. So the player
+pulling back did not pause the pull when their hand left the window. They took
+the shot. The ball's world y in the same trace walks 40, -207, -279 over the
+frames after f129, which is it leaving up the screen.
+
+The gap band is worse rather than better, because it is INSIDE the window.
+Dragging UP from the same press releases at f110, at client (256,444), which is
+the band and not the top screen. There is nothing on screen to tell a player
+that a 64 pixel stripe in the middle of the picture ends their drag.
+
+
+10b. THE CURE, AND WHAT IT DID NOT TOUCH
+------------------------------------------
+
+A `drag_own` latch in poll_touch. The first poll of a button-hold that resolves
+ON the surface arms it, the physical button coming up is the only thing that
+clears it, and while it is armed an off-surface point publishes the NEAREST
+point on the bottom screen instead of publishing nothing.
+
+The nearest point was already being computed and thrown away. Both mappers
+clamp their output into the screen's own range and answer inside/outside
+separately through the return value (section 8a), so this consumes an existing
+answer rather than adding a second opinion about where the screen is. Display
+and touch still derive from the one StackLayout.
+
+Byte +1 is untouched. It is still `down ^ was`, so a release is still exactly
+one frame, and it now lands on the real button-up wherever the cursor is.
+
+    AFTER       [touch] f60  PRESS client(256,528) -> DS (128,40)
+                [touch] f129 drag LEFT the stylus surface at client(256,841),
+                             holding at DS (128,191) until the button comes up
+                [touch] f191 drag back ON the stylus surface at client(256,831)
+                             -> DS (128,191)
+                [touch] f260 release after 200 frame(s), last DS (128,40)
+
+                de8 runs   1..59 = 0, 60..259 = 1, 260.. = 0
+                de9 edges  60, 260                 TWO, for one gesture
+                +0x4f0d    st = 1 from f61 to f260, then 0
+
+and the published DS coordinate is pinned at (128,191) for every frame of the
+excursion, f128 through f191, which is the bottom screen's bottom row.
+
+THE TOP-SCREEN CASE IS THE STRONGER ONE, because it is the case where a wrong
+clamp would be invisible. Dragging up across the band and onto the top screen
+and back:
+
+    AFTER       [touch] f60  PRESS client(256,528) -> DS (128,40)
+                [touch] f110 drag LEFT the stylus surface at client(256,444),
+                             holding at DS (128,0)
+                [touch] f210 drag back ON the stylus surface at client(256,452)
+                             -> DS (128,2)
+                [touch] f260 release after 200 frame(s), last DS (128,40)
+
+The set of distinct (dea,deb) pairs published across f110..f209 has exactly ONE
+member, (128,0). No top-screen coordinate reaches the record, and none can: the
+clamp is into the bottom screen's range in both layouts and no branch in
+poll_touch reaches the other band.
+
+RELEASING WHILE OFF THE SURFACE. Press on the plunger, drag out of the window,
+let go there. BEFORE the release edge fired at f129 when the cursor left, and
+the REAL button-up at f200 produced no edge at all, because a byte that is
+already 0 cannot fall again. AFTER the edge is at f200 with the last clamped
+DS (128,191), and +0x4f0d goes 1 to 2 on that frame, which is the shot the
+player actually asked for.
+
+A PRESS THAT STARTS OFF THE SURFACE IS UNCHANGED, and that is a rule and not an
+accident: the latch can only be armed by a genuinely on-surface point. Three
+presses starting in the band and on the top screen publish nothing on both
+builds, with de8 flat at 0 for the whole run, and the WndProc still says
+"off-picture (letterbox bar), not published". THE GAP BAND'S DEAD-CLICK RULE
+STILL HOLDS FOR PRESSES (section 8a). What crossing the band cannot do any more
+is kill a drag that is already running.
+
+tests/walk_window.cpp takes a SetCapture on WM_LBUTTONDOWN and gives it back on
+WM_LBUTTONUP. That is not what fixes the stylus, and saying so is the point:
+poll_touch reads GetCursorPos and GetAsyncKeyState, which are machine-global and
+were never interrupted by the pointer leaving the window. What had no capture
+was g_mouse_left_down, which latched at 1 forever when a release landed on
+another window. Released only when the right-button look is not holding a
+capture of its own.
+
+
+10c. WHAT PROVED IT, AND WHAT COULD NOT
+-----------------------------------------
+
+SM64DS_TOUCH_PROBE CANNOT EXPRESS AN OFF-SURFACE DRAG. It pokes DS pixels
+straight into the record and never runs the transform, so there is no way to
+say "the cursor is at a client point that is not on the surface" with it. It is
+still the right tool for the per-frame record and every trace above uses it in
+its log-only form for exactly that.
+
+SM64DS_CLICK_TEST CAN, with no change to it. It takes client pixels, drives
+SetCursorPos plus SendInput, supports `cx,cy>dx,dy@f0-f1`, and its pid gate
+guards only the PRESS edge, so a drag that walks off the window keeps the
+button down and keeps being steered. NO NEW TEST HOOK WAS ADDED FOR THIS LANE.
+
+CONTENTION IS REAL ON A SHARED DESKTOP AND IT IS NOT SECTION 9's HAZARD. Two
+other lanes were running walk_window with their own click scripts while these
+runs were taken, and their presses appear in these logs as strays at client
+points no fixture named, one of which published a one-frame press. Section 9's
+stuck button is a superset of it and its rule is not enough on its own. What
+this lane did: clear VK_LBUTTON before every run, and re-run every fixture until
+its [touch] edge list matches the script exactly and nothing else. A run whose
+edge list carries an extra press is discarded, not explained.
+
+THE REGRESSION SURFACE, both builds, same fixtures.
+
+    scene 378, 24 scripted taps through SM64DS_TOUCH_PROBE, 2200 frames
+        state index 5, dScMgCoin_c state dispatch 60701 routed, 6480 through
+        the touch state 0x020dd0e0, 0 bodiless, 192 framework, 0 UNHANDLED,
+        slot hits init 1 / behavior 2199 / render 2200. The whole log is
+        identical once host addresses and the audio ring's refill counter are
+        normalised.
+    scene 368, 8 on-surface taps through SM64DS_CLICK_TEST
+        8 presses, 8 releases, 0 excursions, and the de8 run table and the
+        de9 edge list are identical line for line.
+
+THE ONE THING NOT SETTLED. poll_touch still has no focus gate (section 8f), and
+the latch inherits that: a drag armed in this window keeps publishing while the
+player alt-tabs, because GetAsyncKeyState is machine-global. That is the same
+behaviour the press had before this lane and it is not what was reported.
+
+
+10d. THE GATE
+---------------
+
+    battery         ALL GREEN. 8 smokes, every mounted level, all 8 hosted
+                    scenes, linkage 6219 (55.2%), ptr_audit 0 unhosted code
+                    pointers.
+    canary 374      SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300
+                    SM64DS_SCENE_NO_RENDER=1 SM64DS_FAULTS_FATAL=1, exit 0,
+                    "state dispatch: 32557 call(s), 32557 routed, 0 UNHANDLED".
+    pacing          SM64DS_SCENE=374 SM64DS_SCENE_WINDOW=1
+                    SM64DS_SCENE_FRAMES=600, exit 0, 10.14 s wall, which is
+                    59.2 fps.
+    level 1 BMP     5b783a29d753ce4dfbd35c79a7b2850f at 300 frames, the pinned
+                    value.
+
+THE .dsstate BASE MOVED AND THE SPAN DID NOT, and this block exists because a
+BMP compare at 300 frames alone would not have been allowed to close it.
+Host statics are not hosted DS data, so nothing inside .dsstate could move, and
+dsstate_guard confirms it: 11697 symbols, 959432 bytes captured, both builds.
+But the added host code pushed the preceding sections past a page boundary and
+the section base went 0xc16000 to 0xc17000.
+
+battery.py's own note says a 4 KB base move is the perturbation that leaves one
+pixel at 296 frames and nothing at 300, so 300 is exactly the count that is
+blind to it. The A/B was therefore run at all seven counts port/gap_truncations
+section 9 measured, on the two binaries this lane built, level 1,
+SM64DS_FAULTS_FATAL=1:
+
+    count  md5                               before == after
+    291    a76abb6b537d47d340043f9c326b42eb  SAME
+    292    6181b18f0a86b4659ae3151649aa72af  SAME
+    296    a45bb566591cb8ac702c70f77ad73aa0  SAME
+    298    48cdb19742af3ff6a335828a701ee218  SAME
+    300    5b783a29d753ce4dfbd35c79a7b2850f  SAME
+    302    01ad50bdfa5463f30869a23e1ab78cec  SAME
+    303    77423118d3283ae552ff4660900d9258  SAME
+
+Every one of the seven also equals the value gap_truncations section 9 recorded
+at its own tip, so the page shift moved no pixel at any count either file has
+ever found sensitive. The "before" binary is this lane's own control: the same
+tree with only the ball trace's state column added and none of the touch change,
+so the two rows differ by the fix and by the page the linker chose.
+
+
+10e. THE INSET PANEL, OBSERVED RATHER THAN SCRIPTED
+------------------------------------------------------
+
+Section 8d's rule still holds: the level path is the regression surface, and
+the latch is in the branch above both layouts rather than inside either one, so
+the inset arithmetic is untouched exactly the way section 8d says it was
+untouched before. What is new is that the clamp now runs on the inset panel
+too, and the panel is a small rectangle in a corner rather than half the
+picture, so almost every point in that window is off the stylus surface.
+
+Level 1, SM64DS_DUAL_SCREEN=0, panel layout, a real pointer:
+
+    [touch] f1  PRESS client(812,580) -> DS (60,20) on the bottom (inset panel)
+    [touch] f22 drag LEFT the stylus surface at client(865,537), holding at
+                DS (112,0) until the button comes up
+    [touch] f36 release after 35 frame(s), last DS (255,0). The button came up
+                OFF the stylus surface, which is where the release edge belongs
+
+which is the same three lines the stacked runs produce, through the other
+mapper, clamped into the panel's own 256x192 rather than into a screen band.
+
+IT IS AN OBSERVATION AND NOT A FIXTURE, and it is labelled so rather than
+dressed up. Those frames are not the script this run carried: another lane's
+pointer made that press. Every attempt at a clean scripted level fixture in the
+same window lost its button mid-hold to the same contention, so what this
+section claims is that the inset branch was seen doing the right thing, not
+that a fixture was run against it. The stacked claims in 10b are the measured
+ones.

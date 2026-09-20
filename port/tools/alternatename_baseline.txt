@@ -1,0 +1,142 @@
+# alternatename_baseline.txt
+#
+# The frozen allowlist of /alternatename directives whose LHS is DELIBERATELY
+# defined in the full walk_window link -- the port's weak-symbol idiom, in
+# three reviewed shapes:
+#
+#   * fallback stubs that only fire in reduced binaries: tests/fault_probe.h's
+#     no-walker/no-level/no-players/no-frame family, the cxxname_bridge
+#     shadow fallbacks, heap_vtable's align4 fallback, the l7 particle stub,
+#     the actor_faces_bob faces. In walk_window the real definition links and
+#     the stub dies to /OPT:REF -- by design.
+#   * MSVC-mangle faces/forwarders coexisting with the Itanium body (the w4-c
+#     LoadFile forwarder shape; MemoryLeft, FindWithID, Enable): references
+#     bind to the face, the face forwards to the body.
+#   * data bridges whose LHS became hosted after the alias landed
+#     (data_ov021_021149c0).
+#
+# RATCHET TURNED, run linkw wave 6 close: _data_0209f2d8=_data_0209f2d8_c is
+# GONE. Lane w6-C's hostgen work (ROLE_DATA / ASM_EXCISION, item 3) stopped that
+# alias being defeated, the guard reported it as a baseline pair no longer
+# defeated, and the pair was removed BY HAND -- one line, the confirmed
+# tightening -- rather than by a blanket --update, so nothing else in this
+# reviewed set moved with it.
+#
+# RATCHET TURNED AGAIN, run link100 (Andrew's third review of PR #2474):
+# __ZN12dEnemyBase_cC2Ev=_func_ov002_020aed98 is GONE. That pragma was not a fallback
+# with a live reader at all -- its RHS had no definition anywhere in the tree,
+# and its LHS is published by src/_ZN12dEnemyBase_cC2Ev.cpp.obj, so the directive could
+# never fire. The pragma was deleted in hal/cxx_aliases.cpp (the evidence is at
+# that line) and this row followed it BY HAND, one line, so the list stays
+# exactly the set of pairs that are still defeated. 23 pairs to 22.
+#
+# GROWTH, run link60 Stage 4: _port_crash_dir_get=_port_crash_dir_get_stub and
+# _port_rich_dump_ex=_port_rich_dump_ex_stub were ADDED. They are not new debt.
+# Both are written as backslash-continued #pragma comment(linker, ...) lines in
+# unmatched/func_02043fdc_hostcopy.cpp, and the guard's pragma test ran a line
+# at a time, so it had never scanned them: they were defeated in every
+# walk_window map since the day they landed and nothing measured it. They are
+# two more of the fault_probe fallback-stub family this list already carries
+# SEVEN sibling pairs of (the four no-walker/no-level/no-players/no-frame rows
+# the paragraph above names by example, plus no-pidx, no-gittip and
+# no-playlog). The real exports come from tests/fault_probe.h under
+# PORT_FAULT_PROBE_DEFINE_EXPORTS. tests/walk_window.cpp:286 defines that macro
+# and so does tests/gate1_probe.cpp:46, but gate1_probe is not a CMake target
+# and is hand-built per its own header, so it is not an input to the
+# walk_window link and does not change the reading here: in the full binary the
+# real definition links and the stub dies to /OPT:REF (the map shows the LHS at
+# its own address and the RHS gone entirely), while a reduced binary built
+# without walk_window.cpp gets the stub through the alias. That is the design.
+# Closing the scanner gap changed the measurement, not the link. Added BY HAND,
+# two lines, for the same reason the shrink above was.
+#
+# port/tools/alternatename_guard.py fails the build if the linked map shows a
+# defeated alias NOT on this list -- that is the R1/R2 arrival shape (a newly
+# sliced TU defining an alias LHS at its own address; w5b_review.md).
+#
+# THE RULE, in both directions. This list SHRINKS whenever a pair stops being
+# defeated; the guard reports those as no longer defeated and they come out. It
+# may GROW only for a pair the map shows was defeated all along while the
+# scanner could not see it, with the evidence in the commit. A pair that is
+# newly defeated because a TU started defining an alias LHS is the R1/R2 bug
+# and never belongs here. Never add a pair to unblock a build.
+#
+# Every move is made BY HAND, one line at a time, in both directions.
+#     python port/tools/alternatename_guard.py --update
+# rewrites the whole block off a single live run, so it would carry in whatever
+# else happened to be defeated that day; the wave 6 shrink and the link60
+# growth were both hand-made for exactly that reason.
+#
+# GROWTH, run mg15 lane SAVEGUARD: _port_install_verdict=_port_fault_no_verdict
+# was ADDED. One row, and the ninth member of the fault_probe fallback-stub
+# family this list already carries eight of. port_install_verdict is the boot
+# verdict on the install -- which asset folder the exe actually read, whether
+# its game data matches this build, and what happened to any save state in it --
+# written by hal/romdata_loader.cpp and hal/lk7_persist.cpp into storage in
+# hal/os_arena.cpp, and copied into the crash dump by tests/fault_probe.h. In
+# walk_window the real definition links and the empty stub dies to /OPT:REF, the
+# same reading as its eight siblings; in a probe that includes fault_probe.h
+# without linking os_arena.cpp the stub fires and the dump prints no install
+# block, which is correct -- such a binary has no verdict to give.
+#
+# SCOPE HOLD, run link100 lane SMOKELINK6: __ZN4Heap21MaxAllocationUnitSizeEv=
+# ?MaxAllocationUnitSize@Heap@@QAEIXZ and __ZN13HeapAllocator6RemoveEv=
+# ?Remove@HeapAllocator@@QAEXXZ were ADDED, and they are NOT the weak-symbol
+# idiom the rest of this list documents. Both pragmas live in
+# hal/smoke_heap_seam_actor.cpp:111,:120 (SMOKELINK5's 59bced026), which
+# port/CMakeLists.txt's PORT_SMOKE_ACTOR_SRC puts on smoke_actor, smoke_savestate
+# and smoke_persist ONLY -- none of it is compiled into walk_window at all.
+# This guard's directive scan walks the whole port/ tree by text and then checks
+# every pair it finds against ONE map, walk_window.map by default, regardless of
+# which target the directive's file is actually compiled into (read in full:
+# out/SMOKELINK5B/bugs.md item 3). So the "defeated" reading here is the guard
+# comparing an actor-target-only directive against a map that was never asked to
+# resolve it -- not a newly sliced TU defeating a real walk_window alias, and not
+# the fallback-stub design this list otherwise records. None of the three actor
+# targets links yet (Sound::Play, out/SMOKELINK5/bugs.md), so there is no map of
+# their own to check this pair against instead. Held here, named and reasoned
+# rather than silently passed, until an actor target links and produces a map:
+# then re-derive against THAT map and either confirm the alias fires there (row
+# comes out) or it is truly defeated there too (row stays, reclassified). Not a
+# claim that these are correct; a documented hold on an inapplicable check.
+#
+# GROWTH, run link100 lane PROBEBASE: _data_0209ee74=_port_fault_no_particles
+# was ADDED. fault_probe.h:88, the crash probe's deliberate weak-link fallback
+# for harnesses without a particle tracker; inert in walk_window where
+# _data_0209ee74 is always defined; baselined by lane PROBEBASE 2026-09-17,
+# not a defect.
+#
+# THE THREE THAT ARE NOT HERE. The same lane needed port_romdata_sha,
+# port_romdata_bytes and port_asset_root_seen readable from hal/lk7_persist.cpp,
+# which is compiled into targets hal/romdata_loader.cpp is not. The weak-symbol
+# idiom would have worked and would have cost three more frozen rows; the
+# storage was put in hal/os_arena.cpp instead, which every target that links
+# lk7_persist already links, and no alias was needed at all. Prefer that when
+# the choice exists -- this list is meant to grow slowly.
+#
+# One LHS=RHS pair per line, sorted.
+?ChangeState@Player@@QAEHAAUState@1@@Z=?ChangeState@PlayerChangeStateFace@@QAEHAAUState@1@@Z
+?Enable@dBgW@@QAEXPAUActor@@@Z=?Enable@dBgW@@QAEHPAUActor@@@Z
+?FindWithID@dActor_c@@SAPAU1@I@Z=__ZN8dActor_c10FindWithIDEj
+?InitCuboid@ShadowModel@@QAEXXZ=?InitCuboid@ShadowModelCuboidFallback@@QAEXXZ
+?LoadFile@dBgW_Kc@@SAPAUKCL_File@@AAUSharedFilePtr@@@Z=__ZN7dBgW_Kc8LoadFileER13SharedFilePtr
+?MemoryLeft@ExpandingHeapAllocator@@QAEIXZ=__ZN22ExpandingHeapAllocator10MemoryLeftEv
+?SetFile@ModelBase@@QAEHPAUBMD_File@@HH@Z=?SetFile@ModelBaseFace@@QAEHPAUBMD_File@@HH@Z
+__ZN11ShadowModelD1Ev=_hal_shadow_d1_fallback
+__ZN13HeapAllocator6RemoveEv=?Remove@HeapAllocator@@QAEXXZ
+__ZN4Heap21MaxAllocationUnitSizeEv=?MaxAllocationUnitSize@Heap@@QAEIXZ
+__ZN4Heap8AllocateEj=_hal_heap_allocate_align4
+__ZN8dActor_c18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j=_hal_dropshadow_scalexyz_fallback
+__ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_=_port_l7_particle_newsimple_stub
+_data_0209ee74=_port_fault_no_particles
+_data_0209f250=_port_fault_no_pidx
+_data_0209f2f8=_port_fault_no_level
+_data_0209f394=_port_fault_no_players
+_data_020a4b68=_port_fault_no_walker
+_data_ov021_021149c0=_data_ov014_021149c0
+_port_build_gittip=_port_fault_no_gittip
+_port_crash_dir_get=_port_crash_dir_get_stub
+_port_install_verdict=_port_fault_no_verdict
+_port_last_frame=_port_fault_no_frame
+_port_playlog_path=_port_fault_no_playlog
+_port_rich_dump_ex=_port_rich_dump_ex_stub

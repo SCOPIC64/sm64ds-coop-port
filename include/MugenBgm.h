@@ -1,29 +1,47 @@
-/* AUTO-GENERATED from matched-function evidence by tools/gen_header.py
- * class MugenBgm: 6 matched functions, 5 evidenced fields.
- * Offsets/widths are observed, not guessed. Gaps are explicit padding.
- * Field NAMES are placeholders - renaming cannot change codegen. */
 #ifndef MUGENBGM_H
 #define MUGENBGM_H
-#include "types.h"
 
-struct MugenBgm {
-    u8  pad_000[0x8];
-    s32 unk_008;            /* 0x008 */
-    u8  pad_00c[0x74];
-    u8  unk_080;            /* 0x080 */
-    u8  pad_081[0x5b];
-    u8  mModel;            /* 0x0dc */
-    u8  pad_0dd[0x3];
-    u8  unk_0e0;            /* 0x0e0 */
-    u8  pad_0e1[0x21];
-    u8  unk_102;            /* 0x102 */
-#ifdef __cplusplus
-    /* methods */
-    int Behavior();
-    int CleanupResources();
-    int InitResources();
-    int Render();
+/* RECONSTRUCTED NAMES USED IN THIS HEADER. SM64DS RTTI names the
+ * implementation(s) below; the registry profile object and the factory
+ * spelling are Tier B reconstructions -- evidence-bounded proposals, not
+ * recovered SM64DS symbols. Exact original spellings are not preserved.
+ *
+ *   daMugenBGM_c -- daMugenBGM_c_classInit (was MugenBgm_Spawn), g_profile_MUGEN_BGM (was MugenBgm_SpawnInfo)
+ */
+
+#include "dActor_c.h"
+
+/* daMugenBGM_c_classInit allocates 0xd4 bytes, constructs dActor_c, and installs
+ * _ZTV8MugenBgm. D1 chains directly to dActor_c::~dActor_c, so the class has
+ * no owned subobjects; its behavior uses only inherited actor state.
+ */
+struct MugenBgm : dActor_c {
+    u8 pad_0d0[0x4];
+
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~MugenBgm();   /* no slot */
+#else
+    virtual ~MugenBgm();   /* D1 and D0 */
 #endif
+
+    virtual s32 InitResources();
+    virtual s32 CleanupResources();
+    virtual s32 Behavior();
+    virtual s32 Render();
+    virtual void OnPendingDestroy();
 };
 
+#ifndef SM64DS_PLATFORM_PC
+/* ROM layout under mwccarm; host ABI divergence is tracked separately. */
+typedef char MugenBgm_size_must_be_0xd4[
+    sizeof(MugenBgm) == 0xd4 ? 1 : -1];
 #endif
+
+#endif /* MUGENBGM_H */

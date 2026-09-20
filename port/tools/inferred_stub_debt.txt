@@ -1,0 +1,93 @@
+# inferred_stub_debt.txt
+#
+# THIS IS NOT AN EXEMPTION LIST. It is a discovered-debt queue, and every
+# symbol on it is a question nobody has answered yet.
+#
+# Until run linkw wave 12, inferred_stub_guard.py read only port/slice_gate*.txt
+# and was therefore blind to every lane slice the linkage campaign wrote
+# (port/slice_w*.txt) -- by that wave, the large majority of the sliced tree.
+# It reported its 2-symbol baseline the whole time. Widening the reader to
+# slice_*.txt made these seated guess-marked bodies visible all at once.
+#
+# They were ALREADY SEATED AND ALREADY SHIPPING. Widening the guard did not
+# introduce them; it stopped hiding them. Failing the build on all of them
+# would have stopped every lane over a debt none of them created, and moving
+# them into inferred_stub_baseline.txt would have been exactly the "never add a
+# symbol here by hand to unblock a build" that file forbids -- so they are
+# parked here instead, visible and separate.
+#
+# THE MARKER IS OVERLOADED, which is why each needs its own reading rather than
+# a bulk verdict. "recovered from vtable slot identity" sits both on bodies
+# that are genuine guesses AND on bodies whose NAME alone was recovered that
+# way while the body is real decomp -- one of these carries "Matched
+# byte-for-byte with mwccarm 1.2/sp2p3" in the same file. Adjudication is per
+# body: real decomp gets its marker corrected, a genuine guess gets de-seated.
+#
+# RATCHET: this list may only SHRINK, and it must reach zero. Nothing is ever
+# added to it. A guess seated after this file was written fails the build,
+# which is the property the guard existed for in the first place.
+#
+# Discovered 2026-08-15, run linkw wave 12.
+#
+# ADJUDICATED 2026-08-15, run linkw w13 (branch w13-adjudicate). All 43 were
+# ruled on individually against the ROM: each body disassembled out of
+# extracted/overlays/overlay_NNNN.bin at its overlays.yaml base and compared
+# instruction for instruction with its src/ body. Full table, per-body
+# evidence and the reproduction command are in runs/linkw/status/w13.md.
+#
+# RESULT: 43 REAL DECOMP, 0 genuine guesses, 0 unverifiable. Nothing was
+# de-seated because nothing needed de-seating -- including the seven that run
+# every frame on a mounted level (_ZN15FireSeaElevator8BehaviorEv, _ZN15FireSeaElevator6RenderEv,
+# _ZN13daObjEmmLog_c8BehaviorEv, _ZN13daObjEmmLog_c6RenderEv, func_ov063_0211c7b0,
+# _ZN15daObjPathLift_c8BehaviorEv, _ZN15daObjPathLift_c6RenderEv). The marker is a MISLABEL on all
+# 43: the NAME was recovered from vtable slot identity, the BODY is decompiled.
+#
+# The list is therefore still 43 long and that is correct. A symbol leaves the
+# live seated set only when its marker line is gone, the marker lines are in
+# src/, and src/ is read-only for port lanes. runs/linkw/status/w13.md carries
+# the exact per-file line numbers as a ready-to-file decomp-side correction;
+# this queue clears itself when that lands. Deleting a line here on the
+# strength of the ruling alone would turn a discovered-debt queue back into
+# the approval list its header forbids.
+_ZN8BookShot16OnAimedAtWithEggEv
+_ZN8BookShot13OnYoshiTryEatEv
+_ZN11RollingRock16OnAimedAtWithEggEv
+_ZN15FireSeaElevatorD0Ev
+_ZN15FireSeaElevator16CleanupResourcesEv
+_ZN15FireSeaElevator6RenderEv
+_ZN15FireSeaElevator8BehaviorEv
+_ZN15FireSeaElevator13InitResourcesEv
+_ZN19daObjKm2_Ukishima_cD0Ev
+_ZN19daObjKm2_Ukishima_c16CleanupResourcesEv
+_ZN19daObjKm2_Ukishima_c13InitResourcesEv
+_ZN13daObjEmmLog_c16CleanupResourcesEv
+_ZN13daObjEmmLog_c6RenderEv
+_ZN13daObjEmmLog_c8BehaviorEv
+_ZN13daObjEmmLog_c13InitResourcesEv
+_ZN17BowserSkyPlatformD0Ev
+_ZN17BowserSkyPlatform16CleanupResourcesEv
+_ZN17BowserSkyPlatform6RenderEv
+_ZN17BowserSkyPlatform13InitResourcesEv
+_ZN7daTrs_c16OnAimedAtWithEggEv
+_ZN7daTrs_c13OnYoshiTryEatEv
+func_ov063_0211c7b0
+_ZN15daYurei_Mucho_c16OnAimedAtWithEggEv
+_ZN15daYurei_Mucho_c13OnTurnIntoEggER6Player
+_ZN15daYurei_Mucho_c13OnYoshiTryEatEv
+_ZN5Swoop16OnAimedAtWithEggEv
+_ZN5Swoop13OnTurnIntoEggER6Player
+_ZN5Swoop13OnYoshiTryEatEv
+_ZN12daDossyCap_c13OnYoshiTryEatEv
+_ZN8daEyBm_c13OnYoshiTryEatEv
+_ZN11ChiefChilly16OnAimedAtWithEggEv
+_ZN8CccArena4KillEv
+_ZN11CrazedCrate13OnYoshiTryEatEv
+func_ov080_02124eb0
+_ZN11CrazedCrate13OnTurnIntoEggER6Player
+_ZN3Key13OnTurnIntoEggER6Player
+_ZN3Key13OnYoshiTryEatEv
+_ZN15daObjPathLift_cD0Ev
+_ZN15daObjPathLift_c16CleanupResourcesEv
+_ZN15daObjPathLift_c6RenderEv
+_ZN15daObjPathLift_c8BehaviorEv
+_ZN15daObjPathLift_c13InitResourcesEv

@@ -1,0 +1,93 @@
+# run rel0215 wave 2, lane cast-ov027 (W2-ov027): ov027's SNOWMAN'S LAND cast.
+# Level 19. Five ids on four vtables -- SLIDING_ICE (92 spawner + 93 block),
+# CHILL_BULLY (217), DA_PG_DFDR (258) and SNOWMAN_BREATH (275).
+#
+# The derivation is port/ov027_syms.txt. The fill is
+# port/hal/actor_classes_ov027.cpp. Read those first; nothing is repeated here.
+#
+# ==== THE SOURCE INVENTORY, COUNTED THREE WAYS ============================
+# config/arm9/overlays/ov027/symbols.txt carries 53 kind:function rows.
+#   delinked complete to a src TU : 53
+#   present but NONMATCHING-banner:  0   (swept: no ov027 TU carries a banner)
+#   MISSING                       :  0
+# 53 + 0 + 0 = 53. The whole overlay has a decompiled body, so this lane needs
+# no loud L2 face for a missing one and none is written.
+#
+# ==== LANGUAGE ============================================================
+# 26 .cpp and 27 .c. The comment-stripped token sweep was RUN, not assumed:
+# no .c file in this set carries a //cpp marker or any C++ token, so no
+# set_source_files_properties(... LANGUAGE CXX) is needed and none is added.
+#
+# ==== THREE TUs ARE DELIBERATELY NOT HERE =================================
+# src/actors/daPgDfdr_c.cpp and src/actors/daPgDfdr_c.cpp are DA_PG_DFDR's
+# two pointer-to-member dispatch sites, `(c->**p)()` over an mwcc eight-byte
+# member pointer. MSVC's is four bytes and cannot deliver `this` in ecx onto
+# the plain cdecl state bodies, so both are host-copied in
+# port/unmatched/DaPgDfdr_StateDispatch.cpp and the byte-matched originals stay
+# byte-locked in src/ as proof. That is the recipe's rule 13 and the
+# MgCurling/PathLift precedent.
+#
+# src/actors/daPgDfdr_c.cpp is DA_PG_DFDR's Render and is also not here. It
+# dispatches slot 5 of the ModelAnim at +0x320 through a six-virtual ROM-order
+# shadow, and the host _ZTV9ModelAnim is MSVC-numbered with Virtual18 really in
+# that slot -- the Whomp/Fish/FlyingCarpet collision. MEASURED, not predicted:
+# the lane's first seated boot of level 19 faulted on frame 2 in
+# Model::Virtual10 with a null, reached from pd_render through
+# _ZN10daPgDfdr_c6RenderEv. Host copy in port/unmatched/DaPgDfdr_Render.cpp, the
+# matched original byte-locked in src/.
+#
+# NOTHING ELSE IS REFUSED. No ARM asm primitive, no thread scheduler, no card
+# overlay loader tail and no wireless wrapper appears anywhere in this
+# overlay's 53 bodies, so the VS lane's caution -- refuse the SMALLEST subtree
+# that is genuinely unmodellable -- costs this lane three TUs and no faces.
+#
+# 50 of 53 compile. The three that do not are hosted, not dropped.
+#
+# ==== THE MEASURED EXTERNAL CLOSURE =======================================
+# There is none to add. Every arm9, ov002, ov062 and ov064 body this closure
+# reaches is ALREADY LINKED on the base tip -- checked symbol by symbol against
+# build/port/walk_window.map before the first configure, and confirmed by the
+# first link's own unresolved list afterwards. The one that looked missing,
+# _ZN7daOts_c16CleanupResourcesEv (CHILL_BULLY's slot 3), is linked as a real C++
+# method: the map carries ?CleanupResources@Bully@@QAEHXZ out of
+# _ZN7daOts_c16CleanupResourcesEv.cpp.obj via port/slice_gate177.txt, so the fill
+# calls it through include/Bully.h as the method it is rather than adding a TU.
+src/game/actors/d_a_i_donketu.cpp
+src/d_a_obj_sl_ice_block_sl_iceblock.c
+src/d_a_obj_sl_ice_block_sl_iceblock_shot.c
+src/d_a_snm_bth.c
+src/_ZN10SlidingIce13InitResourcesEv.cpp
+src/_ZN10SlidingIce16CleanupResourcesEv.cpp
+src/_ZN10SlidingIce6RenderEv.cpp
+src/_ZN10SlidingIce8BehaviorEv.cpp
+# RETIRED at SLICE1: body now in src/_ZN10SlidingIceD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN10SlidingIceD0Ev.cpp
+src/_ZN10SlidingIceD1Ev.cpp
+src/_ZN13SnowmanBreath13InitResourcesEv.cpp
+src/_ZN13SnowmanBreath16CleanupResourcesEv.cpp
+src/_ZN13SnowmanBreath16OnPendingDestroyEv.cpp
+src/_ZN13SnowmanBreath6RenderEv.cpp
+src/_ZN13SnowmanBreath8BehaviorEv.cpp
+# RETIRED at SLICE1: body now in src/_ZN13SnowmanBreathD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN13SnowmanBreathD0Ev.cpp
+src/_ZN13SnowmanBreathD1Ev.cpp
+src/__sinit_ov027_02112cb0.c
+src/__sinit_ov027_02112d1c.c
+src/__sinit_ov027_02112df8.cpp
+src/__sinit_ov027_02112f70.c
+src/_ZN10SlidingIce15OnHitByMegaCharER6Player.cpp
+src/actors/daPgDfdr_c.cpp
+# RE-KEYED at the main->port sync (lane SYNC7, the wave-9 fold merge): main folded
+# this body into src/actors/daPgDfdr_c.cpp (ov027 delinks, .text 0x0211207c..0x021120c4, one
+# absorbed range), which port/slice_ov027cast.txt's own daPgDfdr_c.cpp row, port/slice_fold2.txt:249 and port/slice_unmatch2.txt:42 already compiles, so the symbols this row seated
+# now come from there and the per-function file is gone from main's tree.
+#src/d_a_pg_dfdr.c
+src/_ZN21SnowmanBreathParticleD1Ev.cpp
+src/_ZN21SnowmanBreathParticle9HitPlayerEv.cpp
+src/_ZN21SnowmanBreathParticle12CheckSnowmanEv.cpp
+src/_ZN21SnowmanBreathParticle14UpdatePositionEv.cpp
+src/_ZN21SnowmanBreathParticle6RenderEv.cpp
+src/_ZN21SnowmanBreathParticle8BehaviorEv.cpp
+src/_ZN21SnowmanBreathParticle8TrySpawnER6Player.cpp
+src/_ZN21SnowmanBreathParticleC1Ev.cpp
+src/_ZN13SnowmanBreath15IsPlayerInRangeEv.cpp

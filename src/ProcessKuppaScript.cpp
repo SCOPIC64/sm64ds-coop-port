@@ -27,7 +27,21 @@ extern "C" {
 struct FaderBrightness {
     Fix12i currInterp;
     Fix12i speed;
-    virtual ~FaderBrightness();
+    /* THE DESTRUCTOR PAIR, SPELLED AS TWO PLAIN VIRTUALS ON PURPOSE. mwccarm
+       gives `virtual ~FaderBrightness()` TWO vtable entries -- D1 complete and
+       D0 deleting, the Itanium pair -- and MSVC folds them into ONE. Spelt as a
+       destructor this declaration indexed correctly on the ARM and ONE SLOT
+       EARLY on the host, so every dispatch below reached its ROM neighbour:
+       SetForwardTime ran the ROM's SetBackwardTime at +0x0c, SetToStart ran
+       SetToEnd at +0x20, SetBackwardTime ran AdvanceFade at +0x08. Two ordinary
+       virtuals occupy the SAME two entries under mwccarm, so the ROM bytes are
+       untouched (2004/b56, 1.2/base, 1.2/sp2 and 1.2/sp2p3 all still match),
+       and they occupy two under MSVC as well, so the host lands where the ARM
+       does. Neither is ever called from here; they hold the two slots the ROM's
+       table holds, and the UnkVis struct below already takes this shape for the
+       same reason. port/stage_lifecycle_map.txt section 16 is the measurement. */
+    virtual void Destructor1();
+    virtual void Destructor0();
     virtual int Advance();
     virtual int SetBackwardTime(unsigned frames, unsigned arg2);
     virtual int SetForwardTime(unsigned frames, unsigned arg2);
@@ -53,7 +67,7 @@ struct UnkVis {
 };
 extern "C" UnkVis* data_0209f5bc;
 
-class Scene {
+class dScene_c {
 public:
     static void StartSceneFade(unsigned int a, unsigned int b, unsigned short c);
     static void SetAndStopColorFader();
@@ -95,7 +109,7 @@ extern "C" void ProcessKuppaScript(void)
                     u32 off = i * 4;
                     if (*(u16*)(data_020a0e58 + i * 4 + 2) != 0 ||
                         ((data_020a0de8[off] != 0 && *(data_020a0de8 + off + 1) != 0) ? 1 : 0)) {
-                        Scene::StartSceneFade(1, 0, 0);
+                        dScene_c::StartSceneFade(1, 0, 0);
                         Sound::StopLoadedMusic_Layer1(0x3c);
                     }
                 }
@@ -122,7 +136,7 @@ extern "C" void ProcessKuppaScript(void)
                 data_0209fc4c = ReadUnalignedInt(s + 9);
                 if (((data_0209f2d8 == 2) ? 1 : 0) == 0)
                     Sound::StopLoadedMusic_Layer1(0x3c);
-                Scene::SetAndStopColorFader();
+                dScene_c::SetAndStopColorFader();
                 data_0209d4b0 = 0;
             } else if (cmd == 0xc) {
                 FaderBrightness* f = &data_0209b294;
@@ -154,7 +168,7 @@ extern "C" void ProcessKuppaScript(void)
                 f->SetToEnd();
                 f->fieldC = 0;
                 f->SetForwardTime(0x1e, 0);
-                Scene::SetFaders(f);
+                dScene_c::SetFaders(f);
             } else if (cmd == 0x11) {
                 data_ov002_02110aec = 0;
             } else if (cmd == 4) {

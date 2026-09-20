@@ -1,0 +1,121 @@
+# Lane FDR: THE arm9 WIPE FADER'S OWN STATIC INITIALISER. Run link60 Stage 4.
+#
+# The blocker this retires is port/tools/battery.py's SCENE_BLOCKED row for
+# scene 374: dScMgBase_c's slot 1 hands data_0209f61c to Scene::SetFaders, and
+# that object's vptr was zero because the port never ran the ROM's initialiser
+# for it. The fix is to RUN it, not to reimplement it, so what is listed here
+# is the initialiser and the bodies its vtable names -- nothing else.
+#
+# THE OBJECT IS A dWipe_c, not a FaderBrightness. The handover, MG2's write-up
+# and the SCENE_BLOCKED row all say FaderBrightness; the ROM's own RTTI at
+# 0x020926dc says "7dWipe_c", deriving dFdColor_c -> dFdBrightness_c ->
+# dFader_c. FaderBrightness IS dFdBrightness_c, two levels up, so it is the
+# grandbase and dFader_c is the third level. The addresses in every one of
+# those documents are right; only the class name is wrong. The full derivation
+# is in the header of port/hal/fdr_arm9_fader_seat.cpp and the closure is in
+# port/fader_boot_map.txt.
+#
+# THE FADE MOTION ARRIVED IN THE SECOND CHUNK, run link60 lane FDR2, and it is
+# the block of nine at the foot of this file. Slots 0x0c and 0x10 are the ROM's
+# own bodies now. What that pulled in was measured with port/tools/closure.py
+# rather than estimated: NINE TUs and NINE unhosted data symbols, where the
+# note this replaces said "four arm9 data symbols". Two of the nine are arm9
+# .data and come from port/tools/romdata.py (data_020926c8, data_020926cc); the
+# other seven are bss and are hosted in the seat's own .dsstate block.
+#
+# WHAT IS NOT HERE AND WHY:
+#
+#   src/_ZN7dWipe_c8SetToEndEv.cpp   slot 0x20  SetToEnd
+#     HOST-BROKEN, and this is a decomp-side finding rather than a scheduling
+#     one. The ROM body is a bare tail-call veneer (ldr ip,[pc]; bx ip; .word
+#     0x0201761c) and the src spells it `_ZN7dWipe_c8SetToEndEv(void)` calling
+#     `_ZN15FaderBrightness8SetToEndEv()` with no argument at all. Under mwccarm
+#     that is byte-correct because r0 falls through a bx; on the host the
+#     receiver is simply gone. Identical in shape to the Heap::_Destroy veneer
+#     lane LK4 wrote up in hal/lk4_solidheap_seat.cpp. The slot forwards to the
+#     veneer's own target instead, with the receiver.
+
+src/__sinit_02074f80.c
+src/func_0202fc40.c
+src/_ZN7dWipe_cD1Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN7dWipe_cD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN7dWipe_cD0Ev.cpp
+src/_ZN7dWipe_c9IsAtStartEv.cpp
+src/_ZN7dWipe_c7IsAtEndEv.cpp
+src/_ZN7dWipe_c20IsBetweenStartAndEndEv.cpp
+src/_ZN7dWipe_c10SetToStartEv.cpp
+
+# _ZN7dWipe_c20IsBetweenStartAndEndEv's own base-class branch. Already matched and already compiled
+# on the `smoke` target through slice_gate1, but slice_w1l3 deliberately left
+# it off the walk_window family ("SetForwardTime / SetBackwardTime /
+# IsBetweenStartAndEnd are matched too and are NOT seated"), so the link does
+# not close without it here. Its two unqualified predicate calls carry the MSVC
+# dtor-fold skew; the face in hal/fdr_arm9_fader_seat.cpp is where that is
+# written down and instrumented.
+src/engine/fader/_ZN15FaderBrightness20IsBetweenStartAndEndEv.cpp
+
+# ---- the fade MOTION, run link60 lane FDR2 ---------------------------------
+# Slots 0x0c and 0x10 of data_020926f0, and everything the two of them reach
+# that the image did not already carry. The two setters arm a fade: they write
+# the eight blend registers, build the per-scanline gradient table, and install
+# the ROM's own HBlank handler for it.
+src/_ZN7dWipe_c15SetBackwardTimeEj.c
+src/_ZN7dWipe_c14SetForwardTimeEj.cpp
+# func_0202f58c is what both setters call to bring the table up. It writes the
+# window and blend registers, then builds BOTH halves of the double buffer
+# through func_0202f290, which picks the type-2 builder or the ordinary one.
+src/func_0202f58c.c
+src/func_0202f290.c
+src/func_0202ee94.c
+src/func_0202efa0.c
+# The HBlank handler the setters install, and the vblank-edge reset it calls.
+# Nothing on the host raises IRQ 2, so these are LINKED AND UNDRIVEN -- see the
+# unproven items in port/fader_boot_map.txt. They are here because the setters
+# name them, not because anything has run them.
+src/func_0202f2c4.c
+src/func_0202f3a4.c
+# _ZN7dWipe_c15SetBackwardTimeEj's `type == 1` branch tail-calls this. Its matched TU rides
+# slice_gate1 only, so the walk_window family needs it here; the receiver
+# bridge onto the MSVC method is in hal/fdr_arm9_fader_seat.cpp, the same shape
+# hal/method_faces.cpp uses for the SetForwardTime half of the pair.
+src/engine/fader/_ZN15FaderBrightness15SetBackwardTimeEj.cpp
+
+# ---- the fade CLOCK, run link60 Stage 5 lane SEAT8 -------------------------
+# Slot 0x08 and the driver that dispatches it. This is what makes the table
+# the two setters build stop being one row repeated 384 times.
+#
+# THE REFUSAL THIS REPLACES had two halves and both are spent.
+#
+#   THE CALL DEFECT IS FIXED ON MAIN. src/_ZN7dWipe_c11AdvanceFadeEv.cpp's `type == 1` branch
+#   used to call `_ZN10FaderColor11AdvanceFadeEv()` with no argument, because
+#   the ROM's `bl` at 0x0202f440 leaves r0 holding the receiver. main PR #1539
+#   named the receiver in include/decl_FaderColor.h and passed it at the call.
+#   This lane propagated both files BY ADDRESS and byte-verified the TU in its
+#   own tree at 2004/b56 with strict relocs, before the edit and after: MATCH
+#   both times, so the ARM bytes did not move.
+#
+#   AND THE CALLER WAS NEVER MISSING FROM THE ROM, only from the link.
+#   port/fader_boot_map.txt section 9a read "slot 0x08 has NO CALL SITE in this
+#   image" off a sweep of walk_window's own .text, which was true of the host
+#   binary and got read as a fact about the game. The ROM's frame phase 2
+#   (func_02019390) calls TWO fader advances -- func_02018efc on data_0209d4ac
+#   and func_02018ec0 on data_0209d4b0 -- and both dispatch vtable byte 0x08.
+#   _ZN8dScene_c9SetFadersEP15FaderBrightness writes `data_0209d4ac = thiz` and is
+#   already in the link on slice_gate10, so on scene 374 dScMgBase_c slot 1
+#   arms this object into d4ac with the ROM's own store. The only thing missing
+#   was the one-line TU that reads it. IRQ2's successor note named d4b0, which
+#   is the wrong pointer: nothing in the image (arm9, itcm, dtcm and all 90
+#   overlay reloc tables) ever stores data_0209f61c there.
+src/_ZN7dWipe_c11AdvanceFadeEv.cpp
+# The `type == 1` branch's callee. Its matched TU is a real C++ method, so the
+# flat name the caller spells needs a receiver-bridging face in
+# hal/fdr_arm9_fader_seat.cpp -- and so does Fader::AdvanceInterp, the one name
+# this body drags in that no face owned yet. type is 0 on every path scene 374
+# exercises, so the branch links and does not run; that is in the map's
+# unproven items rather than in this comment's conclusion.
+src/engine/fader/_ZN10FaderColor11AdvanceFadeEv.cpp
+# The ROM's per-frame advance of the INSTALLED fader, phase 2's first half.
+# Six lines: read data_0209d4ac, return on null, dispatch its vtable byte 0x08.
+# hal/fader_wipes.cpp's port_fader_advance calls it, which is where the port
+# already stands in for phase 2's second half (func_02018ec0).
+src/func_02018efc.c

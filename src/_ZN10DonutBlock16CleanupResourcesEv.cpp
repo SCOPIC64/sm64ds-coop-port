@@ -1,18 +1,19 @@
 //cpp
 // @symbol _ZN10DonutBlock16CleanupResourcesEv
+/* recovered: named members + shared header, real C++ method, declarations from a shared header */
+#include "decl_common.h"
 /* recovered: named members + shared header, real C++ method */
 #include "DonutBlock.h"
-extern "C" {
-extern int _ZN16MeshColliderBase9IsEnabledEv(void*);
-extern int _ZN16MeshColliderBase7DisableEv(void*);
-extern int _ZN13SharedFilePtr7ReleaseEv(void*);
-extern int* data_ov036_02113d78[];
-}
+#include "SharedFilePtr.h"
+#include "dBgW.h"
+extern int data_ov036_0211408c[];
 
 int DonutBlock::CleanupResources()
 {
-  if(_ZN16MeshColliderBase9IsEnabledEv((char*)&mMeshCollider)) _ZN16MeshColliderBase7DisableEv((char*)&mMeshCollider);
-  _ZN13SharedFilePtr7ReleaseEv(data_ov036_02113d78[0]);
-  _ZN13SharedFilePtr7ReleaseEv(data_ov036_02113d78[1]);
-  return 1;
+    if (((dBgW *)((char *)&(*(u8 *)&mMeshCollider)))->IsEnabled()) {
+        ((dBgW *)((char *)&(*(u8 *)&mMeshCollider)))->Disable();
+    }
+    ((SharedFilePtr *)(data_ov036_0211408c))->Release();
+    ((SharedFilePtr *)(data_ov036_02114084))->Release();
+    return 1;
 }

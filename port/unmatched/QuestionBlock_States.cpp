@@ -15,12 +15,12 @@
  * stores; the encoding is the one read off the ROM in Door_Behavior.cpp, and
  * all six deltas are zero here too.
  *
- * ov102 0x021498e0 IS NOT DECOMPILED -- state 1's main half, the block
- * bouncing after it is hit -- and it is seated by name.
- * QuestionBlock::InitResources enters state 0 (func_ov102_02149da8(c, 0)) and
- * the castle grounds' one block is on the roof, so on this level the trap is
- * not reached. If a block is ever hit the walk says which function is
- * missing.
+ * ov102 0x021498e0 -- state 1's main half, the block bouncing after it is hit
+ * -- IS matched now (src/func_ov102_021498e0.cpp) and hosted, with its two
+ * pointer-to-member content tables, in
+ * port/unmatched/QuestionBlock_BounceDispatch.cpp (gate 180). The state row for
+ * it below points at that host frame; the old abort stub is gone. Hitting a
+ * ? block no longer aborts.
  */
 #include <cstdio>
 #include <cstdlib>
@@ -37,24 +37,18 @@ extern PortPmf data_ov102_0214e890[];      /* 3 entries x 2 pmfs */
 void func_ov102_02149d80(void *);   /* state 0 enter */
 void func_ov102_02149ccc(void *);   /* state 0 main  */
 void func_ov102_02149c78(void *);   /* state 1 enter */
+void func_ov102_021498e0(void *);   /* state 1 main  (host copy, gate 180) */
 void func_ov102_021498c4(void *);   /* state 2 enter */
 void func_ov102_02149878(void *);   /* state 2 main  */
 
 }  /* extern "C" */
-
-static void port_qblock_state_021498e0(void *)
-{
-    std::fprintf(stderr, "FATAL: QuestionBlock state 1's main (ov102 "
-                 "0x021498e0) is UNMATCHED -- no host body exists\n");
-    std::abort();
-}
 
 static const struct { PortPmf *slot; unsigned rom; void (*host)(void *); }
 g_qblock_states[] = {
     {data_ov102_0214e278, 0x02149d80, func_ov102_02149d80},
     {data_ov102_0214e260, 0x02149ccc, func_ov102_02149ccc},
     {data_ov102_0214e268, 0x02149c78, func_ov102_02149c78},
-    {data_ov102_0214e258, 0x021498e0, port_qblock_state_021498e0},
+    {data_ov102_0214e258, 0x021498e0, func_ov102_021498e0},
     {data_ov102_0214e3a0, 0x021498c4, func_ov102_021498c4},
     {data_ov102_0214e398, 0x02149878, func_ov102_02149878},
 };
@@ -79,34 +73,16 @@ extern "C" void port_question_block_states_seat(void)
     }
 }
 
-/* index the state, bounds-checked -- the ROM does not, but a stray +0x3e8
-   would otherwise walk off a three-entry table into ov102's own bss. */
-static const PortPmf *port_qblock_pmf(char *c, int half)
-{
-    unsigned idx = (unsigned)*(int *)(c + 0x3e8);
-    if (idx >= 3) {
-        std::fprintf(stderr, "FATAL: QuestionBlock state %u out of range\n",
-                     idx);
-        std::abort();
-    }
-    return &data_ov102_0214e890[idx * 2 + half];
-}
+/* BOTH DISPATCHERS ARE BACK ON THE SLICE. src/func_ov102_02149da8.cpp and
+   src/func_ov102_02149df0.cpp are on port/slice_pmf3.txt (run link100 lane
+   PMF3): /vmg /vmm makes MSVC's pointer-to-member the ROM's 8-byte record, so
+   the three-entry table strides 0x10 and both bodies TAIL JUMP;
+   port/hal/pmf3_aliases.cpp bridges the mangled table name. The seat above is
+   unchanged and is the gate -- it aborts on a nonzero adjustment word and
+   rewrites all six function words with host bodies -- and the six source
+   statics at ov102 0x0214e258..0x0214e3a0 were re-read out of overlay_0102.bin
+   with their relocations, every adjustment word ROM zero.
 
-/* src/func_ov102_02149da8.cpp: change state, then run its enter half. */
-extern "C" void func_ov102_02149da8(void *selfv, int i)
-{
-    char *c = (char *)selfv;
-    *(int *)(c + 0x3e8) = i;
-    {
-        const PortPmf *p = port_qblock_pmf(c, 0);
-        ((void (*)(void *))(size_t)p->fn)(c);
-    }
-}
-
-/* src/func_ov102_02149df0.cpp: the per-frame half, Behavior's first line. */
-extern "C" void func_ov102_02149df0(void *selfv)
-{
-    char *c = (char *)selfv;
-    const PortPmf *p = port_qblock_pmf(c, 1);
-    ((void (*)(void *))(size_t)p->fn)(c);
-}
+   port_qblock_pmf goes with them. It bounds-checked the state index and
+   ABORTED, which its own comment says the ROM does not do; because it aborted
+   rather than skipped, every green battery is proof it never fired. */

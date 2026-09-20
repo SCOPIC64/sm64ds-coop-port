@@ -4,7 +4,9 @@
 #include "decl_common.h"
 /* recovered: named members + shared header, real C++ method */
 #include "PyramidStep.h"
-extern int _ZN8Platform13IsClsnInRangeE5Fix12IiES1_(void* p, int a, int b);
+extern "C" {
+extern int _ZN10dBgActor_c13IsClsnInRangeE5Fix12IiES1_(void* p, int a, int b);
+}
 
 int PyramidStep::Behavior()
 {
@@ -32,7 +34,7 @@ int PyramidStep::Behavior()
         *p60 = *p60 + *(int*)(c + 0xa8);
     }
     func_ov025_02111e30(c);
-    if (_ZN8Platform13IsClsnInRangeE5Fix12IiES1_(c, 0, 0) != 0)
+    if (_ZN10dBgActor_c13IsClsnInRangeE5Fix12IiES1_(c, 0, 0) != 0)
         func_ov025_02111dec(c);
     return 1;
 }

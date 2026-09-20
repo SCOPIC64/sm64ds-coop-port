@@ -3,9 +3,8 @@
     Assemble the portable kit folder that gets zipped and sent out.
 
 .DESCRIPTION
-    Builds the game against the STATIC CRT into its own binary directory and
-    copies the main executable and launcher files into the kit root. Optional
-    tools and alternate executables go under tools\.
+    Builds walk_window against the STATIC CRT into its own binary directory
+    and copies it, the launcher, the extractor and the README into one folder.
     The static link is the point: the ordinary build/port/walk_window.exe needs
     the Visual C++ 2015-2022 x86 redistributable installed, which is not a
     thing to ask of someone who just wants to double-click play.bat.
@@ -22,80 +21,51 @@
 .PARAMETER SkipBuild
     Reuse whatever is already in build\port-kit instead of running cmake.
 
+.PARAMETER SmokeRom
+    A .nds dump to run the shipped-artifact test against once the kit is
+    assembled (port\tools\kit_smoke.py). Optional, and the only thing that
+    actually proves the kit works: everything else here inspects the exe,
+    while that stages a clean folder with no repo in it, runs the kit's own
+    extractor and then the kit's own exe. Skipping it means shipping untested.
+
 .EXAMPLE
     .\package_kit.ps1
+    .\package_kit.ps1 -Output C:\tmp\kit -SmokeRom D:\dumps\sm64ds.nds
 #>
 [CmdletBinding()]
 param(
     [string] $Output,
-    [switch] $SkipBuild
+    [switch] $SkipBuild,
+    [string] $SmokeRom
 )
 
 $ErrorActionPreference = 'Stop'
 
 $here = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $repo = (Resolve-Path (Join-Path $here '..\..')).Path
-if (-not $Output) {
-    $Output = Join-Path $env:USERPROFILE 'Desktop\GAMES\SM64 DS COOP'
-}
+if (-not $Output) { $Output = Join-Path $repo 'build\kit\SM64DS-PC-demo-1.7' }
 
 $buildDir = Join-Path $repo 'build\port-kit'
 $exe = Join-Path $buildDir 'walk_window.exe'
-$packagedExe = Join-Path $Output 'sm64ds coop.exe'
-$packagedHires = Join-Path $Output 'tools\sm64ds coop hires.exe'
 
 if (-not $SkipBuild) {
     # Same toolchain location pattern as port\build-port.cmd, plus the one
     # extra switch. A separate binary directory keeps the normal build's
     # object files from being thrown away every time the kit is packaged.
-    $vsCandidates = @(
-        (Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\18\Community'),
-        (Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\2022\Community'),
-        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2022\BuildTools')
-    )
-    $vsRoot = $vsCandidates |
-        Where-Object { Test-Path (Join-Path $_ 'VC\Auxiliary\Build\vcvars32.bat') } |
-        Select-Object -First 1
-    if (-not $vsRoot) {
-                throw @"
-Visual Studio's 32-bit C++ build tools are missing.
-Install Visual Studio 2022 or 2026 Build Tools with the workload:
-    Desktop development with C++
-and the individual component:
-    MSVC v143/v145 - VS C++ x86/x64 build tools
-Then run this script again.
-"@
-    }
-    $msvcHeader = Get-ChildItem (Join-Path $vsRoot 'VC\Tools\MSVC') -Filter 'cstdio' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-    $ucrtHeader = Get-ChildItem (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Include') -Filter 'stdio.h' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $msvcHeader -or -not $ucrtHeader) {
-        throw @"
-Visual Studio's C++ headers or Windows SDK C runtime headers are missing.
-In Visual Studio Installer, select Desktop development with C++ and enable:
-  MSVC v145 - VS 2026 C++ x86/x64 build tools
-  Windows 11 SDK
-Then click Modify and run this script again.
-"@
-    }
+    $vsRoot = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2022\BuildTools'
     $vcvars = Join-Path $vsRoot 'VC\Auxiliary\Build\vcvars32.bat'
     $cmakeRoot = Join-Path $vsRoot 'Common7\IDE\CommonExtensions\Microsoft\CMake'
-    $vcTools = Get-ChildItem (Join-Path $vsRoot 'VC\Tools\MSVC') -Directory |
-        Sort-Object Name -Descending | Select-Object -First 1
-    $kitsRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
-    $sdkVersion = Get-ChildItem (Join-Path $kitsRoot 'Include') -Directory |
-        Sort-Object Name -Descending | Select-Object -First 1
-    $sdkInclude = Join-Path $kitsRoot "Include\$($sdkVersion.Name)"
-    $sdkLib = Join-Path $kitsRoot "Lib\$($sdkVersion.Name)"
-    $sdkBin = Join-Path $kitsRoot "bin\$($sdkVersion.Name)\x86"
+    if (-not (Test-Path $vcvars)) {
+        throw "Visual Studio 2022 Build Tools not found at $vsRoot"
+    }
     $script = @"
 @echo off
 call "$vcvars" >nul || exit /b 1
-set "PATH=$cmakeRoot\CMake\bin;$cmakeRoot\Ninja;$sdkBin;%PATH%"
-set "INCLUDE=$($vcTools.FullName)\include;$sdkInclude\ucrt;$sdkInclude\shared;$sdkInclude\um;%INCLUDE%"
-set "LIB=$($vcTools.FullName)\lib\x86;$sdkLib\ucrt\x86;$sdkLib\um\x86;%LIB%"
+set "PATH=$cmakeRoot\CMake\bin;$cmakeRoot\Ninja;%PATH%"
 cmake -S "$repo\port" -B "$buildDir" -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+  -DPORT_ROM_CLEAN=ON ^
   -DCMAKE_MAKE_PROGRAM="$cmakeRoot\Ninja\ninja.exe" -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded || exit /b 1
-ninja -C "$buildDir" walk_window walk_window_hires
+ninja -C "$buildDir" walk_window
 "@
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ("kitbuild_{0}.cmd" -f [guid]::NewGuid().ToString('N'))
     Set-Content -LiteralPath $tmp -Value $script -Encoding ASCII
@@ -120,19 +90,28 @@ if ($dumpbin) {
     }
 }
 
+# The kit's whole premise is that it ships zero game bytes, which is only true
+# of a PORT_ROM_CLEAN build. The boot loader's path string only exists in that
+# build, so its absence means the exe still has the ROM tables baked in.
+$exeText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe))
+if ($exeText.IndexOf('build/assets/romdata.bin') -lt 0) {
+    throw "walk_window.exe was not built with PORT_ROM_CLEAN -- it still embeds ROM data and must not ship"
+}
+
 Write-Host "Assembling $Output"
-$kitFiles = 'sm64ds coop.exe', 'play.bat', 'README.txt', 'LUA_MODDING.md',
-    'logo.bmp', 'sm64ds.nds', 'tools', 'mods', 'playlog'
+# romdata.recipe.tsv + romdata.manifest: names, offsets and hashes only -- the
+# ROM-CLEAN pieces extract_assets.ps1 and the game's boot loader need. Both are
+# generated by the build this kit was assembled from, so they cannot drift from
+# the exe that ships next to them.
+$kitFiles = 'demo-1.7.exe', 'play.bat', 'extract_assets.ps1', 'README.txt',
+            'romdata.recipe.tsv', 'romdata.manifest', 'PLACE EU ROM HERE'
 
 # Never clear the folder out: the obvious way to test a kit is to drop a
 # cartridge dump into it and run it, and this must not be the thing that
 # deletes it. Refuse an untidy folder instead, because the promise the kit
 # makes is that the zip holds nothing but these four files.
 if (Test-Path $Output) {
-    $stray = Get-ChildItem $Output -Force | Where-Object {
-        $_.Name -notin $kitFiles -and $_.Extension -ne '.nds' -and
-        $_.Name -ne 'playlog'
-    }
+    $stray = Get-ChildItem $Output -Force | Where-Object { $_.Name -notin $kitFiles }
     if ($stray) {
         Write-Host ""
         $stray | ForEach-Object { Write-Host "    $($_.Name)" }
@@ -142,30 +121,23 @@ if (Test-Path $Output) {
 }
 [void][IO.Directory]::CreateDirectory($Output)
 
-Copy-Item $exe (Join-Path $Output 'sm64ds coop.exe') -Force
-foreach ($name in 'play.bat', 'README.txt') {
+Copy-Item $exe (Join-Path $Output 'demo-1.7.exe') -Force
+# The drop folder ships empty except for one line of instructions, so the
+# recipient sees where the dump goes before reading anything.
+$dropDir = Join-Path $Output 'PLACE EU ROM HERE'
+[void][IO.Directory]::CreateDirectory($dropDir)
+Set-Content -LiteralPath (Join-Path $dropDir 'put your sm64ds nds file in this folder.txt') `
+    -Value 'Copy the .nds dump of your own Super Mario 64 DS cartridge into this folder, then run play.bat.' `
+    -Encoding ASCII
+foreach ($name in 'play.bat', 'extract_assets.ps1', 'README.txt') {
     Copy-Item (Join-Path $here $name) (Join-Path $Output $name) -Force
 }
-$logo = Join-Path $repo 'port\assets\logo.bmp'
-if (Test-Path $logo) {
-    Copy-Item $logo (Join-Path $Output 'logo.bmp') -Force
-}
-[void][IO.Directory]::CreateDirectory((Join-Path $Output 'tools'))
-Copy-Item (Join-Path $here 'extract_assets.ps1') (Join-Path $Output 'tools\extract_assets.ps1') -Force
-$modSource = Join-Path $repo 'mods'
-if (Test-Path $modSource) {
-    $modTarget = Join-Path $Output 'mods'
-    [void][IO.Directory]::CreateDirectory($modTarget)
-    Get-ChildItem $modSource -Directory | ForEach-Object {
-        $target = Join-Path $modTarget $_.Name
-        [void][IO.Directory]::CreateDirectory($target)
-        $main = Join-Path $_.FullName 'main.lua'
-        if (Test-Path $main) { Copy-Item $main (Join-Path $target 'main.lua') -Force }
+foreach ($name in 'romdata.recipe.tsv', 'romdata.manifest') {
+    $src = Join-Path $repo "build\assets\$name"
+    if (-not (Test-Path $src)) {
+        throw "no $name at $src -- build with PORT_ROM_CLEAN before packaging"
     }
-}
-$hires = Join-Path $buildDir 'walk_window_hires.exe'
-if (Test-Path $hires) {
-    Copy-Item $hires (Join-Path $Output 'tools\sm64ds coop hires.exe') -Force
+    Copy-Item $src (Join-Path $Output $name) -Force
 }
 
 Write-Host ""
@@ -173,8 +145,43 @@ Get-ChildItem $Output | ForEach-Object {
     "    {0,-20} {1,10:N0} bytes" -f $_.Name, $_.Length
 }
 Write-Host ""
-Write-Host "Kit ready:" -ForegroundColor Green
+Write-Host "Kit assembled:" -ForegroundColor Green
 Write-Host "    $Output"
 Write-Host ""
+
+# THE KIT IS ONLY TESTED WHEN THE SHIPPED ARTIFACT RUNS WITHOUT THE REPO.
+#
+# Everything above this line inspects the exe: is it static, is it ROM-clean,
+# are the right files in the folder. None of it runs the thing. For a long
+# while nothing did -- the way anyone "tested a kit" was to run the packaged
+# exe from a machine that had a checkout on it, where the game found a complete
+# build\assets whether or not the kit could produce one. That is how a build
+# that needed three files the extractor never wrote got shipped, and it died on
+# the first machine that had no repo behind it. port\kit_pipeline.txt is the
+# write-up.
+$smoke = Join-Path $repo 'port\tools\kit_smoke.py'
+if ($SmokeRom) {
+    if (-not (Test-Path -LiteralPath $SmokeRom)) { throw "no ROM at $SmokeRom" }
+    Write-Host "Running the shipped-artifact test" -ForegroundColor Cyan
+    Write-Host ""
+    & python $smoke $Output $SmokeRom
+    if ($LASTEXITCODE -ne 0) {
+        throw ("kit_smoke failed (exit $LASTEXITCODE). This kit does not work on a " +
+               "machine without the repository. Do not ship it.")
+    }
+    Write-Host ""
+    Write-Host "Kit ready and tested." -ForegroundColor Green
+} else {
+    Write-Host "NOT TESTED YET. Nothing above ran the game." -ForegroundColor Yellow
+    Write-Host "Before sending this to anyone, run the shipped-artifact test:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "    python `"$smoke`" `"$Output`" <your.nds>"
+    Write-Host ""
+    Write-Host "It stages a clean folder with no repository in it, runs the kit's own"
+    Write-Host "extractor, then the kit's own exe with the launcher's environment, and"
+    Write-Host "checks that the exe refuses to start when it is not told where its data"
+    Write-Host "is. Passing -SmokeRom <your.nds> to this script does the same thing here."
+}
+Write-Host ""
 Write-Host "Zip that folder and send it. The person on the other end drops their"
-Write-Host "own .nds dump in next to play.bat and double-clicks play.bat."
+Write-Host "own .nds dump into PLACE EU ROM HERE and double-clicks play.bat."

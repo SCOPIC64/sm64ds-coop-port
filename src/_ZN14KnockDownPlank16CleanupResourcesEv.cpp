@@ -4,14 +4,17 @@
 #include "decl_common.h"
 /* recovered: named members + shared header, real C++ method */
 #include "KnockDownPlank.h"
-extern void _ZN13SharedFilePtr7ReleaseEv(void *);
-extern char data_ov015_02114534[];
+#include "SharedFilePtr.h"
+#include "dBgW.h"
+extern int PoleBillboard_ClsnFile[];
+extern int PoleBillboard_ModelFile[];
 
 int KnockDownPlank::CleanupResources()
 {
-    if (_ZN16MeshColliderBase9IsEnabledEv((char *)&mMeshCollider))
-        _ZN16MeshColliderBase7DisableEv((char *)&mMeshCollider);
-    _ZN13SharedFilePtr7ReleaseEv(*(void **)(data_ov015_02114534 + mVariant * 0xc));
-    _ZN13SharedFilePtr7ReleaseEv(*(void **)(data_ov015_02114538 + mVariant * 0xc));
+    if (((dBgW *)((char *)&(*(u8 *)&mMeshCollider)))->IsEnabled()) {
+        ((dBgW *)((char *)&(*(u8 *)&mMeshCollider)))->Disable();
+    }
+    ((SharedFilePtr *)(PoleBillboard_ModelFile))->Release();
+    ((SharedFilePtr *)(PoleBillboard_ClsnFile))->Release();
     return 1;
 }

@@ -1,0 +1,27 @@
+# run linkw wave 5 (lane w5-e): ov046 (level 38, koopa2_boss) per-symbol
+# mount, ONE symbol -- beside its whole-image mount (PORT_LEVEL_OVERLAYS,
+# same lane). The dual-mount shape of ov012/ov013/ov045.
+#
+# WHY: BowserFireSeaArena::InitResources (the arena's tilting platform, the
+# level's walkable floor) passes its collider CLPS block to
+# MovingMeshCollider::SetFile as `&func_021115bc` -- a code-flavored spelling
+# dsd gave the shared level-overlay window address 0x021115bc (twenty level
+# overlays cover it; for the class's only level the owner is ov046, this
+# level's own image). The bytes are the platform's private CLPS: 0x20 =
+# 8-byte header + 3 records, exactly the size the next ov046 symbol pins
+# (0x021115bc..0x021115dc), and the class reaches it BY NAME, so it needs
+# named storage -- the whole-image mount emits no names.
+# hal/actor_classes_ov060.cpp aliases the func_021115bc spelling onto this
+# mount. CLPS records carry no pointers, so the per-symbol copy cannot
+# diverge from the whole-image one.
+data_ov046_021115bc
+#
+# lane SEAT-OV002-RUNTIME: BowserShockwaves::InitResources (ov060, id 281,
+# spawned by Bowser's stomp) hands MaterialChanger::Prepare/SetFile a BMA
+# spelled `func_021115e4` and a second one `func_021115f4` -- the same
+# code-flavoured spelling of two level-overlay-window addresses (the reloc
+# module list is the twenty-way overlays(8,11,...,46,...,59) set, ov060 is not
+# on it). For the mounted koopa2_boss arena (level 38) the owner is ov046,
+# this image; sizes pin to the next dsd symbols (0x10 and 0x28).
+# hal/actor_classes_runtime_spawns.cpp aliases both spellings onto these.
+data_ov046_021115e4 data_ov046_021115f4

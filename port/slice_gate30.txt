@@ -1,0 +1,53 @@
+# Gate-30 slice: the level boot takes the level as a parameter, and Bob-omb
+# Battlefield boots.
+#
+# THIS SLICE IS DELIBERATELY EMPTY OF src, and that is the result rather than
+# an omission. It is not wired into CMakeLists.txt either, because there is
+# nothing for CMake to compile from it; the file is here so the gate ledger
+# has a manifest for gate 30 like every other gate, and so the next level
+# added has somewhere obvious to list whatever src it turns out to need. Gate 14 already compiles the whole boot -- Stage::LoadClsnAndObjects,
+# the fifteen sub-loaders and the setters they store through -- and every one
+# of those functions walks the level's own tables by count. Nothing in them
+# knows which level it is. What was hardwired lived entirely in the seam: one
+# overlay id, one LVL_Overlay address, one level id. Pointing the same matched
+# code at a second level therefore added no matched code.
+#
+# What the gate DID add:
+#
+#   hal/level_boot.cpp   PortLevelDesc, one row per hosted level (overlay,
+#                        LVL_Overlay address, mount/at pair, whether that
+#                        overlay's own sinits are hosted). SM64DS_LEVEL picks
+#                        the row; port_level_mount/port_level_probe replace the
+#                        ov009-named pair; data_0209f2f8 comes from the row.
+#                        SM64DS_ENTRANCE picks an entrance other than 0.
+#
+#   CMakeLists.txt       PORT_LEVEL_OVERLAYS, so a level overlay's whole-image
+#                        mount (ovdata.py --whole) is one word. ov009 and ov014
+#                        today.
+#
+#   hal/level_boot.cpp   port_stage_preload_shared_models: Stage::InitResources'
+#                        own twelve-model preload loop, which the port had never
+#                        carried over and which Bob-omb Battlefield is the first
+#                        level to need.
+#
+#   hal/level_boot.cpp   port_message_archive_seat: an EMPTY message archive, so
+#                        the level-intro text box is declined by the ROM's own
+#                        bounds check instead of reading through a null header.
+#
+#   hal/level_boot.cpp   port_debug_spawn / port_debug_spawn_at /
+#                        port_debug_spawn_env: one actor of a given class into
+#                        the running level, through the level's own Actor::Spawn.
+#
+#   tests/walk_window.cpp  the debug menu's LEVEL row, and SM64DS_MENU=1.
+#
+# THE LEVEL IDENTITIES ARE EVIDENCE, and the evidence chain is written out at
+# the top of hal/level_boot.cpp: the arm9 level-to-overlay table data_020758c8,
+# each LVL_Overlay's own file handles resolved through build/assets/handles.tsv
+# (resolved, never arithmetic -- a derived constant named the wrong level once),
+# SUBLEVEL_LEVEL_TABLE's course numbering, and the per-level object-overlay
+# table. Castle grounds is level 1 / ov009 / main_castle; Bob-omb Battlefield is
+# level 6 / ov014 / bombhei_map.
+#
+# The regression control is the castle grounds, unchanged byte for byte:
+# SM64DS_WINDOW_SELFTEST=120 hashes b21e80cf87f4afb8 before and after, with
+# SM64DS_NO_ACTORS=1 moving it to 110ad0f62bdf1cec as the negative control.

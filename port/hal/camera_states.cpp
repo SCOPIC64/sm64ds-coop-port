@@ -9,7 +9,8 @@
 // read out of the arm9 image once and baked in below.
 //
 // The addresses stay DS addresses on purpose. Nothing calls through them:
-// port/unmatched/func_0200cae4.cpp (onEnter) and func_0200ca50.cpp (main)
+// func_0200cae4 (onEnter) and func_0200ca50 (main), the matched TUs through
+// hostgen's CALL_STATE_FN patch (lane shadow-A retired their host copies),
 // read the word and hand it to hal_call_camera_state_fn, which translates it
 // to a host call through the table in camera_states.inc. That is the same
 // shape the player state machine uses (hal_call_state_fn / player_states.inc)
@@ -21,6 +22,7 @@
 // addresses, so ordinary separate definitions would do -- but every state
 // past 0 is reached by an explicit &data_0209bXXX, so each one is named.
 #include <cstdio>
+#include "dsstate_seg.h"
 
 extern "C" {
 
@@ -69,7 +71,14 @@ int hal_call_camera_state_fn(void *self, unsigned ds_addr)
 }
 
 /* The 19 State objects. Layout: {onEnter fn, onEnter delta, main fn, main
-   delta}. The deltas are all zero in the ROM's pairs. */
+   delta}. The deltas are all zero in the ROM's pairs.
+
+   These are routed into the save state's captured section even though nothing
+   writes them after boot (the ROM's __sinit_02073a24 fills them once; the port
+   bakes the same values in). Capturing 304 bytes that never change is free;
+   exempting them would put back the hand-asserted "this one cannot diverge"
+   list that the 0.2.0 restore crash came out of. See hal/dsstate_seg.h. */
+DSSTATE_BEGIN
 #define CAMSTATE(name, enter, main) \
     unsigned name[4] = {enter, 0, main, 0}
 
@@ -94,5 +103,6 @@ CAMSTATE(data_0209b118, 0x020094e4, 0x020094c0);
 CAMSTATE(data_0209b128, 0x02005060, 0x02005000);
 
 #undef CAMSTATE
+DSSTATE_END
 
 }  /* extern "C" */

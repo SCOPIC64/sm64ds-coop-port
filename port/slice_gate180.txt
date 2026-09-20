@@ -1,0 +1,49 @@
+# Gate 180: the QUESTION_BLOCK's state-1 main half (the block bouncing after
+# it is hit), ov102 0x021498e0, and the two pointer-to-member CONTENT tables it
+# dispatches through. Fixes the crash-on-interaction when Mario hits a ? block
+# in Bob-omb Battlefield.
+#
+# Gate 23 mounted ov102's QUESTION_BLOCK -- its six slots, its state machine
+# (func_ov102_02149da8 / 02149df0 over the three-entry PAIR table
+# data_ov102_0214e890) and __sinit_ov102_0214d908 -- but routed state 1's main
+# (021498e0) to an abort stub, because that body dispatches through TWO further
+# pointer-to-member tables of an INCOMPLETE class (data_ov102_0214e870 and
+# data_ov102_0214e8c0) and had not been matched yet. It is matched now
+# (src/func_ov102_021498e0.cpp).
+#
+# THE FRAME IS HOST-COPIED, THE CONTENT BODIES ARE NOT. The frame
+# (021498e0) forms `void (C::*)()` over an incomplete C and reads
+# data_ov102_0214e870/0214e8c0 at the ROM's 8-byte {fn,delta} stride; MSVC
+# widens that PMF and reads the tables at the wrong stride, so it gets the
+# Door / Painting host copy in port/unmatched/QuestionBlock_BounceDispatch.cpp
+# (which also seats the 36 source statics that feed the two content tables,
+# before __sinit_ov102_0214d908 copies them, and re-points the abort route in
+# QuestionBlock_States.cpp). The CONTENT bodies below dispatch NO
+# pointer-to-member -- they are straight Actor::Spawn wrappers -- so they are
+# sliced and linked as matched src, exactly as-is.
+#
+# data_ov102_0214e870 (0x20) and data_ov102_0214e8c0 (0x100) are BSS: the
+# overlay image ends at 0x0214e6e0, they carry no static relocs, and
+# __sinit_ov102_0214d908 (already linked in gate 23) fills them at boot from
+# the .data statics data_ov102_0214e2xx/0214e3xx (which the seat rewrites).
+
+# ---- the ten content bodies the two tables + the switch reach --------------
+# All are Actor::Spawn / KillAndTrackInDeathTable wrappers over the block's
+# position; func_ov102_02149684 computes that position and is called by every
+# one of them plus the frame.
+src/func_ov102_02149684.c
+src/func_ov102_02149220.cpp
+src/func_ov102_02149288.cpp
+src/func_ov102_021492d4.c
+src/func_ov102_02149384.cpp
+src/func_ov102_021493dc.cpp
+src/func_ov102_02149428.c
+src/func_ov102_02149478.c
+src/func_ov102_021494cc.c
+src/func_ov102_0214953c.c
+
+# ---- transitive closure ----------------------------------------------------
+# func_ov102_021494cc spawns a ring of coins through this helper; every other
+# ov102 callee (func_ov102_0214ad14, func_ov102_0214b384) is already linked in
+# gate 32.
+src/func_ov102_02149100.c

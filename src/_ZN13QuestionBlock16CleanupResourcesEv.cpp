@@ -4,16 +4,17 @@
 #include "decl_common.h"
 /* recovered: named members + shared header, real C++ method */
 #include "QuestionBlock.h"
+#include "SharedFilePtr.h"
+#include "dBgW.h"
 extern "C" {
-extern void _ZN13SharedFilePtr7ReleaseEv(void *p);
-extern void _ZN5Actor11UntrackStarERa(void *self, void *p);
+extern void _ZN8dActor_c11UntrackStarERa(void *self, void *p);
 }
 extern char data_ov002_0210da58[];
 extern char data_ov002_0210da18[];
 extern char data_ov002_0210d9d8[];
 extern char data_ov002_0210da30[];
-extern char data_ov002_0210d9b0[];
-extern char data_ov002_0210d9d0[];
+extern char gPFlowerOpenModelFile[];
+extern char gPFlowerCloseModelFile[];
 extern char data_ov002_0210d9e0[];
 extern char data_ov002_0210da40[];
 extern char data_ov002_0210d9a0[];
@@ -25,75 +26,75 @@ extern char data_ov102_0214e7d0[];
 int QuestionBlock::CleanupResources()
 {
     int b, b2, b3;
-    if (_ZN16MeshColliderBase9IsEnabledEv((char *)&mMeshCollider))
-        _ZN16MeshColliderBase7DisableEv((char *)&mMeshCollider);
+    if (((dBgW *)((char *)&(*(u8 *)&mMeshCollider)))->IsEnabled())
+        ((dBgW *)((char *)&(*(u8 *)&mMeshCollider)))->Disable();
 
-    b = (int)(mActorId == 0x16);
+    b = (int)(actorID == 0x16);
     if (b)
-        _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210da58);
+        ((SharedFilePtr *)(data_ov002_0210da58))->Release();
 
-    b2 = (int)(mActorId == 0x14);
+    b2 = (int)(actorID == 0x14);
     if (b2)
         goto dosw;
-    b3 = (int)(mActorId == 0x15);
+    b3 = (int)(actorID == 0x15);
     if (b3) {
     dosw:
-        switch (unk_3f3) {
+        switch (mContentType) {
         case 1:
-            _ZN5Actor11UntrackStarERa(((char *)this), ((char *)this) + 0x3f0);
+            _ZN8dActor_c11UntrackStarERa(((char *)this), ((char *)this) + 0x3f0);
             break;
         case 3:
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210da18);
+            ((SharedFilePtr *)(data_ov002_0210da18))->Release();
             break;
         case 2:
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9d8);
+            ((SharedFilePtr *)(data_ov002_0210d9d8))->Release();
             break;
         case 4:
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210da30);
+            ((SharedFilePtr *)(data_ov002_0210da30))->Release();
             break;
         case 7:
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9b0);
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9d0);
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9e0);
+            ((SharedFilePtr *)(gPFlowerOpenModelFile))->Release();
+            ((SharedFilePtr *)(gPFlowerCloseModelFile))->Release();
+            ((SharedFilePtr *)(data_ov002_0210d9e0))->Release();
             break;
         case 5:
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210da58);
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9b0);
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9d0);
+            ((SharedFilePtr *)(data_ov002_0210da58))->Release();
+            ((SharedFilePtr *)(gPFlowerOpenModelFile))->Release();
+            ((SharedFilePtr *)(gPFlowerCloseModelFile))->Release();
             break;
         case 6:
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9b0);
-            _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9d0);
+            ((SharedFilePtr *)(gPFlowerOpenModelFile))->Release();
+            ((SharedFilePtr *)(gPFlowerCloseModelFile))->Release();
             break;
         }
     }
 
-    switch (mActorId - 0x14) {
+    switch (actorID - 0x14) {
     case 0:
-        _ZN13SharedFilePtr7ReleaseEv(data_ov102_0214e7e8);
-        _ZN13SharedFilePtr7ReleaseEv(data_ov102_0214e808);
-        _ZN13SharedFilePtr7ReleaseEv(data_ov102_0214e7f8);
-        _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9e0);
+        ((SharedFilePtr *)(data_ov102_0214e7e8))->Release();
+        ((SharedFilePtr *)(data_ov102_0214e808))->Release();
+        ((SharedFilePtr *)(data_ov102_0214e7f8))->Release();
+        ((SharedFilePtr *)(data_ov002_0210d9e0))->Release();
         break;
     case 1:
     case 2:
-        _ZN13SharedFilePtr7ReleaseEv(data_ov102_0214e800);
+        ((SharedFilePtr *)(data_ov102_0214e800))->Release();
         break;
     case 3:
-        _ZN13SharedFilePtr7ReleaseEv(data_ov102_0214e7f0);
-        _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210da40);
-        _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9e0);
+        ((SharedFilePtr *)(data_ov102_0214e7f0))->Release();
+        ((SharedFilePtr *)(data_ov002_0210da40))->Release();
+        ((SharedFilePtr *)(data_ov002_0210d9e0))->Release();
         break;
     case 5:
-        _ZN13SharedFilePtr7ReleaseEv(data_ov102_0214e7d8);
-        _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9a0);
-        _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9e0);
+        ((SharedFilePtr *)(data_ov102_0214e7d8))->Release();
+        ((SharedFilePtr *)(data_ov002_0210d9a0))->Release();
+        ((SharedFilePtr *)(data_ov002_0210d9e0))->Release();
         break;
     case 4:
-        _ZN13SharedFilePtr7ReleaseEv(data_ov102_0214e7e0);
-        _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9c0);
-        _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9e0);
+        ((SharedFilePtr *)(data_ov102_0214e7e0))->Release();
+        ((SharedFilePtr *)(data_ov002_0210d9c0))->Release();
+        ((SharedFilePtr *)(data_ov002_0210d9e0))->Release();
     }
-    _ZN13SharedFilePtr7ReleaseEv(data_ov102_0214e7d0);
+    ((SharedFilePtr *)(data_ov102_0214e7d0))->Release();
     return 1;
 }

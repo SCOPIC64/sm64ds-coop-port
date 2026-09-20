@@ -1,0 +1,280 @@
+# slice_w1l3.txt -- lane-owned slice for the linkage campaign (run linkw).
+# One matched src TU per line, path relative to the repo root, comments with #.
+# THIS FILE HAS ONE OWNER (lane l3); other lanes never touch it, which is what
+# keeps five parallel seat lanes out of CMakeLists.txt and each other.
+#
+# Lane l3 seats the MODEL/ANIMATION family. A line here only earns its place if
+# something REFERENCES the TU: Release links with /OPT:REF, so a matched TU
+# that nothing names is discarded before it reaches walk_window.map and moves
+# port/tools/linkage.py's headline by zero. Every line below has its reference
+# edge in hal/model_dtor_seat.cpp, and that file's SEAT block cites the ROM
+# vtable relocation that puts each body in its slot.
+
+# ---- wave 1: the model family's unfilled vtable slots -----------------------
+# ShadowModel's DoSetFile, the slot ModelBase::SetFile dispatches. Null since
+# gate 9, which is why the port stubs ShadowModel::InitCylinder rather than let
+# it dispatch. ROM from:0x0208e870 -> 0x02015ef4.
+src/_ZN11ShadowModel9DoSetFileEPcii.cpp
+# The three Animation-derived deleting destructors, into their folded slot 0.
+# Their tables were all zeros before this wave. ROM 0x0208e7d8 / 0x0208e7f8 /
+# 0x0208e7c8 respectively.
+# RETIRED at SLICE1: body now in src/_ZN15TextureSequenceD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN15TextureSequenceD0Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN15MaterialChangerD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN15MaterialChangerD0Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN18TextureTransformerD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN18TextureTransformerD0Ev.cpp
+# ModelBase's destructor PAIR. _ZTV9ModelBase is _ZTV9ModelBase's function-slot
+# start: ROM 0x0208e87c -> 0x02017120 is the complete-object D1 and
+# 0x0208e880 -> 0x020170e8 the deleting D0.
+#
+# The D1 was parked in this file's exclusion list for one reason -- "MSVC folds
+# the ROM's two dtor slots into one, and for these two classes the folded slot
+# is already spoken for" -- and that reason is gone. include/ModelBase.h spells
+# the pair as two plain virtuals on the host now, so the table has both slots
+# and hal/model_dtor_seat.cpp seats D1 at 0 and D0 at 1, the way the ROM holds
+# them. The D1's whole closure is the D0's closure (_ZTV9ModelBase and
+# Deallocate, nothing else), and the D0 has been linking here since wave 1.
+# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
+# refuses main's shape for this TU (C2600, the model family's destructor TUs:
+# main defines X::~X() where the host header spells the destructor as two
+# plain virtuals; port/unmatched/ModelFamily_Dtors_HostCopy.c carries the
+# merge base's own bodies instead). It is a decomp-side item, not a port one:
+# see runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands
+# the fix.
+#src/_ZN9ModelBaseD0Ev.cpp
+src/_ZN9ModelBaseD1Ev.cpp
+
+# ---- wave 2: the game heap --------------------------------------------------
+# The port aliased the game-heap word straight onto the root heap and skipped
+# the ROM's factory. func_0201a054, the main.c boot spine, calls
+# Heap::InitializeGameHeap(0x3b000, 0) at arm9 0x0201a108 and gets a real
+# ExpandingHeap child carved from the root. Naming it from
+# tests/walk_window.cpp is the reference edge /OPT:REF needs.
+#
+# Only ONE line is needed. Heap::CreateExpandingHeap, the body this one calls,
+# has been compiled into these targets since gate 3a (slice_gate3a.txt) and was
+# being discarded by /OPT:REF because nothing reached it; the call from
+# InitializeGameHeap is what puts it in the map. So this single line seats TWO
+# TUs. The rest of the closure -- Heap::Allocate, Heap::Deallocate,
+# Heap::CreateExpandingHeapAllocator, ExpandingHeap::ExpandingHeap -- was
+# already linked before this wave.
+src/_ZN4Heap18InitializeGameHeapEjPS_.cpp
+#
+# ---- wave 3: the ENCODING, re-derived, and who else can call it ------------
+# The BL word at 0x0201a108 is eb00884f, NOT eb0083fc. Re-derived three ways
+# in wave 3 before copying it anywhere:
+#   extracted/arm9_dec.bin at base 0x02004000, offset 0x0201a108-0x02004000
+#     reads eb00884f; imm24 = 0x00884f, so the target is
+#     0x0201a108 + 8 + 0x00884f*4 = 0x0203c24c, which is the address in this
+#     TU's own header comment.
+#   eb0083fc decodes to 0x0201a110 + 0x0083fc*4 = 0x0203b100, which is not
+#     Heap::InitializeGameHeap and is not any address this call site names.
+#   a whole-image scan for the two-word prelude 3b0aa0e3 0010a0e3
+#     (MOV r0,#0x3b000 / MOV r1,#0) finds exactly ONE occurrence in arm9_dec,
+#     at 0x0201a100, and its third word is eb00884f.
+# tests/walk_window.cpp:2029 carries eb0083fc after a wave-2 review fixup and
+# wants correcting at wave close; walk_window.cpp is frozen for lane w3-c.
+# The immediate 0x3b000 and the NULL parent are unaffected -- only the printed
+# encoding of the BL is wrong, so no behaviour rides on this.
+#
+# tests/smoke_player.cpp now makes the same call, which is a second reference
+# edge for this line and the reason the four smokes stopped disagreeing with
+# the boot spine about how the game heap comes up. THREE smokes could NOT be
+# converted: smoke_actor, smoke_savestate and smoke_persist do not carry
+# SLICE_W1L3_SOURCES, so the TU is absent from their targets and the converted
+# call dies at link with
+#   error LNK2019: unresolved external symbol
+#   __ZN4Heap18InitializeGameHeapEjPS_ referenced in function _main
+# (measured on smoke_actor, then reverted). The unblock is one line per target
+# in port/CMakeLists.txt -- either ${SLICE_W1L3_SOURCES} added to the three
+# add_executable calls at lines 559 / 579 / 604, or just this one file path --
+# and CMakeLists.txt had a different single owner in wave 3. Note the slice
+# variable is defined at line 1262, BELOW those three targets, so a mover has
+# to hoist the file(STRINGS) block or name the file directly.
+
+# ---- wave 2: the shadow list, one static of two -----------------------------
+# Wave 1 parked the shadow-list files below as "they come in with Stage, not
+# before it". The ROM callers really are only the three Stage methods --
+#   from:0x0202b99c -> 0x02015d38  ShadowModel::RenderAll, inside Stage::Render
+#   from:0x0202bc38 -> 0x02015e14  ShadowModel::CleanAll,  inside Stage::Behavior
+#   from:0x0202c20c -> 0x02015e14  ShadowModel::CleanAll,  inside Stage::Behavior
+#   from:0x0202d484 -> 0x02015e14  ShadowModel::CleanAll,  in Stage::InitResources
+# -- but the port already TRANSCRIBES Stage::Render and Stage::Behavior by hand
+# in tests/walk_window.cpp, in the ROM's own order, and both transcriptions had
+# simply skipped these calls. So no Stage seat is needed to reach them.
+#
+# CleanAll goes in, above port_actor_tick. It is Stage::Behavior's LAST
+# statement but it belongs before the other actors tick, because the three
+# ShadowModel TUs describe a freeze protocol -- InitModel refuses while
+# data_0209ceec is set, RenderAll sets it, CleanAll clears it -- and the
+# registrations come from actors' own Behavior methods. The ROM gets that
+# ordering from the Stage's behaviour priority of 3 (spawn record 0x0209213c);
+# the port gets it from where the call sits.
+#
+# RENDERALL DOES NOT GO IN, and this is measured, not assumed. Seated between
+# RenderModel and RenderModelTransparent, walk_window takes an access violation
+# on frame 1: FAULT c0000005 at +0x000893c8 (eight bytes into func_02046120)
+# from +0x000892b1 (inside RenderAll), accessing 0 -- `self->sub->count` with
+# self null, self being the node's ModelComponents at +0x08.
+#
+# The shadow list is NOT empty on the port. Actor::DropShadowRadHeight's C
+# spelling resolves to the matched src/ body, which calls ShadowModel::InitModel
+# for real, and Butterfly::Behavior takes that path every frame on this level.
+# (This paragraph used to open by contrasting that against Actor::DropShadow
+# ScaleXYZ, "a host no-op in hal/cxxname_bridge.cpp". True when written, wrong
+# now: the wave-4 block at the end of this file gives DropShadowScaleXYZ the
+# matched body too, so both siblings feed the list. The RenderAll fault below
+# is unaffected -- it is about what is IN the nodes, not how many.)
+# The node that lands has data == 0 because ShadowModel::InitCuboid IS stubbed
+# -- the cuboid template BMD is static .data in overlay 1 at 0x020ad524, and
+# the port's ov001 mount is per-symbol and covers only 0x020ab800..0x020abb00,
+# the HUD's sprite templates (port/ov001_syms.txt). Guarding the loop would be
+# inventing behaviour the ROM does not have, so RenderAll and its two callees
+# func_02046088 / func_02046120 wait for the shadow half of ov001.
+#
+# Worth recording: RenderAll ran green when CleanAll sat at the END of the
+# behaviour phase, because the list was force-emptied after the actors filled
+# it and before RenderAll read it. That is the wrong order and would draw no
+# shadows at all once ov001 lands, so that green run was not a seat.
+#
+# CleanAll's only other listing is slice_gate36.txt, which port/CMakeLists.txt
+# reads into SLICE36_SOURCES and then never adds to a target, so it compiles
+# nothing and this line is the one that does the work.
+src/_ZN11ShadowModel8CleanAllEv.cpp
+
+# ---- wave 3: the fader interpolator, five bodies the port was restating -----
+# hal/fader_wipes.cpp hosts the seven-wipe array as a host CLASS, because the
+# ROM's vtable BYTE ORDER is what the raw-offset callers need and MSVC will not
+# emit that order for a class derived from Fader. That much stays host. But the
+# arithmetic in the slots was a hand restatement of five matched bodies, and
+# these five were compiled into NO walk_window object at all: they sit in
+# slice_gate1.txt, the gate-1 smoke's slice, which is not in walk_window's slice
+# set -- so all five were MISSING from the map rather than merely stripped from
+# it. Verified against build/port/walk_window.map before the change: zero hits
+# for SetToStart/SetToEnd/IsAtStart/IsAtEnd@FaderBrightness and
+# AdvanceInterp@Fader, and no .obj for any of them under walk_window.dir.
+#
+# The reference edges are in hal/fader_wipes.cpp, one per body, each reached
+# QUALIFIED off a reinterpreted HalFaderWipe* -- legal because include/Fader.h
+# pins vptr 0x0 / currInterp 0x4 / speed 0x8, exactly HalFaderWipe's prefix.
+src/engine/fader/_ZN5Fader13AdvanceInterpEv.cpp
+src/engine/fader/_ZN15FaderBrightness10SetToStartEv.cpp
+src/engine/fader/_ZN15FaderBrightness8SetToEndEv.cpp
+src/engine/fader/_ZN15FaderBrightness9IsAtStartEv.cpp
+src/engine/fader/_ZN15FaderBrightness7IsAtEndEv.cpp
+# Fader::AdvanceInterp drags one name with it: it calls the 20.12 approach
+# helper by the ROM spelling func_0203ae58, which only hal/shims.cpp defines and
+# walk_window does not link that file. fader_wipes.cpp supplies it as an
+# alternatename onto the C face of the matched ApproachLinear, so a target that
+# DOES link shims.cpp keeps its own strong definition and nothing collides.
+#
+# NOT TAKEN, and this is the interesting half. FaderBrightness's SetForwardTime
+# / SetBackwardTime / IsBetweenStartAndEnd are matched too and are NOT seated,
+# because each ENDS IN A VIRTUAL CALL. Under mwcc IsAtStart/IsAtEnd are ROM
+# slots 5 and 6; MSVC folds the two destructor slots into one, and HalFaderWipe
+# spends two slots holding ROM byte order, so a FaderBrightness slot-4 dispatch
+# lands on HalFaderWipe::SetForwardTime -- which takes two ints under
+# __thiscall, so a no-argument virtual arriving there unbalances the stack.
+# Slot 5 is merely the wrong predicate. Seating those three needs the wipe table
+# to BE a FaderBrightness, which is the ROM-class swap below, not a slice line.
+#
+# THE ROM-CLASS SWAP (data_0209f324 = the ROM's own construction) -- wave 4+.
+# Stage::InitResources builds the array as
+#     data_0209f324 = func_02073470(7, 0x60, 8, FaderWipe::FaderWipe,
+#                                               FaderWipe::~FaderWipe);
+# and every piece of that now exists: func_02073470 has a host body in
+# hal/actor_vtables.cpp, and FaderWipe's ctor, both dtors, AdvanceFade and
+# LoadAndSetFile are all matched under src/engine/fader/. Three things block it,
+# and only the third is hard:
+#   1. _ZTV9FaderWipe (arm9 0x0208ea9c) is not hosted anywhere in the port. Its
+#      ten slots resolve, by config/arm9/relocs.txt, to FaderWipe D1/D0/
+#      AdvanceFade then seven FaderBrightness bodies -- all matched -- so a
+#      hal_fill_* over hosted storage would seat it in ROM order and, unlike a
+#      host class, SOLVE the dtor-fold skew rather than work around it.
+#   2. slice_gate36.txt already lists the FaderWipe ctor/dtor/LoadAndSetFile,
+#      but port/CMakeLists.txt reads it into SLICE36_SOURCES and never adds it
+#      to a target, so it compiles nothing.
+#   3. THE FADE WOULD STOP RENDERING, which is why this was not forced here.
+#      The matched FaderWipe::AdvanceFade writes the MAIN engine's blend
+#      register (0x4000050) only on its cur == 0x1000 branch, and writes the SUB
+#      engine's (0x4001050) on the common path. The port's compositor reads
+#      0x4000050 / 0x4000054 (port_fader_blend_state, below), so through most of
+#      a fade it would see nothing and the screen would not darken. The host
+#      AdvanceFade writes BOTH engines every step, and that divergence is what
+#      makes the fade visible. The matched body also calls ModelComponents::
+#      Render on a Model that FaderWipe::LoadAndSetFile fills from the stage
+#      filesystem the port does not mount -- the same null-sub shape that
+#      faulted ShadowModel::RenderAll in wave 2. A working fader is
+#      player-facing; this wants a compositor decision, not a slice line.
+
+# ---- wave 4: the shadow the port was NOT dropping ---------------------------
+# Actor::DropShadowScaleXYZ. The host definition in hal/cxxname_bridge.cpp was
+# an empty body -- seven unnamed parameters and `{}` -- so every caller that
+# asked for a scaled drop shadow got silence. It is the first entry off the
+# fixed linkage.py's SHADOW bucket: a host body standing where a matched TU
+# exists and never reaches the binary.
+#
+# THE REFERENCE EDGE IS ALREADY THERE, which is why this is one line and no
+# seat. /OPT:REF keeps a matched TU only if something names it, and nine TUs in
+# walk_window.map already call this symbol by its C spelling: SignPost::Behavior
+# and ArrowSignRight::Behavior plus func_ov015_021114f0, func_ov015_021123c8,
+# func_ov079_02124188, func_ov091_02131160, func_ov091_02133098,
+# func_ov098_021396a4 and func_ov102_02149ea4. Those calls are what kept the
+# empty stub in the map through /OPT:REF; they now reach the ROM's body.
+#
+# AND THEY FIRE, counted rather than assumed, because a swap nothing calls is
+# not a swap. A scratch build put a call counter in the fallback in
+# hal/cxxname_bridge.cpp and held this line out so walk_window resolved onto
+# it: the 300-frame control reported 1800 calls, six per frame, on the
+# castle-grounds boot alone (five SIGN_POST spawn there). The empty body was
+# being asked for a shadow six times a frame and returning nothing. Scratch
+# reverted; no counter is in the tree.
+#
+# WHY THIS ONE IS SAFE TO TURN ON, stated so a reviewer does not have to take
+# it on trust. The matched TU is the structural twin of Actor::DropShadow
+# RadHeight, which the port has linked and run every frame since before this
+# wave: same self-declared `struct Actor { char _pad[0xb0]; u32 flags; }`, same
+# `flags & 0x10` early-out, same call into ShadowModel::InitModel with scalar
+# args. Both the RadHeight TU and the InitModel TU are already in
+# walk_window.map, so neither the Actor offset nor the InitModel signature is
+# new information -- this line only widens a path the build already walks.
+#
+# AND IT DOES NOT REACH A RENDERER. ShadowModel::RenderAll is still not seated
+# (the fault is written out above), so the extra nodes go on the list that
+# ShadowModel::CleanAll drains at the top of every behaviour phase and nothing
+# reads them. The 300-frame control position is unchanged by this line, which
+# is the expected result: InitModel writes the ShadowModel and the two list
+# globals, and nothing feeds back into actor behaviour.
+src/_ZN8dActor_c18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j.cpp
+
+# ---- mined and NOT taken (kept here so wave 2 does not re-mine them) --------
+# _ZN11ShadowModel10InitCuboidEv.cpp
+#     hal/actor_class_faces.cpp defines the same ?InitCuboid@ShadowModel@@QAEXXZ.
+#     That file belongs to no lane this wave, so the duplicate cannot be cleared.
+# _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3.cpp
+#     port/unmatched/ModelComponents_Render.cpp is the host copy that spells out
+#     the material index the ROM leaves riding in r1. Host-ABI, not scaffolding.
+# _ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File.cpp
+#     hal/method_faces.cpp already carries the truthful shape: the ROM veneer
+#     takes (bmd, bta) with no `this`, so the matched METHOD cannot be called.
+#     (the four shadow-list files that used to be parked here were TAKEN in
+#     wave 2 -- see the block above. The ROM callers were read correctly; what
+#     was missed is that the port hand-transcribes two of those three callers,
+#     so the call sites exist without the Stage seat.)
+# _ZN11ShadowModel12InitCylinderEv.cpp
+#     both spellings are host-stubbed (hal/bob_enemy_bridges.cpp returns 1,
+#     hal/player_bridges.cpp is a no-op) because the shadow template BMDs live
+#     in ov001 and the port does not mount it. Neither file is this lane's.
+# _ZN11ShadowModelD0Ev.c
+#     This used to read "_ZN11ShadowModelD0Ev.c, _ZN9ModelBaseD1Ev.c -- MSVC
+#     folds the ROM's two dtor slots into one, and for these two classes the
+#     folded slot is already spoken for." The fold is gone (include/ModelBase.h
+#     spells the pair as two plain virtuals on the host), so the blocker is
+#     gone for both and _ZN9ModelBaseD1Ev.c is TAKEN above.
+#
+#     ShadowModel's D0 is left parked only because it is not this pass's
+#     measurement: its closure is wider than ModelBase's (_ZTV11ShadowModel,
+#     data_0209cef4, _ZN9ModelBaseD2Ev, Memory::operator_delete2) and the
+#     ROM's slot 1 for this class is now empty and free for it. It is a free
+#     +1 for whoever checks that closure links.

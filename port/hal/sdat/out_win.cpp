@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -34,6 +35,16 @@ sd_s16 g_mix[MIX_MAX * 2];      // scratch at SD_MIX_RATE, stereo interleaved
 int g_opened;                   // 0 untried, 1 device live, -1 no device
 int g_devRate = SD_MIX_RATE;
 
+// HOST MASTER VOLUME. SM64DS_VOLUME is an integer 0..100 read once at boot; it
+// scales the already-mixed stereo output by vol/100 in linear amplitude
+// (50 -> half amplitude, 0 -> silent). This is a host output-stage gain only:
+// the DS mixer/sequencer, every per-voice envelope and every pan are untouched,
+// so timing and the .wav dump's shape are identical to hardware except for one
+// final scalar. Default is 50 (half) when the variable is unset. SM64DS_SOUND=1
+// is honoured for back-compat as "full volume" when SM64DS_VOLUME is not given.
+// SM64DS_NO_AUDIO=1 remains the stronger "no device at all".
+int g_volPct = -1;              // -1 unread, else 0..100
+
 #if defined(_WIN32)
 typedef MMRESULT (WINAPI *pfnOpen)(HWAVEOUT *, UINT, const WAVEFORMATEX *,
                                    DWORD_PTR, DWORD_PTR, DWORD);
@@ -44,6 +55,22 @@ HMODULE  g_lib;
 pfnOpen  p_Open;
 pfnHdr   p_Prepare, p_Unprepare, p_Write;
 pfnDev   p_Reset, p_Close;
+
+/* RING HEALTH. The ring is NBUF x OUT_FRAMES frames, refilled once per video
+   frame from sd_out_push, and the device drains it at the device rate no
+   matter what the video loop is doing. Three counters, so "it squealed" can be
+   answered with a number instead of an ear:
+
+     g_pushes     sd_out_push calls that found a live device (= video frames)
+     g_refills    headers handed back to the device across the run
+     g_starved    pushes that arrived with EVERY header already DONE, which
+                  means the device had played the ring dry and was repeating or
+                  outputting nothing while it waited. This is the underrun, and
+                  it is the shape a glitch/squeal has.
+
+   sd_out_report prints them at exit. A healthy run has g_starved == 0 and
+   g_refills close to (run seconds * device rate / OUT_FRAMES). */
+int g_pushes, g_refills, g_starved, g_reported;
 
 HWAVEOUT g_dev;
 WAVEHDR  g_hdr[NBUF];
@@ -94,7 +121,51 @@ void render_mix(int frames)
     sd_wav_write(g_mix, frames);
 }
 
+/* THE RING-HEALTH LINE, once, at exit. Registered from sd_out_open so it only
+   exists on runs that actually opened a device, and guarded so a close
+   followed by the atexit cannot print it twice. */
+void out_report(void)
+{
+    if (g_reported) return;
+    g_reported = 1;
+    fprintf(stderr, "[audio] ring: %d pushes, %d refills, %d starved "
+                    "(%d x %d frames at %d Hz = %.0f ms)\n",
+            g_pushes, g_refills, g_starved, NBUF, OUT_FRAMES, g_devRate,
+            1000.0 * NBUF * OUT_FRAMES / (g_devRate ? g_devRate : 1));
+    fflush(stderr);
+}
+
 }  // namespace
+
+// Host output-stage master volume, read once from SM64DS_VOLUME. See the
+// header on g_volPct above. External linkage: sd_mix_render applies it.
+int out_volume_pct(void)
+{
+    if (g_volPct < 0) {
+        const char *v = getenv("SM64DS_VOLUME");
+        if (v && *v) {
+            long n = strtol(v, 0, 10);
+            g_volPct = (int)(n < 0 ? 0 : (n > 100 ? 100 : n));
+        } else if (getenv("SM64DS_SOUND")) {
+            g_volPct = 100;     // legacy debug switch: full volume
+        } else {
+            g_volPct = 50;      // default: half volume
+        }
+    }
+    return g_volPct;
+}
+
+// The live half of the same knob: the settings.json watcher pushes the file's
+// Volume here whenever it moves, and the next mixed buffer wears it. Same
+// clamp, same meaning, still only the host output stage.
+extern "C" void out_set_volume_pct(int pct)
+{
+    const int v = pct < 0 ? 0 : (pct > 100 ? 100 : pct);
+    if (g_volPct == v) return;
+    g_volPct = v;
+    fprintf(stderr, "[audio] master volume now %d%%%s\n", v,
+            v == 0 ? " (silent)" : "");
+}
 
 // ---- wav ----------------------------------------------------------------
 
@@ -180,6 +251,9 @@ int sd_out_open(void)
     fprintf(stderr, "[sdat] waveOut open at %d Hz, %d x %d frames (%.0f ms)\n",
             g_devRate, NBUF, OUT_FRAMES,
             1000.0 * NBUF * OUT_FRAMES / g_devRate);
+    fprintf(stderr, "[audio] master volume %d%%%s\n", out_volume_pct(),
+            out_volume_pct() == 0 ? " (silent)" : "");
+    atexit(out_report);
     return 1;
 #else
     fprintf(stderr, "[sdat] no audio backend on this platform -- silent\n");
@@ -212,8 +286,23 @@ void sd_out_push(void)
 
 #if defined(_WIN32)
     if (g_opened > 0) {
+        // SM64DS_SND_SLOW_MS: how the push's time splits between the mix
+        // render and the device write (see consumer.cpp's [snd-slow] line)
+        static double slow_ms = -1;
+        if (slow_ms < 0) { const char *e = getenv("SM64DS_SND_SLOW_MS"); slow_ms = e ? atof(e) : 0; }
+        double t_mix = 0, t_write = 0;
+        int refilled = 0;
+        int free_on_entry = 0;
+        for (int i = 0; i < NBUF; i++)
+            if (g_hdr[i].dwFlags & WHDR_DONE) free_on_entry++;
+        g_pushes++;
+        /* Every header free means the device finished everything queued before
+           this call got here. The first push of the run is the ring being
+           filled for the first time and is not a starve. */
+        if (free_on_entry == NBUF && g_pushes > 1) g_starved++;
         for (int i = 0; i < NBUF; i++) {
             if (!(g_hdr[i].dwFlags & WHDR_DONE)) continue;
+            const clock_t c0 = slow_ms > 0 ? clock() : 0;
             if (g_devRate == SD_MIX_RATE) {
                 render_mix(OUT_FRAMES);
                 memcpy(g_buf[i], g_mix, OUT_FRAMES * 2 * sizeof(sd_s16));
@@ -239,10 +328,23 @@ void sd_out_push(void)
                 g_last[0] = g_mix[(need - 1) * 2];
                 g_last[1] = g_mix[(need - 1) * 2 + 1];
             }
+            // Master volume was already applied in sd_mix_render (the host
+            // output stage), so g_buf holds the level that goes to the speaker.
             g_hdr[i].dwFlags &= ~WHDR_DONE;
             g_hdr[i].dwBufferLength = OUT_FRAMES * 2 * sizeof(sd_s16);
+            g_refills++;
+            const clock_t c1 = slow_ms > 0 ? clock() : 0;
             p_Write(g_dev, &g_hdr[i], sizeof(WAVEHDR));
+            if (slow_ms > 0) {
+                const double k = 1000.0 / CLOCKS_PER_SEC;
+                t_mix += (c1 - c0) * k;
+                t_write += (clock() - c1) * k;
+                ++refilled;
+            }
         }
+        if (slow_ms > 0 && t_mix + t_write >= slow_ms)
+            fprintf(stderr, "[snd-slow]   out_push: %d block(s) refilled (%d free on entry), "
+                    "mix %.1f ms, waveOutWrite %.1f ms\n", refilled, free_on_entry, t_mix, t_write);
         return;
     }
 #endif

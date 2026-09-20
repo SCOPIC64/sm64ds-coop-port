@@ -1,0 +1,36 @@
+# slice_w5d.txt -- lane-owned slice for the linkage campaign (run linkw,
+# wave 5, lane w5-d). One matched src TU per line, path relative to the repo
+# root, comments with #. ONE OWNER (lane w5-d); other lanes never touch it,
+# same contract as the slice_w1l*.txt files above it in CMakeLists.txt.
+#
+# THE RENDERALL SEAT, THIRD TIME, AND THE WALL IS DOWN THIS TIME.
+#
+# The history in two sentences, because each prior attempt failed one layer
+# deeper. Wave 3 seated ShadowModel::RenderAll and faulted on frame 1 (nodes
+# with data == 0; the InitCylinder stub -- fixed by w4-a's first half). Wave 4
+# seated it again on the fixed chain and it ran clean and drew WRONG: ntr
+# rasterized POLYGON_ATTR mode-3 polygons as ordinary translucent geometry,
+# so both stencil passes painted the shadow VOLUME itself -- Tango's cone
+# under Mario, tallest mid-jump because scale.y carries the drop height. The
+# w4a review reverted the seat and queued the raster work.
+#
+# That raster work is this lane's first commit: port/ntr/gx.cpp now carries
+# the per-pixel stencil bit and polygon-ID buffer and GBATEK's two-step
+# shadow protocol (mask ID 0 stencils depth-fail pixels, draw ID nonzero
+# blends where stencil is set, depth passes and the IDs differ). The volume
+# no longer draws; its intersection with the ground does. So the seat comes
+# back, and these are the same three lines w4-a carried:
+#
+# RenderAll itself, and the two material-attr walks it runs on each node's
+# ModelComponents before each of its two Render passes -- func_02046120 sets
+# mode 3 / back faces / ID 0 (the mask pass), func_02046088 sets mode 3 /
+# front faces / ID 1 (the draw pass). All three reached only from the seat
+# in tests/walk_window.cpp.
+src/_ZN11ShadowModel9RenderAllEv.cpp
+src/func_02046088.c
+src/func_02046120.c
+#
+# The globals RenderAll walks were already hosted and need no change:
+# data_0209cef4 (list head), data_0209ceec (the freeze flag it SETS as its
+# last act; CleanAll clears it above the actor tick), data_020a0e68 (shared
+# matrix scratch) and data_0209b3ec (the camera matrix).

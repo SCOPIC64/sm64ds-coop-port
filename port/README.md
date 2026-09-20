@@ -16,6 +16,83 @@ build that never touches the byte-matching pipeline.
 - **32-bit host first.** The recovered ABI assumes 4-byte pointers. x64 comes
   after struct recovery makes layout host-independent.
 
+## How the game boots
+
+A launch with no `SM64DS_*` environment beyond what the launcher passes
+(`SM64DS_ASSET_ROOT`, `SM64DS_VOLUME`) boots the ROM's own opening:
+
+    title -> menu -> file select -> a slot is picked -> opening cutscene -> adventure
+
+That order is the ROM's, and it is worth reading carefully, because the
+cutscene is **last**, not first: `Stage::LoadClsnAndObjects` is what calls
+`StartIntroCutscene`, and that runs during the level boot `StartFile` asks for
+after the file has been picked. There is no cutscene before the title.
+
+Two toggles, both of which the launcher exposes:
+
+| Variable | Effect |
+|---|---|
+| `SM64DS_SKIP_MENU` | boot straight to the file select. The player still picks A, B or C. |
+| `SM64DS_SKIP_INTRO` | no opening cutscene. The title still comes up. |
+
+They compose. Both set is "file select, then straight into the game"; only
+`SKIP_MENU` still plays the cutscene, because the cutscene is downstream of the
+file pick rather than upstream of the title.
+
+**Presence is the signal; the value is never read.** A knob is on when its name
+is in the environment and off when it is not. The launcher expresses "off" by
+removing the name rather than writing `0`, and this is the same idiom the rest
+of the game already reads its environment with, so `SM64DS_SKIP_MENU=0` is
+**on** -- the name is there. Unset it to turn it off.
+
+`SM64DS_SKIP_MENU` reaches the file-select screen, which enters two known ov007
+unmatched-body traps (`func_ov007_020c368c`, `func_ov007_020caeac`). They were
+already there and already trapping; this is the first route that spends time in
+front of them. The count is a **dwell, not a severity** -- it scales with how
+long that screen is up (986 with a tap on frame 700, 2546 with no tap over 1200
+frames), a trap returns rather than faulting, and `rc` stays 0 with a clean
+census. The default route still reports 0.
+
+### The save file
+
+The game saves. The medium is a **plain 8192-byte cartridge image**, written by
+the ROM's own `SaveData::SaveDataToCart` through the ROM's own card-backup
+driver, and it lives at
+
+    <folder holding the exe>\save\sm64ds.sav
+
+(`SM64DS_SAVE_PATH` overrides it with an exact path; with no exe folder it falls
+back to `$SM64DS_ASSET_ROOT/save/` and then `./save/`). **Deleting the file is a
+fresh cartridge** -- the port makes a new one, filled with `0xFF` the way an
+erased EEPROM cell reads, and the game's own blank-medium path runs and offers
+three fresh files. Nothing else deletes it: a file that is not exactly 8192
+bytes is left alone on disk and the run gets an erased chip in memory.
+
+What is in it is the ROM's layout and not the port's. Each save record is a
+2-byte rolling checksum, the 8-byte tag `ds mario`, then the payload; the three
+adventure files are at `slot << 7` and the minigame records at `0x180`, and the
+whole thing is written twice, once at the top of the chip and once at `0x1000`,
+because that is what the cartridge code does. `python port/tools/save_proof.py`
+checks all of that on a file the game wrote.
+
+The medium is hosted in `port/ntr/backup.cpp` at the point the DS would ask the
+ARM7 for it; the save logic above it is `src/`. Save files are not carried by
+the dev savestate (F8/F9) -- a savestate is a snapshot of RAM and the cartridge
+is not RAM.
+
+### Developer opt-outs
+
+| Variable | Effect |
+|---|---|
+| `SM64DS_LEVEL=<n>` | boot that level directly, as before. The whole battery and every level proof uses this. |
+| `SM64DS_SCENE=<id>` | boot that scene directly, as before. Read **before** the default is consulted, so a named scene never sees the default. |
+| `SM64DS_VS_MAP=<0..3>` | boot a VS match. A destination too: the debug menu's VS row clears `SCENE` and `LEVEL` and sets only this. |
+| `SM64DS_BOOT_CLASSIC` | the pre-ruling boot, straight to castle grounds as Yoshi. This is the only opt-out; `SM64DS_TITLE_ENTRY` keeps the meaning it always had (arm the title bridge on an explicit `SM64DS_SCENE=1`) and does not select a boot. |
+
+The whole decision lives in one place, `port_boot_default_scene` in
+`hal/title_entry.cpp`, and that file's banner carries the derivation and the
+frame-by-frame trace of the chain.
+
 ## Gate ledger
 
 Each gate is a slice manifest + a smoke binary that proves one seam with
@@ -38,6 +115,58 @@ game data. `build-port.cmd` builds all of them into `build\port\`.
 | 7 | `smoke_modelanim` | ModelAnim: the game owns frame progression (speed, loop wrap) |
 | 8 | `smoke_clsn` | collision: the octree walk answers ground queries over level KCL |
 | 9 | `smoke_actor` | the actor framework: spawn, init, behave, render through vtable dispatch |
+
+From gate 10 on the slices stack rather than standing alone, so they are
+carried by two binaries instead of one smoke each: `smoke_player` runs the
+whole stack headless, and `walk_window` is the same stack in an interactive
+window. Gate 24 is the exception and keeps its own smoke.
+
+| Gate | Binary | What runs on host |
+|---|---|---|
+| 10 | `smoke_player` | Player spawns and stands: ten body/head models from real archives, InitResources end to end, the real `ChangeState` into `St_Walk` |
+| 12 | `walk_window` | the interactive window: WASD walks, ESC opens the debug menu, camera follows |
+| 13 | `walk_window` | jump, camera-relative controls, and the real Camera actor's 19-state machine driving the projection |
+| 14 | `walk_window` | the real level boot: `Stage::LoadClsnAndObjects` over the castle grounds' own ov009, mounted whole |
+| 15 | `walk_window` | the game's own per-frame actor spine and real `WithMeshClsn` tracking (nothing calls `Player::Behavior` directly any more) |
+| 16 | `walk_window` | real objects on the castle grounds: the five processing lists plus the actor classes themselves |
+| 17 | `walk_window` | the level overlay's own actors, the first time any ov009 *code* compiles |
+| 18 | `walk_window` | ov085: the castle grounds' rabbits and the Lakitu with the camera |
+| 19 | `walk_window` | ov098: the cannon behind the grate on the west moat wall |
+| 20 | `walk_window` | the last two ov002 classes the level names: EXIT x4, WATERFALL_MIST x7 |
+| 21 | `walk_window` | ov100's butterfly and fish |
+| 22 | `walk_window` | ov100's doors, loaded by `LoadDoorObjects` rather than the standard loader |
+| 23 | `walk_window` | ov102's question block on the castle roof, the last id on the skip list |
+| 24 | `smoke_modelanim` | BlendModelAnim: the cross-fading ModelAnim, on the gate-7 stack |
+| 25 | `walk_window` | the bottom screen: the OAM lifecycle, `Stage::LoadGraphics2D`, `Stage::CheckCameraInput` |
+| 26 | `walk_window` | the boot spine: the real Stage actor replacing the harness-staged scene root |
+| 27 | `walk_window` | the HUD actor (id 334): hearts, coins, stars, timer, camera buttons |
+| 28 | `walk_window` | the Minimap actor (id 335), plus the BG3-sub tilemap and extended palette |
+| 30 | `walk_window` | the level is a parameter: `SM64DS_LEVEL` picks it, and Bob-omb Battlefield (level 6, ov014) boots and walks |
+| 31 | `walk_window` | the level HANDOFF: LoadLevel/ExitLevel tear the level down through the game's own destroy path and bring the next one up |
+| 33 | `walk_window` | Bob-omb Battlefield's mechanisms, terrain and pickups: its 60 coins and 8 red coins, the four warps, the six cannon lids, the arrow signs, the five secrets and the brick blocks |
+| 35 | `walk_window` | the course loop: damage, death and respawn through the ROM's own states, coins into the counter and the health, the star's bookkeeping and the course-clear handoff, and the course's own sound group, bank and music |
+
+Gate 30 mounts a level and gate 31 changes between them; the seam they meet at
+is `port_level_mount_register` in `hal/level_change.cpp`, which gate 30's
+`port_level_mounts_install` fills in.
+
+There is no gate 11: it was folded into the gate-10 walking campaign before
+either landed. Gates 25 through 28 were **renumbered at merge** because three
+parallel streams each picked 24 the same night; the animation stream kept 24
+for BlendModelAnim. Gate 29 belongs to the unmerged `port-particles` branch,
+and gates 32 and 34 to branches that had not merged when 35 landed.
+
+Gate 30's slice is empty of `src/`, which is the point rather than a gap: the
+boot was already generic matched code walking the level's own tables, so a
+second level cost no matched code at all. See the header of
+`slice_gate30.txt`, and the evidence chain at the top of `hal/level_boot.cpp`
+for how each level's identity is read out of the ROM.
+
+Gate 35 is driven by `SM64DS_COURSE_PROBE=<what>[,<frame>]` on `walk_window`:
+`coin`, `hurt`, `hurt2`, `drown`, `death`, `star`. `SM64DS_SND_PROBE=<N>`
+counts sounding voices every N frames, and `SM64DS_COURSE_MUSIC=<seq>`
+overrides the sublevel's own music row (the castle grounds' row really is
+"no layer-1 track"; Bob-omb Battlefield's is sequence 58).
 
 Supporting machinery: `tools/hostgen.py` (MMIO transform into the build
 tree; src/ is never edited), `tools/romdata.py` (ROM constants from the

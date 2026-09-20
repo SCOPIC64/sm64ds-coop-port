@@ -17,12 +17,20 @@
     /* Mario's airborne gravity fn, dispatched as a PMF from the
        per-character rows in data_ov002_0211073c (St_Jump_Main) */
     case 0x020e200c: func_ov002_020e200c((char *)self); return 1;
-    /* Yoshi's flutter-fall helper, same dispatch shape (St_Fall_Main) */
+    /* Luigi's and Yoshi's rows of the same table (Wario shares Mario's) */
+    case 0x020e1e70: func_ov002_020e1e70((char *)self); return 1;
     case 0x020e1c20: func_ov002_020e1c20((char *)self); return 1;
     case 0x020e1af8: return ((Player *)self)->Player::St_Fall_Main();
     case 0x020e1b80: return ((Player *)self)->Player::St_Fall_Init();
     case 0x020cb15c: return ((Player *)self)->Player::St_Headstand_Main();
     case 0x020cb2f0: return ((Player *)self)->Player::St_Headstand_Init();
+    /* ST_CLIMB (record 0x021106dc) -- the tree/pole grab, and the freeze
+       Tango hit on a bush. Init reaches its matched source through a
+       shadow class and Main through a forwarding bridge; both are in
+       port/unmatched/Player_St_Climb.cpp. */
+    case 0x020cbd34: return port_player_st_climb_init((void *)self);
+    case 0x020cb5bc: return port_player_st_climb_main((void *)self);
+    case 0x020cb568: return ((Player *)self)->Player::St_Climb_Cleanup();
     case 0x020cf714: return ((Player *)self)->Player::St_OnWall_Main();
     case 0x020cfa90: return ((Player *)self)->Player::St_OnWall_Init();
     case 0x020d0ee0: return ((Player *)self)->Player::St_Crawl_Main();
@@ -75,7 +83,16 @@
     /* CrazedCrate */
     case 0x020e0d48: return ((Player *)self)->Player::St_CrazedCrate_Main();
     case 0x020e0fac: return ((Player *)self)->Player::St_CrazedCrate_Init();
-    case 0x020e0d28: return ((Player *)self)->Player::St_CrazedCrate_Cleanup();
+    /* SYNC4: main's include/Player.h declares St_CrazedCrate_Init and
+       St_CrazedCrate_Main but NOT St_CrazedCrate_Cleanup, while
+       src/_ZN6Player22St_CrazedCrate_CleanupEv.cpp still defines it against
+       its own local `struct Player` shim -- so the body is in the link under
+       ?St_CrazedCrate_Cleanup@Player@@QAEHXZ and only the declaration is
+       missing. The dead-edx face below reaches that decoration: a __thiscall
+       body with no arguments and a __fastcall caller with two both put the
+       receiver in ecx and leave nothing on the stack for either side to
+       clean. decomp_side.md item 13 asks for the declaration. */
+    case 0x020e0d28: return port_player_st_crazedcrate_cleanup(self, 0);
     /* DebugFly */
     case 0x020ca7f4: return ((Player *)self)->Player::St_DebugFly_Main();
     case 0x020ca8d0: return ((Player *)self)->Player::St_DebugFly_Init();
@@ -114,13 +131,27 @@
     /* InYoshiMouth */
     case 0x020d60b8: return ((Player *)self)->Player::St_InYoshiMouth_Main();
     case 0x020d62f8: return ((Player *)self)->Player::St_InYoshiMouth_Init();
-    case 0x020d6084: return func_ov002_020d6084((char *)self);   /* St_InYoshiMouth_Cleanup slot */
+    case 0x020d6084: return _ZN6Player23St_InYoshiMouth_CleanupEv((char *)self);   /* St_InYoshiMouth_Cleanup slot */
     /* JumpQuicksand */
     case 0x020dedf0: return ((Player *)self)->Player::St_JumpQuicksand_Main();
     case 0x020deeac: return ((Player *)self)->Player::St_JumpQuicksand_Init();
-    /* LedgeGrab */
+    /* LedgeGrab -- state data_ov002_02110004, the PULL-UP. Reached from
+       LedgeHang_Main, so it was already hosted while the state that feeds
+       it was not. */
     case 0x020d0824: return ((Player *)self)->Player::St_LedgeGrab_Main();
     case 0x020d08b0: return ((Player *)self)->Player::St_LedgeGrab_Init();
+    /* LedgeHang -- state data_ov002_0210ffec, the HANG. This is what
+       Tango hit on the hedge maze: func_ov002_020d0580 sees a ledge under
+       a falling Mario and changes into this state, and all three halves
+       were unhosted, so the mapper no-op'd Main every frame (the flood of
+       "unhosted state fn 0x020d0a44"). Init is what seats the hang anim
+       (0x21/0x22), zeroes mHorzSpeed/mVertSpeed, clears mIsAirborne and
+       drops the MovingCylinderClsnWithPos at +0x2d4 to the grab point;
+       without it the anim froze and the speed he grabbed at kept
+       integrating, which is the slide. */
+    case 0x020d0a44: return ((Player *)self)->Player::St_LedgeHang_Main();
+    case 0x020d0c54: return ((Player *)self)->Player::St_LedgeHang_Init();
+    case 0x020d092c: return ((Player *)self)->Player::St_LedgeHang_Cleanup();
     /* MetalWaterGround */
     case 0x020ccccc: return ((Player *)self)->Player::St_MetalWaterGround_Main();
     case 0x020cd0d0: return ((Player *)self)->Player::St_MetalWaterGround_Init();
@@ -130,7 +161,7 @@
     /* Null */
     case 0x020cac28: return ((Player *)self)->Player::St_Null_Main();
     case 0x020cac20: return ((Player *)self)->Player::St_Null_Cleanup();
-    case 0x020cac30: return func_ov002_020cac30();   /* St_Null_Init slot */
+    case 0x020cac30: return _ZN6Player12St_Null_InitEv();   /* St_Null_Init slot */
     /* OpeningWakeUp */
     case 0x020c3dd0: return ((Player *)self)->Player::St_OpeningWakeUp_Main();
     case 0x020c3ed8: return ((Player *)self)->Player::St_OpeningWakeUp_Init();
@@ -188,7 +219,7 @@
     case 0x020d2224: return ((Player *)self)->Player::St_WaitQuicksand_Init();
     /* WallJump */
     case 0x020e1714: return ((Player *)self)->Player::St_WallJump_Main();
-    case 0x020e17f8: return func_ov002_020e17f8((void *)self);   /* St_WallJump_Init slot */
+    case 0x020e17f8: return _ZN6Player16St_WallJump_InitEv((void *)self);   /* St_WallJump_Init slot */
     /* WallSlide */
     case 0x020d0d78: return ((Player *)self)->Player::St_WallSlide_Main();
     case 0x020d0e8c: return ((Player *)self)->Player::St_WallSlide_Init();
@@ -210,29 +241,30 @@
     /* NoControl: the cutscene/door/pipe state. Its Init dispatches a
        per-kind entry function through a sinit-built PMF table, so it runs
        from port/unmatched (hal_call_state_fn on the DS code word). */
+    /* the door-walk entry (kind 7), dispatched by NoControl_Init's PMF
+       table: per-side door anim, then step 7/8 so Main's 020c8cb0 walks
+       Mario through. The missing piece of the door warp until 2026-08-08. */
+    case 0x020c9c4c: func_ov002_020c9c4c((char *)self); return 1;
+    /* ...and the other nineteen kinds' entries (kinds 0/2/3 share 9de4) */
+    case 0x020c9de4: func_ov002_020c9de4((char *)self); return 1;
+    case 0x020c9d68: func_ov002_020c9d68((char *)self); return 1;
+    case 0x020c9d1c: func_ov002_020c9d1c((char *)self); return 1;
+    case 0x020c9cc0: func_ov002_020c9cc0((char *)self); return 1;
+    case 0x020c9c00: func_ov002_020c9c00((char *)self); return 1;
+    case 0x020c9b7c: func_ov002_020c9b7c((char *)self); return 1;
+    case 0x020c9b5c: func_ov002_020c9b5c((char *)self); return 1;
+    case 0x020c9ac0: func_ov002_020c9ac0((char *)self); return 1;
+    case 0x020c9b10: func_ov002_020c9b10((char *)self); return 1;
+    case 0x020c9a04: func_ov002_020c9a04((char *)self); return 1;
+    case 0x020c9998: func_ov002_020c9998((char *)self); return 1;
+    case 0x020c990c: func_ov002_020c990c((char *)self); return 1;
+    case 0x020c98a4: func_ov002_020c98a4((char *)self); return 1;
+    case 0x020c9840: func_ov002_020c9840((char *)self); return 1;
+    case 0x020c97f8: func_ov002_020c97f8((char *)self); return 1;
+    case 0x020c97e0: func_ov002_020c97e0((char *)self); return 1;
     case 0x020c816c: return ((Player *)self)->Player::St_NoControl_Main();
     case 0x020c976c: return ((Player *)self)->Player::St_NoControl_Init();
     case 0x020c8128: return ((Player *)self)->Player::St_NoControl_Cleanup();
-    /* NoControl's per-kind Init handlers (the PMF table St_NoControl_Init
-       dispatches through). Non-Mario characters take kinds Mario never
-       does -- character select meets them at the entrance. */
-    case 0x020c97e0: func_ov002_020c97e0((char *)self); return 1;
-    case 0x020c97f8: func_ov002_020c97f8((char *)self); return 1;
-    case 0x020c9840: func_ov002_020c9840((char *)self); return 1;
-    case 0x020c98a4: func_ov002_020c98a4((char *)self); return 1;
-    case 0x020c990c: func_ov002_020c990c((void *)self); return 1;
-    case 0x020c9998: func_ov002_020c9998((void *)self); return 1;
-    case 0x020c9a04: func_ov002_020c9a04((char *)self); return 1;
-    case 0x020c9ac0: func_ov002_020c9ac0((char *)self); return 1;
-    case 0x020c9b10: return func_ov002_020c9b10((char *)self);
-    case 0x020c9b5c: func_ov002_020c9b5c((char *)self); return 1;
-    case 0x020c9b7c: func_ov002_020c9b7c((void *)self); return 1;
-    case 0x020c9c00: return func_ov002_020c9c00((char *)self);
-    case 0x020c9c4c: func_ov002_020c9c4c((char *)self); return 1;
-    case 0x020c9cc0: func_ov002_020c9cc0((char *)self); return 1;
-    case 0x020c9d1c: return func_ov002_020c9d1c((char *)self);
-    case 0x020c9d68: func_ov002_020c9d68((char *)self); return 1;
-    case 0x020c9de4: func_ov002_020c9de4((char *)self); return 1;
     /* DEATH states: every Main here funnels into KillPlayer ->
        StartExitFaderWipe, which derefs the fader-wipe array at
        0x0209f324. Stage::InitResources allocates that array and the port
@@ -255,11 +287,19 @@
     case 0x020e16a4: return ((Player *)self)->Player::St_HeadstandJump_Init();
     case 0x020e18a8: return ((Player *)self)->Player::St_BackFlip_Init();
     case 0x020e1990: return ((Player *)self)->Player::St_SlideKickRecover_Init();
-    /* St_LevelEnter, the boot state (gate 14). Main is the ov002 function at
-       0x020c6f3c -- the community symbol _ZN6Player18St_LevelEnter_MainEv
-       names ov006's bytes at the same address -- and the seven entrance-step
-       handlers it dispatches through data_ov002_0211075c are plain ov002
-       functions rather than Player methods. */
+    /* St_LevelEnter, the boot state (gate 14). Main is ov002 0x020c6f3c,
+       which ov002/symbols.txt names _ZN6Player18St_LevelEnter_MainEv
+       (size 0xa8) and src/actors/Player.cpp defines.
+       func_ov002_020c6f3c is NOT a config symbol and is in no
+       symbols.txt: it is the port's own name for the host copy in
+       port/unmatched, which exists because the matched body dispatches
+       through an eight-byte PMF record MSVC would stride by four. The
+       symbol that names ANOTHER overlay's bytes at this address is
+       ov006's func_ov006_020c6f3c (size 0x34), and it is not what this
+       row avoids. An earlier version of this comment had the two
+       overlays the wrong way round. The seven entrance-step handlers
+       dispatched through data_ov002_0211075c are plain ov002 functions
+       rather than Player methods. */
     case 0x020c7838: return ((Player *)self)->Player::St_LevelEnter_Init();
     case 0x020c6f3c: return func_ov002_020c6f3c(self);
     case 0x020c6f34: return ((Player *)self)->Player::St_LevelEnter_Cleanup();
