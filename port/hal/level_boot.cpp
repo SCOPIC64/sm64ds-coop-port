@@ -3411,6 +3411,11 @@ extern "C" int port_intro_wants_play(void)
     return 1;
 }
 
+/* Stage::InitResources:381's frame divider, made per Stage init inside the
+   body below. The file's other declaration of it is in the extern "C"
+   block further down, past this function. */
+extern "C" int data_0208ee44;
+
 extern "C" void *port_stage_boot_body(void *mc, int spawn)
 {
     const double lvlperf_t0 = port_lvlperf_now();
@@ -3864,6 +3869,33 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
         if (st)
             _ZN5Stage9LoadModelEv((char *)st);
     }
+
+    /* THE FRAME DIVIDER, Stage::InitResources:381 -- the statement between
+       Stage::LoadModel (:380) above and Stage::LoadClsnAndObjects (:382)
+       below, made HERE because the ROM makes it here, once per Stage init.
+
+       The port's only copy was port_a2_seat_stage's, further down this
+       file, and port_a2_seat_body gates that behind static seat_done /
+       stage_done: ONCE PER PROCESS. A level change reuses the one Stage
+       and never re-enters the seat, so a scene that ran in between left
+       its own divider standing -- dScStarSel_c::InitResources:404 writes
+       data_0208ee44 = 1 -- and the course that came up after it paced on
+       16.65ms instead of 33.3ms.
+
+       Measured on 14b9c2964, same binary, back to back: a direct boot of
+       level 6 reads "[fps] ... (divider 2, budget 33.30ms)"; the same
+       course entered through the Bob-omb painting reads "(divider 1,
+       budget 16.65ms)" for the whole rest of the run. Exactly double
+       speed, which is the owner's report on build 17.
+
+       Same correction section 2c of port/stage_lifecycle_map.txt records
+       for ResetKuppaScript and data_0209b454, and the same one
+       port_a2_seat_stage's own banner made for this word on the
+       title-entry path: a per-entry statement had been filed as bring-up.
+       The seat's store stays where it is on purpose -- it is the
+       pre-first-boot default, the ROM image's static value of this word is
+       1, and it writes the same 2 this line does. */
+    data_0208ee44 = 2;
 
     /* WATCHPOINT-EQUIVALENT for the fs floor (run lvled, lane intro-cutscene).
        data_ov085_02130744 reads fileID 291 at the intro seam and 0 by the time
