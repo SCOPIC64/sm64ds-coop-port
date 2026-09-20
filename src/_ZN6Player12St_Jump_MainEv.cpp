@@ -16,7 +16,6 @@ extern int Player_AdvanceAnims(void*);
 extern char data_ov002_02110424[];
 extern u8 data_020a0e40;
 extern u16 data_0209f49e[];
-extern int hal_call_state_fn(void *self, unsigned ds_addr);
 }
 
 int Player::St_Jump_Main()
@@ -72,16 +71,9 @@ int Player::St_Jump_Main()
       if (v & 1) {
         f = *(int (**)(void*))((char*)(*(int**)p2) + row[0]);
       } else {
-        /* PORT DIVERGENCE (DEP crash): row[0] is a raw DS helper address
-           (e.g. the jump-velocity setup shared with water jump-out).
-           Calling it raw jumps to ROM bytes as x86. Route through the
-           state dispatcher, which runs the hosted equivalent or no-ops
-           unknown helpers safely (the ChangeState already seeded the
-           default velocities, so skipping degrades to a plain jump). */
-        hal_call_state_fn(p2, (unsigned)row[0]);
-        f = 0;
+        f = (int (*)(void*))row[0];
       }
-      if (f) f(p2);
+      f(p2);
     }
   }
 
