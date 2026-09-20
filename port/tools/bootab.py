@@ -1,6 +1,7 @@
 """Headless, silent boot sweep, same knobs for every binary, so builds compare.
 usage: python bootab.py <walk_window.exe> <outdir> [frames] [budget_s]
        [levels=2,4,5 | scenes=4,5 | levels=all | scenes=all] [idle=1] [aspect=<ratio>]
+       [smooth=<0..3>]
 The SM64DS_TEST_LOCK* variables are passed through (every other inherited SM64DS_* is dropped),
 so exporting SM64DS_TEST_LOCK=1 SM64DS_TEST_LOCK_PATH=C:/tmp/sm64ds-test-slot/slot.lock
 SM64DS_TEST_LOCK_TIMEOUT=10800 before running makes every row take the machine-wide test slot.
@@ -10,6 +11,10 @@ Always: SM64DS_FAULTS_FATAL=1 SM64DS_NO_FOCUS=1 SM64DS_VOLUME=0, no SCENE_WINDOW
 idle=1 adds SM64DS_SELFTEST_IDLE=1 to the LEVEL rows, which walk_window.cpp uses to
 leave dz at 0 so the selftest neither holds forward nor hops at frame 30: the level
 boots and then sits still. Scene rows have no selftest and are unaffected.
+smooth=<0..3> sets SM64DS_SMOOTH_MODELS on EVERY row, level and scene alike, which
+is the "SmoothModels" setting (run hd1, lane MDL). Same shape and same reason as
+aspect= below: the environment scrub drops an inherited one, so a sweep that does
+not name it is byte-identical to one from before this argument existed.
 aspect=<ratio> sets SM64DS_ASPECT to that ratio on EVERY row, level and scene alike,
 so one sweep boots the whole table at one presentation width. It is the only way to
 reach the wide path from here: the environment scrub above drops an inherited
@@ -99,6 +104,9 @@ IDLE = any(a == "idle=1" for a in sys.argv[5:])
 ASPECT = ""
 for a in sys.argv[5:]:
     if a.startswith("aspect="): ASPECT = a[7:]
+SMOOTH = ""
+for a in sys.argv[5:]:
+    if a.startswith("smooth="): SMOOTH = a[7:]
 WARPIN = any(a == "warpin=1" for a in sys.argv[5:])
 REENTRY = any(a == "reentry=1" for a in sys.argv[5:])
 PRESS = "200:A"
@@ -113,7 +121,7 @@ for a in sys.argv[5:]:
 # the row filter is positional but the flags are not, so a run that passes only a
 # flag must not have that flag read as a filter (it would then match no prefix and
 # sweep everything by accident)
-if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=", "exit=", "entrance=")): FILTER = ""
+if FILTER in ("idle=1", "warpin=1", "reentry=1") or FILTER.startswith(("aspect=", "press=", "exit=", "entrance=", "smooth=")): FILTER = ""
 if FILTER.startswith("levels="):
     sel = FILTER[7:]; SCENES = ()
     if sel != "all": LEVELS = tuple(i for i in LEVELS if str(i) in sel.split(","))
@@ -254,6 +262,12 @@ def run(kind, ident, label, ent=None):
     # set on level and scene rows alike: the aspect is latched at boot, before
     # either path picks its presentation, so both read the same key
     if ASPECT: env["SM64DS_ASPECT"] = ASPECT
+    # smooth=N, the same shape and the same reason as aspect= above: the
+    # environment scrub drops an inherited SM64DS_SMOOTH_MODELS with the rest
+    # of the SM64DS_* block, so a sweep that does not name it is byte-identical
+    # to one from before this argument existed, and naming it is the only way
+    # to reach the model smoother from here.
+    if SMOOTH: env["SM64DS_SMOOTH_MODELS"] = SMOOTH
     t0 = time.time(); out = ""; rc = "TIMEOUT"
     try:
         p = subprocess.run([EXE], cwd=EXEDIR, env=env, capture_output=True, text=True,
