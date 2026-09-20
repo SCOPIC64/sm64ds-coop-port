@@ -140,6 +140,7 @@ struct Peer {
     int live;          /* slot in use */
     int connected;     /* hello completed (joiner: welcome received) */
     int connecting;    /* join in progress (nonblocking connect) */
+    unsigned t0;       /* GetTickCount at dial: join timeout */
     char name[NAME_LEN];
     char rbuf[LINE_MAX + 2];
     int rlen;
@@ -184,6 +185,11 @@ static void ev_text(const char *user, const char *msg)
 static void ev_peer(const char *name, int joined)
 {
     if (events && events->peer) events->peer(name, joined);
+}
+
+static void ev_pos(const NetPos *p)
+{
+    if (events && events->pos) events->pos(p);
 }
 
 static void clean_name(const char *src, char *dst)
@@ -348,6 +354,27 @@ static void handle_line(Peer *p, char *line)
             host_broadcast(msg, p);
         }
         ev_text(from, text);
+    } else if (!strncmp(line, "POS ", 4)) {
+        /* transform, same relay shape as chat: joiners send to the host,
+           the host fans out. Cheap enough to parse with sscanf. */
+        NetPos np;
+        memset(&np, 0, sizeof np);
+        char name[NAME_LEN];
+        if (sscanf(line + 4, "%15s %d %d %d %d %d %d", name, &np.x,
+                   &np.y, &np.z, &np.yaw, &np.chr,
+                   &np.anim) != 7)
+            return;
+        if (np.chr < 0 || np.chr > 3 || np.anim < 0 || np.anim > 0x1ff)
+            return;
+        clean_name(name, np.name);
+        if (role_state == 1 && p->connected) {
+            char msg[LINE_MAX + 2];
+            snprintf(msg, sizeof msg, "POS %s %d %d %d %d %d %d",
+                     np.name, np.x, np.y, np.z, np.yaw, np.chr,
+                     np.anim);
+            host_broadcast(msg, p);
+        }
+        ev_pos(&np);
     }
     /* unknown lines are ignored: forward-compat by design */
 }
@@ -615,6 +642,7 @@ void join(const char *addr)
     }
     p->s = s;
     p->connecting = 1;
+    p->t0 = GetTickCount();
     snprintf(p->name, sizeof p->name, "%s", host);
     role_state = 2;
     std::printf("[net] joining %s:%d ...\n", host, port);
@@ -638,6 +666,21 @@ void leave(void)
     }
     if (role_state != 0) std::printf("[net] offline\n");
     role_state = 0;
+}
+
+void send_pos(int x, int y, int z, int yaw, int chr, int anim)
+{
+    if (role_state == 0) return;
+    char msg[LINE_MAX + 2];
+    snprintf(msg, sizeof msg, "POS %s %d %d %d %d %d %d", self_name, x,
+             y, z, yaw, chr, anim);
+    if (role_state == 1) {
+        host_broadcast(msg, 0);
+    } else {
+        for (int i = 0; i < MAX_PEERS; ++i)
+            if (peers[i].live && !peers[i].connecting)
+                peer_send(&peers[i], msg);
+    }
 }
 
 void send_chat(const char *user, const char *text)
@@ -686,11 +729,34 @@ void poll(void)
         Peer *p = &peers[i];
         if (!p->live) continue;
         if (p->connecting) {
-            /* join in progress: writable (+ no error) means connected */
-            NetFds wfds;
+            /* join in progress: readable or writable (+ no error) means
+               the dial resolved; some stacks only signal one side */
+            NetFds rfds, wfds;
+            rfds.count = 1;
+            rfds.arr[0] = p->s;
             wfds.count = 1;
             wfds.arr[0] = p->s;
-            if (N.select(0, 0, &wfds, 0, &zero) <= 0) continue;
+            int sr = N.select(0, &rfds, &wfds, 0, &zero);
+            if (sr == -1) {
+                static int sel_err_logged;
+                if (!sel_err_logged) {
+                    sel_err_logged = 1;
+                    std::printf("[net] select failed (%d)\n",
+                                N.geterror());
+                }
+                continue;
+            }
+            if (sr <= 0) {
+                /* never hang silently: 8 s with no answer is a no */
+                if (GetTickCount() - p->t0 > 8000) {
+                    std::printf("[net] join timed out (no answer -- "
+                                "wrong code/address, or the host's port "
+                                "is blocked)\n");
+                    peer_close(p);
+                    if (role_state == 2) role_state = 0;
+                }
+                continue;
+            }
             int err = 0, len = sizeof err;
             if (N.getsockopt(p->s, NET_SOL_SOCKET, NET_SO_ERROR,
                              (char *)&err, &len) != 0 ||

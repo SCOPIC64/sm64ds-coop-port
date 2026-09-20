@@ -29,11 +29,20 @@ int default_port(void);
 void set_name(const char *name);
 
 /* UI events, delivered on the frame thread from poll(). Register once. */
+struct NetPos {
+    char name[16];
+    int x, y, z;      /* world units */
+    int yaw;          /* mAngleY */
+    int chr;          /* 0..3 */
+    int anim;         /* Player anim id */
+};
 struct NetEvents {
     /* an incoming chat line is ready to show */
     void (*text)(const char *user, const char *msg);
     /* a peer arrived (joined=1) or left (joined=0) */
     void (*peer)(const char *name, int joined);
+    /* a peer's transform, ~15 Hz, relayed by the host like chat */
+    void (*pos)(const NetPos *p);
 };
 void set_events(const NetEvents *ev);
 
@@ -41,6 +50,7 @@ void host_start(void);              /* listen; stays playable */
 void join(const char *addr);        /* "ip", "ip:port", "localhost:port" */
 void leave(void);                   /* drop everything, back to offline */
 void send_chat(const char *user, const char *text);
+void send_pos(int x, int y, int z, int yaw, int chr, int anim);
 void poll(void);
 bool hosting(void);
 bool joined(void);

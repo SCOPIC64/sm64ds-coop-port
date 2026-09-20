@@ -978,7 +978,7 @@ if(MSVC)
 endif()
 
 # Gate 12: the interactive window (same stack, windowed loop).
-add_executable(walk_window tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loader.cpp hal/logo.cpp hal/lobby.cpp assets/logo.rc "${OV002DATA_C}" "${OV009DATA_C}"
+add_executable(walk_window tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loader.cpp hal/logo.cpp hal/lobby.cpp hal/remote_players.cpp assets/logo.rc "${OV002DATA_C}" "${OV009DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -1035,7 +1035,7 @@ if(MSVC)
 endif()
 
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
-add_executable(walk_window_hires tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loader.cpp hal/logo.cpp hal/lobby.cpp assets/logo.rc "${OV002DATA_C}" "${OV009DATA_C}"
+add_executable(walk_window_hires tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loader.cpp hal/logo.cpp hal/lobby.cpp hal/remote_players.cpp assets/logo.rc "${OV002DATA_C}" "${OV009DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp

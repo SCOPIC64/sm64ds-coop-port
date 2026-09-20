@@ -213,6 +213,7 @@ static bool winapi_load(void)
 #include "rom_locator.h"
 #include "mod_loader.h"
 #include "lobby.h"
+#include "remote_players.h"
 #include "logo.h"
 
 typedef unsigned int u32;
@@ -1121,6 +1122,14 @@ static void lobby_on_text(const char *user, const char *msg)
 static void lobby_on_peer(const char *name, int joined)
 {
     toast("%s %s", name, joined ? "joined" : "left");
+    if (!joined) sm64ds::remote::drop(name);
+}
+static void lobby_on_pos(const sm64ds::lobby::NetPos *p)
+{
+    if (!p) return;
+    if (!strcmp(p->name, g_username)) return;   /* never puppet yourself */
+    sm64ds::remote::net_pos(p->name, p->x, p->y, p->z, p->yaw, p->chr,
+                            p->anim);
 }
 static sm64ds::lobby::NetEvents lobby_ev;   /* registered once at boot */
 
@@ -2247,6 +2256,7 @@ int main(void)
        a peer is actually connected, see the poll site) */
     lobby_ev.text = lobby_on_text;
     lobby_ev.peer = lobby_on_peer;
+    lobby_ev.pos = lobby_on_pos;
     sm64ds::lobby::set_events(&lobby_ev);
     if (const char *ln = std::getenv("SM64DS_LOBBY_NAME")) {
         strncpy(g_username, ln, sizeof g_username - 1);
@@ -3427,7 +3437,7 @@ int main(void)
                             front_on = 0;
                             sm64ds::lobby::join(target);
                             if (sm64ds::lobby::joined())
-                                toast("Joining %s...", target);
+                                toast("Joining %s...", g_lobby_ip);
                             else
                                 toast("Join failed");
                         }
@@ -5360,6 +5370,7 @@ int main(void)
         size_t tris_before = 0;
         if (selftest) ntr::gx_polygons(tris_before);
         hal_render_player_world(player);
+        sm64ds::remote::draw();   /* net puppets, if any */
         ph_end(PH_SUBMIT, t_phase);
         if (selftest) {
             size_t tn = 0;
@@ -5519,6 +5530,16 @@ int main(void)
         }
         sm64ds::lobby::poll();   /* host accept / line pump / reconnect */
         g_lobby_state = sm64ds::lobby::role();   /* menus mirror the transport */
+        /* remote players: POS out, puppet upkeep, overlap touch */
+        sm64ds::remote::send_tick(player, g_lobby_state);
+        {
+            char *pc = (char *)player;
+            const int px = *(int *)(pc + 0x5c) >> 12;
+            const int py = *(int *)(pc + 0x60) >> 12;
+            const int pz = *(int *)(pc + 0x64) >> 12;
+            const char *bn = sm64ds::remote::bump(px, py, pz);
+            if (bn) toast("Bumped into %s!", bn);
+        }
         {
             /* headless lobby proof: send once a peer is really connected.
                (roster fills on WELCOME/HELLO, so peer_count > 0 means the
