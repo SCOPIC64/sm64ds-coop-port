@@ -373,7 +373,7 @@ struct EKey {
 };
 // One side of a shared edge: the two endpoint normals, in the edge's
 // canonical (sorted) endpoint order, plus the endpoint positions.
-struct ESide { float p[2][3]; float n[2][3]; };
+struct ESide { float p[2][3]; float n[2][3]; int tf; };
 
 // The four control points of the cubic the patch puts on edge A->B. Along
 // c == 0 the full PN evaluation collapses to exactly this, which is the whole
@@ -471,6 +471,7 @@ void census_report(uint64_t frame) {
             const int ia = E0[e], ib = E1[e];
             QKey ka = qkey(t.p[ia]), kb = qkey(t.p[ib]);
             ESide s;
+            s.tf = t.tf;
             const int first = (kb < ka) ? ib : ia;
             const int second = (kb < ka) ? ia : ib;
             for (int k = 0; k < 3; ++k) {
@@ -509,11 +510,33 @@ void census_report(uint64_t frame) {
     int shared = 0, disagreeing = 0;
     float worst_turn = 0.0f;
     float worst_gap = 0.0f;
+    /* THE TWO KINDS OF DISAGREEMENT, kept apart because they want opposite
+       fixes. A rigid-skinned JOINT has two bones that have rotated a little
+       away from each other, so the turn is moderate and welding the normals
+       per frame (what the Rust smoother did) is the right repair. A HARD
+       CREASE -- the two faces of a thin panel, a leaf, a flag -- has normals
+       near 180 degrees apart, the mesh is genuinely discontinuous there, and
+       welding it would be WRONG: it would round a corner the artist meant to
+       be sharp. The turn histogram is what tells one from the other without
+       looking at anything. Buckets: <0.2, <0.5, <1.0, <1.5, <1.9, >=1.9 of
+       the chord between the unit normals (2.0 is 180 degrees). */
+    int turn_hist[6] = {0};
+    float worst_gap_joint = 0.0f;    /* turn < 1.5: the joint class  */
+    float worst_gap_crease = 0.0f;   /* turn >= 1.5: the crease class */
     for (std::map<EKey, std::vector<ESide> >::const_iterator it = edges.begin();
          it != edges.end(); ++it) {
         const std::vector<ESide> &s = it->second;
         if (s.size() < 2) continue;
         ++shared;
+        /* ONLY AN EDGE WITH A SUBDIVIDED SIDE CAN OPEN. Two flat neighbours
+           may hold wildly different normals -- every hard corner of every
+           boxy model does -- and neither is touched, so their shared edge is
+           exactly where it always was. Counting those was the first version
+           of this census and it reported a crack on geometry the smoother
+           never looked at. */
+        bool any_acc = false;
+        for (size_t j = 0; j < s.size(); ++j) if (s[j].tf > 1) any_acc = true;
+        if (!any_acc) continue;
         // Compare every later side against the first.
         float turn = 0.0f;
         for (size_t j = 1; j < s.size(); ++j)
@@ -526,6 +549,8 @@ void census_report(uint64_t frame) {
         if (turn <= 0.017f) continue;
         ++disagreeing;
         if (turn > worst_turn) worst_turn = turn;
+        turn_hist[turn < 0.2f ? 0 : turn < 0.5f ? 1 : turn < 1.0f ? 2
+                  : turn < 1.5f ? 3 : turn < 1.9f ? 4 : 5] += 1;
 
         // The crack itself: build both sides' edge curves and measure the
         // biggest separation. The two endpoints coincide by construction, so
@@ -533,6 +558,7 @@ void census_report(uint64_t frame) {
         float c0[4][3], c1[4][3];
         edge_curve(s[0].p[0], s[0].p[1], s[0].n[0], s[0].n[1], c0);
         edge_curve(s[0].p[0], s[0].p[1], s[1].n[0], s[1].n[1], c1);
+        float worst_here = 0.0f;
         for (int k = 1; k < 8; ++k) {
             const float t = (float)k / 8.0f;
             float x0[3], x1[3];
@@ -541,7 +567,13 @@ void census_report(uint64_t frame) {
             float dd[3];
             for (int m = 0; m < 3; ++m) dd[m] = x0[m] - x1[m];
             const float gap = sqrtf(v_dot(dd, dd));
-            if (gap > worst_gap) worst_gap = gap;
+            if (gap > worst_here) worst_here = gap;
+        }
+        if (worst_here > worst_gap) worst_gap = worst_here;
+        if (turn < 1.5f) {
+            if (worst_here > worst_gap_joint) worst_gap_joint = worst_here;
+        } else if (worst_here > worst_gap_crease) {
+            worst_gap_crease = worst_here;
         }
     }
 
@@ -551,6 +583,12 @@ void census_report(uint64_t frame) {
             (unsigned long long)frame, (int)g_census_tris.size(), flat, curved,
             accepted, (int)edges.size(), shared, disagreeing,
             (double)worst_turn, (double)worst_gap);
+    fprintf(stderr,
+            "[smooth] f%llu turnhist %d %d %d %d %d %d "
+            "gap_joint %.4f gap_crease %.4f\n",
+            (unsigned long long)frame, turn_hist[0], turn_hist[1],
+            turn_hist[2], turn_hist[3], turn_hist[4], turn_hist[5],
+            (double)worst_gap_joint, (double)worst_gap_crease);
     fprintf(stderr, "[smooth] f%llu edgelen", (unsigned long long)frame);
     for (int i = 0; i < 12; ++i) fprintf(stderr, " %d", len_hist[i]);
     fprintf(stderr, "\n[smooth] f%llu acceptlen", (unsigned long long)frame);

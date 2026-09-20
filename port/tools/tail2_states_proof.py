@@ -76,6 +76,15 @@ def main():
         "SM64DS_CUTSCENE_STATES": "1",
         "SM64DS_WINDOW_SELFTEST": str(a.frames),
     })
+    # Run hd1, lane MDL: the model-smoothing level is the one SM64DS_* this
+    # proof has to be able to carry through the scrub above, because the gate
+    # is run BOTH with the key absent and with it set -- smoothing is picture
+    # only, so the opening must take the same distinct positions either way,
+    # and there is no way to ask that question without passing the key. With
+    # the variable unset this line does nothing and the proof is byte-identical
+    # to one from before it existed.
+    if os.environ.get("SM64DS_SMOOTH_MODELS"):
+        e["SM64DS_SMOOTH_MODELS"] = os.environ["SM64DS_SMOOTH_MODELS"]
     log = out / "run.log"
     with log.open("wb") as f:
         # The quiet spawner every other launcher in port/tools uses (battery.py's
