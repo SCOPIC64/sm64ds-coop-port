@@ -1,12 +1,17 @@
 // The HD texture pack's loader. See ntr/hdtex.h for what the feature is.
 //
 // ------------------------------------------------------------------ THE NAME
-// A pack file is named by a 64-bit hash of what the texture IS, not where it
-// sits. The parked tangOS-SM64DS edition already shipped 206 such files, and
-// this port REPRODUCES THAT HASH BIT FOR BIT so those files load here
-// unrenamed rather than being stranded behind a second, incompatible naming.
+// A pack file is named by a 64-bit hash of what the texture IS, so the same
+// art file works in every level, every run and every build. hdtex_name()
+// hashes, in order: format, width, height and the colour-0 bit; the texel
+// bytes at the exact range the decoder reads; for format 5 the per-block
+// index words and then the four palette entries EACH BLOCK INDEXES, in block
+// order; and for every other palette format its own small entry run. Nothing
+// about where the texture sits, or about what else is loaded, enters it.
 //
-// The definition lives in that edition's one seam,
+// IT IS NOT THE PARKED tangOS-SM64DS EDITION'S HASH, AND THAT WAS THE PLAN.
+// That edition shipped 206 PNGs and the intent was to reproduce its hash bit
+// for bit so they would load here unrenamed. Its definition, from
 // recomp/vendor/melonds/GPU3D_Texcache.h, Texcache::GetTexture:
 //
 //     u64 texname = TextureHash[0]
@@ -15,33 +20,55 @@
 //                 ^ ((u64)fmt << 56) ^ ((u64)widthLog2 << 48)
 //                 ^ ((u64)heightLog2 << 40);
 //
-// Each component is Texcache::MaskedHash: XXH64 at seed 0 over a VRAM range,
-// split at the end of the array and restarted with the running hash as the
-// next seed when the range wraps. TextureHash[1] is nonzero only for format 5
-// (whose per-block index words live in texture slot 1) and TexPalHash is zero
-// for format 7 (direct colour has no palette); a rotate of zero is zero, so
-// both terms vanish exactly where melonDS leaves them at zero.
+// each component being Texcache::MaskedHash -- XXH64 at seed 0 over a VRAM
+// range, wrapping at the end of the array and reseeding with the running
+// hash. That is reproduced exactly, in tangos_name() below, and it was
+// measured against that edition's own 206-name dump on the castle grounds:
+// 2 names agreed (both format 6), 26 carried the same picture under a
+// different name (all format 5), none collided, and no variation of the
+// palette range closed the gap.
 //
-// REPRODUCING IT HERE IS SOUND because the port maps the DS's whole video
-// address space at its real addresses. ntr/mmio.h reserves VRAM_BASE
-// 0x06000000 for VRAM_SIZE 0x900000 and ntr/io.cpp's map_fixed commits and
-// MEMSETS it to zero before the process runs a single instruction of the
-// game. So the texture-slot window (0x06800000, 0x80000 bytes) and the
-// palette-slot window (0x06880000, 0x20000 bytes) have melonDS's
-// VRAMFlat_Texture and VRAMFlat_TexPal size, shape and initial contents, and
-// the game writes the same bytes to the same slot offsets through the same
-// uploads. Both windows are inside that one 9 MB reservation, so the wrapping
-// arithmetic below can never read unmapped memory.
+// THE DEFECT IS IN THE ORIGINAL HASH. For format 5 -- 84% of this game's
+// textures -- GetTexture sets TexPalSize = 0x10000, so the name is a hash of
+// 64 KB of palette memory around the texture's own palette base: whatever
+// else happens to be loaded. Proved inside ONE binary, with no second edition
+// involved: level 1 dumped twice gives 97 of 97 identical names, so it is
+// deterministic; but level 1 against level 6, over the pictures present in
+// both, format 6 keeps the same name 3 times out of 3 while format 5 gets a
+// DIFFERENT name 17 times out of 17 for the same picture. A format-5 entry in
+// that pack only ever matched the level it was harvested in, and no
+// implementation can reproduce from content a name that is not a function of
+// content.
 //
-// ONE PIECE OF ARITHMETIC HERE IS NOT gx.cpp's. Format 5's slot-1 address:
-// the decoder next door uses the simple off/2 form, which is right for the
-// blocks this game actually uses, while melonDS applies GBATEK's masked form.
-// This file uses MELONDS'S, because the question it answers is "what did that
-// edition call this texture", not "where does the decoder read".
+// So the loader uses the hash above, and the parked pack is renamed instead:
+// port/tools/hdtex_repack.py matches pictures, and the dump's index carries
+// tangos_name() beside the port's name so the mapping can also be read off a
+// table. On the same rows the port's hash gives 96 of 96 identical names run
+// to run and 18 of 19 shared pictures under ONE name across two levels, with
+// no collisions.
 //
-// A python copy of the whole hash is in port/tools/hdtex_hash.py, whose
-// selftest checks its XXH64 against the canonical empty-string vector and
-// against 400 random buffers through the xxhash module.
+// REPRODUCING melonDS'S ARITHMETIC AT ALL IS SOUND because the port maps the
+// DS's whole video address space at its real addresses. ntr/mmio.h reserves
+// VRAM_BASE 0x06000000 for VRAM_SIZE 0x900000 and ntr/io.cpp's map_fixed
+// commits and MEMSETS it to zero before the game runs an instruction. So the
+// texture-slot window (0x06800000, 0x80000 bytes) and the palette-slot window
+// (0x06880000, 0x20000 bytes) have melonDS's VRAMFlat_Texture and
+// VRAMFlat_TexPal size, shape and initial contents, and both are inside that
+// one 9 MB reservation, so the wrapping arithmetic here can never read
+// unmapped memory.
+//
+// ONE PIECE OF ARITHMETIC DIFFERS BETWEEN THE TWO. Format 5's slot-1 address:
+// gx.cpp's decoder uses the simple off/2 form, which is right for the blocks
+// this game actually uses, while melonDS applies GBATEK's masked form.
+// tangos_name() uses melonDS's, because it answers "what did that edition
+// call this"; hdtex_name() uses the DECODER's, because it answers "what does
+// this port draw".
+//
+// A python copy of the XXH64 and of the parked mixing is in
+// port/tools/hdtex_hash.py, whose selftest checks it against the canonical
+// empty-string vector and against 400 random buffers through the xxhash
+// module; tmp/TEX_hashtest.cpp in run hd1 checked this file's C++ against
+// that python on 196 vectors.
 //
 // ---------------------------------------------------------------- OFF IS OFF
 // hdtex_wants_work() is an int compare of two ints that are zero unless a
@@ -634,7 +661,11 @@ const HdTexStats *hdtex_stats(void) { return &g_stats; }
 void hdtex_report(void)
 {
     if (!g_log) return;
-    std::printf(
+    /* STDERR, like gx.cpp's own [perf] line and for the same reason: this
+       binary sends stdout to a playlog file, so a summary printed there is
+       not in the output a test driver captures. Every number a gate quotes
+       comes off this line. */
+    std::fprintf(stderr,
         "[hdtex] SUMMARY pack=%d hashed=%d replaced=%d missing=%d "
         "load_failed=%d dumped=%d worst_load=%.2fms (%016llx %dx%d) "
         "total_load=%.2fms held=%llu bytes\n",
@@ -643,7 +674,7 @@ void hdtex_report(void)
         static_cast<unsigned long long>(g_stats.worst_load_name),
         g_stats.worst_load_w, g_stats.worst_load_h, g_stats.total_load_ms,
         static_cast<unsigned long long>(g_stats.replacement_bytes));
-    std::fflush(stdout);
+    std::fflush(stderr);
 }
 
 }  // namespace ntr
