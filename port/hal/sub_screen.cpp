@@ -2408,45 +2408,58 @@ static void layout_selftest(void)
 
         /* the client-space corners of the drawn bottom picture. xout/yout is
            a step guaranteed to cross at least one source pixel outward (the
-           scale plus slop), for the outside checks below. inx/iny is a step
-           inward of 8% of the picture's own client size (floor 2), for the
-           near-corner checks: two independent client<->source divides (this
-           test building a corner in client space, then client_to_src
-           converting it back) do not always round-trip through the SAME
-           source pixel at an arbitrary cw x ch against a non-4:3 image --
-           1027x578 against 1024x1152 is such a case, landing a pixel-exact
-           corner one source pixel short of where client_to_src's own divide
-           places it, which is a property of two roundings compounding
-           through three scales (client -> source -> DS), not a defect in
-           hal_present_fit or hal_present_client_to_sub. A proportional inward
-           step lands solidly inside the first few DS pixels regardless of
-           that compounding, which is what "the drawn picture's corner" means
-           here; the outside checks below stay pixel-tight because rounding
-           can only ever push a genuinely-outside point further outside. */
+           scale plus slop), for the outside checks below. */
         const long long bx0 = rx + (long long)lay.pan_x0 * rw / lay.w;
         const long long bx1 = rx + (long long)(lay.pan_x0 + lay.pan_w) * rw / lay.w - 1;
         const long long by0 = ry + (long long)lay.bottom_y * rh / lay.h;
         const long long by1 = ry + (long long)(lay.bottom_y + lay.pan_h) * rh / lay.h - 1;
         const long long xout = rw / lay.w + 2;
         const long long yout = rh / lay.h + 2;
-        const long long picw = bx1 - bx0 + 1, pich = by1 - by0 + 1;
-        const long long inx = picw / 3 > 6 ? picw / 3 : 6;
-        const long long iny = pich / 3 > 6 ? pich / 3 : 6;
-        const int dstol = ntr::SUB_W / 3 > 6 ? ntr::SUB_W / 3 : 6;
 
-        /* E: the four corners of the drawn bottom picture map to DS (0,0)
-           and (SUB_W-1,SUB_H-1) inclusive, inside; one pixel outside each
-           of the four edges is outside. */
+        /* E: the four corners of the drawn bottom picture land within ONE DS
+           pixel of DS (0,0), (SUB_W-1,0), (0,SUB_H-1) and (SUB_W-1,SUB_H-1);
+           one pixel outside each of the four edges is OUTSIDE.
+
+           WIDE4V, run link100 (status/WIDE4V.md): the check used to step
+           picw/3 client pixels in from each corner and allow SUB_W/3 (85) DS
+           pixels of slack -- the SAME fraction on both sides of the divide,
+           so it carried NO margin at all. Reproduced 10/10 byte-identical at
+           1027x578 against every WIDE aspect (native passed): the
+           near-corner step landed at DS x 169 where the check required 170,
+           a miss of exactly one DS pixel from a tolerance that was never
+           wider than the rounding it was meant to absorb. It was never a
+           race, an uninitialised value or a stale published rect --
+           SM64DS_LAYOUT_SELFTEST is deterministic given a fixed aspect and
+           client size, and ten repeats and a five-aspect sweep both proved
+           it (same FAIL, same numbers, every time).
+
+           THIS TESTS THE LITERAL CORNER instead, at the ONE DS pixel bound
+           the brief accepts for a non-integer present scale, and does not
+           require hal_present_client_to_sub's own "inside" answer AT THAT
+           EXACT PIXEL: a floor-based forward fit and a floor-based inverse
+           do not always agree on which side of a boundary sample falls, so
+           the literal corner pixel of a picture can come back "outside" on
+           the low (0) edge of either axis even though the DS pixel it
+           clamps to is exactly right. Measured at 1027x578/32:9: the top-
+           left corner's y reads "outside" and clamps to DS y 0 anyway; the
+           very next client row already reads "inside" y 0. That is the
+           fit's own unavoidable one-pixel seam -- present before this card
+           wherever a window was not an integer multiple of the image, since
+           the horizontal arm (already correct) has the same floor divide --
+           not a defect for this test to fail on. The outside checks below
+           stay pixel-tight: a point stepped out by at least two source
+           pixels' worth of client slop has no such seam to explain a false
+           negative. */
         {
             int dsx, dsy, ok = 1;
-            if (!hal_present_client_to_sub((int)(bx0 + inx), (int)(by0 + iny), &dsx, &dsy) ||
-                dsx > dstol || dsy > dstol) ok = 0;
-            if (!hal_present_client_to_sub((int)(bx1 - inx), (int)(by0 + iny), &dsx, &dsy) ||
-                dsx < ntr::SUB_W - 1 - dstol || dsy > dstol) ok = 0;
-            if (!hal_present_client_to_sub((int)(bx0 + inx), (int)(by1 - iny), &dsx, &dsy) ||
-                dsx > dstol || dsy < ntr::SUB_H - 1 - dstol) ok = 0;
-            if (!hal_present_client_to_sub((int)(bx1 - inx), (int)(by1 - iny), &dsx, &dsy) ||
-                dsx < ntr::SUB_W - 1 - dstol || dsy < ntr::SUB_H - 1 - dstol) ok = 0;
+            hal_present_client_to_sub((int)bx0, (int)by0, &dsx, &dsy);
+            if (dsx > 1 || dsy > 1) ok = 0;
+            hal_present_client_to_sub((int)bx1, (int)by0, &dsx, &dsy);
+            if (dsx < ntr::SUB_W - 2 || dsy > 1) ok = 0;
+            hal_present_client_to_sub((int)bx0, (int)by1, &dsx, &dsy);
+            if (dsx > 1 || dsy < ntr::SUB_H - 2) ok = 0;
+            hal_present_client_to_sub((int)bx1, (int)by1, &dsx, &dsy);
+            if (dsx < ntr::SUB_W - 2 || dsy < ntr::SUB_H - 2) ok = 0;
             if (hal_present_client_to_sub((int)(bx0 - xout), (int)((by0 + by1) / 2), &dsx, &dsy)) ok = 0;
             if (hal_present_client_to_sub((int)(bx1 + xout), (int)((by0 + by1) / 2), &dsx, &dsy)) ok = 0;
             if (hal_present_client_to_sub((int)((bx0 + bx1) / 2), (int)(by0 - yout), &dsx, &dsy)) ok = 0;
