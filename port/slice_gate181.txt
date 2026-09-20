@@ -1,0 +1,83 @@
+# Gate 181: the cannon entry seam -- the CLOSURE audit, not a new link set.
+#
+# THE POINT OF THIS GATE. Mario hopping into a cannon, aiming and firing is the
+# last big interaction gap for a playable Bob-omb Battlefield. The gate-19 note
+# said "nothing here chases the cannon-entry path" -- but that was written
+# before the buddy gate (32) and the hatch gate (33) landed, and the audit
+# below found the entire chain is ALREADY matched src AND already linked across
+# gates 10/19/27/32/33. This gate LINKS NOTHING NEW: every TU it would name is
+# already in another slice, and re-listing a .c here would put it in the
+# walk_window source list twice and the linker would report a duplicate symbol
+# (each slice_gateNN.txt is read into its own SLICEnn_SOURCES list and the
+# target concatenates them -- CMakeLists.txt line 12ff). It is a manifest so the
+# next reader does not re-chase a path that is already whole.
+#
+# ---- the chain, and where each piece is already linked ----------------------
+#
+# ENTRY (Mario -> St_Cannon):
+#   The cannon registers a MovingCylinderClsn owned by itself at c+0x124
+#   (Cannon::InitResources, gate 19). The frame's cylinder-overlap pass writes
+#   the colliding player's uniqueID into that cylinder's otherOwner word
+#   (c+0x124 + 0x24 = c+0x148). That pass is CylinderClsn::Process -- matched
+#   src _ZN12CylinderClsn7ProcessEv.cpp is linked in gate 10, but the port runs
+#   the ROM-shaped HOST copy port/unmatched/CylinderClsn_Process.cpp
+#   (port_cylinder_clsn_process, called from walk_window's render frame) to dodge
+#   the MSVC destructor-slot-shift; the header-compiled symbol faults. Cannon
+#   state 2 (func_ov098_0213ad08, gate 19) reads c+0x148, resolves it with
+#   Actor::FindWithID, and on func_ov002_020df34c (gate 19) flips the player into
+#   St_Cannon (ChangeState data_ov002_021102d4) and moves the cannon to state 3.
+#
+# AIM + FIRE (cannon states, all gate 19):
+#   state 3  func_ov098_0213aa28  seats Mario in the barrel, lid-close anim,
+#            waits on Player::IsBeingShotOutOfCannon, hands off
+#   state 0  func_ov098_0213b0a4  the aim: ApproachLinear pitch/yaw to the
+#            player's stick (c+0x100+0x78/0x7a), Sound::PlayBank3 0x14d
+#   state 1  func_ov098_0213ade8  the FIRE: Actor::Spawn 0xd0 (blasted char),
+#            velocity from the angle table data_02082214, two Particle::New,
+#            Sound::PlayBank3 0xd4 (the boom)
+#   state 2  func_ov098_0213ad08  the shut lid + the entry detector above
+#   The four states dispatch as an mwcc pointer-to-member and are SEATED by
+#   port/unmatched/Cannon_Behavior.cpp (the incomplete-class PMF reason, gate 19).
+#
+# PLAYER SIDE (all matched, all linked):
+#   St_Cannon_{Init,Main,Cleanup}          gate 10
+#   IsInsideOfCannon                       gate 27
+#   IsBeingShotOutOfCannon                 gate 10
+#   St_Cannon rows in hal/player_states.inc (0x020def14/df208/deefc) wired.
+#
+# THE HATCH (grate lid, actor 14, all gate 33):
+#   CannonHatch_Spawn, Init/Cleanup/Behavior/Render/D1. Reads
+#   IsCannonOpenInCurLevel() at Init to keep the grate collider disabled while
+#   the cannon is locked; when the buddy opens it, the buddy actor drives the
+#   hatch's +0x32c path and the hatch slides away and enables the collider.
+#   Registered as {14,"CANNON_HATCH",...} in hal/actor_classes.inc, vtable filled
+#   by hal_fill_cannon_hatch_vtable. Slot 17 (D0, the deleting dtor) is bw_trap17
+#   BY DESIGN -- nothing on BoB deletes a hatch, and _ZN11CannonHatchD0Ev.c is a
+#   real C++ member-dtor chain MSVC would emit wrong. It is the ONE matched TU in
+#   the whole chain deliberately left unsliced, and it must stay that way.
+#
+# THE SAVE BIT (unlock read + write, all matched, all linked):
+#   IsCannonOpen / IsCannonOpenInLevel / IsCannonOpenInCurLevel  gate 32 (+33)
+#   OpenCannon / OpenCannonInLevel / OpenCannonInCurLevel        gate 32
+#   SublevelToLevel                                              gate 10
+#   The bit is data_0209caa0[4] |= 1<<course -- staged as the .savblk$0000 host
+#   block (hal/level_boot.cpp), zeroed on a fresh boot. The WRITE is the Bob-omb
+#   Buddy: buddy state 2 main func_ov084_0212c1a0 (gate 32) calls
+#   OpenCannonInCurLevel() once his dialogue closes. His whole state machine
+#   (0212c92c/c8b0/c89c/c508/c4a0/c1a0 + the cac0/caa8/ca60/c9f0 gates) is gate
+#   32; the two PMF dispatch halves are host-copied in
+#   port/unmatched/BobOmbBuddy_States.cpp and seated from
+#   hal/actor_classes_bob_enemy.cpp.
+#
+# ---- WHAT IS NOT DONE ------------------------------------------------------
+# The buddy's dialogue is a PARALLEL lane. Until it lands, GetTalkState never
+# reports the box closing, so func_ov084_0212c1a0 never reaches its
+# OpenCannonInCurLevel() call and the save bit stays clear on a headless boot:
+# the hatch stays shut, and the cannon-entry chain has nothing to fire on.
+# port/hal/cannon_probe.cpp (SM64DS_CANNONS_OPEN=1) sets that same bit through
+# the same matched setter so the chain can be exercised before the dialogue
+# lands. It is a probe, not game behaviour -- delete it and its one call site
+# (described in the wiring report) when the buddy dialogue drives the open.
+
+# (no src lines: every TU in this chain is already linked in gates
+#  10/19/27/32/33; see the audit above.)

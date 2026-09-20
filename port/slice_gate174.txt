@@ -1,0 +1,36 @@
+# Gate 174: MONTY_MOLE (310), the burrowing mole (daChoropu_c), first fresh
+# class out of ov080's enemy cast (the PAINTING gate 50 mounted ov080 per
+# symbol; the SpawnInfo, the six state statics, the runtime table and the
+# SharedFilePtr statics were all already in that mount).
+#
+# The matched closure the host build compiles: the factory, InitResources and
+# Render (real C++ methods against include/MontyMole.h, called qualified by the
+# fill), CleanupResources and D0 (plain C), the six state-machine bodies, the
+# OnAimedAtWithEgg override (slot 29), and the four mid-life helpers -- of
+# which func_ov080_02124088 pops a 1-Up (Actor::Spawn id 276, ONE_UP_MUSHROOM,
+# already registered; the result is discarded, so a skipped spawn is safe).
+#
+# _ZN9MontyMole8BehaviorEv.cpp is DELIBERATELY NOT here: it dispatches the
+# state table through an incomplete-class pointer-to-member (the WHOMP case),
+# so it is a host copy with the table seat in
+# port/unmatched/MontyMole_StateDispatch.cpp. _ZN9MontyMoleD1Ev.cpp is not here
+# either: it is the auto-emitted-member-dtor .cpp form that cannot compile
+# against this build, so slot 16 is a host thunk running the D0 chain minus the
+# Deallocate (the HauntedChair treatment). func_ov080_02124088.cpp is a host
+# copy too (unmatched/MontyMole_1Up.cpp): its self-decl fights decl_common's
+# void* spelling, the FallBlockWf C2733.
+src/MontyMole_Spawn.c
+src/_ZN9MontyMole13InitResourcesEv.cpp
+src/_ZN9MontyMole16CleanupResourcesEv.c
+src/_ZN9MontyMole6RenderEv.cpp
+src/_ZN9MontyMoleD0Ev.c
+src/func_ov080_02123858.c
+src/func_ov080_02123860.c
+src/func_ov080_02123924.cpp
+src/func_ov080_02123a34.cpp
+src/func_ov080_02123c24.c
+src/func_ov080_02123ecc.cpp
+src/func_ov080_02123fcc.cpp
+src/func_ov080_02124208.c
+src/func_ov080_02124360.c
+src/func_ov080_021243d8.c

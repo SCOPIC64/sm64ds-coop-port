@@ -1,0 +1,280 @@
+# Gate 193: BABY_PENGUIN (256) + the actual SNOWMAN (272, the unnamed
+# daBgSnwmn_c block), ov072. Fresh per-symbol mount (port/ov072_syms.txt),
+# the ov079/ov080/ov081 convention. Full slot derivation and the
+# class-identity/vtable-slot-count corrections are documented in
+# port/ov072_syms.txt's own header. Fill is hal/actor_classes_ov072.cpp.
+#
+# SnowmanBody (274, not in level 10's census) and SnowmanHead (273, real
+# but unconditional Spawn target of daBgSnwmn_c's InitResources until star
+# 5 is collected) stay UNREGISTERED -- their own sinits
+# (__sinit_ov072_02122018, __sinit_ov072_021221f8) are NOT run; only the
+# two own-class sinits below execute.
+#
+# ---- SNOWMAN (daBgSnwmn_c), a plain Actor, 31 slots, own OnPendingDestroy
+# (empty body) at slot 12, NO own Kill (uses whatever slot 30 provides,
+# no slot-31 override at all -- see ov072_syms.txt's header for the full
+# derivation that ruled out an own-Kill file). D1/D0 stay in the slice:
+# both store the class's own (unnamed) vtable directly, no shared-
+# placeholder overwrite. InitResources' own Prepare call is a SHORT-1
+# argsweep hit (own two-argument shape, same fix as MotherPenguin's
+# gate-191 derivation) -- HOST COPY instead:
+# port/unmatched/Snowman_InitResources.cpp. Matched src stays byte-locked
+# in src/ as proof, dropped from CMakeLists' gate-193 source list.
+src/func_ov072_02120824.c
+src/func_ov072_02120874.c
+src/func_ov072_021208d8.cpp
+src/func_ov072_02120980.c
+src/func_ov072_021209bc.c
+src/func_ov072_021209c0.cpp
+src/func_ov072_02120a08.cpp
+src/func_ov072_02120c00.c
+#
+# ---- BABY_PENGUIN (daPgBby_c), a plain Actor, 31 slots (_ZTV11BabyPenguin
+# == _ZTV9daPgBby_c). D0 stays in the slice: stores its own table and
+# never overwrites it -- no host-thunk disease. D1
+# (_ZN11BabyPenguinD1Ev.cpp) is NOT in this list -- a real MSVC-
+# synthesised empty destructor over a LOCAL shadow class (Actor/
+# ModelAnim/ShadowModel/MovingCylinderClsn/WithMeshClsn declared with no
+# bodies of their own, so their destructors mangle to file-local names
+# nothing else provides bodies for) -- the MotherPenguin/OneUpLogo D1
+# shape (gate-31 PeachPainting D1 recipe): not compiled, the chain
+# spelled directly in hal/actor_classes_ov072.cpp's bp_d1 instead. No
+# vtable-store write -- BabyPenguin's D1/D0 never overwrite the vptr with
+# a placeholder (D0 stores _ZTV9daPgBby_c, its OWN table), so nothing to
+# redo here that D0's real body does not already do itself.
+src/_ZN11BabyPenguinD0Ev.c
+src/func_ov072_02120cfc.c
+src/func_ov072_02120d04.cpp
+src/func_ov072_02120ddc.c
+src/func_ov072_02120e20.cpp
+src/func_ov072_02120e50.cpp
+src/func_ov072_02120f14.cpp
+src/func_ov072_02120fd4.cpp
+src/func_ov072_021210c4.cpp
+src/func_ov072_021212c0.cpp
+src/func_ov072_02121368.c
+src/func_ov072_021214dc.c
+src/func_ov072_02121640.c
+src/func_ov072_02121670.c
+src/func_ov072_02121758.c
+src/func_ov072_02121890.c
+src/func_ov072_021218dc.cpp
+src/func_ov072_02121a28.c
+src/func_ov072_02121a84.c
+src/func_ov072_02121c94.c
+src/_ZN11BabyPenguin16CleanupResourcesEv.c
+src/_ZN11BabyPenguin16OnPendingDestroyEv.c
+# _ZN11BabyPenguin6RenderEv.cpp is NOT in this list -- the ModelAnim
+# slot-5 collision (the Whomp/Butterfly/Fish case): the matched TU
+# dispatches `sub.m(&mScaleX)` through a local six-virtual ROM-order
+# shadow off mModelAnim (+0xd4), so its "slot 5" is the ROM's
+# ModelAnim::Render; the host _ZTV9ModelAnim's slot 5 is Virtual18, whose
+# trampoline pops two stack words where the shadow pushed one -- the
+# skewed caller rets into its own spilled `self` (measured: EIP == the
+# actor pointer, DEP execute-violation, first frame instance 1 drew).
+# This was the whole "corrupted-IP jump in the shared actor-Process
+# pipeline" that excluded BABY_PENGUIN from this gate. HOST COPY:
+# port/unmatched/ModelAnim_Renders.cpp. The matched src stays byte-locked
+# in src/ as proof. daBgSnwmn_c's Render (func_ov072_021209c0.cpp, IN the
+# slice above) uses the same shadow idiom but on plain 0x50-stride Models
+# (+0xd4/+0x124), which _ZTV5Model[5]'s dual-fill serves correctly.
+src/func_ov072_02121fa0.c
+src/BabyPenguin_Spawn.c
+#
+# func_ov072_02121d18.cpp (the "enter" PMF dispatch, pp+0, called from
+# BabyPenguin's own state-machine transition sites) and
+# func_ov072_02121cdc.cpp (the "tick" PMF dispatch, pp+1, called every
+# frame from _ZN11BabyPenguin8BehaviorEv.cpp's else-branch) are NOT in
+# this list -- both are real C++ pointer-to-member calls on a deliberately
+# incomplete `struct C { char pad[0x35c]; PMF *pp; }`, the SoundObject/
+# Cap/MrBlizzard-state disease. MSVC's PMF representation for that
+# incomplete class does not reproduce the ROM's {function,delta} ABI on
+# the host. HOST COPIES instead: port/unmatched/BabyPenguin_StateEnter.cpp
+# and port/unmatched/BabyPenguin_StateTick.cpp.
+# _ZN11BabyPenguin8BehaviorEv.cpp ITSELF stays in the slice -- it only
+# CALLS func_ov072_02121cdc, it does not dispatch the PMF directly, so
+# once the host copy replaces that one callee the matched Behavior body
+# is unaffected and safe to keep.
+src/_ZN11BabyPenguin8BehaviorEv.cpp
+#
+# func_ov072_02121d50.c (the cell-pointer installer) stays IN the slice
+# -- its OWN definition (`func_ov072_02121d50(char *c, int i)`) is
+# correct and matched, only TWO of its CALLERS are the bug (a freshly-
+# found SHORT-1, not in Brain A's FINAL_TABLE.csv/FINAL_hits.csv):
+# _ZN11BabyPenguin13InitResourcesEv.cpp's own InitResources and
+# func_ov072_021217ac.cpp both call it with only ONE argument
+# (`func_ov072_02121d50(thiz)`/`(((char*)this))`), riding `i` through
+# whatever register the ROM's own prior instruction left set. Both call
+# sites write `unk_360 = 0` (or `*(int*)(c+0x360) = 0`) on the line
+# immediately touching this transition, and every OTHER call site that
+# explicitly passes i=0 (func_ov072_021212c0.cpp, func_ov072_021218dc.cpp)
+# is also a "reset to idle" transition -- i=0 is the consistent read.
+# HOST COPIES for the two buggy CALLERS: port/unmatched/
+# BabyPenguin_InitResources.cpp (also carries the D1 exclusion note above
+# -- this IS the file that replaces _ZN11BabyPenguin13InitResourcesEv.cpp)
+# and port/unmatched/BabyPenguin_LandTransition.cpp (replaces
+# func_ov072_021217ac.cpp). Both matched CALLER sources stay byte-locked
+# in src/ as proof, dropped from CMakeLists' gate-193 source list;
+# func_ov072_02121d50.c's own definition stays compiled, unmodified.
+src/func_ov072_02121d50.c
+#
+# ---- shared arm9 dependency: Player::IsDiving (called from
+# func_ov072_02120e20.cpp through the real Player class -- MSVC mangles
+# it identically to the matched src's own definition, no alias needed).
+# Not previously mounted anywhere in the port. ----
+src/_ZN6Player8IsDivingEv.cpp
+#
+# ---- the two own-class sinits (self-contained; RUN) -------------------
+# __sinit_ov072_02122018 (SnowmanBody) and __sinit_ov072_021221f8
+# (SnowmanHead) stay OFF -- neither class is hosted.
+# NOTE (review round): __sinit_ov072_02122414 (BabyPenguin's own, including
+# its six-cell PMF table build) RUNS even though BABY_PENGUIN (256) is
+# unregistered -- INERT: every write lands in BabyPenguin's own mounted
+# statics/bss, and with the class out of the registry nothing ever reads
+# them (no spawn -> no InitResources -> no dispatch through the cells).
+# The seat function (port_baby_penguin_states_seat) also never runs -- it
+# is called only from hal_fill_baby_penguin_vtable, which the registry no
+# longer invokes.
+src/__sinit_ov072_02122350.c
+src/__sinit_ov072_02122414.c
+#
+# NOT in this slice (host copies cover them instead):
+# src/func_ov072_02120a44.c (daBgSnwmn_c InitResources, Prepare SHORT-1),
+# src/func_ov072_02121d18.cpp (PMF "enter" dispatch),
+# src/func_ov072_02121cdc.cpp (PMF "tick" dispatch),
+# src/_ZN11BabyPenguin13InitResourcesEv.cpp (BabyPenguin InitResources,
+# func_ov072_02121d50 SHORT-1 -- NOT a Prepare bug, BabyPenguin has no
+# TextureSequence member and its own InitResources never calls Prepare),
+# src/func_ov072_021217ac.cpp (the land-transition helper, func_ov072_02121d50
+# SHORT-1, the same bug as InitResources' own call),
+# src/_ZN11BabyPenguin6RenderEv.cpp (the ModelAnim slot-5 collision, see
+# the note above; host copy in port/unmatched/ModelAnim_Renders.cpp).
+# All six stay byte-locked in src/ as the matched proof; none is
+# referenced from CMakeLists' gate-193 source list.
+
+# ============================================================================
+# GATE 193 EXTENSION (lane w3-d): SNOWMAN_HEAD (273) + SNOWMAN_BODY (274),
+# the two ov072 classes gate 193 left unregistered. Both are plain 31-slot
+# Actors whose vtables are 0x7c bytes and whose shared halves are BYTE-
+# IDENTICAL to the two tables ov72_fill_shared already serves, so the fill is
+# reused verbatim rather than re-derived. Full derivation in
+# port/ov072_syms.txt's header; fills in hal/actor_classes_ov072.cpp.
+#
+# WHY THIS IS A REAL SEAT AND NOT A LINKAGE PADDING EXERCISE. Level 10's
+# baseline census on this tip skips actor 0x111 -- that is SNOWMAN_HEAD, and
+# daBgSnwmn_c::InitResources spawns it unconditionally until star 5 is
+# collected. The class the port has been declining every Cool Cool Mountain
+# boot is this one.
+#
+# BOTH RENDERS ARE SAFE AND STAY IN THE SLICE. Each dispatches slot 5 through
+# a local six-virtual ROM-order shadow -- the same idiom that made
+# _ZN11BabyPenguin6RenderEv a host copy -- but the receiver decides the
+# outcome, and here it is a plain Model, not a ModelAnim. Both class
+# destructors name the member type explicitly and both agree with the
+# generated headers: SnowmanBody has Model m0 @0xd4 (0x50) / ShadowModel @0x124
+# / MovingCylinderClsn @0x14c / WithMeshClsn @0x180; SnowmanHead has Model m0
+# @0xd4 (0x50) / TextureSequence @0x124 / MovingCylinderClsn @0x138 /
+# WithMeshClsn @0x16c. _ZTV5Model[5] is dual-filled and serves the shadow
+# call correctly -- this is daBgSnwmn_c's case (whose Render is IN gate 193's
+# own slice above), not BabyPenguin's.
+#
+# THE TWO D1s ARE NOT IN THIS LIST, for the MotherPenguin/OneUpLogo/
+# BabyPenguin reason: each is a real MSVC-synthesised empty destructor over
+# LOCAL shadow classes (Model/ShadowModel/TextureSequence/MovingCylinderClsn/
+# WithMeshClsn declared with no bodies of their own), so MSVC emits calls to
+# ??1Model@@QAE@XZ and friends that nothing in the link defines. Each chain is
+# spelled directly in hal/actor_classes_ov072.cpp (smb_d1 / smh_d1),
+# transcribed from the ROM listing at 0x0211f000 and 0x0211ff34 and
+# cross-checked against the D0 bodies, which carry the identical member order
+# and offsets. UNLIKE BabyPenguin's D1, both of these DO store their own
+# table first (str r1,[r4] with the literal 0x021227c0 / 0x021228bc) -- that
+# is in the host chains too, and it is a no-op re-store of the host array.
+# Both stay byte-locked in src/ as the matched proof.
+#
+# ALL FOUR PMF DISPATCHERS ARE HOST COPIES, the BabyPenguin_StateEnter
+# treatment, in port/unmatched/Snowman_StateDispatch.cpp:
+#   func_ov072_0211fc78  SnowmanBody enter (pp+0)   pad 0x38c
+#   func_ov072_0211fc3c  SnowmanBody tick  (pp+1)   pad 0x38c
+#   func_ov072_0212059c  SnowmanHead enter (pp+0)   pad 0x328
+#   func_ov072_02120560  SnowmanHead tick  (pp+1)   pad 0x328
+# Each matched src declares `struct C; typedef void (C::*PMF)(); struct C {
+# char pad[N]; PMF *pp; };` -- a REAL C++ pointer-to-member on a deliberately
+# INCOMPLETE class. mwcc's PMF there is the ROM's own 8-byte {function,delta}
+# pair; MSVC's representation for an incomplete class is the "unknown
+# inheritance" form and calling through it does not reproduce those
+# semantics. That is measured precedent on this very overlay, not caution:
+# port/unmatched/BabyPenguin_StateEnter.cpp is the same call on the same
+# six-cell shape and its header says exactly this.
+#
+# NOTE the /vmg;/vmm entries port/CMakeLists.txt already carries for
+# func_ov072_0211fc3c.cpp and func_ov072_02120560.cpp. That block's own
+# comment calls them "inert today ... not a fix that has been measured", and
+# they cover only the two TICK dispatchers -- the two ENTER ones
+# (func_ov072_0211fc78, func_ov072_0212059c) are not in the list at all. So
+# the compile option could not have carried this seat even if the
+# representation question went the other way, and this lane did not test it.
+# All four matched TUs stay byte-locked in src/ as proof, out of the list
+# below.
+#
+# ---- SNOWMAN_BODY (daBgSnmBdy_c, 274). Six PMF state cells at
+# data_ov072_02122b64, seated with host addresses by
+# port_snowman_body_states_seat(); func_ov072_0211fcb0 is its ChangeState
+# (pp = &table + state*0x10). D1 and both dispatchers excluded (above).
+src/_ZN11SnowmanBodyD0Ev.c
+src/func_ov072_0211f0a4.c
+src/func_ov072_0211f158.cpp
+src/func_ov072_0211f1dc.cpp
+src/func_ov072_0211f280.c
+src/func_ov072_0211f330.c
+src/func_ov072_0211f3e4.c
+src/func_ov072_0211f48c.cpp
+src/func_ov072_0211f578.c
+src/func_ov072_0211f598.c
+src/func_ov072_0211f63c.c
+src/func_ov072_0211f65c.cpp
+src/func_ov072_0211f804.c
+src/func_ov072_0211f81c.cpp
+src/func_ov072_0211f9c4.c
+src/func_ov072_0211fa08.cpp
+src/func_ov072_0211faf0.c
+src/func_ov072_0211fb14.cpp
+src/func_ov072_0211fb7c.c
+src/func_ov072_0211fcb0.c
+src/_ZN11SnowmanBody16CleanupResourcesEv.c
+src/_ZN11SnowmanBody16OnPendingDestroyEv.c
+src/_ZN11SnowmanBody6RenderEv.cpp
+src/_ZN11SnowmanBody8BehaviorEv.cpp
+src/_ZN11SnowmanBody13InitResourcesEv.cpp
+src/SnowmanBody_Spawn.c
+src/__sinit_ov072_02122018.c
+#
+# ---- SNOWMAN_HEAD (daBgSnmHed_c, 273). Four PMF state cells at
+# data_ov072_02122c00, seated by port_snowman_head_states_seat();
+# func_ov072_021205d4 is its ChangeState. D1 and both dispatchers excluded
+# (above).
+#
+# T5: src/func_ov072_0212001c.c carries "recovered from vtable slot identity"
+# and the recovered name "SnowmanBody_Kill". BOTH are wrong and the body is
+# real decomp -- it is cell 3's ENTER half of SnowmanHead's state table (the
+# source pair at 0x0212283c), reached through func_ov072_0212059c and named
+# by NO vtable slot in either ov072 table; and match.py reproduces all 0x164
+# bytes at 2004/b56 with --strict-relocs. Ruled REAL_DECOMP before seating,
+# row appended to port/tools/inferred_stub_adjudicated.txt with the evidence.
+src/_ZN11SnowmanHeadD0Ev.c
+src/func_ov072_0211ffd8.c
+src/func_ov072_0212001c.c
+src/func_ov072_02120180.c
+src/func_ov072_021201d4.c
+src/func_ov072_02120308.c
+src/func_ov072_02120358.c
+src/func_ov072_02120430.c
+src/func_ov072_02120450.cpp
+src/func_ov072_02120514.c
+src/func_ov072_021205d4.c
+src/_ZN11SnowmanHead16CleanupResourcesEv.c
+src/_ZN11SnowmanHead16OnPendingDestroyEv.c
+src/_ZN11SnowmanHead6RenderEv.cpp
+src/_ZN11SnowmanHead8BehaviorEv.cpp
+src/_ZN11SnowmanHead13InitResourcesEv.cpp
+src/SnowmanHead_Spawn.c
+src/__sinit_ov072_021221f8.c

@@ -30,18 +30,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "dsstate_seg.h"
 
 typedef unsigned int u32;
 typedef unsigned short u16;
 typedef unsigned char u8;
-#include "SharedFilePtr.h"
-
-extern "C" {
-void *_ZN13SharedFilePtr8LoadFileEv(SharedFilePtr *self)
-{ return self->SharedFilePtr::LoadFile(); }
-void _ZN13SharedFilePtr7ReleaseEv(SharedFilePtr *self)
-{ self->SharedFilePtr::Release(); }
-}
 
 #ifndef PORT_REPO_ROOT
 #define PORT_REPO_ROOT "."
@@ -54,9 +47,20 @@ static char g_paths[MAX_FILES][PATH_MAX_]; /* by FAT file id */
 static u16 g_handle_to_id[MAX_HANDLES];    /* ov0 handle -> FAT file id */
 static int g_catalog_loaded;
 
+#ifdef PORT_ROM_CLEAN
+/* A shipping build has no PORT_REPO_ROOT fallback. hal/asset_root_refuse.cpp
+   says why at length; the short version is that the fallback is invisible on
+   every machine that can test it and fatal on every machine that cannot. */
+extern "C" void port_asset_root_refuse(const char *wanted);
+#endif
+
 static const char *asset_root(void)
 {
     const char *env = getenv("SM64DS_ASSET_ROOT");
+#ifdef PORT_ROM_CLEAN
+    if (!env)
+        port_asset_root_refuse("build/assets/files.tsv");
+#endif
     return env ? env : PORT_REPO_ROOT;
 }
 
@@ -99,6 +103,35 @@ static void catalog_load(void)
     fclose(f);
 }
 
+/* ---- the mod hooks (hal/fs_mods.cpp) -------------------------------------
+   Null in every target that does not link fs_mods.cpp, which is every smoke
+   target; fs.cpp itself cannot name a settings accessor without dragging
+   host_settings.cpp into fifteen link lines. When installed: map may return
+   a DIFFERENT file id to serve in place of the asked-for one, and filter may
+   rewrite a loose file's decompressed master in place, returning its new
+   (never larger) size. Both run under the seam, so the game sees only the
+   served bytes -- see fs_mods.cpp for what a mod is and is not allowed to do. */
+extern "C" {
+unsigned (*port_fs_mod_map)(unsigned fileID);
+/* May rewrite *data in place (returning the new, never larger, size) or
+   REPLACE it: free the old master and point *data at a fresh malloc'd one,
+   returning the new size. Either way the caller keeps ownership of *data. */
+u32 (*port_fs_mod_filter)(unsigned fileID, u8 **data, u32 size);
+}
+
+/* Read-only: the catalog's path for a FAT file id, or 0.
+   Run link60 lane NFS. hal/fs_names.cpp owns the open-by-name seam and shares
+   THIS table rather than reading files.tsv a second time, so the two seams
+   cannot drift about what a file id is. Nothing about the routing changes:
+   this file still references no symbol on the open-by-name trace. */
+extern "C" const char *port_fs_catalog_path(unsigned file_id)
+{
+    catalog_load();
+    if (file_id >= MAX_FILES || g_paths[file_id][0] == 0)
+        return 0;
+    return g_paths[file_id];
+}
+
 // ---- the game-facing surface ---------------------------------------------
 // The Memory:: layer is real C++ on host (gate-3a slice), so the HAL calls
 // the namespace; the C-linkage name below serves the C TUs (func_02017c24).
@@ -110,12 +143,19 @@ void Deallocate(void *p);
 extern "C" void _ZN6Memory10DeallocateEPv(void *p) { Memory::Deallocate(p); }
 
 extern "C" {
+DSSTATE_BEGIN
 u32 data_0209d3bc; /* last fileID touched; the game's FS breadcrumb */
+DSSTATE_END
 
-/* ov0 handle -> FAT file id (data_ov000_020bd4b8 on the DS) */
+/* ov0 handle -> FAT file id (data_ov000_020bd4b8 on the DS)
+   PORT_HOST_ABI: src reads the ROM's ov0 handle table (data_0209d3b8), not hosted;
+   the HAL resolves handles through the asset catalog instead. */
 u16 func_02018a24(u32 handle)
 {
     catalog_load();
+    if (handle >= 0x8000)
+        return (u16)handle;   /* archive-interior: already a file id (DS
+                                 original passes >= 0x8000 through) */
     if (handle >= MAX_HANDLES || g_paths[g_handle_to_id[handle]][0] == 0) {
         fprintf(stderr, "FATAL: fs handle %u not in catalog\n", handle);
         abort();
@@ -123,7 +163,9 @@ u16 func_02018a24(u32 handle)
     return g_handle_to_id[handle];
 }
 
-/* LZ77 type-0x10 decode; src points at the u32 header */
+/* LZ77 type-0x10 decode; src points at the u32 header
+   PORT_HOST_ABI: src TU is an ARM asm hatch (VRAM-safe halfword dance),
+   MSVC cannot assemble; the HAL carries a byte-identical C decode. */
 void DecompressLZ16(void *src_, void *dst_)
 {
     const u8 *s = (const u8 *)src_;
@@ -149,27 +191,310 @@ void DecompressLZ16(void *src_, void *dst_)
     }
 }
 
-/* SharedFilePtr::Load -- the seam. Same contract as 0x02017c54. */
-struct SharedFilePtrC { u16 fileID; u8 numRefs; void *filePtr; };
+/* Archive-interior file IDs (>= 0x8000): the DS mounts 13 NARC archives
+   whose id ranges live in the ROM's mount table; interior id - base
+   indexes the NARC's own FAT. port_archive_map is the host-shaped copy
+   romdata.py generates from that table. Each archive lazy-loads whole
+   (they are small) and stays cached. */
+struct port_arc_entry { u16 base, end; const char *narc; };
+extern "C" struct port_arc_entry port_archive_map[13];
+static u8 *g_arc_buf[13];
+static long g_arc_len[13];
 
-void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
+struct fs_cache_entry;
+static int fs_entry_store(struct fs_cache_entry *e, const u8 *src, u32 len);
+
+/* lazy-load archive i's whole image into g_arc_buf; returns it or 0. Split
+   out so the slice path below can reach the cached image without the
+   per-member decode port_fs_archive_fill layers on top. */
+static u8 *port_fs_archive_image(int i, const struct port_arc_entry *e)
+{
+    if (!g_arc_buf[i]) {
+        char path[PATH_MAX_ * 2];
+        snprintf(path, sizeof path, "%s/extracted/dsd/files/%s",
+                 asset_root(), e->narc);
+        FILE *f = fopen(path, "rb");
+        if (!f) {
+            fprintf(stderr, "fs: archive missing on disk: %s\n", path);
+            return 0;
+        }
+        fseek(f, 0, SEEK_END);
+        g_arc_len[i] = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        g_arc_buf[i] = (u8 *)malloc(g_arc_len[i]);
+        if ((long)fread(g_arc_buf[i], 1, g_arc_len[i], f) != g_arc_len[i]) {
+            fclose(f);
+            free(g_arc_buf[i]);
+            g_arc_buf[i] = 0;
+            return 0;
+        }
+        fclose(f);
+    }
+    return g_arc_buf[i];
+}
+
+/* fill e with the decompressed bytes of an archive-interior file. 1 on
+   success, 0 on a data hole; aborts only where the original did. */
+static int port_fs_archive_fill(struct fs_cache_entry *ent, unsigned fileID)
+{
+    for (int i = 0; i < 13; ++i) {
+        struct port_arc_entry *e = &port_archive_map[i];
+        if (fileID < e->base || fileID >= e->end)
+            continue;
+        u8 *a = port_fs_archive_image(i, e);
+        if (!a)
+            return 0;
+        if (memcmp(a, "NARC", 4) != 0) {
+            fprintf(stderr, "fs: %s is not a NARC\n", e->narc);
+            return 0;
+        }
+        /* chunk walk: BTAF (fat), BTNF (names), GMIF (data) */
+        u8 *btaf = a + 0x10;
+        u32 btaf_size = btaf[4] | btaf[5] << 8 | btaf[6] << 16 | (u32)btaf[7] << 24;
+        u16 nfiles = (u16)(btaf[8] | btaf[9] << 8);
+        u8 *btnf = btaf + btaf_size;
+        u32 btnf_size = btnf[4] | btnf[5] << 8 | btnf[6] << 16 | (u32)btnf[7] << 24;
+        u8 *gmif = btnf + btnf_size;
+        u8 *img = gmif + 8;
+        unsigned idx = fileID - e->base;
+        if (idx >= nfiles) {
+            fprintf(stderr, "fs: interior %u out of range in %s (%u files)\n",
+                    idx, e->narc, nfiles);
+            return 0;
+        }
+        u8 *fat = btaf + 12 + idx * 8;
+        u32 start = fat[0] | fat[1] << 8 | fat[2] << 16 | (u32)fat[3] << 24;
+        u32 end = fat[4] | fat[5] << 8 | fat[6] << 16 | (u32)fat[7] << 24;
+        return fs_entry_store(ent, img + start, end - start);
+    }
+    fprintf(stderr, "FATAL: fs fileID 0x%x matches no archive range\n", fileID);
+    abort();
+}
+
+/* One BTNF directory, recursively: names are length-prefixed, high bit set
+   marks a subdirectory entry (name then u16 dir id); file ids count up from
+   the directory record's firstFile. Returns the interior index of `want`
+   built as a forward-slash path, or -1. Depth and cursor are both bounded:
+   a malformed table returns -1, never walks wild. */
+static long btnf_find(const u8 *nb, u32 nsize, unsigned dir, char *buf,
+                      size_t pos, size_t cap, const char *want, int depth)
+{
+    u32 e, p;
+    unsigned fid;
+    if (depth > 16 || (u32)(dir & 0xFFF) * 8 + 8 > nsize)
+        return -1;
+    e = (u32)(dir & 0xFFF) * 8;
+    p = nb[e] | nb[e + 1] << 8 | nb[e + 2] << 16 | (u32)nb[e + 3] << 24;
+    fid = (unsigned)(nb[e + 4] | nb[e + 5] << 8);
+    while (p < nsize) {
+        u8 t = nb[p++];
+        u32 ln = t & 0x7F;
+        if (t == 0)
+            break;
+        if (p + ln > nsize || pos + ln + 2 > cap)
+            return -1;
+        memcpy(buf + pos, nb + p, ln);
+        p += ln;
+        if (t & 0x80) {
+            unsigned sub;
+            if (p + 2 > nsize)
+                return -1;
+            sub = (unsigned)(nb[p] | nb[p + 1] << 8);
+            p += 2;
+            buf[pos + ln] = '/';
+            buf[pos + ln + 1] = '\0';
+            long r = btnf_find(nb, nsize, sub, buf, pos + ln + 1, cap, want,
+                               depth + 1);
+            if (r >= 0)
+                return r;
+        } else {
+            buf[pos + ln] = '\0';
+            if (strcmp(buf, want) == 0)
+                return (long)fid;
+            ++fid;
+        }
+    }
+    return -1;
+}
+
+/* Resolve an archive-interior file by its BTNF path ("data/player/
+   mario_model.bmd") to the runtime file id, or 0 when no mounted archive
+   names it. For mods, which key their targets by NAME: every id table here
+   is generated from the player's own dump, so a shipped id would be a guess
+   where a shipped name is a fact. */
+extern "C" unsigned port_fs_interior_id(const char *want)
+{
+    for (int i = 0; i < 13; ++i) {
+        struct port_arc_entry *e = &port_archive_map[i];
+        u8 *a = port_fs_archive_image(i, e);
+        u32 btaf_size, btnf_size;
+        u8 *btaf, *btnf;
+        char buf[256];
+        long idx;
+        if (!a || g_arc_len[i] < 0x18 || memcmp(a, "NARC", 4) != 0)
+            continue;
+        btaf = a + 0x10;
+        btaf_size = btaf[4] | btaf[5] << 8 | btaf[6] << 16 | (u32)btaf[7] << 24;
+        btnf = btaf + btaf_size;
+        if (btnf + 8 > a + g_arc_len[i])
+            continue;
+        btnf_size = btnf[4] | btnf[5] << 8 | btnf[6] << 16 | (u32)btnf[7] << 24;
+        if (btnf_size <= 8 || btnf + btnf_size > a + g_arc_len[i])
+            continue;
+        idx = btnf_find(btnf + 8, btnf_size - 8, 0, buf, 0, sizeof buf,
+                        want, 0);
+        if (idx >= 0 && e->base + idx < e->end)
+            return (unsigned)(e->base + idx);
+    }
+    return 0;
+}
+
+/* ---- host file cache ----------------------------------------------------
+   WHY: SharedFilePtr is refcounted, and every file whose count reaches zero
+   is Deallocate'd by func_02017c24 and re-read on the next reference. That
+   is right for a DS with 4 MB of RAM and a card that streams; on a host it
+   means Player::SetAnim does a blocking fopen + fread + LZ77 decode on the
+   frame the animation changes (see src/_ZN6Player7SetAnimEji5Fix12IiEj.cpp:
+   Release(old) immediately followed by LoadFile(new)). That was the frame
+   hitch on jumps.
+
+   The cache sits entirely under the seam and changes no observable contract:
+   it keeps its own master copy of the DECOMPRESSED bytes and still hands the
+   caller a fresh Memory::Allocate'd buffer on every Load, allocated with the
+   same call shape the uncached path used (1-arg for LZ77 output, 0x20-aligned
+   for stored files). The game remains free to write into what it is given and
+   to Deallocate it; the next Load gets pristine bytes, exactly as a re-read
+   from the card would. The master is snapshotted at decode time, before the
+   caller can touch it, so a mutating caller cannot poison the cache.
+
+   BOTH id namespaces are cached. Measured on a 300-frame castle-grounds walk:
+   145 loads at boot (86 loose + 59 archive) and only 3 during play, and all
+   three of those were archive-interior -- the Player's animations live inside
+   a NARC, so a loose-file-only cache would never have served one. The archive
+   path is cheaper than the loose one (the NARC itself is already resident) but
+   it still LZ77-decodes per load, so it gets the same treatment. */
+struct fs_cache_entry {
+    u8 *data;   /* master copy: decompressed bytes, malloc'd, never handed out */
+    u32 size;
+    int align;  /* 0 = Memory::Allocate(size); else Allocate(size, align) */
+    int valid;
+};
+/* indexed by fileID; SharedFilePtr::fileID is a u16, so one flat lazily
+   allocated table covers loose files and archive interiors alike */
+enum { FS_CACHE_SLOTS = 0x10000 };
+static struct fs_cache_entry *g_fcache;
+static unsigned long g_fcache_bytes, g_fcache_files;
+static unsigned long g_fs_hits, g_fs_misses;
+static int g_fcache_capped;
+
+static struct fs_cache_entry *fs_slot(unsigned fileID)
+{
+    if (!g_fcache)
+        g_fcache = (struct fs_cache_entry *)
+                   calloc(FS_CACHE_SLOTS, sizeof *g_fcache);
+    return g_fcache && fileID < FS_CACHE_SLOTS ? &g_fcache[fileID] : 0;
+}
+
+/* copy len bytes of file image into e's master, decompressing if LZ77-tagged.
+   Records the allocation shape the uncached path would have used. */
+static int fs_entry_store(struct fs_cache_entry *e, const u8 *src, u32 len)
+{
+    if (len > 8 && memcmp(src, "LZ77", 4) == 0) {
+        u32 dec = (src[4] | src[5] << 8 | src[6] << 16 | (u32)src[7] << 24) >> 8;
+        e->data = (u8 *)malloc(dec ? dec : 1);
+        if (!e->data) return 0;
+        DecompressLZ16((void *)(src + 4), e->data);
+        e->size = dec;
+        e->align = 0;
+    } else {
+        e->data = (u8 *)malloc(len ? len : 1);
+        if (!e->data) return 0;
+        memcpy(e->data, src, len);
+        e->size = len;
+        e->align = 0x20;
+    }
+    return 1;
+}
+
+/* keep-all is fine at castle-grounds sizes; the cap only exists so a long or
+   pathological run cannot grow without bound. Blocked admissions still load,
+   they just go to disk. */
+static unsigned long fs_cache_max(void)
+{
+    const char *e = getenv("SM64DS_FS_CACHE_MAX");
+    return e ? strtoul(e, 0, 0) : 128UL * 1024 * 1024;
+}
+
+static int fs_env_on(const char *name)
+{
+    const char *e = getenv(name);
+    return e && *e && *e != '0';
+}
+
+static int fs_trace_on(void)
+{
+    static int v = -1;
+    if (v < 0) v = fs_env_on("SM64DS_FS_TRACE");
+    return v;
+}
+
+static int fs_cache_off(void)
+{
+    static int v = -1;
+    if (v < 0) v = fs_env_on("SM64DS_FS_NOCACHE");
+    return v;
+}
+
+static void fs_cache_report(void)
+{
+    fprintf(stderr, "fs: cache %lu files, %lu bytes resident; %lu hits, "
+            "%lu misses%s\n", g_fcache_files, g_fcache_bytes, g_fs_hits,
+            g_fs_misses, g_fcache_capped ? " (cap reached)" : "");
+}
+
+/* ---- the load meter -----------------------------------------------------
+   Counters a probe can sample either side of a frame to attribute that
+   frame's cost. They are always maintained (four adds on a path that already
+   allocates and memcpys a file, so the cost is not measurable) and nothing
+   reads them unless a probe asks. port_fs_ms is wall time spent INSIDE
+   SharedFilePtr::Load, which on a cache hit is the Allocate plus the memcpy
+   and on a miss is the disk read and the LZ77 decode as well.
+
+   QueryPerformanceCounter is declared by hand rather than by including
+   windows.h: this file defines u8/u16/u32 and carries DS-shaped structs, and
+   the Windows headers collide with several of them. */
+extern "C" __declspec(dllimport) int __stdcall
+    QueryPerformanceCounter(long long *);
+extern "C" __declspec(dllimport) int __stdcall
+    QueryPerformanceFrequency(long long *);
+
+extern "C" {
+unsigned long port_fs_loads;     /* SharedFilePtr::Load calls */
+unsigned long port_fs_load_miss; /* those that reached disk or a NARC */
+unsigned long port_fs_bytes;     /* bytes allocated and copied to callers */
+double port_fs_ms;               /* wall time inside Load */
+}
+
+static double fs_now_ms(void)
+{
+    static long long qpf;
+    long long n;
+    if (!qpf) QueryPerformanceFrequency(&qpf);
+    QueryPerformanceCounter(&n);
+    return (double)n * 1000.0 / (double)qpf;
+}
+
+/* read + decompress a loose FAT file into e's master copy. 1 on success. */
+static int fs_cache_fill(struct fs_cache_entry *e, unsigned fileID)
 {
     char path[PATH_MAX_ * 2];
     FILE *f;
     long fsize;
     u8 *raw;
-    void *dst;
+    int ok;
 
-    catalog_load();
-    data_0209d3bc = self->fileID;
-    if (self->fileID >= MAX_FILES || g_paths[self->fileID][0] == 0) {
-        fprintf(stderr, "FATAL: fs fileID %u not in catalog "
-                "(archive-interior ids >= 0x8000 not hosted yet)\n",
-                self->fileID);
-        abort();
-    }
     snprintf(path, sizeof path, "%s/extracted/dsd/files/%s",
-             asset_root(), g_paths[self->fileID]);
+             asset_root(), g_paths[fileID]);
     f = fopen(path, "rb");
     if (!f) {
         /* a cataloged file missing on disk is a data hole (regional variants
@@ -188,22 +513,273 @@ void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
         return 0; /* real Load returns 0 on a short read */
     }
     fclose(f);
+    ok = fs_entry_store(e, raw, (u32)fsize);
+    free(raw);
+    return ok;
+}
 
-    if (fsize > 8 && memcmp(raw, "LZ77", 4) == 0) {
-        u32 dec = (raw[4] | raw[5] << 8 | raw[6] << 16 | (u32)raw[7] << 24) >> 8;
-        dst = Memory::Allocate(dec);
-        DecompressLZ16(raw + 4, dst);
+/* hand the caller its own buffer, allocated the way the uncached path did */
+static void *fs_hand_out(const struct fs_cache_entry *e)
+{
+    void *dst = e->align ? Memory::Allocate(e->size, e->align)
+                         : Memory::Allocate(e->size);
+    if (dst)
+        memcpy(dst, e->data, e->size);
+    return dst;
+}
+
+/* SharedFilePtr::Load -- the seam. Same contract as 0x02017c54. */
+struct SharedFilePtrC { u16 fileID; u8 numRefs; void *filePtr; };
+
+// PORT_HOST_ABI: DS card hardware (overlay-file table, card streaming,
+//   CP15 flushes); the HAL reimplements the contract. See SEAM LEVEL in the
+//   header.
+void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
+{
+    struct fs_cache_entry *e, tmp;
+    unsigned fid = self->fileID;
+    int archive;
+    const char *src;
+    int cached, admit, ok;
+    u32 tsize;
+    void *dst;
+    const double t0 = fs_now_ms();
+
+    port_fs_loads++;
+    catalog_load();
+    /* The breadcrumb keeps the id the GAME asked for: it is dsstate, and the
+       mod hook below is a host substitution the game never learns about. */
+    data_0209d3bc = self->fileID;
+    if (port_fs_mod_map)
+        fid = port_fs_mod_map(fid);
+    archive = fid >= 0x8000;
+    if (!archive && (fid >= MAX_FILES || g_paths[fid][0] == 0)) {
+        fprintf(stderr, "FATAL: fs fileID %u not in catalog (fileptr %p)\n",
+                fid, (void *)self);
+        abort();
+    }
+
+    e = fs_slot(fid);
+    cached = e && e->valid;
+    if (cached) {
+        g_fs_hits++;
+        tsize = e->size;
+        dst = fs_hand_out(e);
+        src = "cache";
     } else {
-        dst = Memory::Allocate((u32)fsize, 0x20);
-        memcpy(dst, raw, fsize);
+        struct fs_cache_entry *slot;
+        admit = e && !fs_cache_off() && g_fcache_bytes < fs_cache_max();
+        slot = admit ? e : &tmp;
+        memset(slot, 0, sizeof *slot);
+        ok = archive ? port_fs_archive_fill(slot, fid)
+                     : fs_cache_fill(slot, fid);
+        /* mod filter, on the decompressed master and before anyone caches or
+           copies it, so a rewritten file is rewritten exactly once -- and
+           HERE, after both fills, so the two id namespaces cannot disagree
+           about whether mods exist (the character models are archive
+           interiors). */
+        if (ok && port_fs_mod_filter)
+            slot->size = port_fs_mod_filter(fid, &slot->data, slot->size);
+        if (!ok) {
+            if (slot->data) { free(slot->data); slot->data = 0; }
+            return 0;
+        }
+        if (admit) {
+            slot->valid = 1;
+            g_fcache_bytes += slot->size;
+            if (++g_fcache_files == 1 && fs_trace_on())
+                atexit(fs_cache_report);
+        } else if (e && !fs_cache_off()) {
+            g_fcache_capped = 1;
+        }
+        g_fs_misses++;
+        tsize = slot->size;
+        dst = fs_hand_out(slot);
+        if (!admit) {
+            free(slot->data);
+            slot->data = 0;
+        }
+        src = archive ? "archive" : "disk";
+        port_fs_load_miss++;
+    }
+
+    port_fs_bytes += tsize;
+    port_fs_ms += fs_now_ms() - t0;
+    if (fs_trace_on())
+        fprintf(stderr, "fs: load id=%u%s size=%u source=%s\n",
+                self->fileID, fid != self->fileID ? " (modded)" : "",
+                tsize, src);
+    if (dst)
+        self->filePtr = dst;
+    return dst;
+}
+
+// ---- the LOAD-AT pair (gate 24) ------------------------------------------
+//
+// LoadFileAt and LoadCompressedFileAt are the two entry points
+// Stage::LoadGraphics2D fills the bottom screen through, and both are matched
+// src that bottom out in the card layer this file replaces:
+//
+//     LoadFileAt(handle, dest)         -> func_02018270(handle, dest, -1)
+//     LoadCompressedFileAt(id, target) -> func_0201817c(id), then the caller
+//                                         reads the LZ header itself and
+//                                         decompresses to target
+//
+// So func_0201817c has to hand back the file still COMPRESSED, with its u32
+// LZ header at offset 0 -- LoadCompressedFileAt's own next two lines are
+// `size = func_02018ac4(src)` (that header >> 8) and DecompressLZ16(src,
+// target). SharedFilePtr::Load above cannot serve it: Load decompresses.
+// Hence a raw sibling rather than a call into the seam.
+//
+// The extraction stores compressed files with a four-byte "LZ77" magic in
+// front of the standard header; the card does not, so it is stripped here,
+// exactly as Load does with its `raw + 4`.
+/* The archive-interior case, without the decompression Load does: a pointer
+   into the cached NARC image and the length of the member. Same chunk walk as
+   port_fs_archive_fill; that one copies and decodes, this one does not. */
+static const u8 *port_fs_archive_slice(unsigned fileID, u32 *len_out)
+{
+    for (int i = 0; i < 13; ++i) {
+        struct port_arc_entry *e = &port_archive_map[i];
+        if (fileID < e->base || fileID >= e->end)
+            continue;
+        u8 *a = port_fs_archive_image(i, e);
+        if (!a || memcmp(a, "NARC", 4) != 0)
+            return 0;
+        u8 *btaf = a + 0x10;
+        u32 btaf_size = btaf[4] | btaf[5] << 8 | btaf[6] << 16 | (u32)btaf[7] << 24;
+        u16 nfiles = (u16)(btaf[8] | btaf[9] << 8);
+        u8 *btnf = btaf + btaf_size;
+        u32 btnf_size = btnf[4] | btnf[5] << 8 | btnf[6] << 16 | (u32)btnf[7] << 24;
+        u8 *img = btnf + btnf_size + 8;
+        unsigned idx = fileID - e->base;
+        if (idx >= nfiles)
+            return 0;
+        u8 *fat = btaf + 12 + idx * 8;
+        u32 start = fat[0] | fat[1] << 8 | fat[2] << 16 | (u32)fat[3] << 24;
+        u32 end = fat[4] | fat[5] << 8 | fat[6] << 16 | (u32)fat[7] << 24;
+        *len_out = end - start;
+        return img + start;
+    }
+    return 0;
+}
+
+static u8 *port_fs_read_raw(u32 handle, long *len_out)
+{
+    char path[PATH_MAX_ * 2];
+    u32 fileID;
+    catalog_load();
+    fileID = func_02018a24(handle);
+    /* Same substitution the Load seam makes. This path serves bytes still
+       compressed, so only the map hook applies here, never the filter --
+       the one mod that rewrites bytes rides files that load through
+       SharedFilePtr, and fs_mods.cpp says so. */
+    if (port_fs_mod_map) {
+        unsigned mapped = port_fs_mod_map(fileID);
+        if (fs_trace_on())
+            fprintf(stderr, "fs: load-at handle=0x%x id=%u%s\n", handle,
+                    fileID, mapped != fileID ? " (modded)" : "");
+        fileID = mapped;
+    } else if (fs_trace_on()) {
+        fprintf(stderr, "fs: load-at handle=0x%x id=%u\n", handle, fileID);
+    }
+    /* Handles at or past 0x8000 are archive-interior ids -- the ones
+       Stage::LoadGraphics2D uses for every one of its own files -- and they
+       are not in the plain FAT catalog at all. */
+    if (fileID >= 0x8000) {
+        u32 alen = 0;
+        const u8 *slice = port_fs_archive_slice(fileID, &alen);
+        u8 *copy;
+        if (!slice) {
+            fprintf(stderr, "fs: load-at interior id 0x%x not found\n", fileID);
+            return 0;
+        }
+        copy = (u8 *)malloc(alen ? alen : 1);
+        memcpy(copy, slice, alen);
+        *len_out = (long)alen;
+        return copy;
+    }
+    if (fileID >= MAX_FILES || g_paths[fileID][0] == 0) {
+        fprintf(stderr, "fs: load-at fileID %u (handle 0x%x) not in catalog\n",
+                fileID, handle);
+        return 0;
+    }
+    snprintf(path, sizeof path, "%s/extracted/dsd/files/%s", asset_root(),
+             g_paths[fileID]);
+    {
+        FILE *f = fopen(path, "rb");
+        long fsize;
+        u8 *raw;
+        if (!f) {
+            fprintf(stderr, "fs: load-at missing on disk: %s\n", path);
+            return 0;
+        }
+        fseek(f, 0, SEEK_END);
+        fsize = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        raw = (u8 *)malloc(fsize);
+        if ((long)fread(raw, 1, fsize, f) != fsize) {
+            fclose(f);
+            free(raw);
+            return 0;
+        }
+        fclose(f);
+        *len_out = fsize;
+        return raw;
+    }
+}
+
+/* func_0201817c: the file, still compressed, on the game's own heap so the
+   caller's Deallocate matches.
+   PORT_HOST_ABI: src is func_0201818c(handle,0) -- the DS card loader (CpuCopy8
+   asm, CP15 flushes, FS_CloseFile); the HAL reimplements the load contract. */
+void *func_0201817c(u32 handle)
+{
+    long len = 0;
+    u8 *raw = port_fs_read_raw(handle, &len);
+    void *dst;
+    int magic;
+    long blen;
+    if (!raw)
+        return 0;
+    magic = len > 8 && memcmp(raw, "LZ77", 4) == 0;
+    blen = magic ? len - 4 : len;
+    dst = Memory::Allocate((u32)blen, 0x20);
+    memcpy(dst, magic ? raw + 4 : raw, blen);
+    free(raw);
+    return dst;
+}
+
+/* func_02018270: the file's bytes straight to an address. The card reads raw,
+   but a compressed file arriving here would mean the caller wanted
+   LoadCompressedFileAt, so decode rather than write an LZ header into VRAM --
+   and say so once, because it means the two are being confused.
+   PORT_HOST_ABI: src drives the DS card loader (func_02018a24/func_020185c0/
+   func_020184e0 over card hardware); the HAL reimplements the load contract. */
+void func_02018270(u32 handle, u32 dest, int size)
+{
+    long len = 0;
+    u8 *raw = port_fs_read_raw(handle, &len);
+    if (!raw)
+        return;
+    if (len > 8 && memcmp(raw, "LZ77", 4) == 0) {
+        static int said;
+        if (!said++)
+            fprintf(stderr, "fs: LoadFileAt(0x%x) on an LZ77 file; decoding\n",
+                    handle);
+        DecompressLZ16(raw + 4, (void *)dest);
+    } else {
+        if (size >= 0 && (long)size < len)
+            len = size;
+        memcpy((void *)dest, raw, len);
     }
     free(raw);
-    self->filePtr = dst;
-    return dst;
 }
 
 /* Construct: host ABI spells out both args (see header comment) */
 void func_02017e0c(void *self, u32 arg); /* portable src/ */
+// PORT_HOST_ABI: ARM register ride-through: the ROM leaves ov0FileID in
+//   r1 across a call that names one argument. See the header's ABI note.
 struct SharedFilePtrC *_ZN13SharedFilePtr9ConstructEj(
         struct SharedFilePtrC *self, u32 ov0FileID)
 {
@@ -211,16 +787,3 @@ struct SharedFilePtrC *_ZN13SharedFilePtr9ConstructEj(
     return self;
 }
 } /* extern "C" */
-
-/* The seam above is spelled as a C function because that is how src/ reached it
-   before the callers were converted. include/SharedFilePtr.h now declares Load as
-   the real member, and src/_ZN13SharedFilePtr8LoadFileEv.cpp calls it as one -- so
-   this target, which deliberately does NOT compile the card-hardware
-   src/_ZN13SharedFilePtr4LoadEv.cpp, has to export the member too. Same seam, one
-   spelling forwarding to the other. */
-#include "SharedFilePtr.h"
-
-void *SharedFilePtr::Load()
-{
-    return _ZN13SharedFilePtr4LoadEv((struct SharedFilePtrC *)this);
-}

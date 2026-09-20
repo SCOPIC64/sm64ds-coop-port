@@ -1,0 +1,148 @@
+# run linkw wave 4 (lane w4-b): ov045's PLATFORM CAST, per symbol.
+#
+# ov045 (level 37, Bowser in the Fire Sea, data/stage/koopa2_map) is already
+# mounted WHOLE in PORT_LEVEL_OVERLAYS -- wave 3 landed that, and the loaders
+# walk the LVL_Overlay's object tables across whatever symbol boundaries dsd
+# named, which is why a level overlay needs the whole-image mount. This file is
+# the SECOND mount of the same overlay, per symbol, and the two do not conflict:
+# tools/ovdata.py --whole emits port_ov045_image / _patch / _at and NOTHING by
+# name, while --from-list --pack emits the named arrays plus
+# port_ov045_syms_patch, and its own comment says the two tags are kept distinct
+# for exactly this case. ov010/ov012/ov013/ov014/ov015/ov016/ov018/ov019/ov020
+# are all dual-mounted the same way today; this is the tenth.
+#
+# WHY the cast needs the named mount rather than the image: the registry
+# rewrites each SpawnInfo's +0 word to the host factory and ActorBase's
+# constructor reads the two list priorities back out of the SAME record, and the
+# class code reaches its SharedFilePtrs, CLPS blocks and file tables BY NAME.
+# Those have to be storage the actor code and the registry agree on, which the
+# whole image is not.
+#
+# ==== MANDATORY WINDOW-ALIAS CHECK (the gate-199/202 rule) ==================
+# All six SpawnInfo addresses are flagged `ambiguous` in config/arm9/overlays/
+# ov045/symbols.txt, and the arm9 SPAWN TABLE entries (0x02090864 + id*4) cite a
+# dozen overlays sharing this window:
+#   id 139 site 0x02090a90 -> 0x021130d0  module:overlays(9,18,19,21,24,...,45,56)
+#   id 140 site 0x02090a94 -> 0x02112cd0  module:overlays(9,10,19,24,25,35,36,45,56)
+#   id 141 site 0x02090a98 -> 0x02112ffc  module:overlays(9,14,18,19,21,...,45,56)
+#   id 142 site 0x02090a9c -> 0x02112d98  module:overlays(9,19,24,25,36,45,56)
+#   id 145 site 0x02090aa8 -> 0x02112f2c  module:overlays(9,15,18,19,21,...,45,56)
+#   id 148 site 0x02090ab4 -> 0x02112e5c  module:overlays(9,15,19,24,25,26,36,45,56)
+# RESOLVED by reading the raw bytes out of extracted/overlays/overlay_0045.bin
+# (base 0x021111a0 -- ov045 is compressed:true in overlays.yaml, so the dsd
+# export extracted/dsd/arm9_overlays/ov045.bin is the COMPRESSED image and
+# reading halfwords out of it is reading noise):
+#   0x02112cd0 word[0]=0x021114dc FireSeaElevator_Spawn      word[1]&0xffff=140
+#   0x02112d98 word[0]=0x02111808 PoleLift_Spawn             word[1]&0xffff=142
+#   0x02112e5c word[0]=0x02111ad4 ExtendingPlatform_Spawn    word[1]&0xffff=148
+#   0x02112f2c word[0]=0x02111bf4 FloatingFloorBfs_Spawn     word[1]&0xffff=145
+#   0x02112ffc word[0]=0x02111d0c TiltingPlatformBfs_Spawn   word[1]&0xffff=141
+#   0x021130d0 word[0]=0x02111e24 FallBlockBfs_Spawn         word[1]&0xffff=139
+# Every record's spawn word lands inside ov045 itself and every id matches the
+# spawn-table slot it was reached from. The ambiguity is a shared-window
+# artefact, not co-residency.
+#
+# ==== SIX SYMBOLS LEFT OUT, plus five interior splits ======================
+# The six vtables are HOST ARRAYS hal/actor_classes_ov045.cpp fills (the
+# ov015/ov016/ov080 rule -- a mounted vtable hands a factory DS code addresses).
+# Their spans, and every dsd symbol inside each:
+#   0x02112cf4..0x02112d74  id 140 FireSeaElevator, 32 slots
+#                           data_ov045_02112cf4 + data_ov045_02112d48 (split)
+#   0x02112dbc..0x02112e3c  id 142 PoleLift, 32 slots
+#                           _ZTV15FireSeaElevator == _ZTV18daObjKm2_Ami_Bou_c
+#   0x02112e80..0x02112efc  id 148 ExtendingPlatform, 31 slots (no Kill)
+#                           _ZTV8PoleLift == _ZTV17daObjKm2_Nobiru_c
+#   0x02112f50..0x02112fd0  id 145 FloatingFloorBfs, 32 slots
+#                           data_ov045_02112f50 + 02112f58 + 02112f7c (3-way split)
+#   0x02113020..0x021130a0  id 141 TiltingPlatformBfs, 32 slots
+#                           _ZTV16FloatingFloorBfs
+#   0x021130f4..0x02113174  id 139 FallBlockBfs, 32 slots (+0xc of .data
+#                           align-32 padding to 0x02113180)  _ZTV12FallBlockBfs
+# Each span's end is the address of the next kept symbol, which is what pins the
+# widths -- 148's table really is one word shorter than the other five, and 139's
+# next-symbol bound (the end of .data) really is three words long.
+#
+# dsd's ".p__sinit_*" .ctor entries are left out as well (not C identifiers), and
+# so is every .init body: the six __sinit_ov045_* are FUNCTIONS, and mounting one
+# would emit its code bytes under its own name. That matters for exactly one of
+# them -- see the next block.
+#
+# ==== 0x02112280 IS NOT HERE, AND THAT IS A STANDING DECISION ==============
+# __sinit_ov045_02112280 is spelled by three src TUs with three different types
+# at one shared window address, and hal/actor_classes_ov013.cpp resolves ov013's
+# half with
+#     /alternatename:___sinit_ov045_02112280=_data_ov013_02112280
+# which fires ONLY while the name is undefined. Defining it here (or linking
+# src/__sinit_ov045_02112280.c) makes that pragma inert and hands ov013's
+# CLOCK_PENDULUM an ov045 function address where its SharedFilePtr should be, on
+# level 5, nowhere near the file that caused it. port/slice_w1l4.txt records the
+# full derivation. The name stays undefined.
+#
+# THE CONSEQUENCE, and how it is paid: that sinit is the one that builds
+# ExtendingPlatform's two SharedFilePtrs (data_ov045_021131d8 model file 1635,
+# data_ov045_021131d0 clsn file 1636), which _ZN8PoleLift13InitResourcesEv reads.
+# hal/actor_classes_ov045.cpp HOSTS that one initialisation by hand instead --
+# the gate-17 recipe slice_w1l4.txt itself names. The two bss objects are mounted
+# below like every other; only the .init body stays out.
+#
+# ==== ONE SIZE OVERRIDE ====================================================
+# data_ov045_02113264 is the LAST symbol in the overlay, so ovdata's
+# next-symbol delta sizes it at the 4-byte floor. It is a destructor-chain node
+# like its five siblings (0x0211319c, 0x021131b8, 0x021131ec, 0x02113214,
+# 0x0211323c), each 12 bytes by the same delta rule, and func_020731dc writes
+# three words through it. Pinned to the ROM span that is left, 0x02113180 + 0x100
+# (the bss_size in overlays.yaml) minus 0x02113264 = 0x1c, so it cannot be short.
+
+# ---- .rodata 0x02111e60..0x021121a8 ---------------------------------------
+data_ov045_02111e60 data_ov045_02111e64 data_ov045_02111e68
+data_ov045_02111e84 data_ov045_02111fc0 data_ov045_0211208c
+data_ov045_021120a4 data_ov045_021120bc data_ov045_021120d8
+data_ov045_021120f8 data_ov045_02112104 data_ov045_02112118
+data_ov045_02112138 data_ov045_02112158 data_ov045_02112178
+data_ov045_02112198
+
+# ---- .data 0x02112460..0x02113180 -----------------------------------------
+data_ov045_02112460 data_ov045_02112464 data_ov045_02112468
+data_ov045_02112470 data_ov045_02112478 data_ov045_02112480
+data_ov045_02112488 data_ov045_02112490 data_ov045_02112494
+data_ov045_0211249c data_ov045_021124ac data_ov045_021124bc
+data_ov045_021124c4 data_ov045_021124d4 data_ov045_021124ec
+data_ov045_021124f0 data_ov045_021124f8 data_ov045_021124fc
+data_ov045_02112510 data_ov045_02112530 data_ov045_02112550
+data_ov045_02112570 data_ov045_02112590 data_ov045_021125b0
+data_ov045_021125cc data_ov045_021125d0 data_ov045_021125f0
+data_ov045_02112610 data_ov045_02112630 data_ov045_0211265c
+data_ov045_02112694 data_ov045_021126d0 data_ov045_02112720
+data_ov045_02112780 data_ov045_02112940 data_ov045_02112968
+data_ov045_021129b4 data_ov045_02112a6c data_ov045_02112aa4
+data_ov045_02112aa8 data_ov045_02112ac0 data_ov045_02112adc
+data_ov045_02112b08 data_ov045_02112b84 data_ov045_02112ba8
+data_ov045_02112bdc data_ov045_02112bec data_ov045_02112c08
+data_ov045_02112c18 data_ov045_02112c44 data_ov045_02112c4c
+data_ov045_02112c58 data_ov045_02112c68 data_ov045_02112c88
+data_ov045_02112ca8 data_ov045_02112cb0 data_ov045_02112cbc
+data_ov045_02112cc8 FireSeaElevator_SpawnInfo data_ov045_02112d74
+data_ov045_02112d80 PoleLift_SpawnInfo data_ov045_02112e3c
+data_ov045_02112e48 ExtendingPlatform_SpawnInfo data_ov045_02112efc
+data_ov045_02112f08 data_ov045_02112f14 FloatingFloorBfs_SpawnInfo
+data_ov045_02112fd0 data_ov045_02112fdc data_ov045_02112fe8
+TiltingPlatformBfs_SpawnInfo data_ov045_021130a0 data_ov045_021130ac
+data_ov045_021130b8 data_ov045_021130cc FallBlockBfs_SpawnInfo
+
+# ---- .bss 0x02113180..0x02113280 ------------------------------------------
+# Six SharedFilePtr pairs and their destructor-chain nodes, one pair per sinit:
+#   021121a8 -> model 02113188 (file 1627) + clsn 02113180 (1628)  id 140
+#   02112214 -> model 021131b0 (1629)      + clsn 021131a8 (1630)  id 142
+#   02112280 -> model 021131d8 (1635)      + clsn 021131d0 (1636)  id 148  (the
+#               excluded sinit; hal/actor_classes_ov045.cpp hosts this one build)
+#   021122ec -> model 02113200 (1643)      + clsn 021131f8 (1644)
+#   02112358 -> model 02113220 (1631)      + clsn 02113228 (1632)
+#   021123c0 -> model 02113250 (1633)      + clsn 02113248 (1634)
+data_ov045_02113180 data_ov045_02113188 data_ov045_02113190
+data_ov045_0211319c data_ov045_021131a8 data_ov045_021131b0
+data_ov045_021131b8 data_ov045_021131c4 data_ov045_021131d0
+data_ov045_021131d8 data_ov045_021131e0 data_ov045_021131ec
+data_ov045_021131f8 data_ov045_02113200 data_ov045_02113208
+data_ov045_02113214 data_ov045_02113220 data_ov045_02113228
+data_ov045_02113230 data_ov045_0211323c data_ov045_02113248
+data_ov045_02113250 data_ov045_02113258 data_ov045_02113264:0x1c

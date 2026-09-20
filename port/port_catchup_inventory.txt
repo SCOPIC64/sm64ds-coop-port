@@ -1,0 +1,466 @@
+# PORT CATCH-UP INVENTORY: what the decomp matched while this branch drifted
+#
+# Run link60 Stage 4, lane PC1. Branch s4-portcatchup off 8aabc9415, whose
+# merge base with origin/main is 7b2f913fe (2026-08-04). origin/main at the
+# time of the join: fda8f1c14.
+#
+# THE JOIN IS BY ADDRESS AND ONLY BY ADDRESS. Names drift between the two
+# branches in both directions -- main renamed twelve ov015/ov064/ov080/ov100
+# bodies onto the class next door, and this branch still spells them the old
+# way -- so a join on file names or symbol names invents rows and misses rows.
+# Every row below is keyed on a ROM address and carries the evidence for both
+# sides of the join.
+#
+# HOW THE CANDIDATE SET WAS DERIVED, so it can be re-derived rather than
+# trusted:
+#
+#   1. config delink blocks were parsed out of all 106 modules on BOTH refs
+#      (arm9, itcm, dtcm, 103 overlays), giving {module, section, [start,end)}
+#      -> src path per ref.
+#   2. config symbols.txt was parsed the same way on both refs, giving
+#      {symbol -> address} per module per ref.
+#   3. walk_window.map (this tree's own build at 8aabc9415) was parsed for
+#      every symbol and its defining object, and objects whose stem is not
+#      itself a src/ TU were taken as HOST objects.
+#   4. a host-defined symbol was resolved to an address through either ref's
+#      symbols.txt, then that address was looked up in both refs' delink
+#      spans.
+#
+# The raw counts, all measured in this worktree:
+#
+#     571   host-defined ROM symbols in the map that carry a config address
+#     308   of those whose address has a matched TU on origin/main that is
+#           not linked here (mostly documented host-ABI exceptions, not drift)
+#      68   delink blocks that exist on origin/main with a real src/ file and
+#           are NOT covered by this branch's config at all
+#      67   of those 68 are ENROLLED on main -- their block carries `complete`
+#           -- which is the repo's own definition of "the ROM build compiles
+#           this file". That is the drift set.
+#      15   of the 68 are addresses the port either HOSTS a body for or
+#           deliberately SKIPS. Those fifteen are the inventory.
+#
+# THE `complete` MARKER IS THE MATCHED TEST, NOT THE EXISTENCE OF A src/ FILE,
+# and this inventory's first draft got that wrong. A delinks.txt block without
+# `complete` means dsd supplies that range from ROM bytes and the source is
+# configured but never compiled; tools/delaunder.py states the consequence in
+# as many words -- "a non-enrolled file has no byte gate behind it". Exactly
+# ONE of the 68 rows here is in that state (row 7), and re-checking the other
+# 67 against the stricter rule moved no row's disposition.
+#
+# EVERY REF IN THIS FILE IS A SHA, and that is not pedantry. `origin/main` MOVED
+# UNDER THIS LANE MID-SESSION -- the worktrees here share one .git and a sibling
+# lane's fetch fast-forwarded the remote-tracking ref twice while this inventory
+# was being written. The reflog:
+#
+#     fda8f1c14  fetch  2026-08-16 00:51:17 -0400
+#     bff018693  fetch  2026-08-16 02:41:48 -0400
+#     77b55c577  fetch  2026-08-16 03:05:51 -0400
+#
+# The join, the six propagated sources and the compile probes were all taken
+# while origin/main was fda8f1c14, and all six sources were re-checked against
+# that SHA by hash afterwards (they are also byte-identical at 77b55c577). One
+# number was NOT: the first draft's "203 of main's 11173" was measured after
+# the 02:41 fetch, so it was a bff018693 reading sitting in a file that pins
+# everything else to fda8f1c14. Re-derived at named SHAs, two independent ways
+# (a parser, and a raw count of `complete` markers against block headers):
+#
+#     fda8f1c14   11173 blocks with a src file,  320 unenrolled
+#     bff018693   11173 blocks with a src file,  203 unenrolled
+#     77b55c577   11173 blocks with a src file,  203 unenrolled
+#
+# So 117 blocks were enrolled between the ref this inventory uses and the tip.
+# The number that belongs next to the rest of this file is 320.
+#
+# The other 53 of the 68 are not one bucket, and the first draft of this
+# paragraph said they were. Split properly, counted at the same two pinned
+# refs (port config at 8aabc9415, main at fda8f1c14):
+#
+#     42   addresses this port does not reach at all. No symbol of either
+#          ref's name for them appears anywhere in walk_window.map, so there
+#          is no host copy to retire and nothing to propagate into. They are
+#          linkage work for a lane that mounts those modules. Most are ov006
+#          minigame bodies (23 rows) and ov004/ov075/ov030 (8 rows).
+#     11   addresses the port DOES reach, where the defining object in the map
+#          is a src TU the port already links. These are main's renames and
+#          .c/.cpp promotions landing on an address the port already covers --
+#          ov002 (2), ov015 (3), ov060, ov062, ov071, ov080, ov098, ov102 --
+#          not catch-up work, and see the rename section at the bottom.
+#
+# Read against the whole 68 rather than against the 53, ov006 is 24 rows and
+# ov004/ov075/ov030 is 9, because one of each is a row this inventory claims
+# (the two sinits). Both denominators are stated because quoting one number
+# against the other is how the first draft got it wrong.
+#
+# BYTE VERIFICATION. Every row marked VERIFIED below was compiled here with
+# tools/match.py against the raw overlay image and the module's relocs.txt
+# (strict-relocs is the default), not taken from main's CI. The dsd export
+# under extracted/dsd/arm9_overlays/ is STALE for ov007 -- a control run on
+# src/func_ov007_020ba2e0.c, matched on both refs, reads NOMATCH against
+# ov007.bin and MATCH against extracted/overlays/overlay_0007.bin at base
+# 0x020ad660 -- so every verification below uses the raw overlay.
+#
+# COMPILE PROBE. Every candidate was also compiled with cl.exe using this
+# build's exact flags and this branch's include/ before being accepted:
+#   /DWIN32 /D_WINDOWS /O2 /Ob2 /DNDEBUG -std:c11 -MT /Oy-
+#   /wd4311 /wd4312 /wd4068 /wd4576
+#   -DPORT_CXX_ALIASES_LINKED -DPORT_REPO_ROOT=... -DSM64DS_PLATFORM_PC
+#   -Iport -Iinclude -Iport/ntr/include
+#
+#
+# ============================================================================
+# PROPAGATED (6)
+# ============================================================================
+#
+# THE +18 IS A LINK-ONLY RESULT AND NOTHING HERE HAS BEEN EXECUTED. Read this
+# before the rows, because the headline number invites the opposite reading.
+#
+# The lane moves linked 5533 -> 5551 and total 11243 -> 11249 against its
+# recorded baseline, and the battery is ALL GREEN throughout. That green does
+# not touch one instruction of what was added, for two separate reasons:
+#
+#   THE FOUR ov007 BODIES AND THE FIFTEEN THEY DRAG IN belong to ov007, and
+#   ov007 IS THE TITLE SCREEN, WHICH IS SCENE 1, WHICH IS THE BATTERY'S ONE
+#   STANDING BLOCK. port/tools/battery.py's SCENE_BLOCKED[1] asserts that
+#   scene 1 cannot run at all because func_ov007_020c9688 is unmatched, and
+#   that assertion still holds after this lane (the blocker is not one of the
+#   four; it is still unmatched on main). So every one of the eighteen newly
+#   linked TUs is in the binary and has never been entered by any test. That
+#   is the w19 shape exactly: linked, latent, and behind a green.
+#
+#   THE TWO CONSTRUCTORS are worse than untested, they are uncompiled.
+#   slice_mg1.txt and hal/scene_mg.cpp are in no CMake target, so they raise
+#   linkage.py's denominator and nothing else. Rows 5 and 6 carry the detail.
+#
+# The honest one-line summary of this lane is "six matched TUs are now in the
+# tree and four of them reach the binary", not "eighteen more functions work".
+#
+# ---------------------------------------------------------------------------
+# 1. ov007  0x020beeb0  0x454 bytes
+#    main path      src/func_ov007_020beeb0.c
+#    landed on main ef4cd40fa 2026-08-05 (#1054)
+#    port hosting   hal/scene_boot.cpp, L2_UNMATCHED(func_ov007_020beeb0) --
+#                   a trap body that names itself on stderr and returns 0
+#    disposition    PROPAGATED. src TU added, slice_ov007.txt line added,
+#                   trap removed.
+#    verification   match.py 2004/b56 + 1.2/base + 1.2/sp2 + 1.2/sp2p3,
+#                   strict relocs, against extracted/overlays/overlay_0007.bin
+#                   at base 0x020ad660. cl.exe: clean.
+#
+# ---------------------------------------------------------------------------
+# 2. ov007  0x020c7d60  0x2b0 bytes
+#    main path      src/func_ov007_020c7d60.c
+#    landed on main 58c12f98c 2026-08-06
+#    port hosting   hal/scene_boot.cpp, L2_UNMATCHED(func_ov007_020c7d60)
+#    disposition    PROPAGATED.
+#    verification   match.py 2004/b56 + the 1.2 trio, strict relocs.
+#                   cl.exe: clean.
+#
+# ---------------------------------------------------------------------------
+# 3. ov007  0x020cbbb0  0x3dc bytes
+#    main path      src/func_ov007_020cbbb0.c
+#    landed on main a43213cc3 2026-08-06 (#1135)
+#    port hosting   hal/scene_boot.cpp, L2_UNMATCHED(func_ov007_020cbbb0)
+#    disposition    PROPAGATED.
+#    verification   match.py 2004/b56 only (the 1.2 trio disagree), strict
+#                   relocs. cl.exe: clean.
+#
+# ---------------------------------------------------------------------------
+# 4. ov007  0x020c49bc  0x440 bytes
+#    main path      src/func_ov007_020c49bc.c
+#    landed on main 02e53421e 2026-08-06
+#    port hosting   NONE, and the absence is documented: hal/scene_boot.cpp's
+#                   comment after the trap list says this is the twentieth
+#                   unmatched ov007 body and gets no trap because nothing in
+#                   the 619-TU slice references it, so a trap would be a
+#                   definition with no caller.
+#    disposition    PROPAGATED as a src TU. Still unreferenced, so /OPT:REF
+#                   drops it and the linked count does not move for this row.
+#                   It is in the slice so that the day a slice does reach it,
+#                   the matched body is what answers.
+#    verification   match.py 2004/b56 + the 1.2 trio, strict relocs.
+#                   cl.exe: clean.
+#
+# ---------------------------------------------------------------------------
+# 5. ov004  0x020b955c  0x574 bytes  (.init)
+#    main path      src/__sinit_ov004_020b955c.c
+#    landed on main f410b0822 2026-08-06 (#1116)
+#    port hosting   NONE. hal/scene_mg.cpp section 3 SKIPS it by name: at
+#                   branch time this address had a config symbol, no delink
+#                   block and no src file, so port_scene_mg_overlay_load ran
+#                   three of ov004's four constructors and said so on stdout.
+#
+#                   THE BRIEF CALLED THESE TWO "the sinit TUs the port still
+#                   hosts copies of" AND THAT IS THE WRONG SHAPE. There is no
+#                   copy and there never was. The port had no body for either
+#                   address, hosted nothing, stood in for nothing, and said so
+#                   in three separate files. That matters for the worklist:
+#                   "retire a host copy" and "run a constructor that has never
+#                   run" are different risks. The first cannot change
+#                   behaviour if the copy was faithful; the second is a
+#                   constructor whose whole job is to leave state behind, run
+#                   for the first time. The gate is what settles it, and it
+#                   settles it as GREEN -- but the entry should be corrected
+#                   rather than carried forward as written.
+#    disposition    PROPAGATED. src TU added to slice_mg1.txt, the call added
+#                   to port_scene_mg_overlay_load in ROM .init order (after
+#                   020b948c, before 020b9ad0).
+#                   It registers destructor callbacks by address, so the three
+#                   bodies it names -- func_ov004_020b4a70, _020b4a7c,
+#                   _020b4aa0 -- had to enter the slice with it. Those three
+#                   src TUs already existed on this branch; they were absent
+#                   from the map because nothing referenced them. That is the
+#                   ROM's own reference edge (the constructor takes their
+#                   addresses), not a manufactured one.
+#                   MOVES NOTHING IN THE BINARY, AND THAT IS NOT A FAILURE.
+#                   slice_mg1.txt and hal/scene_mg.cpp are in NO CMake target
+#                   -- port/CMakeLists.txt's MG1 block says so and gives the
+#                   reason (the minigame framework's mwcc pointer-to-member
+#                   dispatch) -- so nothing in the MG1 seat is compiled by any
+#                   build today. Verified here: `scene_mg` appears zero times
+#                   in build/port/build.ninja and zero times in
+#                   walk_window.map. The two sinit TUs therefore raise
+#                   linkage.py's DENOMINATOR by two and its numerator by zero,
+#                   which reads as 49.4% -> 49.3%. Both files were compiled by
+#                   hand with the build's exact hal flags to prove the edits
+#                   are not merely unchecked.
+#    verification   match.py 2004/b56 + the 1.2 trio, strict relocs, against
+#                   extracted/overlays/overlay_0004.bin at base 0x020ad660.
+#                   cl.exe: clean.
+#
+# ---------------------------------------------------------------------------
+# 6. ov006  0x0213014c  0x284 bytes  (.init)
+#    main path      src/__sinit_ov006_0213014c.c
+#    landed on main 817be2263 2026-08-07 (#1150)
+#    port hosting   NONE, same shape as row 5: skipped by name, 30 of ov006's
+#                   31 constructors ran.
+#    disposition    PROPAGATED. Same treatment, inserted between 021300b0 and
+#                   021303d0.
+#                   It is the pair-table shape scene_mg.cpp section 4
+#                   describes: 24 eight-byte {code, adj} records copied from
+#                   ov006 .data statics into five .bss dispatch tables. Every
+#                   symbol it touches was already in the map.
+#                   Same denominator-only effect as row 5 and the same reason:
+#                   the MG1 seat is in no target.
+#    verification   match.py 2004/b56 + the 1.2 trio, strict relocs, against
+#                   extracted/overlays/overlay_0006.bin at base 0x020bfec0.
+#                   cl.exe: clean.
+#
+#
+# ============================================================================
+# BLOCKED (9), each with the evidence rather than a verdict
+# ============================================================================
+#
+# ---------------------------------------------------------------------------
+# 7. ov007  0x020ba05c  0x284 bytes
+#    main path      src/func_ov007_020ba05c.c
+#    landed on main 2425a8076 2026-08-05 (#1081), never touched since
+#    port hosting   hal/scene_boot.cpp, L2_UNMATCHED(func_ov007_020ba05c)
+#    disposition    BLOCKED, and NOT for the reason this file first gave.
+#
+#    THE FIRST DRAFT OF THIS ROW SAID "a matched-tier claim on main that does
+#    not reproduce". That was an over-charge produced by judging main's source
+#    through THIS branch's tooling and by using "a src file exists" as the
+#    matched test. Both were re-done properly, in a detached worktree of
+#    origin/main at fda8f1c14 with main's own tools/match.py, main's own
+#    config row and main's own mwccarm set, and the corrected reading is
+#    smaller and different:
+#
+#    (a) THE FILE IS NOT ENROLLED ON MAIN. Its delink block reads
+#
+#            src/func_ov007_020ba05c.c:
+#                .text start:0x020ba05c end:0x020ba2e0
+#
+#        with NO `complete`. dsd therefore supplies that range from ROM bytes
+#        and main's ROM build never compiles the file, so no byte gate has
+#        ever run on it. It is not a matched TU; it is a configured draft, and
+#        the source itself carries the giveaway on the line the first draft
+#        quoted as evidence of a defect: `bHolder->b->f2C = 0; // or
+#        bHolder->f2C? wait`.
+#
+#    (b) IT DOES NOT COMPILE UNDER MAIN'S OWN PIPELINE EITHER, which is
+#        consistent with (a) rather than in tension with it. Run in the main
+#        worktree, `python tools/match.py --c src/func_ov007_020ba05c.c
+#        --func func_ov007_020ba05c --addr 0x020ba05c --size 0x284
+#        --module ov007 --bin extracted/overlays/overlay_0007.bin
+#        --base 0x020ad660 --version 2004/b56` answers
+#
+#            src\func_ov007_020ba05c.c:114: 'array28' is not a member of
+#                class 'struct StructObj20'
+#            src\func_ov007_020ba05c.c:117: 'array24' is not a member of
+#                class 'struct StructObj20'
+#            src\func_ov007_020ba05c.c:151: 'f2C' is not a member of
+#                class 'struct StructAInner'
+#            Errors caused tool to abort.
+#
+#        main's own rombuild.py would use the same language mode: CFLAGS is
+#        `-lang c99` and only a leading `//cpp` marker switches it, which this
+#        file does not carry. config/rombuild-versions.txt has no override for
+#        the symbol.
+#
+#    (c) THE ONE THING THAT IS STILL A DECOMP-SIDE FINDING, and it is a
+#        COUNTING one rather than a gate one. chaos-db.json on the chaos-data
+#        branch carries
+#
+#            {"id": "ov007:0x020ba05c", "module": "ov007",
+#             "name": "func_ov007_020ba05c", "addr": 34316380, "size": 644,
+#             "matched": true, "srcPath": "src/func_ov007_020ba05c.c",
+#             "author": "mitch030504"}
+#
+#        for a file the byte gate has never seen. tools/chaos_db_ci.py says
+#        why in its own header: `matched   src/<name>.c[pp] exists and is not
+#        marked // NONMATCHING`. That test never consults the enrolled set.
+#
+#        SIZED, AT NAMED REFS, code 77b55c577 against chaos-db.json at
+#        chaos-data 60f0cd336 (identical at code ref bff018693):
+#
+#            11396  chaos-db records
+#            11221  matched:true
+#              203  of those sit inside an UNENROLLED delink block
+#               47  of those have NO delink block covering them AT ALL --
+#                   Div, IntrWait, SoftReset, GetCRC16, Halt, BitUnPack,
+#                   CpuSet, Sqrt and the rest of the thumb SDK intrinsics,
+#                   which are config symbols with no block anywhere
+#              250  total matched:true with no byte gate behind them
+#
+#        Same defect class in both halves: the flag is computed from the
+#        presence of a file, never from what the ROM build compiles.
+#
+#        ONE FIGURE HERE DOES NOT REPRODUCE AND IS FLAGGED RATHER THAN
+#        SMOOTHED. The review that prompted this section reports 48 no-block
+#        records and 251 total. This lane derives 47 and 250 by the rule
+#        "no block contains the record's start address", and 46 by full
+#        containment of [addr, addr+size), so the reviewer's 48 is not a
+#        containment-versus-start disagreement and the extra record was not
+#        located. The class is agreed and the order of magnitude is agreed;
+#        the boundary is one record wide and unsettled.
+#
+#        This lane proves the defect for ONE record (0x020ba05c) and claims
+#        nothing about the others individually. It needs a decomp-side lane;
+#        it is out of scope here and nothing was changed for it.
+#
+#    FOR THE PORT: unchanged either way. THE TRAP STAYS.
+#
+# ---------------------------------------------------------------------------
+# 8. ov085  0x02129878  0x204 bytes   Toad::Behavior
+# 9. ov085  0x0212eea4  0x30c bytes   WallSign::Behavior
+#    main paths     src/_ZN4Toad8BehaviorEv.cpp     (b7ad53eef 2026-08-05)
+#                   src/_ZN8WallSign8BehaviorEv.cpp (817be2263 2026-08-07)
+#    port hosting   unmatched/Ov085_Behaviors.cpp -- two host REIMPLEMENTATIONS
+#                   whose banner says "when the matched bodies land these two
+#                   functions come straight out".
+#    disposition    BLOCKED, on two independent grounds, both measured here.
+#                   (a) Both are the RECOVERED form: `int Toad::Behavior()` and
+#                       `int WallSign::Behavior()` over include/Toad.h and
+#                       include/WallSign.h. Compiled against THIS branch's
+#                       headers with this build's flags, cl.exe answers
+#                         error C2039: 'Behavior': is not a member of 'Toad'
+#                         error C2355: 'this': can only be referenced inside
+#                                      non-static member functions
+#                       plus 26 undeclared-identifier errors on Toad's named
+#                       members (mModelAnim, mHeadYaw, mHeadYawTarget,
+#                       mHeadPitch, unk_20d, unk_20e, mMovingCylinderClsn ...).
+#                       Taking main's headers is not a one-file harvest:
+#                       include/decl_common.h has diverged by 75 added and 81
+#                       removed lines over the same range and 1782 of this
+#                       branch's src/ TUs include it. That is the C-linkage
+#                       inversion this lane exists as a cherry-pick to avoid.
+#                   (b) Even compiled, neither would retire the host body.
+#                       32-bit MSVC mangles a real C++ method as
+#                       ?Behavior@Toad@@... , a different symbol from the
+#                       Itanium C name _ZN4Toad8BehaviorEv that ov085's slot 6
+#                       calls. Retiring these needs a FACE into the matched
+#                       body (the method_faces.cpp pattern), which is a header
+#                       migration first, not a source swap.
+#
+# ---------------------------------------------------------------------------
+# 10. ov095  0x021368f0  0x470 bytes   Flamethrower::Behavior
+#    main path      src/_ZN12Flamethrower8BehaviorEv.cpp (8ec808874 2026-08-13)
+#    port hosting   unmatched/Flamethrower_Behavior.c
+#    disposition    BLOCKED, same two grounds as rows 8/9. The host file's own
+#                   banner already reaches that ruling; it is RE-DERIVED here
+#                   rather than carried: compiling main's TU against this
+#                   branch's include/Flamethrower.h with this build's flags
+#                   gives exactly
+#                       error C2039: 'Behavior': is not a member of
+#                                    'Flamethrower'
+#                       error C2355: 'this': can only be referenced inside
+#                                    non-static member functions
+#                   The banner's reading is correct and the host copy stays.
+#
+# ---------------------------------------------------------------------------
+# 11. itcm 0x01ff859c  src/func_01ff859c.c   (b573429d3 2026-08-07, #1212)
+# 12. itcm 0x01ffa344  src/func_01ffa344.c   (same commit)
+# 13. itcm 0x01ffa4bc  src/func_01ffa4bc.c   (same commit)
+#    port hosting   hal/cxx_aliases.cpp, three C approximations of the ITCM
+#                   soft-float runtime, each already carrying a PORT_HOST_ABI
+#                   tag naming this exact situation.
+#    disposition    BLOCKED. All three matched TUs on main are bannered
+#                   HAND-ASM PRIMITIVES: the body is an `asm` block of ARM
+#                   instructions. MSVC 32-bit x86 cannot assemble ARM, so
+#                   there is no form in which the matched source reaches this
+#                   binary. The tags are already correct and linkage.py
+#                   already files them as documented exceptions.
+#
+# ---------------------------------------------------------------------------
+# 14. ov085 0x0212b8dc  src/func_ov085_0212b8dc.cpp (3bcbc9aea 2026-08-10)
+#    port hosting   unmatched/Ov085_Rabbit_b8dc.cpp
+#    disposition    NOT CATCH-UP WORK, and this row is here because the
+#                   address-join surfaces it and a reader will otherwise ask.
+#                   This branch already carries the matched TU; the host copy
+#                   exists for a host-ABI reason (the r0-passthrough seam --
+#                   the matched source calls Actor::ClosestPlayer() with no
+#                   argument, which is byte-identical on ARM and reads stack
+#                   garbage as `this` on the host, the live RABBIT crash).
+#                   main's newer text differs by ONE hunk: six `extern` data
+#                   declarations moved OUT of the extern "C" block. Under
+#                   mwccarm that is a no-op; under 32-bit MSVC it gives those
+#                   six globals C++ linkage and a decorated name, which is the
+#                   silent alias flip this lane is forbidden to make. NOT
+#                   TAKEN.
+#
+# ---------------------------------------------------------------------------
+# 15. ov102 0x021498e0  src/func_ov102_021498e0.cpp (e65c4f62e 2026-08-10)
+#    port hosting   unmatched/QuestionBlock_BounceDispatch.cpp
+#    disposition    NOT CATCH-UP WORK, same shape as row 14. The host copy
+#                   exists because MSVC widens a pointer-to-member over an
+#                   incomplete class to 16 bytes where the ROM's record is 8.
+#                   main's newer text is a launder removal (one 64-bit mask
+#                   expression collapsed to a plain cast) that does not touch
+#                   the PMF dispatch, so it retires nothing. NOT TAKEN.
+#
+#
+# ============================================================================
+# ONE THING THE INVENTORY DID NOT FIND, and the absence is the finding
+# ============================================================================
+#
+# func_ov007_020c9688, the scene-1 blocker this lane's gate baseline records
+# as its single skip, is NOT matched on origin/main. It has no src file and no
+# delink block on either ref, and it remains L2_UNMATCHED in
+# hal/scene_boot.cpp. Nothing in this lane changes that skip.
+#
+#
+# ============================================================================
+# THE RENAME CLASS, deliberately excluded
+# ============================================================================
+#
+# The address join also surfaces host-defined symbols whose address carries a
+# DIFFERENT src path on main than on this branch.
+#
+# THE SIZE OF THIS CLASS IS UNREPRODUCED AND SHOULD NOT BE QUOTED AS SETTLED.
+# This lane's join counts 47. An independent review of the same two refs, using
+# full-containment rather than start-address resolution, counts 54 and splits
+# it 31 .c-to-.cpp promotions plus 23 genuine renames. The two disagree because
+# the answer is sensitive to resolution order when several blocks touch one
+# address, and neither run has been reconciled against the other. Nothing in
+# this lane depends on the figure -- the class is out of scope either way --
+# so it is recorded as a range with the disagreement visible rather than
+# averaged away or silently taken from one side.
+#
+# What the class IS, is not in dispute: main's naming work, not new matches.
+# ov015's _ZN14KnockDownPlank8BehaviorEv is main's name
+# for 0x02111720, which this branch calls _ZN13PoleBillboard8BehaviorEv and
+# already links, while this branch's _ZN14KnockDownPlank8BehaviorEv is main's
+# _ZN9MovingBar8BehaviorEv at 0x02112090. Propagating a rename means renaming
+# BY ADDRESS across src/, include/ and every port seam at once; doing it one
+# TU at a time is exactly how the cxx_aliases direction gets inverted. Out of
+# scope for this lane and recorded here so the next one does not rediscover it.

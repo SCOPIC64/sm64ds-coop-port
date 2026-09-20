@@ -1,0 +1,149 @@
+# Gate 199: ov012 (level 4, castle basement -- already whole-mounted per
+# gate 114/PORT_LEVEL_OVERLAYS) joins the per-symbol mounts too, the
+# ov009/ov014/ov010 shape: SWITCH_PILLAR (34) and BASEMENT_WATER (35) reach
+# their SpawnInfo records and their own tuning/CLPS/BTA/BMD data by name.
+# WHOLE data+bss span (this is a small overlay, 0x1c58 bytes .data+.bss
+# combined -- the whole span costs nothing over a hand-picked subset and
+# avoids discovering misses one link error at a time).
+#
+# TWO SYMBOLS LEFT OUT ON PURPOSE (host arrays the registry fills):
+#   _ZTV12SwitchPillar / _ZTV14daObjC0Water_c (0x02112408, BASEMENT_WATER's
+#     REAL vtable -- see the class-identity note below)
+#   data_ov012_02112344 (SWITCH_PILLAR's REAL vtable, unnamed by dsd)
+# dsd's ".p__sinit_*" pointer entries are also left out (not C identifiers;
+# the port calls the two sinits by name).
+#
+# ==== MANDATORY WINDOW-ALIAS CHECK (0x02112320 / 0x021123e4) =============
+# Both SpawnInfo addresses are flagged `ambiguous` in config/arm9/overlays/
+# ov012/symbols.txt, and the ARM9 SPAWN TABLE's own entry for id 34 resolves
+# `to:0x02112320 module:overlays(9,10,12,24,29,33,35,43,47,52,53,56)` -- the
+# SAME DS address is cited by TWELVE overlays that share this memory window
+# across different levels, never co-resident. RESOLVED by disasm: read the
+# raw bytes at 0x02112320/0x021123e4 directly out of extracted/overlays/
+# overlay_0012.bin (ov012's own dump, the one actually loaded when Mario is
+# in level 4). Both decode as real SpawnInfo records whose id field (word[1]
+# low byte) matches exactly: 0x0212320's word[1]=0xe40022 -> id 0x22=34;
+# 0x021123e4's word[1]=0xe50023 -> id 0x23=35. Both records' own vtable-
+# pointer word (slot 0) also relocates to a function INSIDE ov012 itself
+# (0x02111420=SwitchPillar_Spawn, 0x02111730=BasementWater_Spawn), never
+# to main or another overlay. The ambiguity is a dsd static-export artifact
+# (twelve overlays' own SpawnInfo tables happen to sit at addresses that
+# coincide across windows); ov012's own mounted bytes are unambiguous at
+# runtime because only one overlay occupies this window when level 4 is
+# loaded, and every cross-check above confirms those are ov012's own
+# correct records.
+#
+# ==== CLASS-IDENTITY CORRECTION (the SwitchPillar/BasementWater swap) ====
+# SwitchPillar_Spawn.c installs data_ov012_02112344 (unnamed), NOT
+# _ZTV12SwitchPillar. BasementWater_Spawn.c installs _ZTV12SwitchPillar ==
+# _ZTV14daObjC0Water_c (0x02112408) -- dsd's own class-identity mislabel:
+# the ENTIRE `_ZN12SwitchPillar*` file family (D1Ev, D0Ev,
+# CleanupResourcesEv, RenderEv, BehaviorEv, InitResourcesEv) is REALLY
+# BASEMENT_WATER's own six methods, confirmed multiple ways:
+#   - D1Ev/D0Ev's OWN comments read "vtable identified: VT0 =
+#     _ZTV14daObjC0Water_c; VT1 = _ZTV10dBgActor_c" -- the recovered source
+#     itself names the RTTI target, just used the wrong C++ symbol prefix
+#     for the FILENAME.
+#   - InitResourcesEv's body loads a MovingMeshCollider + TextureTransformer
+#     and toggles `mLoweredY` against a level-wide water-height flag
+#     (data_0209caa0[2] & 0x80000) -- a moving-water-platform mechanic, not
+#     a switch. "SwitchPillar.h"'s own mLoweredY field name is downstream
+#     of this same mislabel (the header generator infers names from
+#     whatever function references a member, so it inherited the wrong
+#     class name too -- it is not independent confirmation).
+#   - reloc-verified: _ZTV12SwitchPillar's own slot 0/3/6/9/16/17 targets
+#     are EXACTLY _ZN12SwitchPillar13InitResourcesEv/16CleanupResourcesEv/
+#     8BehaviorEv/6RenderEv/D1Ev/D0Ev's own addresses.
+# The REAL SwitchPillar (RTTI _ZTV16daObjC0_Switch_c, config's own
+# data_ov012_02112344) is the SEVEN UNNAMED func_ov012_* files
+# (021111a0 D1, 021111e4 D0 -- its own comment reads "daObjC0_Switch_c_
+# OnYoshiTryEat", ANOTHER dsd slot-identity decoy name for what reloc-
+# derivation proves is really D0 -- 0211123c OnGroundPounded (slot 21,
+# reloc-confirmed), 021112ec CleanupResources, 02111324 Render, 0211134c
+# Behavior, 02111370 InitResources). Every one of these seven ALSO carries
+# a "recovered name: daObjC0_Switch_c_*" comment confirming the true class,
+# just never promoted to a clean _ZN16daObjC0_Switch_c* C++ symbol.
+#
+# BOTH CLASSES ARE FULLY CLOSED -- every own-slot body (all 6 for
+# BasementWater, all 7 for SwitchPillar incl. the slot-21 OnGroundPounded
+# override) exists as matched src, and every closure callee (20 distinct
+# ARM9/base symbols: Model/ModelBase/MeshCollider/MovingMeshCollider/
+# Platform/TextureTransformer/SharedFilePtr/MeshColliderBase/Actor/
+# ActorBase/Memory bases) is already linked in an existing slice_gate or
+# host file -- NOT the "only Spawn matched" shape the scope guess feared.
+#
+# SWITCHPILLAR (daObjC0_Switch_c), a Platform, 32 slots (no own Kill, uses
+# the shared 0x020ee55c default): 0 Init 0x02111370, 3 Clean 0x021112ec,
+# 6 Behavior 0x0211134c, 9 Render 0x02111324, 12 OnPendingDestroy SHARED,
+# 16 D1 0x021111a0, 17 D0 0x021111e4, 21 OnGroundPounded 0x0211123c (own).
+# D1/D0 both store then OVERWRITE with the shared _ZTV10dBgActor_c
+# placeholder (the ShipUp/RockPillar/SkiLift shape) -- HOST THUNKS, dropped
+# from the slice.
+#
+# BASEMENT_WATER (daObjC0Water_c), a Platform, 32 slots (no own Kill,
+# shared default): 0 Init 0x0211164c, 3 Clean 0x021114fc, 6 Behavior
+# 0x02111574, 9 Render 0x02111540, 12 OnPendingDestroy SHARED, 16 D1
+# 0x02111450, 17 D0 0x0211149c. D1/D0 SAME shape -- store own table then
+# overwrite with _ZTV10dBgActor_c -- HOST THUNKS, dropped from the slice.
+#
+# RENDER'S OWN ModelAnim/Model SLOT-5 COLLISION, TWICE OVER (the Whomp/
+# Bully case): BOTH classes' real Render hit it.
+#   func_ov012_02111324 (SwitchPillar's real Render) dispatches
+#   `struct Base{...virtual void m(int);}; struct Derived{char pad[0xd4];
+#   Base base;}; b->m(0);` -- the bare-call shape over a plain Model at
+#   +0xd4, the RotatingFirebar precedent exactly.
+#   _ZN12SwitchPillar6RenderEv.cpp (BasementWater's REAL Render, despite
+#   the misleading filename) dispatches `struct Sub{...virtual void
+#   m(int);}; struct Base{char pad[0xd4]; Sub sub;}; ... b->m(0);` --
+#   the SAME shape, but calls TextureTransformer::Update FIRST (the Whomp
+#   king-variant texture-scroll precedent) before the bare draw call.
+# BOTH are HOST COPIES, appended to the existing shared port/unmatched/
+# ModelAnim_Renders.cpp. (Earlier draft of this file claimed BasementWater's
+# Render was clean -- WRONG, corrected after actually reading the source;
+# both matched Render TUs are dropped from slice_gate199.txt.)
+#
+# THE SWITCH/WATER COUPLING (not a fill concern, documented for the
+# record): SwitchPillar's own OnGroundPounded (slot 21) sets
+# data_0209caa0[2] |= 0x80000 once every switch on the level has been
+# ground-pounded (walks the id-0x22 actor chain via
+# Actor::FindWithActorID); every SwitchPillar's own InitResources AND
+# BasementWater's own InitResources read that SAME bit to decide whether
+# to start lowered. Both classes' own bodies already read/write the flag
+# by the existing extern int data_0209caa0[] declaration each file
+# carries; no new host global needed.
+data_ov012_02111768:0x4 data_ov012_0211176c:0x4 data_ov012_02111770:0x4
+data_ov012_02111774:0x4 data_ov012_02111778:0x1c data_ov012_02111794:0x1c
+data_ov012_021117b0:0x84 data_ov012_02111834:0x10 data_ov012_02111844:0xc8
+data_ov012_0211190c:0x10 data_ov012_0211191c:0xc data_ov012_02111928:0x4
+data_ov012_0211192c:0x18 data_ov012_02111944:0x1c data_ov012_02111960:0x34
+data_ov012_02111994:0xb8 data_ov012_02111a4c:0xc data_ov012_02111a58:0x20
+data_ov012_02111a78:0x108 data_ov012_02111b80:0x4 data_ov012_02111b84:0x4
+data_ov012_02111b88:0x4 data_ov012_02111b8c:0x8 data_ov012_02111b94:0x8
+data_ov012_02111b9c:0x8 data_ov012_02111ba4:0x8 data_ov012_02111bac:0x8
+data_ov012_02111bb4:0x8 data_ov012_02111bbc:0x8 data_ov012_02111bc4:0xc
+data_ov012_02111bd0:0x4 data_ov012_02111bd4:0x8 data_ov012_02111bdc:0x4
+data_ov012_02111be0:0x8 data_ov012_02111be8:0xc data_ov012_02111bf4:0x10
+data_ov012_02111c04:0x10 data_ov012_02111c14:0xc data_ov012_02111c20:0x4
+data_ov012_02111c24:0x18 data_ov012_02111c3c:0x18 data_ov012_02111c54:0x1c
+data_ov012_02111c70:0x20 data_ov012_02111c90:0x20 data_ov012_02111cb0:0x18
+data_ov012_02111cc8:0x8 data_ov012_02111cd0:0x20 data_ov012_02111cf0:0x3c
+data_ov012_02111d2c:0x48 data_ov012_02111d74:0x50 data_ov012_02111dc4:0x54
+data_ov012_02111e18:0x60 data_ov012_02111e78:0x60 data_ov012_02111ed8:0x70
+data_ov012_02111f48:0x78 data_ov012_02111fc0:0x38 data_ov012_02111ff8:0x94
+data_ov012_0211208c:0x18 data_ov012_021120a4:0x18 data_ov012_021120bc:0x1c
+data_ov012_021120d8:0x20 data_ov012_021120f8:0xc data_ov012_02112104:0x14
+data_ov012_02112118:0x20 data_ov012_02112138:0x20 data_ov012_02112158:0x20
+data_ov012_02112178:0x20 data_ov012_02112198:0x20 data_ov012_021121b8:0x8
+data_ov012_021121c0:0x1c data_ov012_021121dc:0x1c data_ov012_021121f8:0x60
+data_ov012_02112258:0x24 data_ov012_0211227c:0x18 data_ov012_02112294:0x8
+data_ov012_0211229c:0x64 data_ov012_02112300:0xc data_ov012_0211230c:0x14
+SwitchPillar_SpawnInfo:0x38 data_ov012_02112358:0x10 data_ov012_02112368:0x5c
+data_ov012_021123c4:0xc data_ov012_021123d0:0x14 BasementWater_SpawnInfo:0x10
+data_ov012_021123f4:0x10 data_ov012_02112404:0x18 data_ov012_0211241c:0xc
+data_ov012_02112428:0xc data_ov012_02112434:0x4 data_ov012_02112438:0x14
+data_ov012_0211244c:0x18 data_ov012_02112464:0x30 data_ov012_02112494:0xc
+data_ov012_021124a0:0x8 data_ov012_021124a8:0x4 data_ov012_021124ac:0x4
+data_ov012_021124b0:0xc data_ov012_021124bc:0x8 data_ov012_021124c4:0x4
+data_ov012_021124c8:0x8 data_ov012_021124d0:0x4 data_ov012_021124d4:0x4
+data_ov012_021124d8:0xc data_ov012_021124e4:0x8 data_ov012_021124ec:0xc
+data_ov012_021124f8:0x4 data_ov012_021124fc:0x4

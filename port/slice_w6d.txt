@@ -1,0 +1,103 @@
+# slice_w6d.txt -- lane-owned slice for the linkage campaign (run linkw,
+# wave 6, lane w6-D: PATH_LIFT (31) and the PathLift base branch). One
+# matched src TU per line, path relative to the repo root, comments with #.
+# ONE OWNER (lane w6-D); other lanes never touch it.
+#
+# A SLICE LINE ALONE DOES NOT LINK A TU (/OPT:REF). Every line below has its
+# reference edge in hal/actor_classes_ov100pl.cpp (the two vtable fills and
+# the factory) or in port/unmatched/PathLift_StateDispatch.cpp (the six state
+# bodies the seat installs). Post-build every line was checked against
+# walk_window.map -- no line sits here looking seated.
+#
+# THE CLOSURE IS RELOC-DERIVED, NOT GUESSED. Seeds: daObjPathLift_c's own six
+# vtable bodies + PathLift_Spawn (ov100), and the base branch's dispatch
+# entry points (ov002). Walking arm_call/load relocs out of every body to
+# fixpoint gives 9 ov100 bodies + 22 ov002 bodies, and ZERO arm9 targets that
+# are not already in walk_window.map -- the base branch pulls no new engine
+# code at all.
+#
+# TWO MATCHED TUs ARE DELIBERATELY ABSENT, both host copies instead
+# (port/unmatched/PathLift_StateDispatch.cpp, the gate-200 PushBlock ruling):
+#   src/func_ov002_020efa54.cpp            state installer, PMF dispatch
+#   src/_ZN8PathLift12BaseBehaviorEv.cpp   per-frame tick, PMF dispatch
+# Both form an MSVC pointer-to-member over a DELIBERATELY INCOMPLETE class.
+# mwcc's PMF is a uniform 8-byte {fn, delta<<1|isVirtual} pair, which is what
+# makes the ROM's record 20 bytes wide (the `mov r0,#0x14` in both bodies);
+# MSVC widens an incomplete-class PMF to 16 bytes and the stride, the field
+# offsets and the dispatch decoding all come out wrong.
+#
+# THE TU THAT IS *NOT* HERE ON PURPOSE, and why (the w5-B EyerokD0 class):
+#   src/_ZN8PathLift17BaseInitResourcesEv.c
+# That name is an ov006 export (config/arm9/overlays/ov006/symbols.txt:887,
+# size 0x118) and ov006 shares the 0x020efaf0 load window with ov002, whose
+# own body there is func_ov002_020efaf0 (size 0xec -- a DIFFERENT body, the
+# sizes alone settle it). ov100's Init calls that address through a reloc dsd
+# annotates `module:overlays(2,6)`; the overlay actually resident with ov100
+# is ov002, so the body is ov002's. Slicing the named TU would hand every
+# PathLift ov006's MgBounceAndPounce constructor.
+
+# ---- ov100, daObjPathLift_c's own block (9) --------------------------------
+# slot 16, D1
+src/func_ov100_02146d7c.cpp
+# slot 17, D0 (the "OnYoshiTryEat" recovered
+#   NAME is wrong; the body is D1 + Deallocate
+#   and the table puts it at slot 17)
+src/func_ov100_02146dec.cpp
+# Behavior helper, model/matrix update
+src/func_ov100_02146e70.c
+# Init + Behavior helper
+src/func_ov100_0214700c.c
+# slot 3, CleanupResources
+src/func_ov100_02147054.c
+# slot 9, Render
+src/func_ov100_021470a4.cpp
+# slot 6, Behavior
+src/func_ov100_021470f4.cpp
+# slot 0, InitResources
+src/func_ov100_021471e0.cpp
+# the factory
+src/PathLift_Spawn.cpp
+
+# ---- ov002, the PathLift BASE branch (20 of 22; 2 are host copies) ---------
+# base table slot 16
+src/_ZN8PathLiftD2Ev.c
+# base table slot 17
+src/_ZN8PathLiftD0Ev.c
+# slot 32 -- the EXTRA virtual PathLift adds
+#   to Platform's 32-slot shape, INHERITED
+#   unchanged by daObjPathLift_c
+src/_ZN8PathLift9AfterClsnEv.cpp
+# the real base init (see the note above)
+src/func_ov002_020efaf0.cpp
+# base-init helper
+src/func_ov002_020efbdc.c
+# Render's base half
+src/func_ov002_020efc74.cpp
+# Behavior's base half (path node walk)
+src/func_ov002_020efcf4.c
+# the three states' six bodies, reloc-confirmed out of the sinit's own source
+# statics (data_ov002_0210aed0/d8/e0/e8/f0/f8):
+# state 0 WAIT  enter
+src/func_ov002_020ef3f0.c
+# state 0 WAIT  tick   (`bx lr`, 4 bytes)
+src/func_ov002_020ef3ec.c
+# state 1 PATH  enter
+src/func_ov002_020efa44.c
+# state 1 PATH  tick
+src/func_ov002_020ef670.c
+# state 2 FALL  enter
+src/func_ov002_020ef57c.c
+# state 2 FALL  tick
+src/func_ov002_020ef408.c
+# the small predicates the states and AfterClsn share:
+src/func_ov002_020efe68.c
+src/func_ov002_020efe7c.c
+src/func_ov002_020efe9c.c
+src/func_ov002_020efebc.c
+src/func_ov002_020efedc.c
+src/func_ov002_020eff04.cpp
+src/func_ov002_020eff90.cpp
+
+# ---- this lane's own host files (the ov065 pattern: one reader, one owner) --
+port/hal/actor_classes_ov100pl.cpp
+port/unmatched/PathLift_StateDispatch.cpp

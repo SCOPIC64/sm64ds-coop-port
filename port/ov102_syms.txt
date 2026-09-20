@@ -1,0 +1,64 @@
+# The ov102 data the castle grounds' QUESTION_BLOCK names.
+#
+# The gate-18 shape (see ov085_syms.txt for the long version): an ACTOR
+# overlay mounted PER SYMBOL with --pack, the overlay's whole data span
+# (.rodata 0x0214d70c, .data 0x0214e0c0, .bss 0x0214e6e0), the vtables left
+# out because they are host arrays the registry fills, and every *_SpawnInfo
+# pinned to the record's real 0x1c.
+#
+# NO VTABLE HAS TO BE EXCLUDED BY ADDRESS HERE, unlike ov100's. All four real
+# actor vtables in ov102 -- daObjSimpleBg_c, daObjHatenaBlock_c, daBmb_c and
+# daShl_c -- carry a `_ZTV*` name, so the generator's own rule catches every
+# one. Checked the same way ov100's were: a real vtable's slot 1 is
+# Actor::BeforeInitResources and a typeinfo tail's is not.
+#
+# The config's name for one of them IS shifted -- 0x0214e1d8 is spelled
+# _ZTV13FortressTower and its RTTI reads daObjSimpleBg_c -- but nothing here
+# depends on that, and QUESTION_BLOCK's own table checks out against
+# daObjHatenaBlock_c (hatena: the question mark).
+data_ov102_0214d70c:0x8 data_ov102_0214e0c0:0xc data_ov102_0214e0cc:0x14
+StaticRock_SpawnInfo:0x1c RockTriangle_SpawnInfo:0x1c FortressTower_SpawnInfo:0x1c
+WarpPipe_SpawnInfo:0x1c CgStairs_SpawnInfo:0x1c RopeBarrier_SpawnInfo:0x1c
+data_ov102_0214e188:0x4 data_ov102_0214e18c:0x4 data_ov102_0214e190:0xc8
+data_ov102_0214e258:0x8 data_ov102_0214e260:0x8 data_ov102_0214e268:0x8
+data_ov102_0214e270:0x8 data_ov102_0214e278:0x8 data_ov102_0214e280:0x8
+data_ov102_0214e288:0x8 data_ov102_0214e290:0x8 data_ov102_0214e298:0x8
+data_ov102_0214e2a0:0x8 data_ov102_0214e2a8:0x8 data_ov102_0214e2b0:0x8
+data_ov102_0214e2b8:0x8 data_ov102_0214e2c0:0x8 data_ov102_0214e2c8:0x8
+data_ov102_0214e2d0:0x8 data_ov102_0214e2d8:0x8 data_ov102_0214e2e0:0x8
+data_ov102_0214e2e8:0x8 data_ov102_0214e2f0:0x8 data_ov102_0214e2f8:0x8
+data_ov102_0214e300:0x8 data_ov102_0214e308:0x8 data_ov102_0214e310:0x8
+data_ov102_0214e318:0x8 data_ov102_0214e320:0x8 data_ov102_0214e328:0x8
+data_ov102_0214e330:0x8 data_ov102_0214e338:0x8 data_ov102_0214e340:0x8
+data_ov102_0214e348:0x8 data_ov102_0214e350:0x8 data_ov102_0214e358:0x8
+data_ov102_0214e360:0x8 data_ov102_0214e368:0x8 data_ov102_0214e370:0x8
+data_ov102_0214e378:0x8 data_ov102_0214e380:0x8 data_ov102_0214e388:0x8
+data_ov102_0214e390:0x8 data_ov102_0214e398:0x8 data_ov102_0214e3a0:0x8
+data_ov102_0214e3a8:0xc data_ov102_0214e3b4:0x18 ExclamationBlockVs_SpawnInfo:0x1c
+QuestionBlock_SpawnInfo:0x1c ExclamationBlock_SpawnInfo:0x1c CapBlockMario_SpawnInfo:0x1c
+CapBlockLuigi_SpawnInfo:0x1c CapBlockWario_SpawnInfo:0x1c data_ov102_0214e4fc:0xc
+data_ov102_0214e508:0xc data_ov102_0214e514:0x10 data_ov102_0214e524:0x10
+BobOmb_SpawnInfo:0x1c data_ov102_0214e5d4:0x8 data_ov102_0214e5dc:0x8 data_ov102_0214e5e4:0x8
+data_ov102_0214e5ec:0x8 data_ov102_0214e5f4:0x8 data_ov102_0214e5fc:0x8
+data_ov102_0214e604:0x8 data_ov102_0214e60c:0x8 data_ov102_0214e614:0xc
+data_ov102_0214e620:0xc KoopaShell_SpawnInfo:0x1c data_ov102_0214e6e0:0x8
+data_ov102_0214e6e8:0x8 data_ov102_0214e6f0:0x8 data_ov102_0214e6f8:0x8
+data_ov102_0214e700:0x8 data_ov102_0214e708:0x8 data_ov102_0214e710:0x8
+data_ov102_0214e718:0x8 data_ov102_0214e720:0x8 data_ov102_0214e728:0x8
+data_ov102_0214e730:0x8 data_ov102_0214e738:0x8 data_ov102_0214e740:0xc
+data_ov102_0214e74c:0xc data_ov102_0214e758:0xc data_ov102_0214e764:0xc
+data_ov102_0214e770:0xc data_ov102_0214e77c:0xc data_ov102_0214e788:0xc
+data_ov102_0214e794:0xc data_ov102_0214e7a0:0xc data_ov102_0214e7ac:0xc
+data_ov102_0214e7b8:0xc data_ov102_0214e7c4:0xc data_ov102_0214e7d0:0x8
+data_ov102_0214e7d8:0x8 data_ov102_0214e7e0:0x8 data_ov102_0214e7e8:0x8
+data_ov102_0214e7f0:0x8 data_ov102_0214e7f8:0x8 data_ov102_0214e800:0x8
+data_ov102_0214e808:0x8 data_ov102_0214e810:0xc data_ov102_0214e81c:0xc
+data_ov102_0214e828:0xc data_ov102_0214e834:0xc data_ov102_0214e840:0xc
+data_ov102_0214e84c:0xc data_ov102_0214e858:0xc data_ov102_0214e864:0xc
+data_ov102_0214e870:0x20 data_ov102_0214e890:0x30 data_ov102_0214e8c0:0x100
+data_ov102_0214e9c0:0x8 data_ov102_0214e9c8:0x8 data_ov102_0214e9d0:0xc
+data_ov102_0214e9dc:0xc data_ov102_0214e9e8:0xc data_ov102_0214e9f4:0xc
+data_ov102_0214ea00:0xc data_ov102_0214ea0c:0xc data_ov102_0214ea18:0x4
+data_ov102_0214ea1c:0x4 data_ov102_0214ea20:0x4 data_ov102_0214ea24:0xc
+data_ov102_0214ea30:0xc data_ov102_0214ea3c:0xc data_ov102_0214ea48:0x10
+data_ov102_0214ea58:0x10 data_ov102_0214ea68:0x10 data_ov102_0214ea78:0x28

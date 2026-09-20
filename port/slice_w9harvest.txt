@@ -1,0 +1,138 @@
+# slice_w9harvest.txt -- lane-owned slice for the linkage campaign (run linkw,
+# wave 9, lane w9-harvest: THE STALE-FORK HARVEST). One matched src TU per
+# line, path relative to the repo root, comments with #. ONE OWNER (w9-harvest).
+#
+# WHAT THIS LANE IS. This branch (port-mount-noseat-cluster) forked from main
+# at 7b2f913fe on 2026-08-04 and is 626 commits behind it. The decomp side has
+# kept matching functions across those 626 commits, and none of them are
+# visible from here. Every matched TU main has gained since the fork that the
+# port currently hand-hosts, stubs, or counts as unmatched is free linkage the
+# campaign has already paid for on the decomp side.
+#
+# THE POOL, MEASURED (origin/main at bc93fa767, this branch at 1374cfb33):
+#
+#   543  src/ TUs that exist on origin/main and not on this branch
+#   496  (c) BLOCKED -- main RENAMED a TU this branch already carries. The
+#        port's src/ already has a byte-matched TU at the SAME ROM ADDRESS
+#        under the older spelling (func_ov027_02111618 vs main's
+#        _ZN10ChillBullyD0Ev, and 495 more). Taking main's file would seat a
+#        SECOND copy of the same ROM body under a second C name; it moves no
+#        linkage and it is exactly the duplicate the "propagate renames BY
+#        ADDRESS" rule exists to stop. Every one of this branch's 496
+#        port-only stems is the address-partner of one of these -- the two
+#        sets are the same 496 functions under two spellings, not 992
+#        functions.
+#     7  (a) RETIREMENTS -- a port host file DEFINES the ROM name today, so
+#        seating main's TU retires a host body that is currently what runs.
+#     40 (b) ABSENT -- nothing in the port defines or references the name.
+#        /OPT:REF law: a slice line with no caller is worth zero linkage.
+#
+# The seven (a) rows, with the host definition each one retires:
+#
+#   func_ov060_02116d78   ov060 0x02116d78  unmatched/Ov060_StateDispatch.cpp
+#   func_ov062_02117724   ov062 0x02117724  unmatched/KoopaChuckya_StateDispatch.cpp
+#   func_ov071_02120d30   ov071 0x02120d30  unmatched/MrI_StateMains.cpp
+#   _ZN12Flamethrower8BehaviorEv  ov095 0x021368f0  unmatched/Flamethrower_Behavior.c
+#   func_01ff859c        itcm 0x01ff859c   hal/cxx_aliases.cpp (alias RHS)
+#   func_01ffa344        itcm 0x01ffa344   hal/cxx_aliases.cpp (alias RHS)
+#   func_01ffa4bc        itcm 0x01ffa4bc   hal/cxx_aliases.cpp (alias RHS)
+#
+# ---- WHAT LANDS HERE -------------------------------------------------------
+#
+# func_ov060_02116d78 -- BOWSER FIRE behaviour state 5, ov060 0x02116d78,
+# 0x1fc bytes.
+#
+#   This is the case that started the lane. port/unmatched/Ov060_StateDispatch
+#   .cpp shipped it as "VERIFIED HOST COPY 8" with a banner that read, in the
+#   body's own words, "host copy only because no matched TU of this name
+#   exists". src/func_ov060_02116d78.c has been a verified byte-match on main
+#   since PR #1150 (817be2263, 2026-08-07) -- FOUR DAYS before the host copy
+#   landed in PR #1505. The banner was not careless; it was true of every tree
+#   its author could see. That is the whole lane in one row.
+#
+#   WHY IT LINKS HERE. The TU's six externs all already resolve in this build:
+#     func_ov060_02116518                     ov060, mounted (ov060_syms.txt)
+#     _ZNK12WithMeshClsn10IsOnGroundEv        arm9 0x020356e8, already linked
+#     RandomIntInternal                       arm9 0x0203b990, already linked
+#     _ZN9ActorBase18MarkForDestructionEv     arm9 0x02043824, already linked
+#     data_02082214, data_0209e650            arm9 data, already mounted
+#   and the one spelling difference is already paid for: the matched TU
+#   declares Actor::Spawn as
+#   _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16as (the signed-char/short tail
+#   spelling) while the port hosts ..._16ii. hal/cxx_aliases.cpp already
+#   carries that exact /alternatename (gate 192, added for MrBlizzard's
+#   carried copies), so the harvest needed no new alias and no new mount.
+#
+#   REACH. It is not a /OPT:REF orphan: g_ov060_states in
+#   Ov060_StateDispatch.cpp takes its address for seat row afb4[5] (the
+#   BOWSER FIRE behaviour table's record 5), which is a hard reference from an
+#   object that is already in every target this slice feeds.
+#
+#   WHAT WAS RETIRED. HOST COPY 8 (81 lines) is deleted from
+#   port/unmatched/Ov060_StateDispatch.cpp. The file's own narrative is
+#   corrected with it: the "TWO NAMED HOLES ARE NOW VERIFIED HOST COPIES"
+#   header now says one hole is a host copy and the other is real decomp, and
+#   the seat row's "afb4[5] HOLE" label -- false the moment the matched TU
+#   seats -- is now "afb4[5]".
+#
+# NOTE ON PLACEMENT. The obvious home for this line is port/slice_w5e.txt,
+# between its 02116c68 and 02116f74 rows. It is here instead because
+# slice_w5e.txt is lane w5-e's file under the campaign's ONE OWNER contract.
+# ${SLICE_W9HARVEST_SOURCES} is listed immediately after
+# ${SLICE_W5E_SOURCES}/${SLICE_W6A_SOURCES} in all three targets that carry
+# the ov060 pack, so the compile and link surface is the same as the in-place
+# edit would have produced.
+src/func_ov060_02116d78.c
+#
+# func_ov062_02117724 -- KOOPA state-3 shell-dust Particle helper, ov062
+# 0x02117724, 0x270 bytes.
+#
+#   port/unmatched/KoopaChuckya_StateDispatch.cpp hosted it under a banner
+#   reading "It is UNMATCHED -- no C in src/", and a second banner calling the
+#   byte-match "a TRUE FLOOR at 5 divergences" citing nearmiss/db.jsonl
+#   (fanout-glm-5.2) and 5800 permuter iterations. Neither reading survives:
+#   src/func_ov062_02117724.c landed on main in PR #1474 (8ec808874,
+#   2026-08-13) as a verified byte-match. The floor was cracked; this branch
+#   just could not see it.
+#
+#   REACH. Three matched src callers already in port/slice_gate182.txt bl into
+#   it: src/func_ov062_02118718.c, src/func_ov062_02118b4c.c,
+#   src/func_ov062_02118cdc.c. Not an /OPT:REF orphan.
+#   EXTERNS. func_0201267c, Particle::System::New, Particle::SetSelfDestructFlag,
+#   Particle::System::FromUniqueID, data_02082214 -- every one already resolved
+#   in this build, because the host copy called the same five.
+src/func_ov062_02117724.c
+#
+# func_ov071_02120d30 -- MR. I state 2 MAIN (the defeat sequence), ov071
+# 0x02120d30, 0x3dc bytes.
+#
+#   port/unmatched/MrI_StateMains.cpp hosted it under an explicitly MEASURED
+#   claim: "the set difference between the func_ov071_* names in
+#   config/arm9/overlays/ov071/symbols.txt and the func_ov071_* files in src/
+#   is exactly {func_ov071_02120d30, func_ov071_021211e0} -- two names, no
+#   others." The measurement was right and the tree was stale: re-run against
+#   origin/main the difference is {func_ov071_021211e0}, one name.
+#   src/func_ov071_02120d30.c landed on main in PR #1474 (8ec808874,
+#   2026-08-13). func_ov071_021211e0 stays hosted -- main has no TU for it
+#   either.
+#
+#   REACH. port/unmatched/MrI_StateDispatch.cpp's seat table takes its address
+#   for the state-2 MAIN record (data_ov071_02122cc8), a hard reference from an
+#   object already in every target this slice feeds.
+#   EXTERNS. Fourteen. Thirteen resolved as-is; ONE did not, and the failure
+#   is the lane's second real finding. Actor::Spawn rides the gate-192
+#   /alternatename (..._16as -> ..._16ii), same as the ov060 row above. But
+#   Actor::UntrackAndSpawnStar is spelled ..._RK7Vector3h in main's TU and
+#   ..._RK7Vector3j in this port -- main RENAMED the symbol after the fork.
+#   Both are the one 0x4c-byte body at arm9 0x0200ff14 (checked in both
+#   branches' config/arm9/symbols.txt) with an identical cdecl surface, so it
+#   is one more /alternatename, added to port/hal/cxx_aliases.cpp with the
+#   address check written out.
+#
+#   THE GENERAL HAZARD. 496 of the 543 pool rows are renames of bodies this
+#   branch already carries. Any of them can surface as an unresolved extern
+#   inside an otherwise clean harvest, because a harvested TU imports main's
+#   CURRENT spellings for everything it calls. The link catches it every time
+#   -- this one cost one failed build and one alias -- but a harvest lane
+#   should expect it, not be surprised by it.
+src/func_ov071_02120d30.c

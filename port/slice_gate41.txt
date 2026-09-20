@@ -1,0 +1,36 @@
+# Gate 41: the castle interior's TRAP (36) and LIGHT_BEAM (37), ov010.
+#
+# Level 2's own overlay, mounted a second time per symbol (ov010_syms.txt) so
+# the actor code reaches its SpawnInfo records by name -- the gate-17 shape of
+# ov009. LIGHT_BEAM is a variant of TRAP: its own Spawn installs _ZTV4Trap and
+# it has no methods of its own, so this slice carries TRAP's six own slots plus
+# both factories and the overlay's three static initialisers.
+#
+# The vtable at ov010 0x02112ba8 wears three names -- config's _ZTV4Trap,
+# LIGHT_BEAM's RTTI _ZTV15daObjC1Hikari_c and TRAP's own _ZTV14daObjC1_Trap_c
+# (which Trap_Spawn and Trap::~Trap spell) -- all aliased to one host array in
+# hal/actor_classes.cpp. Nothing here dispatches a pointer-to-member.
+
+# ---- TRAP's six own slots (D1 excluded: slot 16 traps) --------------------
+# _ZN4TrapD1Ev.cpp is a real C++ destructor over shadow Model/Cylinder
+# classes whose member offsets do not match Trap_Spawn's, so it is NOT here;
+# slot 16 traps instead (nothing destroys a trap on the interior boot).
+src/Trap_Spawn.c
+src/_ZN4Trap13InitResourcesEv.cpp
+src/_ZN4Trap8BehaviorEv.cpp
+src/_ZN4Trap6RenderEv.cpp
+src/_ZN4Trap16CleanupResourcesEv.c
+src/_ZN4TrapD0Ev.c
+# the two the closure reaches: an ov010 InitResources helper and the secret
+# sound Behavior plays. Everything else they touch is already linked.
+src/func_ov010_02111a54.c
+src/_ZN5Sound20PlaySmallSecretSoundEP5ActorPt.c
+
+# ---- LIGHT_BEAM: just the factory, it shares TRAP's table -----------------
+src/LightBeam_Spawn.c
+
+# ---- ov010's three static initialisers ------------------------------------
+# SharedFilePtr construction and one five-element Vector3 copy; no state table.
+src/__sinit_ov010_0211203c.c
+src/__sinit_ov010_0211211c.c
+src/__sinit_ov010_0211215c.c

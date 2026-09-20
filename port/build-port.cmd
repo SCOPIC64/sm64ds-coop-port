@@ -1,86 +1,121 @@
 @echo off
-rem Build every PC-port smoke runner with 32-bit MSVC. Discover Visual Studio
-rem through its supported installer API so Community and Build Tools installs,
-rem including newer releases, work without editing this file.
+rem Build the PC port's gate-1 smoke runner: 32-bit MSVC via VS Build Tools,
+rem same toolchain-location pattern as the recomp's build scripts.
 setlocal
-
-if not exist "%~dp0..\extracted\arm9_dec.bin" (
-    echo ERROR: extracted\arm9_dec.bin is missing. Run the repository ROM setup first. 1>&2
-    exit /b 1
-)
-if not exist "%~dp0..\build\assets\files.tsv" (
-    echo ERROR: the local asset catalog is missing. 1>&2
-    echo Run: python tools\asset_catalog.py generate sm64.nds 1>&2
-    exit /b 1
-)
-if not exist "%~dp0..\build\assets\handles.tsv" (
-    echo ERROR: the local asset handle catalog is missing. 1>&2
-    echo Run: python tools\asset_catalog.py generate sm64.nds 1>&2
-    exit /b 1
-)
-
-set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
-if not exist "%VSWHERE%" (
-    echo ERROR: Visual Studio Installer's vswhere.exe was not found. 1>&2
-    exit /b 1
-)
-
-set "VSINSTALL="
-for /f "usebackq delims=" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSINSTALL=%%I"
-if not defined VSINSTALL (
-    echo ERROR: no Visual Studio installation with the x86 C++ tools was found. 1>&2
-    exit /b 1
-)
-
-call "%VSINSTALL%\VC\Auxiliary\Build\vcvars32.bat" >nul
+set "PATH=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer;%PATH%"
+call "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars32.bat" >nul
 if errorlevel 1 exit /b 1
-
-set "PYTHON_EXE="
-for /f "delims=" %%I in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do if not defined PYTHON_EXE set "PYTHON_EXE=%%I"
-if not defined PYTHON_EXE for /d %%I in ("%LocalAppData%\Programs\Python\Python*") do if exist "%%~fI\python.exe" set "PYTHON_EXE=%%~fI\python.exe"
-if not defined PYTHON_EXE for /f "delims=" %%I in ('where python.exe 2^>nul') do if not defined PYTHON_EXE set "PYTHON_EXE=%%I"
-if not defined PYTHON_EXE (
-    echo ERROR: Python 3 was not found on PATH or through py.exe. 1>&2
-    exit /b 1
-)
-"%PYTHON_EXE%" -c "import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)" >nul 2>&1
+set "CMAKEBIN=%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake"
+set "PATH=%CMAKEBIN%\CMake\bin;%CMAKEBIN%\Ninja;%PATH%"
+rem Fail before configure if a slice gate activates a receiver dropping raw reader.
+python "%~dp0tools\closestplayer_guard.py"
+if errorlevel 1 exit /b 1
+rem Fail before configure if a NEW guessed vtable body got seated past the baseline.
+python "%~dp0tools\inferred_stub_guard.py"
+if errorlevel 1 exit /b 1
+rem Fail before configure if the closure prober's selftest breaks: the probe
+rem sizes slice walls and predicts collisions, and a broken prober lies
+rem quietly. There is no port CI; this block is where loudness lives.
+python "%~dp0tools\closure.py" --selftest
+if errorlevel 1 exit /b 1
+rem Fail before configure if facegen's selftest breaks: generated faces get
+rem wired by slices, and a generator that stops refusing the judgment rows
+rem is a silent hazard, not a convenience.
+python "%~dp0tools\facegen.py" --selftest
+if errorlevel 1 exit /b 1
+rem Fail before configure if mapdiff's selftest breaks: reviews and delta-0
+rem claims read their decomposition off it, and a differ that miscounts or
+rem stops refusing a truncated map turns a review into an eyeball again.
+python "%~dp0tools\mapdiff.py" --selftest
+if errorlevel 1 exit /b 1
+rem Fail before configure if vtablerows' selftest breaks: the minigame
+rem fan-out lanes read their override/marker/nosrc census off it, and a
+rem reader that miscounts a marker row skips a ROM adjudication silently.
+python "%~dp0tools\vtablerows.py" --selftest
+if errorlevel 1 exit /b 1
+rem And its reconstruction against mg_fanout_costs section 3: the selftest
+rem runs on fixtures and cannot see the real-tree wiring (paths, the base
+rem table constant, the symbol tables); the 29/29 reconstruction is the net
+rem for exactly that half. Needs extracted/overlays, which every port tree
+rem needs anyway (the binaries abort without the NitroFS emissions).
+rem Quiet on the green path (35 lines per build otherwise); on failure the
+rem rerun prints the DIVERGE lines, so the refusal stays loud.
+python "%~dp0tools\vtablerows.py" --reconstruct >nul
 if errorlevel 1 (
-    echo ERROR: the discovered python.exe is not a working Python 3 installation. 1>&2
+    python "%~dp0tools\vtablerows.py" --reconstruct
     exit /b 1
 )
-for %%I in ("%PYTHON_EXE%") do set "PYTHON_DIR=%%~dpI"
-set "PATH=%PYTHON_DIR%;%PYTHON_DIR%Scripts;%PATH%"
-
-set "CMAKE_EXE="
-for /f "delims=" %%I in ('where cmake.exe 2^>nul') do if not defined CMAKE_EXE set "CMAKE_EXE=%%I"
-if not defined CMAKE_EXE for /d %%I in ("%LocalAppData%\Programs\Python\Python*") do if exist "%%~fI\Scripts\cmake.exe" set "CMAKE_EXE=%%~fI\Scripts\cmake.exe"
-if not defined CMAKE_EXE if exist "%VSINSTALL%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" set "CMAKE_EXE=%VSINSTALL%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
-if not defined CMAKE_EXE (
-    echo ERROR: cmake.exe was not found on PATH or in Visual Studio. 1>&2
-    exit /b 1
-)
-for %%I in ("%CMAKE_EXE%") do set "CTEST_EXE=%%~dpIctest.exe"
-if not exist "%CTEST_EXE%" (
-    echo ERROR: ctest.exe was not found next to cmake.exe. 1>&2
-    exit /b 1
-)
-
-set "NINJA_EXE="
-for /f "delims=" %%I in ('where ninja.exe 2^>nul') do if not defined NINJA_EXE set "NINJA_EXE=%%I"
-if not defined NINJA_EXE for /d %%I in ("%LocalAppData%\Programs\Python\Python*") do if exist "%%~fI\Scripts\ninja.exe" set "NINJA_EXE=%%~fI\Scripts\ninja.exe"
-if not defined NINJA_EXE if exist "%VSINSTALL%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe" set "NINJA_EXE=%VSINSTALL%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
-if not defined NINJA_EXE (
-    echo ERROR: ninja.exe was not found on PATH or in Visual Studio. 1>&2
-    exit /b 1
-)
-
-"%CMAKE_EXE%" -S "%~dp0." -B "%~dp0..\build\port" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM="%NINJA_EXE%" %* -DBUILD_TESTING=ON
+rem Fail before configure if stategen's selftest breaks: it generates the
+rem address switch a pointer-to-member state machine is dispatched through,
+rem and a generator that drops a slot emits a switch that is short by one
+rem state and looks complete. Every parse shape and every refusal is pinned
+rem on fixtures here.
+python "%~dp0tools\stategen.py" --selftest
 if errorlevel 1 exit /b 1
-"%CMAKE_EXE%" --build "%~dp0..\build\port"
+rem And its reconstruction of the two hand artifacts: the selftest runs on
+rem fixtures and cannot see the real-tree wiring (the extracted/config paths,
+rem the mount lists, the precedent file locations). Reproducing the 25-case
+rem curling switch and all 197 player rows is the net for that half. Quiet on
+rem the green path; on failure the rerun prints the DIVERGE lines.
+python "%~dp0tools\stategen.py" --reconstruct >nul
+if errorlevel 1 (
+    python "%~dp0tools\stategen.py" --reconstruct
+    exit /b 1
+)
+rem Fail before configure if the alternatename guard's scoping fixture breaks.
+rem The guard decides what counts as a linker input, and it used to read lane
+rem prose as one: a quoted directive in a .txt was a build input, so deleting a
+rem real alias left the quote of it failing the build. The fixture pins that
+rem scope. The guard's own map check still runs post-link, below.
+python "%~dp0tools\alternatename_guard.py" --selftest
 if errorlevel 1 exit /b 1
-pushd "%~dp0..\build\port"
+rem Fail before configure if the band guard's fixture battery breaks. Each arm
+rem has a break only that arm catches, including the two the tree has actually
+rem shipped (a GX band member split back out of its grouped section, and a
+rem hosted global sized by its first caller). Its map check runs post-link,
+rem below.
+python "%~dp0tools\gxband_guard.py" --selftest
 if errorlevel 1 exit /b 1
-"%CTEST_EXE%" --output-on-failure
-set "CTEST_RESULT=%ERRORLEVEL%"
-popd
-exit /b %CTEST_RESULT%
+rem Fail before configure if the tail-jump guard's fixture battery breaks. Both
+rem directions are pinned there -- a forwarder that must jump failing when it
+rem calls, and a classified seam that must call failing when it jumps -- plus
+rem the displacement retirement that lets a seated row leave the set without a
+rem hand edit. Its map check runs post-link, below.
+python "%~dp0tools\tailjump_guard.py" --selftest
+if errorlevel 1 exit /b 1
+cmake -S "%~dp0." -B "%~dp0..\build\port" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM="%CMAKEBIN%\Ninja\ninja.exe" %*
+if errorlevel 1 exit /b 1
+ninja -C "%~dp0..\build\port"
+if errorlevel 1 exit /b 1
+rem Fail after link if any /alternatename LHS is also a DEFINED symbol in the
+rem map -- a defined LHS defeats the alias silently (the wave-5 R1/R2 class;
+rem EyerokD0 and the data_ov075 aliases flip the same way if their overlays
+rem land). Post-link by design: the guard needs walk_window.map.
+python "%~dp0tools\alternatename_guard.py" --map "%~dp0..\build\port\walk_window.map"
+if errorlevel 1 exit /b 1
+rem Fail after link if a hosted DS BAND did not come out of the linker in ROM
+rem order. The DS reaches a band's members as INTERIOR ADDRESSES of its head --
+rem the SetBankFor* family writes the GX bank block out to +0x18, the interrupt
+rem handlers write the DTCM's OSi_IrqCheckFlag at DTCM_END - 8 -- so a split or
+rem short host object puts every one of those writes on whatever the linker put
+rem next. The expected offsets come from config/arm9/symbols.txt at run time.
+rem Post-link by design, and over EVERY map rather than walk_window's alone:
+rem /MAP is on CMAKE_EXE_LINKER_FLAGS so each target writes one, and the
+rem runtime check in hal/cxx_aliases.cpp only ever reached the binaries that
+rem link hal/sub_screen.cpp, on the one bring-up path that calls it.
+python "%~dp0tools\gxband_guard.py" --build-dir "%~dp0..\build\port"
+if errorlevel 1 exit /b 1
+rem Fail after link if a frame that carries an ARM argument through on the host
+rem stopped being a TAIL JUMP. Roughly fifty rows in the ov007 slice are
+rem correct only because MSVC compiles a one-call forwarder as a jmp, which
+rem reuses the caller's own cdecl frame so an argument the forwarder never
+rem names is still where its target reads it. Nothing in the tree asks for
+rem that. /Od, /Ob0 or one added statement in any forwarder turns it into a
+rem real prologue and every affected row breaks in the same build, as a scatter
+rem of unrelated-looking faults with no single change to point at. The scan
+rem needs no disassembler -- an E8 or E9 rel32 in a frame's own map span,
+rem resolved against the callee's address -- and it runs over EVERY map for
+rem gxband_guard's reason: /MAP is on CMAKE_EXE_LINKER_FLAGS, three targets
+rem host the ov007 slice, and nothing else in this build asks the question.
+python "%~dp0tools\tailjump_guard.py" --build-dir "%~dp0..\build\port"
+if errorlevel 1 exit /b 1

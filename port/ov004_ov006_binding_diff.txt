@@ -1,0 +1,546 @@
+THE ov004 + ov006 MOUNT'S BINDING DIFF: the passenger pair, what the cross pass
+did before them, what it did after each of them, and every row that moved. Run
+link60, lane s2-m46, the second consumer of the residency model merged at
+11242964f and the first to make it answer TRUE between two mounted overlays.
+
+Measured in worktree C:/tmp/e2 at 0d81b845c, CMAKE_HOME_DIRECTORY C:/tmp/e2/port.
+Gate at the baseline: 4950 / 11243 linked (44.0%), battery ALL GREEN, skips
+carrying only the scene-4 entry, git_dirty false. No exe hash is quoted: the
+link embeds build-location state, so one worktree's sha256 is not reproducible
+in another and is not an attestation. The attestation is the gate manifest's
+git_sha plus git_dirty.
+
+THE BASELINE IS 229 ROWS ACROSS 94 MOUNTS, NOT THE 228 ACROSS 93 THIS LANE WAS
+BRIEFED WITH. That number is the ov007 lane's, measured at its own base three
+merges earlier; ov043's per-symbol mount (DIAMOND_LIFT) and the scene slice
+landed in between, and ov043 alone carries four of the rows. Every comparison
+below is against this lane's own measured baseline. Inheriting a count across
+merges is the mistake this paragraph exists to not make.
+
+
+1. THE ENTRY GATE, AND WHAT IT ACTUALLY EXERCISED
+--------------------------------------------------
+
+The ov007 lane closed by saying its own mount tested only the EXCLUSIVE half of
+the residency model -- every answer it produced was coresident FALSE -- and that
+the PERMISSIVE half, "coresident TRUE between two mounted overlays that
+genuinely contest an address, where the model has to drop a binding it would
+otherwise have made", would first be exercised by ov004 plus ov006. This lane is
+that mount. The prediction is half right and the half that is wrong matters, so
+it is the first thing here.
+
+WHAT DID GET EXERCISED. coresident(ov004, ov006) = True is the only True the
+model produces between two scene-slot occupants, and it is now load-bearing:
+55 pointers bind across the pair BECAUSE of it, and would not bind without it.
+The model's answers, printed from Residency over the 96 mounted footprints:
+
+    scene slot        ov002, ov003, ov004, ov005, ov006, ov007
+    passengers        ov004 rides ov006
+    sticky            ov075
+    level territory   from 0x021111a0 on the ov002 scene
+
+    coresident(ov004, ov006) = True     <- the pair, by rule 2's passenger arm
+    coresident(ov004, ov002) = False    coresident(ov006, ov002) = False
+    coresident(ov004, ov003) = False    coresident(ov006, ov003) = False
+    coresident(ov004, ov005) = False    coresident(ov006, ov005) = False
+    coresident(ov004, ov007) = False    coresident(ov006, ov007) = False
+
+    mounted overlays co-resident with ov004:  ov001, ov006
+    mounted overlays co-resident with ov006:  ov001, ov004
+
+WHAT THIS PAIR DOES NOT EXERCISE, STATED CORRECTLY. An earlier version of this
+section argued that the drop direction might be UNREACHABLE on today's rules.
+That is wrong, and the review caught it. It misread window_count:
+
+    def window_count(src, v):
+        return sum(1 for ov, (s, e) in windows.items()
+                   if s <= v < e and res.coresident(src, int(ov[2:])))
+
+Each window has to be co-resident with the SOURCE. It does not have to be
+co-resident with the other windows, and usually is not. Two mutually EXCLUSIVE
+overlays both counted against one source is the ordinary case, not an impossible
+one, and it is exactly what the 105 contested rows in this build already are:
+they come from 17 source overlays, and the largest window_count among them is
+47 -- an ov091 want at 0x02111244, which every level overlay's window covers.
+The level slot performs the drop 105 times a build.
+
+WHAT SURVIVES of that argument is one narrower sentence, and it is true: no two
+mounted overlays are ever both OVERLAPPING and CO-RESIDENT, because rule 1 tests
+overlap first and returns False. That is why ov001, ov004 and ov006 can never
+contest each other -- the three windows are disjoint, abutting twice --
+
+    ov001   0x020aa420 .. 0x020ad660
+    ov004   0x020ad660 .. 0x020bfec0
+    ov006   0x020bfec0 .. 0x021430a0
+
+and it is why this pair contributes no contested row of its own and moved no
+pre-existing one. But that is a fact about THIS pair's addresses, not a property
+of the model, and it does not generalise.
+
+THE DROP DIRECTION IS REACHABLE. It is reached 105 times today, and it is
+reachable by this lane's own rows: mounting ov000 alone would do it. ov000's
+footprint is 0x020aa420..0x020bf4e0, it shares ov001's base, and it is neither a
+scene occupant nor sticky nor level territory, so coresident() falls through to
+True for everything -- ov006 included. Its window then covers most of ov004's.
+Measured, with nothing else changed:
+
+    rebased rows        284 -> 264      20 LOST
+    contested           105 -> 749
+
+All 20 lost rows are ov006 -> ov004 rows and all 20 are among this lane's own
+55. So these bindings are not unconditional: they hold because ov000 is not
+mounted, and the day it is, twenty of them are correctly withdrawn.
+
+The honest summary the next mount lane should inherit: this lane exercised
+coresident TRUE in the direction that WRITES bindings, and did not exercise the
+direction that withholds them -- not because that direction is unreachable, but
+because this pair's windows happen not to overlap any window co-resident with
+them.
+
+THE PASSENGER REFUSAL STAYED QUIET, which is the third thing this gate was to
+check. ov004's footprint ends at 0x020bfec0 and ov006's base IS 0x020bfec0;
+_overlaps() is strict, so 0x020bfec0 < 0x020bfec0 is false, the pair does not
+overlap, and Residency.__init__'s refusal did not fire. It is the first time
+that check has run against a mounted pair rather than a modelled one.
+
+
+2. THE TWO DIFFS
+----------------
+
+Both mounts were emitted for real -- not simulated -- and the cross pass was run
+over the build's own 94 sidecars plus one, then plus two. The rows were compared
+STATEMENT BY STATEMENT as a multiset, not by count.
+
+STEP 1, ov004 ALONE:
+
+    rebased rows, before                                  229
+    rebased rows, after                                   229
+    IDENTICAL MULTISET                                    yes
+    rows appeared / disappeared / changed                 0 / 0 / 0
+    contested                                             105 -> 105
+    raw                                                   6870 -> 7053  (+183)
+    into a range no co-resident mount owns                4662 -> 4710  (+48)
+    mounts                                                94 -> 95
+
+    +183 is exactly ov004's own cross wants and nothing else.
+
+STEP 2, ov006 ADDED:
+
+    rebased rows, before                                  229
+    rebased rows, after                                   284
+    rows APPEARED                                         55
+    rows DISAPPEARED                                      0
+    rows CHANGED                                          0
+    contested                                             105 -> 105
+    raw                                                   7053 -> 8919  (+1866)
+    into a range no co-resident mount owns                4710 -> 4941
+    mounts                                                95 -> 96
+
+    +1866 is ov006's own 1921 wants less the 55 that now bind.
+
+CONTESTED DOES NOT MOVE ACROSS EITHER STEP, 105 throughout. Same statement the
+ov007 lane's diff made and for the same reason, now at 123 KB of new window
+instead of 229 KB: none of the overlays whose pointers land in these two windows
+can be loaded while ov004 or ov006 is.
+
+The 229 rows the build carries today were also checked the other way -- not
+"did the file change" but "could any row have moved". A row is lost only if
+window_count goes 1 -> more than 1, which needs the row's SOURCE mount to be
+co-resident with a window being added. Among the 94 pre-existing mounts, exactly
+ov001 is co-resident with the pair, and ov001 emits no want into either new
+window. Measured over every want of all 94: want words whose window_count
+changes at all, 0.
+
+
+3. ADJUDICATION OF ALL 55 APPEARED ROWS
+----------------------------------------
+
+    rebased-correctly (provider co-resident, address inside footprint)   55
+    correctly-dropped (contested by a genuinely co-resident mount)        0
+    FINDING (a wrong binding WRITTEN)                                     0
+
+Every one of the 55 is a pointer between the two halves of the passenger pair:
+35 from ov004 into ov006's data, 20 from ov006 into ov004's data. Each was
+re-checked against the config rather than against the tool's own bookkeeping,
+five independent tests per row, and all 55 pass all five:
+
+    the provider overlay is co-resident with the source        55 / 55
+    the target address is inside the provider SYMBOL's extent  55 / 55
+    the provider symbol is inside its own overlay's footprint  55 / 55
+    the site is a kind:load reloc the delink table lists       55 / 55
+    the emitted host offset equals the DS offset               55 / 55
+
+and every one of the 55 lands at offset 0 of its provider symbol -- not one is
+an interior landing, so there is no offset arithmetic to get wrong. The 55 rows
+land on 25 distinct ov006 targets and SIX distinct ov004 targets -- the ov004
+side is concentrated, with data_ov004_020bbf6c alone taking 15 of the 20. (An
+earlier draft said 32 for the ov004 side. That was the count of distinct ov004
+addresses ov006 WANTS, most of which are .text and stay raw, not the count that
+carries a row.)
+
+WHY THEY BIND, IN THE MODEL'S TERMS, and why an address test would refuse them.
+Take ov004's data_ov004_020bbfa8 + 0 -> 0x021373a4. That address is inside
+ov006's window, and also inside ov084's and ov085's, which share the actor-
+overlay base below it. Purely by address that is three candidate answers and the
+pointer goes back to a raw DS address. Under residency ov004 is a scene-slot
+occupant and ov084/ov085 are level territory, so rule 3 makes both False, ov006
+is True by the passenger rule, window_count is 1, and the row stands.
+
+Run over the whole build with both mounts in place:
+
+    rebased under an ADDRESS-ONLY window test        35
+    rebased under the RESIDENCY test                284
+
+THE COUNTERFACTUAL THE ov006 SCOUT ASKED FOR. Its acceptance test was "the
+pointers rebased today stay rebased after an ov006 window exists", and it
+projected a real loss of 181 at its own base under the old address-only rule.
+Recomputed here against real mounts: of this base's 229 rows, an address-only
+test with these two windows added keeps 34 and loses 195. Under residency it
+loses 0. The scout's number was 181; at this base and with the real emission it
+is 195, and the model turns all of it into nothing.
+
+THE ONE ROW THE MODEL REFUSES THAT AN ADDRESS TEST WOULD HAVE BOUND, because the
+conservative direction is exercised here too and it caught a genuinely wrong
+binding this mount would otherwise have created:
+
+    ov025  port_ov025_image + 6872  ->  0x02140108
+
+0x02140108 is inside ov006's new window and nothing else's, so an address-only
+test with this mount present would bind it to ov006's copy. dsd's own row says
+what it really is:
+
+    from:0x02112c78 kind:load to:0x02140108 module:overlays(6,99)
+
+ov025 is a level overlay. It runs alongside ov002, never alongside ov006, and
+ov099's footprint (0x0213c960..0x02140d80) contains 0x02140108 and IS co-resident
+with ov025. So the honest answer is ov099's copy, ov099 is not mounted, and raw
+is right. The row is raw before this mount and raw after it, so it is not a diff
+row; it is recorded because it is the first time the model has declined a
+binding that a new window would otherwise have manufactured.
+
+
+4. WHAT THE MOUNTS EMIT
+-----------------------
+
+ov004, the minigame scene framework (dScMgBase_c):
+
+    597 symbols          3 in .rodata, 510 in .data, 84 in .bss
+    27252 bytes          span 0x020b944c .. 0x020bfec0, of which 24832 is the
+                         symbol sizes and 2420 the one pack gap
+    298 pointer patches  all reloc-backed, all 4-aligned
+    183 cross-mount wants
+    1 pack gap           2420 bytes at 0x020b948c: .init (ARM code), .ctor, and
+                         12 bytes of alignment. NOT zero in the ROM.
+    6 size pins          the halfword-column trap
+    0 synthetic gap blocks
+    4 sinits             identified, inventoried in port/ov004_syms.txt, NOT run
+
+ov006, the twenty-three minigames:
+
+    2927 symbols         300 in .rodata, 2138 in .data, 489 in .bss
+    96272 bytes          span 0x0212b890 .. 0x021430a0, of which 79572 is the
+                         symbol sizes and 16700 the one pack gap
+    1279 pointer patches all reloc-backed, all 4-aligned
+    1921 cross-mount wants
+    1 pack gap           16700 bytes at 0x0212f4c4: .init (thirty-one constructor
+                         bodies), .ctor, and alignment. NOT zero in the ROM.
+    14 size pins         the halfword- and byte-column trap
+    0 synthetic gap blocks
+    31 sinits            identified, inventoried in port/ov006_syms.txt, NOT run
+
+THE SPAN IS THE DATA, NOT THE OVERLAY, and the brief's expectation of "~525 KB"
+is the whole ov006 IMAGE. This is a per-symbol mount, so ov006's 429040 bytes of
+.text are not hosted and the landed span is 96272. The window the cross pass
+contests over is identical either way -- write_map declares the whole footprint
+whatever the mode -- so nothing in section 1 or 2 turns on the choice; only the
+provider claims differ, and a --whole mount would have offered none of them and
+produced zero of the 55 rows.
+
+WHERE EVERY RELOCATION INSIDE THE MOUNTED SYMBOLS GOES. 481 sites for ov004 and
+3200 for ov006, every one of them visited (see F3 below), and they resolve:
+
+    ov004   rebased inside the mount, target in .data                    298
+            left raw, target is ov004's own .text (unmounted code)       133
+            rebased across mounts, target in ov006's .data                35
+            left raw, target is arm9                                      13
+            left raw, target is in ov001                                   2
+
+    ov006   rebased inside the mount, target in .data                   1185
+            left raw, target is ov006's own .text (unmounted code)      1086
+            left raw, target is ov004's .text (unmounted code)            548
+            left raw, target is arm9                                      266
+            rebased inside the mount, target in .rodata                    86
+            rebased across mounts, target in ov004's .data                 20
+            rebased inside the mount, target in .bss                        8
+            left raw, target is in ov001                                    1
+
+THE 548 ov006 -> ov004 CODE POINTERS are the framework relationship the 2d map
+measured from the other side as 993 relocations from ov006 into ov004. These are
+the subset sited inside mounted DATA, and they stay DS addresses because ov004's
+.text is not mounted -- rebasing a call onto hosted data bytes would be a worse
+answer than leaving the word to trap. Nothing dereferences any of them today:
+none of the 1839 + 276 source TUs is compiled in, neither patch function has a
+caller, and no level can reach a minigame at all. The is-it-dereferenced question
+has answer NO for all 1219 of the two mounts' code pointers, and the honest way
+to keep it that way is that the TU-wiring lane has to revisit every one.
+
+THE THREE ov001 WANTS are 0x020ad478 twice and 0x020ab550 once. Both addresses
+are inside ov001's window and ov001 IS co-resident with the pair, so residency
+offers no objection -- but ov001's per-symbol mount provides nothing at either
+address: both fall inside --pack padding, not inside a mounted symbol. Raw is
+right, and it is better than the alternative: a binding there would point at
+zeroed padding rather than at ROM content.
+
+THE PACKED LAYOUT IS PROVED STATICALLY, because the check that normally proves
+it does not run here. ovdata emits port_ovNNN_pack_check() with one assertion
+per symbol, and hal/actor_classes_ovNNN.cpp calls it from the overlay's
+registration. A mount with no registry rows has no caller, so /OPT:REF strips
+the function and neither ov004's nor ov006's check is in the map -- the same is
+true of ov007's. So the same assertion was made against the LINKED MAP instead:
+for every mounted symbol, its host RVA minus the run's first host RVA must equal
+its DS address minus the run's first DS address.
+
+    ov004    597 of 597 symbols at the ROM's own relative offset, 0 mismatches
+    ov006   2927 of 2927 symbols at the ROM's own relative offset, 0 mismatches
+    ov007    716 of 716                                            0 mismatches
+
+That is a stronger statement than the runtime check gives, because it covers
+every symbol in the linked binary rather than every symbol in a code path
+nothing calls. It is what says the twenty size pins are right and that MSVC did
+not pad the runs at any of the eighteen non-4-aligned symbols.
+
+A CORRECTION TO port/ov004_ov007_2d_map.txt SECTION 9, which said ov004 "has
+seventeen cross wants into ov001" and "its other twenty-four cross wants go to
+ov006". Those counted relocations across the WHOLE overlay including .text. A
+want is only emitted for a reloc sited inside a MOUNTED symbol, and the real
+mount emits 2 into ov001 and 35 into ov006. Different denominators, not a
+contradiction, but the 2d map's numbers should not be quoted as mount figures.
+
+
+5. FINDINGS
+-----------
+
+F1  dsd's .ctor SYMBOL NAMES ARE NOT C IDENTIFIERS, and the rule the ov007 lane
+    established walks straight into them. FIXED IN THIS LANE, proven neutral.
+
+    "Mount every data-kind and bss-kind symbol dsd names" is the rule that makes
+    a packed run hole-free, and it is right. It had never met a .ctor section:
+    ov007's is zero length and ov003's the same, and every other mount list is
+    hand-picked. ov004 has four .ctor words and ov006 thirty-one, and dsd names
+    each one after the sinit it points at with a leading dot --
+    `.p__sinit_ov004_020b948c`. The config holds 308 names that are not C
+    identifiers: 305 of them are .ctor words spelled that way, one per .ctor
+    word in every overlay that has constructors, and the other 3 are itcm
+    kind:label(arm) names (.L_01ff8df8, .L_01ffa588, .L_01ffadf8), which are
+    labels rather than storage and no mount list would ask for one.
+
+    Emitted verbatim the declaration is `u8 .p__sinit_ov004_020b948c[4]`, which
+    is not C. That fails loudly, but it fails minutes later as a parse error in
+    a generated file with nothing pointing back at the symbol list, so ovdata
+    now refuses the name where the list is, with the remedy in the message.
+
+    Byte-neutral and provably so: no token in any of the 46 ovNNN_syms.txt files
+    fails the test, and every file under build/port/host-src regenerates
+    identical before and after.
+
+    LEAVING THE .ctor TABLE OUT IS ALSO RIGHT ON ITS OWN TERMS, not just
+    convenient. Those words hold DS addresses of .init code no data mount hosts.
+    Hosting them would give a constructor walk thirty-one addresses that resolve
+    to nothing; the zeroed pack padding that stands in for them reads as a table
+    that terminates immediately, which is exactly the "identified but not wired
+    to run" this lane was asked for.
+
+F2  FOUR HOST STAND-INS HAD TO RETIRE, and the ov006 scout said there would be
+    none. FIXED IN THIS LANE, byte-identical.
+
+    Section 3 of port/ov006_minigame_scout.txt measured the ov006 slice probe
+    and reported "2024 unresolved, 1991 distinct, ZERO duplicates. No LNK2005
+    anywhere: this territory has no host stand-ins to retire." That probe wired
+    ov006's TUs; it did not mount ov006's DATA, and the duplicates are on the
+    data side. Mounting the pair produced four LNK2005s:
+
+        data_ov004_020beb60   hal/oam2d_ov004_bss.cpp
+        data_ov004_020beb68   hal/actor_classes_ov081.cpp
+        data_ov006_02140330   hal/cxx_aliases.cpp
+        data_ov006_02140338   hal/cxx_aliases.cpp
+
+    All four are .bss. All four are sized by their ROM span on both sides -- 4,
+    4, 8 and 8 bytes -- and all four are zero on both sides, so the swap changes
+    no byte the program can observe. St_LevelEnter_Main's Release still reads
+    numRefs 0 on the two ov006 fileptrs, and data_ov004_020beb60 still hands
+    func_ov004_020adc4c the same zero it handed it before.
+
+    hal/oam2d_ov004_bss.cpp existed for exactly one of them and is deleted, with
+    its CMake line. The other three files keep their surrounding content. The
+    comment in hal/actor_classes_ov081.cpp said its two globals were "what
+    ov004's own callers will need the day ov004 is mounted"; that day is this
+    commit, and the ov004 half goes home while data_0209b308, which is an arm9
+    symbol and reached by no mount, stays.
+
+    The retirements ship in the same commit as the CMake wiring because either
+    half alone fails to link.
+
+F3  THE MISALIGNED-SYMBOL BLINDNESS PROJECTS TO ZERO FOR BOTH MOUNTS, and this
+    time the projection was re-run against the real lists rather than inherited.
+
+    The ov007 lane's F3 is that both ovdata's per-symbol pass and ovsweep step 4
+    bytes at a time from the ARRAY START, so for a symbol whose DS address is not
+    4-aligned the grid is offset from the ROM's and a reloc site inside it is
+    never visited, never patched, and never reported. The brief carried forward
+    "0 missed relocs for both". Measured against this lane's actual lists:
+
+        ov004   4 non-4-aligned symbols, largest 686 bytes
+                481 reloc sites inside mounted symbols, 481 visited, 0 BLIND
+        ov006   14 non-4-aligned symbols, largest 398 bytes
+                3200 reloc sites inside mounted symbols, 3200 visited, 0 BLIND
+
+    Confirmed, and confirmed again on the built sidecars after the mounts
+    landed. The same tool reproduces the ov007 lane's table exactly on the
+    overlays that do have the defect -- ov002 1, ov003 53, ov085 33, ov007 10 --
+    so the zero is a real zero and not a tool that stopped looking. The build's
+    F3 total is 97 before this lane and 97 after it.
+
+F4  dsstate_guard IS BLIND TO 344 MOUNTED SYMBOLS, 320 of them pre-existing and
+    24 of them this lane's. PARTLY ROUTED: the fix for the larger half is
+    neutral and needs no other work; the smaller half is what turns up F5.
+
+    The guard decides what is a hosted DS symbol from a list of NAME SHAPES:
+    data_0XXXXXXX, data_ovNNN_0XXXXXXX, LCG_STATE_0XXXXXXX, port_ovNNN_image,
+    and two named C++ exceptions. dsd only spells a symbol data_ovNNN_ADDRESS
+    when it had nothing better to call it. The ones it did have a name for match
+    nothing in that list: every *_SpawnInfo record and every _ZTV vtable a mount
+    list asks for. Counted over the lists this build actually mounts PER SYMBOL
+    -- 48 of the 49 ovNNN_syms.txt files, ov026's being excluded because ov026
+    is a whole-image mount and its list is not an input -- that is 344 names,
+    320 of them pre-existing and 24 from ov006 (twenty-three minigame SpawnInfo
+    records plus _ZTV17MgBounceAndPounce). All 344 were then looked up in
+    walk_window.map: 344 present, 344 inside .dsstate, 0 outside, 0 absent.
+
+    TWO OTHER DENOMINATORS ARE WRONG AND ARE NAMED SO NOBODY RE-DERIVES THEM.
+    348 counts all 46 list files and includes ov026's four, which are not in
+    this build. 272 excludes ov002's 72 on the reading that ov002 is not a
+    per-symbol mount; it is one -- port/CMakeLists.txt builds ov002_data.c with
+    `--from-list ov002_syms.txt`, and its sidecar reads mode "syms" with 1828
+    provides -- so ov002's 72 belong in the count and 344 is the figure.
+
+    The arithmetic is visible in the guard's own output. It reports 6949 hosted
+    symbols before this lane and 10445 after, a rise of 3496, while the mounts
+    add 3524 named symbols and retire 4 stand-ins, which is 3520. The missing 24
+    are ov006's named ones, not counted because not recognised.
+
+    Nothing is stranded today: all 344 were checked by hand against the map and
+    all 344 are inside [dsstate_lo, dsstate_hi), because --pack routes every
+    symbol into .dsstate$pkNNN_SSSS explicitly. The defect is that the guard is
+    not what proves it, in the direction where it goes quiet.
+
+    THE TWO HALVES SPLIT, and an earlier draft of this note got that wrong by
+    testing them together. Measured separately against this build's map:
+
+      *_SpawnInfo, which is 285 of the 344, IS NEUTRAL TO WIDEN. Adding the
+      pattern flags exactly one symbol outside .dsstate, _Camera_SpawnInfo at
+      0x62f5e0 out of romdata.c.obj, and the guard's existing CONST_OBJS
+      exemption already covers it. So that widening can land on its own and
+      does not have to wait for F5.
+
+      THE MANGLED NAMES, 59 of the 344 -- 9 spelled _ZTV and 50 spelled
+      _ZN...E -- CANNOT be widened by name. A _ZTV* pattern newly flags 155
+      symbols that are host-built vtables in hal/*.cpp (heap_vtable,
+      clsn_vtable, actor_vtables, actor_classes), and every one of them is
+      correctly outside .dsstate. Those 59 need the OBJECT test instead: an
+      ovdata mount's object holds nothing but hosted DS storage. That test is
+      the right shape, and it is what turned up F5, so that half and F5 land
+      together.
+
+F5  28 SYNTHETIC GAP BLOCKS IN PACKED MOUNTS SIT OUTSIDE .dsstate AND A SAVE
+    STATE DOES NOT CAPTURE THEM. NOT FIXED HERE. ROUTED, WITH F4.
+
+    Found by trying F4's object-keyed rule. ovdata routes a plain (non-pack)
+    mount's arrays into .dsstate with `#pragma data_seg(".dsstate$mmm")`, and a
+    packed mount's named symbols with an explicit __declspec(allocate) per
+    symbol. Its SYNTHETIC gap blocks -- the `port_ovNNN_gap_ADDRESS` arrays it
+    creates for un-symbolized statics that emitted pointers land in -- are
+    emitted as ordinary file-scope arrays after both, and the pack branch never
+    opens the data_seg. So in a packed mount they land in the default data
+    segment. The emitter's own comment notices half of this and stops:
+    "(the synthetic gap arrays above are data and had to land in .dsstate too,
+    which they did while it was open.) Packed mounts never opened it."
+
+    Measured on this build: 28 such blocks, 5368 bytes, across ELEVEN packed
+    mounts (ov001, ov009, ov016, ov020, ov021, ov022, ov044, ov064, ov070,
+    ov071 and ov095). They are not padding -- they hold real ROM bytes, the
+    in-mount and cross passes rebase pointers ONTO them, and the game's walks
+    step through them, so they are mutable DS state by the same argument that
+    puts every other mounted byte in .dsstate. A restore leaves them stale. That
+    is the 0.2.0 ANIM_PTRS class exactly, which is the bug dsstate_guard was
+    written for, and F4 is why the guard could not see it.
+
+    THE LIVE CASE IS DEMONSTRATED, not argued. The review found one and the F5
+    lane inherits it as its first test vector: data_ov009_02112238 goes 0xffff
+    to 0x0000 while Bob-omb Battlefield runs, and a save then a load misses the
+    rollback, because the word is not in the captured span. The static half
+    checks out here -- config/arm9/overlays/ov009/symbols.txt names
+    data_ov009_02112238 kind:data(any) at 0x02112238, port/ov009_syms.txt omits
+    it, so it falls inside port_ov009_gap_0211222c (244 bytes from 0x0211222c,
+    the word at +12), and that block sits at RVA 0x62f7e0 against a captured
+    span of [0xafa000, 0xbde120). Outside, and written during play.
+
+    NEITHER ov004 NOR ov006 EMITS ONE, so this lane adds nothing to it: 28
+    before and 28 after. It is entirely pre-existing.
+
+    NOT FIXED HERE because the fix moves 5368 bytes of eleven shipped mounts into
+    .dsstate, changes their emitted C, and changes the save state's captured
+    span and layout. That is a behaviour change to working mounts and to the
+    save/restore format, and it needs its own lane and its own soak, not a rider
+    on a mount lane. The two together are one small tooling lane: route packed
+    synthetic gaps into .dsstate, then key the guard on the mount object so it
+    would have caught it.
+
+F6  THE PACK GAP EMITTER ZEROES ROM CONTENT, in 220 of the 245 pack gaps this
+    build already ships. NOT A DEFECT OF THIS LANE. Recorded because the ov007
+    header's justification does not generalise and the next mount will read it.
+
+    port/ov007_syms.txt says of its single 8-byte gap that "those eight bytes are
+    zero in the ROM image too, so the emitted padding is faithful rather than
+    merely harmless". True of ov007, and a property of ov007's mount rather than
+    of the emitter. Audited across the build: 245 --pack padding gaps, 220 of
+    them cover ROM bytes that are not zero.
+
+    The two gaps this lane adds are the largest members of that set, 2420 and
+    16700 bytes, and they are also its safest: what they cover is not skipped
+    data but a whole .init CODE section plus its .ctor table, and a data walk
+    does not cross a code section. The 25 faithful gaps are the exception, not
+    the rule, and a future header should say which kind it has.
+
+
+6. WHAT DID NOT MOVE, AND WAS NOT EXPECTED TO
+----------------------------------------------
+
+LINKAGE. Mounted bytes are not matched TUs. The mounts add no .obj that resolves
+an undefined symbol, none of ov006's 1839 or ov004's 276 matched TUs is compiled
+in, and neither patch function has a caller. Expected zero, and the gate
+manifests either side of the wiring commit say 4950 / 11243 both times.
+
+THE BATTERY. ALL GREEN before and after, over every mounted level, with the same
+single skip either side: scene 4 with SM64DS_SCENE_SLOT9=0, the model-loader
+lane's, which is not this lane's and did not change.
+
+ovsweep. Green either side, and the arrays it checks go 6794 to 10320 while raw
+cross-mount words stay 0. The count of raw words with no host rises 6876 to 8925,
+which is the two mounts' own unbindable wants and nothing else.
+
+ptr_audit. Unchanged: 11 named romdata symbols carry ROM relocations, 3 carry
+pointers to code, 0 carry code pointers with no host TU naming them. The mounts
+do not touch romdata.py's list.
+
+F3's build total. 97 before, 97 after.
+
+THE SELFTEST BMP BASE MOVES, and that is 123492 bytes of DS storage landing in
+.dsstate. Measured, not derived: dsstate_guard reports 810684 bytes captured
+before and 934176 after, and the section base moves 0xae2000 to 0xafa000. The
+arithmetic reconciles as 27252 + 96272 landed span, less the 24 bytes of retired
+stand-ins, less 8 bytes reclaimed by section alignment:
+27252 + 96272 - 24 - 8 = 123492. The symbol sums, 24832 and 79572,
+are not the number that moves the section. Per the standing rule the three water
+pixels track the .dsstate base, so the BMP is comparable only at an equal base
+and must not be byte-compared across this change. dsstate_guard is the check
+that matters here and it stays OK, with the caveat that F4 names.

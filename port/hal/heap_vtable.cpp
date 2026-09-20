@@ -9,9 +9,9 @@
 // __thiscall passes it; the dummy edx parameter absorbs fastcall's second
 // register) forwarding to the real V-methods from src/.
 //
-// The sources now compile against the real Heap hierarchy. On x86 MSVC one
-// deleting-destructor entry precedes the fourteen V* methods, so VAllocate and
-// VDeallocate are host slots 2 and 3 (their ROM/Itanium slots are 3 and 4).
+// Slot evidence, from the shadow classes in the callers themselves:
+//   Heap::Allocate    casts to {v0,v1,v2, m(uint,int)}  -> slot 3 = VAllocate
+//   Heap::Deallocate  casts to {v0..v3,   m(void*)}     -> slot 4 = VDeallocate
 // Slots without caller evidence are TRAPS that abort loudly with the slot
 // number -- a silent wrong-slot dispatch is the exact class of bug the
 // hybrid's gates existed to catch, and the port has no gate to catch it.
@@ -19,48 +19,135 @@
 #include <stdlib.h>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include "Heap.h"
-#include "ExpandingHeap.h"
-#include "ExpandingHeapAllocator.h"
+#include "dsstate_seg.h"
 
-namespace Memory {
-void *Allocate(u32 size, int align, Heap *heap);
-}
-#pragma comment(linker, "/alternatename:?Allocate@Memory@@YAPAXIHPAUHeap@@@Z=?Allocate@Memory@@YAPAXIHPAVHeap@@@Z")
+typedef unsigned int u32;
 
-extern "C" {
-u32 _ZN22ExpandingHeapAllocator14SizeofInternalEPv(void *ptr)
-{ return ExpandingHeapAllocator::SizeofInternal(ptr); }
-u32 _ZN22ExpandingHeapAllocator10MemoryLeftEv(
-    ExpandingHeapAllocator *self)
-{ return self->MemoryLeft(); }
-Heap *_ZN4Heap13SetupRootHeapEv()
-{ return Heap::SetupRootHeap(); }
-void *_ZN6Memory8AllocateEjiP4Heap(u32 size, int align, Heap *heap)
-{ return Memory::Allocate(size, align, heap); }
-}
+// Shadow declarations that mangle identically to the src/ definitions.
+struct ExpandingHeap {
+    void *VAllocate(u32 size, int align);
+    int VDeallocate(void *p);
+    void *VReallocate(void *p, u32 size);
+    u32 VSizeof(void *p);
+    /* LINKAGE SEAT: the three self-contained V-methods (no callees at all).
+       Their matched TUs ride gate 3a, define these as real MSVC methods on
+       the same struct, and the shadow resolves to them with no alias
+       machinery -- naming them in the slots below is the reference edge. */
+    bool VIntact();
+    void VRescue();
+    u32 VResizeToFit();
+    /* LINKAGE SEAT 2: the NodeID pair. Real matched forwarders to the
+       allocator's own (flat-C) NodeID accessors, bridged below. */
+    u32 VGetNodeID();
+    void VSetNodeID(u32 id);
+};
+struct ExpandingHeapAllocator {
+    void *Allocate(u32 size, int align);
+    void *Reallocate(void *p, u32 size);
+    static u32 SizeofInternal(void *p);
+    u32 MemoryLeft();
+    u32 GetNodeID();
+    void SetNodeID(u32 id);
+};
 
 // ---- globals the root-heap chain stores through --------------------------
+//
+// data_02099d90 is _ZTV4Heap, the BASE class's vtable, and it was hosted here
+// as a four-byte int labelled "heap bring-up state flag". That label was
+// wrong. Three matched TUs store its ADDRESS into an object's vptr word at
+// +0x00 -- src/_ZN4HeapC1EPvjP4Heap.c (`heap->vtable = &data_02099d90`),
+// src/_ZN4HeapD2Ev.c and src/_ZN4HeapD1Ev.c -- and nothing anywhere reads it
+// as a value. config/arm9/relocs.txt settles the shape:
+//
+//   from:0x02099d90 to:0x0203ca44   _ZN4HeapD1Ev   (slot 0, complete dtor)
+//   from:0x02099d94 to:0x0203ca20   _ZN4HeapD0Ev   (slot 1, deleting dtor)
+//   0x02099d98..0x02099dcc          no relocations -- zero words
+//
+// so the ROM's table is the same SIXTEEN-slot Heap shape _ZTV13ExpandingHeap
+// carries below, with two real bodies and fourteen null slots (Heap declares
+// the rest pure virtual; see the class in src/_ZN4Heap11ResizeToFitEv.c).
+// 0x02099d90 + 16*4 + 8 lands exactly on _ZTV13ExpandingHeap at 0x02099dd8,
+// which is the sizing check.
+//
+// The storage is the right SHAPE here, for every target, so a stray dispatch
+// cannot run off the end of it; the CONTENTS are seated on the walk_window
+// family in hal/lk4_eh_dtor_seat.cpp, where the matched dtor pair rides.
+// Targets without that seat keep the zeros, which is what they had when this
+// was an int.
+DSSTATE_BEGIN
 extern "C" {
 void *data_020a0e9c;   /* Heap::rootHeap */
 void *data_020a0ea0;   /* Memory::defaultHeapPtr */
-int data_02099d90;     /* heap bring-up state flag */
+void *data_02099d90[16];   /* _ZTV4Heap */
 }
+DSSTATE_END
+
+// ---- allocator methods -> the C-linkage definitions from gate 2 ----------
+extern "C" {
+void *_ZN22ExpandingHeapAllocator8AllocateEji(void *self, u32 size, int align);
+int _ZN22ExpandingHeapAllocator10DeallocateEPv(void *self, void *p);
+u32 _ZN22ExpandingHeapAllocator14SizeofInternalEPv(void *p);
+u32 _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *self);
+}
+void *ExpandingHeapAllocator::Allocate(u32 size, int align)
+{ return _ZN22ExpandingHeapAllocator8AllocateEji(this, size, align); }
+u32 ExpandingHeapAllocator::SizeofInternal(void *p)
+{ return _ZN22ExpandingHeapAllocator14SizeofInternalEPv(p); }
+u32 ExpandingHeapAllocator::MemoryLeft()
+{ return _ZN22ExpandingHeapAllocator10MemoryLeftEv(this); }
+/* LINKAGE SEAT 2: the NodeID accessors. The V-method TUs call these as C++
+   methods while the definitions are flat C (self on the stack), the same
+   two-name-space bridge Allocate and MemoryLeft take above. The flat
+   SetNodeID returns the OLD id; the ROM's method face is void, so it drops. */
+extern "C" u32 _ZN22ExpandingHeapAllocator9GetNodeIDEv(void *self);
+extern "C" int _ZN22ExpandingHeapAllocator9SetNodeIDEj(void *self, u32 id);
+u32 ExpandingHeapAllocator::GetNodeID()
+{ return _ZN22ExpandingHeapAllocator9GetNodeIDEv(this); }
+void ExpandingHeapAllocator::SetNodeID(u32 id)
+{ _ZN22ExpandingHeapAllocator9SetNodeIDEj(this, id); }
+/* gate 16: ExpandingHeap::VReallocate calls the allocator as a method while
+   its definition is a C name, the Allocate case one line up. */
+extern "C" u32 _ZN22ExpandingHeapAllocator10ReallocateEPvj(void *self,
+                                                           char *p, u32 size);
+void *ExpandingHeapAllocator::Reallocate(void *p, u32 size)
+{ return (void *)(size_t)_ZN22ExpandingHeapAllocator10ReallocateEPvj(
+      this, (char *)p, size); }
+
+// ---- cross-linkage bridges surfaced by the link, both directions ---------
+// C++ method VDeallocate -> its C-linkage definition
+extern "C" int _ZN13ExpandingHeap11VDeallocateEPv(void *self, void *p);
+int ExpandingHeap::VDeallocate(void *p)
+{ return _ZN13ExpandingHeap11VDeallocateEPv(this, p); }
 
 // C references to Heap::Allocate/Deallocate -> the MSVC method definitions.
+// The src/ TUs declare `class Heap` (mangles PAV); a struct shadow here would
+// mangle PAU and miss, so the method shadow must be a class too.
+class Heap {
+public:
+    int Allocate(u32 size, int align);
+    void Deallocate(void *p);
+};
 extern "C" {
-void *_ZN4Heap8AllocateEji(void *self, u32 size, int align)
+int _ZN4Heap8AllocateEji(void *self, u32 size, int align)
 { return ((Heap *)self)->Allocate(size, align); }
 void _ZN4Heap10DeallocateEPv(void *self, void *p)
 { ((Heap *)self)->Deallocate(p); }
 }
 
+// C++ references to Memory::Allocate(u32,int,Heap*) -> the C definition
+extern "C" void *_ZN6Memory8AllocateEjiP4Heap(u32 size, int align, void *heap);
+namespace Memory {
+void *Allocate(u32 size, int align, Heap *heap)
+{ return _ZN6Memory8AllocateEjiP4Heap(size, align, heap); }
+}
+
 // Memory::defaultHeapPtr is data_020a0ea0 by its address-name (data alias).
 #pragma comment(linker, "/alternatename:?defaultHeapPtr@Memory@@3PAVHeap@@A=_data_020a0ea0")
-#pragma comment(linker, "/alternatename:?defaultHeapPtr@Memory@@3PAUHeap@@A=_data_020a0ea0")
 
 // Crash(): the game's fatal stop. Loud on host. C linkage for the .c TUs;
 // the C++-linkage references alias onto the same definition.
+// PORT_HOST_ABI: src halts forever (IRQ-disable + CP15 WaitForInterrupt loop)
+//                and drives the DS crash screen; the host reports and aborts.
 extern "C" void Crash(void)
 {
     fprintf(stderr, "FATAL: game Crash() reached\n");
@@ -76,69 +163,87 @@ extern "C" void Crash(void)
 
 // Heap::Allocate(u32): the one-argument overload the allocator veneer path
 // uses (func_0203cc0c). Align 4, same as Memory::Allocate(u32)'s default.
-extern "C" void *_ZN4Heap8AllocateEj(void *self, u32 size)
+//
+// FALLBACK NOW, NOT THE FACE. src/_ZN4Heap8AllocateEj.cpp is the ROM's own
+// body (arm9 0x0203c28c) and it is seated on the walk_window family, where
+// hal/lk4_eh_dtor_seat.cpp defines the flat __cdecl name func_0203cc0c calls
+// and forwards it into that matched method. This file, though, links into
+// sixteen targets and ten of them carry gate 4b (func_0203cc0c) without
+// slice_w1l2, so they still need a definition of the flat name. Hence the
+// /alternatename: on the three seated targets the real face wins and this
+// body is never reached; everywhere else the alias supplies it, unchanged.
+extern "C" void *hal_heap_allocate_align4(void *self, u32 size)
 {
     return (void *)(size_t)((Heap *)self)->Allocate(size, 4);
 }
+#pragma comment(linker, "/alternatename:__ZN4Heap8AllocateEj=_hal_heap_allocate_align4")
 
 // ---- the synthetic vtable ------------------------------------------------
+//
+// SIXTEEN slots, and they are the ROM's own: _ZTV13ExpandingHeap at arm9
+// 0x02099dd8 resolves every one of them to a named ExpandingHeap V-method.
+// The eight-slot version this replaces was written before that table had been
+// read and sized itself off the two callers gate 3a could evidence -- which
+// meant slot 8 and slot 9, the two Model::LoadAndSetFile reaches through
+// Heap::Reallocate and Heap::Sizeof, were past the end of the array.
+//
+//   [ 0] ~ExpandingHeap D1      [ 8] VReallocate
+//   [ 1] ~ExpandingHeap D0      [ 9] VSizeof
+//   [ 2] VDestroy               [10] VMaxAllocationUnitSize
+//   [ 3] VAllocate              [11] VMaxAllocatableSize
+//   [ 4] VDeallocate            [12] VMemoryLeft
+//   [ 5] VDeallocateAll         [13] VSetNodeID
+//   [ 6] VIntact                [14] VGetNodeID
+//   [ 7] VRescue                [15] VResizeToFit
+//
+// Slots the port has not yet had a caller for still trap by name; the table
+// being the right SHAPE is what stops a dispatch running off the end of it.
 static void *__fastcall slot_alloc(void *self, void *, u32 size, int align)
-{ return ((ExpandingHeap *)self)->ExpandingHeap::VAllocate(size, align); }
-static void __fastcall slot_dealloc(void *self, void *, void *p)
-{ ((ExpandingHeap *)self)->ExpandingHeap::VDeallocate(p); }
+{ return ((ExpandingHeap *)self)->VAllocate(size, align); }
+static int __fastcall slot_dealloc(void *self, void *, void *p)
+{ return ((ExpandingHeap *)self)->VDeallocate(p); }
+static void *__fastcall slot_realloc(void *self, void *, void *p, u32 size)
+{ return ((ExpandingHeap *)self)->VReallocate(p, size); }
 static u32 __fastcall slot_sizeof(void *self, void *, void *p)
-{ return ((ExpandingHeap *)self)->ExpandingHeap::VSizeof(p); }
-static u32 __fastcall slot_memory_left(void *self, void *)
-{ return ((ExpandingHeap *)self)->ExpandingHeap::VMemoryLeft(); }
+{ return ((ExpandingHeap *)self)->VSizeof(p); }
+/* LINKAGE SEAT: slots 6/7/15 get the class's own matched bodies (arm9
+   0x0203c65c VIntact, 0x0203c630 VRescue, 0x0203c388 VResizeToFit, all
+   2004/b56 byte-matches). The int-returning thunk widens VIntact's bool the
+   way ARM r0 carries it, so a caller reading the slot as int sees 0/1. */
+static int __fastcall slot_intact(void *self, void *)
+{ return ((ExpandingHeap *)self)->VIntact(); }
+static void __fastcall slot_rescue(void *self, void *)
+{ ((ExpandingHeap *)self)->VRescue(); }
+static u32 __fastcall slot_resizetofit(void *self, void *)
+{ return ((ExpandingHeap *)self)->VResizeToFit(); }
+/* LINKAGE SEAT 2: slots 13/14, the class's own matched NodeID forwarders
+   (arm9 0x0203c3f8 VSetNodeID, 0x0203c3e0 VGetNodeID, 2004/b56
+   byte-matches), which reach the allocator's flat-C accessors through the
+   method bridges above. */
+static void __fastcall slot_setnodeid(void *self, void *, u32 id)
+{ ((ExpandingHeap *)self)->VSetNodeID(id); }
+static u32 __fastcall slot_getnodeid(void *self, void *)
+{ return ((ExpandingHeap *)self)->VGetNodeID(); }
 
 #define TRAP(n) \
     static void __fastcall slot_trap##n(void *, void *) { \
         fprintf(stderr, "FATAL: ExpandingHeap vtable slot %d dispatched " \
                         "with no caller evidence (see heap_vtable.cpp)\n", n); \
         abort(); }
-TRAP(0) TRAP(1) TRAP(4) TRAP(5) TRAP(6) TRAP(7)
-TRAP(9) TRAP(10) TRAP(12) TRAP(13) TRAP(14)
+TRAP(0) TRAP(1) TRAP(2) TRAP(5)
+TRAP(10) TRAP(11) TRAP(12)
 
-extern "C" void *_ZTV13ExpandingHeap[15] = {
-    (void *)slot_trap0,        /*  0: deleting destructor */
-    (void *)slot_trap1,        /*  1: VDestroy */
-    (void *)slot_alloc,        /*  2: VAllocate */
-    (void *)slot_dealloc,      /*  3: VDeallocate */
-    (void *)slot_trap4,        /*  4: VDeallocateAll */
-    (void *)slot_trap5,        /*  5: VIntact */
-    (void *)slot_trap6,        /*  6: VRescue */
-    (void *)slot_trap7,        /*  7: VReallocate */
-    (void *)slot_sizeof,       /*  8: VSizeof */
-    (void *)slot_trap9,        /*  9: VMaxAllocationUnitSize */
-    (void *)slot_trap10,       /* 10: VMaxAllocatableSize */
-    (void *)slot_memory_left,  /* 11: VMemoryLeft */
-    (void *)slot_trap12,       /* 12: VSetNodeID */
-    (void *)slot_trap13,       /* 13: VGetNodeID */
-    (void *)slot_trap14,       /* 14: VResizeToFit */
+extern "C" void *_ZTV13ExpandingHeap[16] = {
+    (void *)slot_trap0, (void *)slot_trap1, (void *)slot_trap2,
+    (void *)slot_alloc,        /* 3: VAllocate */
+    (void *)slot_dealloc,      /* 4: VDeallocate */
+    (void *)slot_trap5,
+    (void *)slot_intact,       /* 6: VIntact - real matched body */
+    (void *)slot_rescue,       /* 7: VRescue - real matched body */
+    (void *)slot_realloc,      /* 8: VReallocate */
+    (void *)slot_sizeof,       /* 9: VSizeof */
+    (void *)slot_trap10, (void *)slot_trap11, (void *)slot_trap12,
+    (void *)slot_setnodeid,    /* 13: VSetNodeID - real matched body */
+    (void *)slot_getnodeid,    /* 14: VGetNodeID - real matched body */
+    (void *)slot_resizetofit,  /* 15: VResizeToFit - real matched body */
 };
-
-// ---- ExpandingHeap's constructor, under its Itanium spelling ---------------
-//
-// src/_ZN4Heap14CreateRootHeapEPvj.cpp and src/_ZN4Heap19CreateExpandingHeapEjPS_i.cpp
-// call `_ZN13ExpandingHeapC1EPvjP4HeapP22ExpandingHeapAllocator' as an extern "C"
-// function, for the reason hal/heap_globals.cpp's constructor-bridge block gives:
-// C1 is an Itanium ABI variant tag and MSVC has no syntax that emits or references
-// one, so the only way to satisfy that string is to write a function with it.
-//
-// IT IS HERE AND NOT NEXT TO THE OTHER TWO because heap_globals.cpp is also linked
-// by smoke_heap, whose slice is the allocator layer alone. The body has to name
-// ExpandingHeap's constructor, and smoke_heap does not compile it -- putting this
-// there would trade two of smoke_heap's unresolved symbols for a new one.
-//
-// The placement new also installs the MSVC vptr, which is what
-// src/_ZN13ExpandingHeapC1EPvjP4HeapP22ExpandingHeapAllocator.cpp already does when
-// MSVC compiles it; this bridge does not change which table an object carries. The
-// synthetic _ZTV13ExpandingHeap above serves the C-spelled callers, and the note at
-// the head of this file covers the slot numbering the two orders disagree on.
-#include <new>
-
-extern "C" ExpandingHeap *_ZN13ExpandingHeapC1EPvjP4HeapP22ExpandingHeapAllocator(
-    void *self, void *start, u32 size, Heap *root, ExpandingHeapAllocator *allocator)
-{
-    return ::new (self) ExpandingHeap(start, size, root, allocator);
-}

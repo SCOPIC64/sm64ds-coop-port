@@ -1,0 +1,1445 @@
+THE PORT'S ABI DEFECT CHECKERS
+==============================
+
+What this file is: the evidence for port/tools/aliascheck.py, abicheck.py,
+aritycheck.py, abi_prove.py and run_checks.py. What each one asserts, the
+commands that show each one GREEN on this tree and RED on a deliberately
+re-broken copy of it, the fixture inventory, the live defects the suite found
+on cons the day it landed, and the drift that had to be resolved to get here.
+
+A reviewer should be able to re-run every proof in this file from this file
+alone. If a command below does not reproduce, the checker is wrong, the tree
+moved, or this document is stale, and all three are worth knowing.
+
+Written 2026-08-17, run link60 lane AB1, on cons port-mount-noseat-cluster
+3a5733c03. AMENDED the same day after lane ABR1's review, which rebuilt the
+tree, re-derived every number, confirmed all six live defects from its own
+disassembly, and found two things this document had asserted and got wrong:
+that undname was unavailable (it was an invocation bug, section 5 item (j)),
+and that the sixth defect was already on aritycheck's census (it was not,
+item (k)). Both are fixed in the tools rather than only in the prose, and both
+are left written down. Every number below is from a run after those fixes.
+
+AMENDED AGAIN 2026-08-17 by run link60 lane RF1, on branch s5-receiver-fixes
+off cons af0c86ab5, which FIXED ALL SIX of the live defects section 6 records
+and left that section as the account of how. What changed here:
+  * section 6 -- each defect gains FIXED BY and FIXTURE, and gains a seventh
+    item: another instance of the same class, found while fixing the six, that
+    no detector in the suite can see.
+  * section 2 -- the numbers that moved are annotated "AB1 -> RF1" rather than
+    overwritten, so which way each went is readable.
+  * sections 1, 3, 4 and 7 -- the two exclusions aritycheck gained (a
+    namespaced declaration must be BOUND by an alias to count; a declared
+    tail-jump ride cannot drop an argument), the eight new proof arms, and
+    three new stated limits.
+Two claims this document made are CORRECTED rather than quietly dropped, both
+by measurement: HeapAllocator::Remove does NOT fire "on every heap teardown"
+(nothing in the port dispatches that slot at all yet, measured over 33 drives
+with a probe), and item 6's blast radius depended on what
+data_ov007_02103254 points at, which nobody had resolved -- it is a teardown
+trampoline, so the callers were splicing a return address out of two lists.
+
+AMENDED AGAIN 2026-08-22 by run mg8 lane SBN's follow-up, after the receiver
+ratchet's own scoping shipped a softlock: src/func_ov006_020d8cc4.cpp declared
+`extern "C" int func_ov006_020d836c(void);` where the definition takes the
+per-bomb receiver, and scene 370's Sort or 'Splode hung forever at the first
+full sorting bin (fixed in ba2224f88; the byte gate was green over it because
+the ROM leaves the receiver in r0 across the call). func_ov006_020d836c is not
+a _ZN name, so --gate-receiver never looked at it. What changed here:
+  * aritycheck gained a SECOND ratchet, --gate-plainfunc, for the plain
+    func_XXXXXXXX / func_ovNNN_XXXXXXXX names: a PROTOTYPED declaration that
+    drops, in a TU that CALLS the symbol (for a header declaration, in a TU
+    that includes it), with every parameter on both sides provably one word.
+    118 rows frozen in port/tools/aritycheck_plainfunc_baseline.txt; the
+    measured ladder that scoped those three filters (1069 raw -> 387
+    prototyped -> 133 called -> 118 provably-one-word, 15 held out and
+    printed) is in aritycheck.py's header.
+  * aritycheck's DECL/DEFN readers no longer parse `return f(a);` or an
+    `else` line followed by an indented call as DECLARATIONS of f -- 501
+    phantom declarations and 33 phantom census rows on this tree, zero of
+    them in the receiver subset (166 keys before and after, measured).
+  * run_checks runs both ratchets in one aritycheck invocation; abi_prove
+    gained the Sort or 'Splode declaration as a re-break fixture.
+
+
+0. WHY THIS EXISTS, AND WHY IT IS A RECOVERY
+--------------------------------------------
+
+There is one defect class the PC port keeps producing. It has three source
+shapes and one mechanism: THE RECEIVER IS DELIVERED SOMEWHERE THE BODY DOES
+NOT READ IT.
+
+On ARM a C++ member's `this` rides r0, exactly like any other first argument,
+so a ROM body transcribed into C takes it as an ordinary parameter. On x86
+MSVC the same method compiled as C++ is __thiscall and takes it in ECX. Any
+seam between those two worlds that does not name the receiver loses it, and
+nothing warns:
+
+  * an /alternatename directive whose two sides disagree (aliascheck)
+  * a declaration that says (void) where the definition takes a receiver
+    (aritycheck)
+  * a vtable thunk whose emitted `ret` does not match the pop its slot demands
+    (abicheck)
+
+The class is not theoretical and it is not closed. It produced 11 of the 60
+stored player crash reports as one family (blendmodelanim-setanim-abi-bridge),
+and on 2026-08-16 alone it produced six separate receiver fixes on cons.
+
+The checkers themselves are a RECOVERY. They were written 2026-08-10 on two
+branches, port-abi-sweep (b472454c6, seven commits) and port-defect-wiring
+(4ec689079, two commits), proven at the time, held pending a merge that
+cleared on 2026-08-11, and then forgotten for six days while the class they
+guard recurred six more times. Section 5 is the list of what had drifted.
+
+
+1. WHAT EACH CHECKER ASSERTS
+----------------------------
+
+aliascheck.py -- no build required
+  RULE R, receiver location. An /alternatename renames a symbol and says
+  nothing about calling convention. Classify each side of every directive as
+  taking its receiver in ECX (a non-static member declared __thiscall or
+  __fastcall; the extern "C" @name@N spelling) or on the stack (everything
+  else: a free function, a static member, a flat extern "C" name, a member
+  declared __cdecl or __stdcall). ASSERT the two sides agree.
+      DROPPED  stack left, ECX right. The caller pushes the receiver; the body
+               reads ECX and gets whatever was in it.
+      SHIFTED  ECX left, stack right. The caller sets ECX; the body reads its
+               first stack slot, which holds the caller's first pushed
+               argument or, if nothing was pushed, the return address. Every
+               declared argument shifts by one on top of that.
+  Decided from the decoration alone: no build, no demangler, no external tool.
+  RULE R fires the moment a bad alias is written.
+
+  RULE P, pop size. Both sides' callee-pop from their declared parameter
+  lists. Needs `undname` to read an MSVC parameter list. WHEN undname IS
+  ABSENT RULE P DOES NOT RUN AND SAYS SO. Rule R is complete without it.
+
+  THIS RULE SPENT ITS FIRST DAY REPORTING "undname is not on PATH" ON A
+  MACHINE WHERE undname WAS INSTALLED AND WORKING, and the first version of
+  this document repeated that as an environment limit. It was not an
+  environment limit, it was an invocation bug. undname takes FILENAMES:
+
+      Usage: undname [flags] fname [fname...]
+         or: undname [flags] file
+
+  The helper piped the name list into its stdin, undname answered with that
+  usage banner and exit 1, and the helper read the non-zero exit as "the tool
+  is missing". Lane ABR1 caught it in review. Verified here afterwards, both
+  directions, at
+  ...\VC\Tools\MSVC\14.44.35207\bin\Hostx86\x86\undname.exe: the file form
+  returns one bare demangled line per input line and exit 0; the stdin form
+  returns the banner and exit 1. Demangling now lives in
+  port/tools/msvc_undname.py, which finds undname on PATH or under the VS
+  Build Tools layout, uses the file form, and has a selftest that pins both
+  the known-good output and the fact that stdin is refused. Rule P runs.
+
+  GATE: a receiver crossing that is not in port/tools/aliascheck_baseline.txt
+  fails. Every baseline row carries an OPEN or INERT adjudication and an
+  UNADJUDICATED row is reported as a defect of the baseline itself.
+
+abicheck.py -- needs a build and dumpbin /disasm:nobytes
+  A hosted virtual slot is entered as __thiscall: `this` in ECX, further
+  arguments PUSHED, and the CALLEE pops them. A __fastcall thunk pops nothing
+  unless it declares enough parameters to put the pushed ones on the stack,
+  which is what makes the compiler emit `ret <n>`. ASSERT that for every
+  vtable slot fill, the thunk's emitted `ret` equals 4 times the argument
+  count its slot demands. Both halves are read from the emitted code: the slot
+  from the fill's own store offset, the pop from the terminating ret.
+      AUTHORITY  slot -> argument count from include/ActorBase.h (0..17) and
+                 include/Actor.h (18..30).
+      CONSENSUS  no header at all: a thunk whose pop disagrees with its peers
+                 at the same slot index across every Actor table is suspect.
+                 This is what covers the non-Actor tables and a slot whose
+                 header authority is wrong.
+  Two exemptions, both mechanical: a thunk whose every path funnels into
+  port_actor_slot_decline / abort / RaiseException never reaches its own ret
+  (DECLINE), and a table that is not the 31-slot Actor layout has a different
+  slot map (NO_AUTHORITY, consensus only).
+  GATE: exit 1 on any AUTHORITY mismatch or CONSENSUS outlier; exit 2 on a run
+  that parsed ZERO slot fills, which is what plain /disasm produces.
+
+aritycheck.py -- no build required
+  The linker matches extern "C" symbols on the NAME alone, so a declaration
+  and a definition can disagree about arity and nothing complains. ASSERT they
+  agree.
+      DROPS    the declaration has FEWER parameters. The callee reads a stack
+               slot the caller never wrote.
+      INVENTS  the declaration has MORE. Under __cdecl the caller cleans up,
+               so the extra push is wasted rather than fatal.
+  THE FULL CENSUS DOES NOT GATE. It reports 2075 disagreements on this tree
+  (2105 when this section was first written; the difference is the
+  else/return misparse fix of 2026-08-22, not tree movement) and an unknown
+  but large fraction are parser artefacts; a gate at that number would be
+  switched off within a day. Section 7 says what would have to change.
+  TWO SUBSETS GATE:
+    the RECEIVER SHAPE (--gate-receiver): a declaration with no parameters
+    at all against a definition of an Itanium-mangled member (_ZN...) that
+    takes at least one. 166 live rows are frozen in
+    port/tools/aritycheck_receiver_baseline.txt and a NEW one fails the
+    gate. That subset is exactly what PR #1539 and PR #1543 fixed on
+    2026-08-16, and it is where the sixth live defect of section 6 surfaced
+    once the reader learned the namespaced C++ declaration spelling.
+    the PLAIN-NAME SHAPE (--gate-plainfunc, added 2026-08-22 after the Sort
+    or 'Splode softlock shipped through the receiver gate's scoping): a
+    PROTOTYPED declaration of a plain func_* symbol that drops, in a TU
+    that CALLS the symbol (for a header declaration, in a TU that includes
+    it), with every parameter on both sides provably one machine word.
+    118 rows frozen in port/tools/aritycheck_plainfunc_baseline.txt; the
+    rows that match the shape but fail the one-word proof (struct-by-value
+    spellings, default arguments, variadic definitions) are HELD OUT and
+    printed on every run, 15 today.
+
+  TWO THINGS ARE HELD OUT OF THAT SUBSET, both decided from another checker's
+  artefact rather than from a judgement made here, and both PRINTED on every
+  run with the rows named. Added by lane RF1, 2026-08-17, because closing
+  section 6 turned two of the subset's own rows into false statements.
+      RIDE        a declaration inside a frame that tailjump_guard ASSERTS is
+                  a tail JUMP to that same callee. A jmp reuses the caller's
+                  cdecl frame, so the slot the callee reads is the slot the
+                  caller wrote -- which is how the host reproduces `bx ip`
+                  with r0 still live. Keyed on (declaring file, symbol)
+                  against the guard's own `tu` and `callee`, and only the
+                  HAND-DECLARED jump rows are consulted: the 22 derived veneer
+                  rows need the extracted ROM and this checker must keep
+                  running without one. Rows stay in the CENSUS; only the
+                  ratchet subsets drop them. 8 rows today (7 when this was
+                  written; the 8th arrived with mg8's merges, and five of
+                  the 8 are plain-name rows the second ratchet also holds
+                  out).
+      NS BINDING  a namespaced C++ declaration only reaches the flat Itanium
+                  definition through an /alternatename that binds its MSVC
+                  decoration to that flat name. With no such directive the
+                  callee is whatever defines the MSVC name, and comparing
+                  arities against the flat body compares two unrelated
+                  functions. 11 declarations tree-wide are unbound today.
+  Neither is a judgement call this checker makes on its own, and both can be
+  shown to STOP applying: abi_prove's prove_ride re-breaks the guard's table
+  in a scratch copy and requires the two held rows to come straight back.
+
+vtspan.py --sweep / --fills -- needs the extracted ROM, ALREADY ON CONS
+  Not recovered by this lane; cons' own copy is used unchanged, and nothing in
+  this change touches it. --sweep finds a host vtable array shorter than its
+  ROM span; --fills finds a fill loop that leaves a ROM slot unwritten.
+  run_checks fires both against ratchet files this lane wrote:
+    vtspan_sweep_baseline.txt   EMPTY. Four tables were short when the wiring
+        was written on 2026-08-10; the sizing lanes finished and cons measures
+        0 short. --sweep therefore gates hard.
+    vtspan_fills_baseline.txt   6 frozen fills (4 that leave slots unwritten,
+        2 the scan cannot resolve to a ROM table at all). All pre-existing on
+        cons. A gate that is red the day it lands is a gate somebody switches
+        off, so these are frozen, counted on every run, and the list may only
+        shrink. They are DEBT, not clearance -- nobody adjudicated them here.
+
+run_checks.py -- the one command
+  Fires the set and fails on any red AND on any vacuous pass. Its own
+  contribution is stage 0: every checker's --selftest must pass before any of
+  them is believed, because a regex that stopped matching a shape reports a
+  clean tree in exactly the same words as a clean tree.
+
+abi_prove.py -- the proof harness
+  Section 3.
+
+
+2. GREEN ON THIS TREE
+---------------------
+
+Every command below was run at cons 3a5733c03 in a worktree at C:/tmp/ab1 with
+its own extracted/, its own asset catalog and its own build directory.
+
+RE-MEASURED 2026-08-17 by run link60 lane RF1, at s5-receiver-fixes off cons
+af0c86ab5, in a worktree at C:/tmp/rf1 with its own extracted/, its own asset
+catalog and its own build directory. The numbers that MOVED because the six
+defects of section 6 were fixed are given as "AB1 -> RF1" beside the original
+so a reader can see which way each went; anything not annotated read the same.
+Two of abicheck's counts also moved for a reason that is NOT this lane's, and
+saying so is the point of annotating rather than overwriting: on af0c86ab5
+BEFORE any of these fixes, abicheck already read 2310 fills and 4305 functions
+where AB1 read 2391 and 4238, because the branch has taken other lanes' merges
+since. What this lane moved is 4305 -> 4310 functions, which is the five new
+faces and nothing else; the fill count is 2310 at both ends.
+
+  $ python port/tools/msvc_undname.py
+    undname: ...\VC\Tools\MSVC\14.44.35207\bin\Hostx86\x86\undname.exe
+    5 known-good pairs ok, and undname refuses stdin (exit 1)
+    SELFTEST PASSED
+
+  $ python port/tools/aliascheck.py
+    1573 directives read as LINKER INPUT, 17 quoted in prose (not measured)
+       AB1 -> RF1: 1573 -> 1569. Six directives deleted (the five section 6
+       crossings plus the YAXXZ spelling), two added (the QAEH -> QAEX return
+       bridge, and the YAXXZ name bridge onto the b7764 face). The prose
+       count goes 17 -> 18: section 6 item 7 below quotes the by-address
+       directive, and the guard reads a bare /alternatename line in any
+       port/*.txt as prose and counts it. That is the drift item (b) of
+       section 5 is about, working as intended.
+    16 receiver crossings: 0 NEW, 5 KNOWN-OPEN (live defects, unfixed),
+       11 INERT (adjudicated harmless), 0 UNADJUDICATED
+       AB1 -> RF1: 11 crossings, 0 NEW, 0 KNOWN-OPEN, 11 INERT, 0
+       UNADJUDICATED. The five OPEN rows are FIXED and their baseline rows
+       are deleted; the 11 INERT are untouched.
+    RULE P ran over 1302 demangled names; 0 pop mismatches outside the
+      baseline
+       AB1 -> RF1: 1299 names, same verdict.
+    ALIASCHECK PASSED: no NEW receiver crossing, no new pop mismatch.
+    exit 0
+
+  $ python port/tools/aritycheck.py --gate-receiver
+    11260 definitions, 26423 declarations of _ZN*/func_* symbols
+       AB1 -> RF1: 11264 definitions, 26413 declarations.
+       AND THOSE TWO DELTAS ARE NOT THIS LANE'S TO CLAIM, which is the same
+       cross-commit trap the abicheck paragraph above isolates. Measured with
+       ONE tool (the tip's) against BOTH trees, so only the tree differs:
+         af0c86ab5, this lane's own base:  11261 definitions, 26413 decls
+         the tip:                          11264 definitions, 26413 decls
+       So this lane adds THREE definitions, not four, and moves the
+       declaration count by ZERO. The three are the faces that match the
+       reader's DEFN regex (_ZN13HeapAllocator6RemoveEv,
+       _ZN6Player12GetHurtStateEv, port_ov007_b7764_endingfly); the two C++
+       METHOD definitions do not match it, because the regex has no `::` in
+       its name group. Against AB1's 11260 the difference is one more
+       definition and ten fewer declarations that arrived with six days of
+       other lanes' merges and with the NS BINDING rule, and untangling those
+       is not something a number in this column can do. The first version of
+       this line said "four extra definitions are this lane's faces" and was
+       comparing across commits to say it; lane RFR1 caught it.
+    2105 disagreements: 1319 DROPS, 786 INVENTS
+       AB1 -> RF1: 2106, 1320 DROPS, 786 INVENTS. This one IS isolated,
+       against af0c86ab5 rather than against AB1: the base reads 2105 / 1319 /
+       786 with the tip's tool, so the census delta is exactly three rows and
+       each was read off a row-by-row diff of the two trees -- -1 for
+       src/func_ov007_020b7764.cpp (now unbound), +2 for the two arm9 veneers'
+       declarations of the Remove face.
+    168 of the DROPS are the RECEIVER shape
+       AB1 -> RF1: 166, and against af0c86ab5 with the tip's tool the base
+       reads 167 -- the RIDE rule alone takes func_ov007_020c05f8 out before
+       any of this lane's edits, and the fix takes b7764 out after. The two
+       added Remove rows never enter the subset, also by RIDE.
+    168 baselined, 168 live, 0 NEW, 0 retired
+       AB1 -> RF1: 166 baselined, 166 live, 0 NEW, 0 retired -- after
+       deleting the two rows the run before this one reported as retired.
+    ARITYCHECK RECEIVER RATCHET PASSED
+    exit 0
+
+  TWO EXCLUSIONS WERE ADDED TO aritycheck AND BOTH PRINT ON EVERY RUN. They
+  are the reason the ratchet could shrink without anyone editing a byte-locked
+  src file, and a silent exclusion would have been the same failure this whole
+  suite exists to prevent:
+
+    7 census row(s) held OUT of the receiver subset as a declared tail-jump
+      RIDE  (each named on its own line)
+    11 namespaced C++ declaration(s) read but NOT counted: no /alternatename
+      binds the spelling to the flat Itanium body  (each named on its own
+      line)
+
+  Section 1 states both rules; section 6 items 2 and 6 are why they exist.
+
+  $ port\tools\gen_disasm.cmd C:\tmp\ab1\build\port C:\tmp\ab1\build\port\_abicheck_disasm
+    gen_disasm: wrote /disasm:nobytes for 477 hal objects
+    (2m27s)
+
+  $ python port/tools/abicheck.py --disasm-dir C:/tmp/ab1/build/port/_abicheck_disasm
+    71 objects, 4238 functions, 2391 vtable slot fills
+    83 Actor-layout tables, 152 other tables
+      DECLINE 256   NORETURN 132   NO_AUTHORITY 876   OK 1127
+    demangler: undname at ...\Hostx86\x86\undname.exe
+               505 of 505 tail-jump targets resolved
+    coverage: 1127 of 2391 fills got an AUTHORITY verdict (47%).
+      132 NORETURN are UNCHECKED, not passed; 876 NO_AUTHORITY rest on
+      consensus alone; 256 DECLINE are exempt.
+    0 distinct AUTHORITY mismatches, 0 distinct CONSENSUS outliers
+    exit 0
+
+  SUPERSEDED 2026-08-27 (run mg16 lane FIXD): the transcript above is a real
+  run and is left exactly as it was, but its census is no longer the tree's.
+  The parameter binding recovered 3326 fills this run never saw -- every slot
+  seated through a shared filler -- so the same command now reads 5702 fills
+  and 77%. Both numbers are honest about their own run; section 7's first
+  bullet carries the current one. Do not quote 2391 or 47% as the tree's
+  coverage.
+
+  47% IS THE HONEST NUMBER AND IT IS NOT A PASS FOR THE OTHER 53%. It was
+  35% until the undname bug above was fixed: the recovered abicheck read a
+  precomputed _unres.txt / _unres_demangled.txt pair out of the disasm
+  directory, nothing ever generated that pair, so extsig was always empty and
+  638 of 2391 fills read NORETURN. abicheck now demangles the tail-jump
+  targets itself and resolves 505 of 505 of them, which moved 638 NORETURN
+  down to 132 and 839 judged up to 1127.
+
+  The 132 that remain are thunks whose target is not a decorated MSVC name at
+  all -- a flat Itanium body with no parameter list in its spelling -- and no
+  demangler closes those. They need the same treatment abicheck already gives
+  the thunks it can see: read the pop out of the target's own emitted `ret`,
+  which means disassembling more than the hal objects. That is the remaining
+  follow-up and it is a bigger one than this was.
+
+  $ python port/tools/run_checks.py . --disasm-dir C:/tmp/ab1/build/port/_abicheck_disasm
+    ## selftest: aliascheck.py    SELFTEST PASSED
+    ## selftest: abicheck.py      SELFTEST PASSED
+    ## selftest: aritycheck.py    SELFTEST PASSED
+    ## aliascheck (no build)
+       16 receiver crossings: 0 NEW, 5 KNOWN-OPEN, 11 INERT, 0 UNADJUDICATED
+       ALIASCHECK PASSED
+    ## vtspan --sweep (no build)      0 short
+    ## vtspan --fills (no build)
+       6 baselined fill(s) remain (hal_fill_fall_block_lll_vtable,
+       hal_fill_mri_projectile_vtable, hal_fill_mri_vtable,
+       hal_fill_seaweed_vtable, hal_seat_platform_dtors,
+       port_scene_fill_curling); no new regression. They are DEBT, not
+       clearance.
+    ## aritycheck --gate-receiver     168 baselined, 168 live, 0 NEW, 0 retired
+    ## abicheck                       2391 fills, 0 mismatches, 0 outliers
+    PORT ABI CHECKS PASSED (every checker ran and checked something)
+    exit 0
+
+  AB1 -> RF1, the same command at C:/tmp/rf1. Only the two lines the six
+  fixes touch move; vtspan's two arms and the four selftests are identical.
+
+    ## selftest: msvc_undname.py  SELFTEST PASSED
+    ## selftest: aliascheck.py    SELFTEST PASSED
+    ## selftest: abicheck.py      SELFTEST PASSED
+    ## selftest: aritycheck.py    SELFTEST PASSED
+    ## aliascheck (no build)
+       1569 directives read as LINKER INPUT, 18 quoted in prose
+       11 receiver crossings: 0 NEW, 0 KNOWN-OPEN, 11 INERT, 0 UNADJUDICATED
+       ALIASCHECK PASSED
+    ## vtspan --sweep (no build)      0 short
+    ## vtspan --fills (no build)      the same 6, unchanged
+    ## aritycheck --gate-receiver     166 baselined, 166 live, 0 NEW, 0 retired
+    ## abicheck                       2310 fills, 0 mismatches, 0 outliers
+                                      (2310 on af0c86ab5 before the fixes too;
+                                       coverage still 47%)
+    PORT ABI CHECKS PASSED (every checker ran and checked something)
+    exit 0
+
+  ZERO OPEN, which is the line this whole document was waiting for, and it is
+  worth saying exactly what it does and does not mean. It means every crossing
+  the suite can see is either fixed or adjudicated INERT with a checked
+  reason. It does NOT mean the class is closed: abicheck still judges 47% of
+  what it reads, aritycheck's full census still does not gate, and section 6
+  item 7 is a live instance of the same class that neither checker can see.
+
+  The equivalent with no MSVC and no ROM, which is what the proposed CI job
+  would run, also passes:
+
+  $ python port/tools/aliascheck.py .            exit 0
+  $ python port/tools/aritycheck.py . --gate-receiver    exit 0
+    (since 2026-08-22 the wired form is --gate-receiver --gate-plainfunc in
+     one invocation, still no MSVC and no ROM, still exit 0)
+
+
+3. RED ON DEMAND -- THE PROOF HARNESS
+-------------------------------------
+
+A checker that only ever passes has proved nothing. abi_prove.py runs both
+halves for every fixture:
+
+    GREEN  the checker passes on the tree as it stands, AND the fixture's own
+           defect is verified gone from it
+    RED    the fixture is re-broken IN A SCRATCH COPY and the checker must
+           fail, naming it
+
+  $ python port/tools/abi_prove.py . --disasm-dir C:/tmp/ab1/build/port/_abicheck_disasm
+    ...
+    PASS aliascheck GREEN on cons
+    PASS aliascheck RED: Heap::SetDefault
+    PASS aliascheck RED: Heap::Destroy
+    PASS aliascheck RED: Heap::_Destroy
+    PASS aliascheck RED: Heap::ResizeToFit
+    PASS aliascheck RED: SolidHeapAllocator::Allocate
+    PASS aliascheck RED: SolidHeapAllocator::Reallocate
+    ---- the five below were added by lane RF1, 2026-08-17: they are the five
+    ---- section 6 crossings, and each row IS the directive its fix deleted
+    PASS aliascheck RED: ExpandingHeapAllocator::DeallocateAll
+    PASS aliascheck RED: HeapAllocator::Remove
+    PASS aliascheck RED: Player::GetHurtState
+    PASS aliascheck RED: Player::St_EndingFly_Main (int spelling)
+    PASS aliascheck RED: Player::St_EndingFly_Main (void spelling)
+    PASS aliascheck RED: Player::TryGrab
+    PASS aliascheck RED: BlendModelAnim::SetAnim
+    PASS aliascheck RED: Platform::KillByMegaChar
+    PASS aliascheck RED: a pop mismatch RULE R cannot see (rule P only)
+    PASS aritycheck GREEN on cons
+    PASS aritycheck RED: FaderColor::AdvanceFade
+    PASS aritycheck RED: Enemy base ctor
+    ---- added 2026-08-22 with the plain-name ratchet: the shipped Sort or
+    ---- 'Splode declaration, re-broken, must fail --gate-plainfunc
+    PASS aritycheck RED: Sort or 'Splode per-bomb tick
+    PASS aritycheck RED: namespaced C++ declaration
+    PASS aritycheck GREEN again once the fixture is removed
+    ---- three more from lane RF1. The first is the regression proof for the
+    ---- section 6 item 6 FIX rather than for the detector; the other two are
+    ---- the RIDE exclusion, shown to stop excluding
+    PASS aritycheck RED: the real sixth-defect site returns when its alias does
+    PASS aritycheck GREEN: the scratch copy, guard untouched
+    PASS aritycheck RED: the RIDE exclusion stops excluding
+    PASS abicheck GREEN on this build
+    PASS abicheck RED: crate_pounded
+    PASS abicheck RED: ssb_pounded
+    PASS abicheck RED: ps_s19
+    PASS abicheck RED: bp_egg
+    PASS abicheck RED: fb_slot27
+    PASS abicheck RED: whomp_s30
+    31 of 31 proofs passed          (AB1 read 23 of 23)
+    ABI_PROVE PASSED
+    exit 0
+
+  Without --disasm-dir the abicheck arm is SKIPPED and the harness FAILS
+  (16 of 17, "abicheck arm ran at all: FAIL"), rather than reporting a pass
+  over a checker it never ran. That is the vacuous-green rule applied to the
+  proof harness itself. Measured, because the first version of this document
+  guessed at that number and guessed wrong. Those two integers are AB1's and
+  are not re-measured here; the arm count moved by eight, so the skipped-run
+  figures move with it.
+
+  ONE OF THE EIGHT NEW ARMS IS SHAPED DIFFERENTLY FROM THE REST AND IT IS
+  WORTH KNOWING WHY. Every other fixture re-breaks an INPUT the checker reads
+  out of the tree it is pointed at, so the real tool can be run against a
+  scratch root. prove_ride re-breaks a SIBLING MODULE -- tailjump_guard's
+  declared table, which aritycheck imports -- and an imported module does not
+  come from the root argument. So that arm runs the SCRATCH COPY of the
+  checker, and it runs a control first: the untouched scratch copy must be
+  green, so the red that follows is the guard edit and not the copy.
+
+  EACH RED ASSERTS WHICH RULE FIRED, not merely that the checker exited 1.
+  The first version asked for the substring "NEW", which appears in
+  aliascheck's own count line on every run including a clean one, so it was
+  very nearly no assertion at all. The rule-P fixture is the one that made
+  that matter: it is a pop mismatch with both sides __thiscall, so the
+  receiver rule is CORRECT to stay quiet and only "POP MISMATCH" in the
+  output proves rule P did the catching.
+
+THE SCRATCH COPY IS A COPY. The real tree is never edited, not even
+transiently, so an interrupted run cannot leave a re-broken directive behind.
+The harness also REFUSES to start if port/hal/abi_prove_reinjected.cpp exists
+in the real tree, which is the only file it ever writes.
+
+How each arm is re-broken:
+  aliascheck   the deleted directive is written back as a real
+               `#pragma comment(linker, "/alternatename:...")` in a new file
+               under the scratch copy's port/hal/, which is exactly how a real
+               one arrives.
+  aritycheck   the real declaration is rewritten to its pre-fix (void)
+               spelling by literal reverse substitution. If the FIXED text is
+               no longer in the file the fixture REFUSES rather than silently
+               proving nothing.
+  abicheck     a scratch copy of the REAL disassembly of this build has one
+               thunk's `ret <n>` rewritten to a bare `ret`. That is precisely
+               the emitted shape of the bug -- crate_pounded shipped exactly
+               like this -- so the proof runs against real input.
+
+
+4. FIXTURE INVENTORY
+--------------------
+
+25 fixtures across three checkers, plus the checkers' own selftest
+batteries. It was 20 until lane RF1 fixed the six live defects of section 6
+and moved every one of them in here: five alias-form rows, and for the sixth
+an arity-form arm that re-adds only the deleted directive.
+
+ALIAS FORM (15) -- aliascheck must catch each when re-injected
+  Heap::SetDefault                 cons 8af183ddb  2026-08-16
+  Heap::Destroy                    cons 0936784c9  2026-08-16
+  Heap::_Destroy                   cons 0936784c9  2026-08-16  (SHIFTED)
+  Heap::ResizeToFit                cons cf428a19a  2026-08-16
+  SolidHeapAllocator::Allocate     cons 44b78e90d  2026-08-16  (SHIFTED)
+  SolidHeapAllocator::Reallocate   cons 44b78e90d  2026-08-16  (SHIFTED)
+  ExpandingHeapAllocator::DeallocateAll
+                                   RF1, 2026-08-17  (SHIFTED, + pop)
+  HeapAllocator::Remove            RF1, 2026-08-17
+  Player::GetHurtState             RF1, 2026-08-17
+  Player::St_EndingFly_Main (int)  RF1, 2026-08-17  (SHIFTED)
+  Player::St_EndingFly_Main (void) RF1, 2026-08-17  (SHIFTED)
+  Player::TryGrab                  King Bob-omb lane  2026-08-10
+  BlendModelAnim::SetAnim          King Bob-omb lane  2026-08-10
+  Platform::KillByMegaChar         King Bob-omb lane  2026-08-10
+
+  The first six are the receiver bridges that landed the day before AB1 ran
+  and did not exist when the original prove.py was written. THE NEXT FIVE are
+  the ones this checker found ITSELF, on its first run, and they are the
+  reason it exists: AB1 froze them as OPEN and RF1 fixed them the next day, so
+  each row's directive text is read out of the fixing diff. The last three are
+  the alias-form instances the original pinned; all three are receiver
+  crossings, so RULE R catches them without a demangler.
+
+  The fifteenth is not a past defect but a CONSTRUCTED DISCRIMINATOR:
+    a pop mismatch RULE R cannot see
+      ?SetAnim@BlendModelAnim@@QAEXAAUSharedFilePtr@@@Z
+        = ?SetAnim@BlendModelAnimFace@@QAEXXZ
+  Both sides are public __thiscall, so the receiver AGREES and rule R is
+  correct to stay quiet; only the argument count differs. It exists because
+  rule P silently did not run for a day and every other fixture would have
+  passed anyway. The harness asserts "POP MISMATCH" appears for this one and
+  "NEW  <<<<<<" for the rest, so neither rule can be credited with the other's
+  catch.
+
+ARITY FORM (8) -- an aritycheck ratchet must catch each when re-broken
+  FaderColor::AdvanceFade  PR #1539, cons ba1b0a670, include/decl_FaderColor.h
+  Enemy base ctor          PR #1543, cons b74cf657d
+  Sort or 'Splode per-bomb tick   ba2224f88, run mg8 lane SBN, 2026-08-22.
+                               The founding fixture of --gate-plainfunc: the
+                               declaration in src/func_ov006_020d8cc4.cpp is
+                               rewritten back to (void) and the plain-name
+                               ratchet must name it. The other seven arms run
+                               against --gate-receiver; this one proves the
+                               ratchet the receiver scoping did not have.
+
+  namespaced C++ declaration   the SPELLING, proved on a scratch file
+  and green again once removed  the ratchet must also go quiet
+  the real sixth-defect site returns when its alias does
+                               RF1, 2026-08-17. The regression proof for the
+                               FIX and not for the detector: put ONLY the
+                               deleted scene_boot directive back and
+                               src/func_ov007_020b7764.cpp must be named
+                               again. This is the arm that fails if somebody
+                               restores the alias without the face.
+  the scratch copy, guard untouched      RF1, the control for the next one
+  the RIDE exclusion stops excluding     RF1, 2026-08-17. tailjump_guard's
+                               two heap rows are renamed in a scratch copy so
+                               the (frame, callee) key stops matching, and
+                               both held declarations must report as NEW.
+                               An exclusion that cannot be shown to stop
+                               excluding is indistinguishable from a checker
+                               that stopped checking.
+
+  The first two are the reason aritycheck is in the suite at all. Both landed on
+  2026-08-16, both are the receiver shape, and NEITHER is an /alternatename,
+  so aliascheck cannot see them and abicheck passes them (the frames balance).
+  The Enemy fixture re-breaks src/RollingRock_Spawn.c, a sibling that carries
+  the identical declaration today; #1543 itself fixed the ChainChomp /
+  ChiefChilly / Wiggler spellings.
+
+VTABLE FORM (6) -- abicheck must call each UNDERPOP when its ret is blanked
+  crate_pounded  slot 21   ground-pound a crate (HMC and elsewhere)
+  ssb_pounded    slot 21   ground-pound the Bob-omb Battlefield seesaw
+  ps_s19         slot 19   Yoshi tries to turn a Power Star into an egg
+  bp_egg         slot 19   Yoshi tries to turn a Baby Penguin into an egg
+  fb_slot27      slot 27   a Mega character hits the WF fall block
+  whomp_s30      slot 30   egg-aim query against a Whomp
+
+SELFTEST BATTERIES (run first by run_checks stage 0)
+  aliascheck --selftest   26 fixtures. 20 receiver-location cases including
+      every alias fixture above in its broken form, both directions, the
+      virtual (UAE) spelling, and six shapes that must stay QUIET: a static
+      member, a free function, thiscall on both sides, a data bridge, a
+      vftable bridge, and flat-to-flat. Plus 6 pop-size cases and one scanner
+      case pinning that lane prose is not a linker input.
+  abicheck --selftest     a hand-built /disasm:nobytes fixture proving
+      UNDERPOP, OK, DECLINE by direct sink call, DECLINE by tail jump into a
+      decline stub, and a tail-jump pop resolved from the target decoration;
+      the ACTOR31 classification; that PLAIN /disasm yields zero parseable
+      stores; and four pop-from-signature cases.
+  aritycheck --selftest   parameter counting including a function-pointer
+      parameter and a template argument list; decl/defn recognition with a
+      commented-out prototype ignored and with `return f(a);` / an `else`
+      line refused as declarations; the one-word provability table (structs,
+      defaults, variadics, long long and double all refused); and nine
+      scratch-tree fixtures for the plain-name subset covering the prototype
+      rule, the call requirement, the address-take (__sinit) shape, the two
+      HELD-OUT classes, and the header-include path, with the Sort or
+      'Splode shape as the first fixture.
+
+
+5. THE DRIFT, AND HOW IT WAS RESOLVED
+-------------------------------------
+
+Six days of tree movement. Every resolution is in favour of what is on cons.
+
+(a) THE SHARED SCRATCH DIRECTORY. Both recovered tools read and wrote a fixed
+    absolute path, C:\tmp\sm64ds-abisweep\. abicheck's input directory was a
+    module-level constant, run_checks guarded that same constant on purpose
+    because it could not pass abicheck a directory, and gen_disasm.cmd wrote
+    there. Two lanes running the suite at once would have written each other's
+    disassembly and each measured the other's build, and both would have read
+    green. RESOLVED: abicheck requires --disasm-dir and has no default;
+    gen_disasm.cmd takes an out-dir and defaults it inside the build
+    directory; the CMake target passes ${CMAKE_BINARY_DIR}/_abicheck_disasm.
+
+(b) THE SCANNER READ LANE PROSE AS LINKER INPUT. aliascheck walked the tree
+    with its own regex and counted every /alternatename it saw. On this tree
+    that reports 1590 directives where 1573 are real linker input and 17 are
+    quotations in comments and .txt maps -- and THREE of those 17 are
+    quotations of exactly the receiver-crossing directives the 2026-08-16
+    fixes DELETED, sitting in the comment blocks that record the fix. The
+    checker would have reported a defect out of the note saying it was fixed.
+
+    THREE, not the five this document first claimed. All 17 prose lines were
+    put through aliascheck.crossing() and the crossings are
+    stage_lifecycle_map.txt:1084 and hal/stage_slot0.cpp:480, both quoting
+    Heap::SetDefault, and hal/scene_boot.cpp:1176 quoting
+    ModelComponents::Render. A fourth, CMakeLists.txt:3252, is a truncated
+    regex over the Render directive and does not classify as a crossing. The
+    remaining thirteen are data and vtable bridges. Lane ABR1 found the
+    miscount; it was re-derived here rather than taken on report.
+    Cons already solved this: commit ab554f5fd taught alternatename_guard.py
+    the difference, after the same mistake failed a build over a comment.
+    RESOLVED: aliascheck no longer walks the tree. It calls
+    alternatename_guard.collect_directives(), and the selftest pins the
+    distinction.
+
+(c) THE POP RULE COULD NOT SEE THE SHAPE THAT ACTUALLY RECURS. The recovered
+    aliascheck decided everything by comparing POP SIZE. A zero-argument
+    __thiscall method pops 0; a flat extern "C" cdecl name pops 0; they match,
+    and the checker says OK. Heap::SetDefault is ?SetDefault@Heap@@QAEHXZ --
+    no arguments. So the recovered checker could NOT have caught the defect
+    that cost a measured fault the day before this lane ran, nor
+    Heap::Destroy, Heap::ResizeToFit, HeapAllocator::Remove or
+    Player::GetHurtState. It caught TryGrab, SetAnim and KillByMegaChar only
+    because those three happen to take an argument. RESOLVED: the primary rule
+    is now RECEIVER LOCATION, which subsumes all three original fixtures and
+    catches the zero-argument ones; pop size is kept as a secondary rule.
+
+(d) THE PROOF WENT RED WHEN THE BUGS WERE FIXED. prove.py asserted that all
+    nine known instances were CAUGHT on its tree, which worked only because
+    its worktree predated every fix. All nine are fixed now, so the original
+    fails on cons -- not a regression, a snapshot. RESOLVED: inverted, per
+    section 3.
+
+(e) vtspan.py. port-defect-wiring carried its own NEW copy of vtspan.py (806
+    lines) from a feature branch, and reconciling with B's canonical copy was
+    the named landing prerequisite on 2026-08-10. Cons now has vtspan.py
+    (1041 lines) with all three modes the wiring needs (--sweep, --fills,
+    --seats). RESOLVED: the wiring branch's copy is DROPPED entirely; cons'
+    is used unchanged and nothing in this change touches it.
+
+(f) THE ALTERNATENAME SURFACE MOVED. Six receiver bridges landed 2026-08-16
+    and deleted six of the directives the original tools were written against,
+    and the caller displacements of lanes RT1/AE1/TS1 retired tail-jump rows.
+    RESOLVED: the fixture set is rebuilt from the actual deleted directives,
+    read out of the fixing commits rather than from the six-day-old list, and
+    the baseline is a census of what is live TODAY.
+
+(g) aritycheck's SCAN MISSED HEADERS. It walked src/, port/unmatched/ and
+    port/hal/ for .c and .cpp only. PR #1539's defect was in
+    include/decl_FaderColor.h, so the recovered checker would not have caught
+    the more recent of its own two best instances. RESOLVED: include/ is
+    scanned and .h files are read. That moved the census from 2005 to 2104 and
+    the receiver subset from 162 to 167, which is a cheap way to buy the
+    surface where a real recurrence actually happened. A second reader gap of
+    the same kind, the namespaced C++ declaration spelling, was found later by
+    lane ABR1's review and is item (j).
+
+(h) gen_disasm.cmd WAS UNUSABLY SLOW. `for /r` over the whole build directory
+    visits every one of the port's fourteen thousand objects and filters each
+    through a piped findstr. Measured here: still running after ten minutes,
+    with cmd.exe past 2.3 GB. RESOLVED: it enumerates
+    <build>\CMakeFiles\*.dir\hal\*.obj directly. 477 objects in 2m27s.
+
+(i) veneercheck.py IS NOT LANDED, AND THAT IS A MEASUREMENT. Its rule was "a
+    call to an Itanium member name written with ZERO arguments always drops
+    `this`". On this tree that fires 686 times, and the premise is false: many
+    matched src bodies genuinely take no receiver, because the ROM body never
+    reads r0. src/_ZN4Tree8BehaviorEv.cpp is `int _ZN4Tree8BehaviorEv(void)`
+    and walks a global list, so the thunk at hal/actor_classes.cpp:439 calling
+    it with nothing is CORRECT. The sound version of that rule is arity
+    agreement between declaration and definition, which is aritycheck. Landing
+    veneercheck would have added 686 false positives to a suite whose whole
+    value is that its reds are real. Lane ABR1 re-checked the exclusion on
+    three of the 686 and agreed.
+
+THE LAST TWO ITEMS ARE NOT DRIFT FROM THE OLD BRANCHES. They are defects this
+lane introduced or carried, found by lane ABR1's review of this very change,
+and they are recorded beside the rest because a recovery that hides its own
+review findings is the same failure the recovery was for.
+
+(j) THE DEMANGLER WAS NEVER CALLED CORRECTLY, so two capabilities read as
+    blocked external dependencies for a day. aliascheck's helper piped its
+    name list into undname's stdin; undname takes FILENAMES and answers a pipe
+    with its usage banner and exit 1; the helper read that exit as "the tool
+    is missing". Consequences, both of which this document asserted as
+    environment limits:
+      * aliascheck RULE P reported NOT RUN in every environment.
+      * abicheck fell back to a precomputed _unres.txt / _unres_demangled.txt
+        pair that nothing has ever generated, so extsig was always empty and
+        638 of 2391 fills read NORETURN -- UNCHECKED, and reported as a
+        coverage limit of the machine rather than of the code.
+    RESOLVED: port/tools/msvc_undname.py, one caller, the FILE form, a locator
+    that also finds undname under the VS Build Tools layout so a plain shell
+    works, and a selftest pinning both known-good output and the fact that
+    stdin is refused. Rule P now runs over 1302 names; abicheck resolves 505
+    of 505 tail-jump targets and judges 47% instead of 35%.
+
+(k) aritycheck COULD NOT SEE THE CALL SITE ITS OWN BEST EXAMPLE USED.
+    src/func_ov007_020b7764.cpp declares Player::St_EndingFly_Main with a
+    namespaced C++ declaration, which the flat-name reader skipped, so the
+    site was invisible while the SYMBOL sat on the census via four other
+    files. This document read that as "it is on the census" and was wrong.
+    RESOLVED: item 6 of section 6, and the narrow scope is stated there and in
+    section 7.
+
+
+6. WHAT THE SUITE FOUND ON CONS -- SIX LIVE RECEIVER DEFECTS
+------------------------------------------------------------
+
+These are TRUE POSITIVES on 3a5733c03. Five were found by aliascheck's new
+receiver rule on its first run; the sixth needed aritycheck to learn the
+namespaced C++ declaration spelling, which it did only after lane ABR1's
+review pointed out that nothing in the suite could see it.
+
+ALL SIX ARE FIXED. Run link60 lane RF1, 2026-08-17, on branch
+s5-receiver-fixes off cons af0c86ab5. The paragraph that used to sit here said
+"NONE IS FIXED HERE", named them as six behavioural changes across five
+owners' files, and left them frozen as OPEN. That is now history and it is
+kept in the git log rather than here. What each entry below carries instead
+is FIXED BY -- the face that replaced the directive, and the fixture that
+keeps it caught.
+
+The five aliascheck rows are DELETED from aliascheck_baseline.txt rather than
+re-tagged, because the directives they described no longer exist; the sixth
+row is deleted from aritycheck_receiver_baseline.txt because nothing binds
+that spelling to the flat body any more. Deleting a row is only safe if
+something else remembers, and that something is abi_prove: each of the five
+deleted directives is now a RED fixture, and the sixth has an arm that puts
+back ONLY the deleted directive and requires the real row to return.
+
+NO BYTE-LOCKED src FILE WAS EDITED. Every fix is in port/hal or in a checker.
+Three of the six had a src-side component -- two ARM veneers and one caller
+that drops the argument the ROM passes in r0 -- and each is answered by
+reproducing what the ROM does rather than by rewriting what the ROM does:
+the veneers keep riding their tail jumps and the ride is now asserted at link
+time, and the one dropped argument is a global the face reads for itself.
+
+All six were confirmed independently by lane ABR1 from its own disassembly of
+its own build. Two came back WORSE than they were first filed, and both
+corrections are folded in below. Lane RF1 re-derived every one a third time
+from the ROM before touching it, and that third reading changed what two of
+the fixes are: see item 4/5, where the "Player state" the callers dispatch
+turns out to be a teardown trampoline.
+
+Ranked by blast radius.
+
+  1. ExpandingHeapAllocator::DeallocateAll   FIXED
+     the directive was at hal/lk4_eh_dtor_seat.cpp:43
+     ?DeallocateAll@ExpandingHeapAllocator@@QAEXPAP6AXPAXPAV1@I@ZI@Z
+       = __ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj
+     src/_ZN13ExpandingHeap14VDeallocateAllEv.cpp:30 makes a qualified
+     thiscall call with two pushed arguments, so the allocator goes into ECX.
+     The body src/_ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj.cpp:3
+     is flat cdecl (void *thiz, Fn fn, void *ctx) and takes thiz from the
+     first stack slot -- which holds the VISITOR, a code pointer. The
+     dereference at +0x2c is UNCONDITIONAL, so the wrong-object read always
+     happens; the call through fn is guarded by that read returning a non-null
+     node, so whether control transfers to the pushed 0 depends on what
+     happens to be at visitor+0x2c. (The first version of this document had
+     those two the wrong way round.)
+     IT ALSO UNBALANCES THE STACK: the call site is compiled for a callee that
+     rets 8, the body pops nothing, so ESP leaks 8 bytes per call. Reachable
+     through _ZTV13ExpandingHeap slot 5, whose thunk eh_vdeallall is seated by
+     hal_seat_expandingheap_dtors in the same file;
+     the caller TU rides port/slice_gate16.txt.
+
+     FIXED BY   the directive is DELETED and
+                ?DeallocateAll@ExpandingHeapAllocator@@QAEXPAP6AXPAXPAV1@I@ZI@Z
+                is now a real __thiscall method defined in
+                hal/lk4_eh_dtor_seat.cpp, forwarding into the flat body with
+                `this` as the first stack argument. The class shadow is
+                copied verbatim from the calling TU's own declaration, which
+                is what makes the decoration match; `class` and not `struct`,
+                because the parameter encodes PAV1@ and a struct mangles
+                PAU1@ and misses.
+                THE EMITTED FACE, out of this build's own disassembly:
+                    push ebp / mov ebp,esp
+                    push dword ptr [ebp+0Ch]        param
+                    push dword ptr [ebp+8]          visitor
+                    push ecx                        THE RECEIVER
+                    call __ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj
+                    add esp,0Ch / pop ebp / ret 8
+                so both halves close in the same three lines: the receiver is
+                published from ECX into the slot the body reads, and `ret 8`
+                is the pop the call site was already compiled for.
+     FIXTURE    abi_prove ALIAS_FIXTURES, "ExpandingHeapAllocator::
+                DeallocateAll". Re-injecting the directive must make
+                aliascheck report a NEW crossing by name.
+
+  2. HeapAllocator::Remove                   FIXED
+     the directive was at hal/lk4_eh_dtor_seat.cpp:49
+     __ZN13HeapAllocator6RemoveEv = ?Remove@HeapAllocator@@QAEXXZ
+     src/func_0204ebb8.c:7 and src/_ZN13HeapAllocator7DestroyEv.cpp:8 are ARM
+     tail-call veneers transcribed to C and both call the flat name with ZERO
+     arguments. The body src/_ZN13HeapAllocator6RemoveEv.cpp:23 is __thiscall
+     and PASSES `this` to two callees (FindNested(this), then
+     Remove(iter, this)). The veneers are themselves entered by cdecl calls
+     that PUSH the allocator (src/_ZN13ExpandingHeap8VDestroyEv.c:23,
+     src/_ZN9SolidHeap8VDestroyEv.c:23), so nothing in the source ever loads
+     the allocator into ECX.
+
+     THE HEDGE THIS DOCUMENT FIRST CARRIED WAS TOO WEAK, and the truth is
+     worse. It said Remove "survives today only if MSVC happens to
+     materialise self->allocator into ECX". It does not, and there is nothing
+     accidental about what it gets. Lane ABR1 showed neither VDestroy body
+     writes ECX, and the seated thunk is this, out of this build's own
+     disassembly of hal/lk4_eh_dtor_seat.cpp:
+
+         ?eh_vdestroy@@YIXPAX0@Z (void __fastcall eh_vdestroy(void *,void *)):
+           push        ecx
+           call        __ZN13ExpandingHeap8VDestroyEv
+           pop         ecx
+           ret
+
+     ECX arrives holding the ExpandingHeap, is pushed as the cdecl argument,
+     and is never reloaded before the call. So HeapAllocator::Remove runs with
+     `this` = THE HEAP, deterministically, on every heap teardown -- not
+     random garbage, and not the HeapAllocator it was written for. A stable
+     wrong object is not the better of the two outcomes: it is a valid pointer,
+     so it does not fault, it corrupts the same way every time.
+
+     AND THE LAST FOUR WORDS OF THAT PARAGRAPH ARE WRONG, measured by lane RF1
+     and left standing above so the correction has something to correct. "On
+     every heap teardown" is not true of any path the port can drive.
+     _ZTV13ExpandingHeap slot 2 IS NOT DISPATCHED by a level teardown. With a
+     throwaway fprintf in all four entry points -- the slot 2 thunk, the slot
+     5 thunk, the Remove face and the DeallocateAll face -- and a probe build
+     confirmed to carry them (4 occurrences of the marker string in the exe),
+     ZERO lines came out of: level entry -> menu ExitLevel -> destination on
+     levels 4 and 6, 300-frame selftests on levels 1 and 6, and 120-frame
+     selftests on 29 mounted levels. Not one. What the defect was is exactly
+     as described; what it costs TODAY is nothing, because nothing reaches it.
+     That is a statement about the port's coverage and not about the ROM: the
+     ROM tears these heaps down, the port has not reached the code that does.
+
+     FIXED BY   the directive is DELETED and the flat name is now a __cdecl
+                face in hal/lk4_eh_dtor_seat.cpp taking the receiver as its
+                first stack argument:
+                    __ZN13HeapAllocator6RemoveEv:
+                      push ebp / mov ebp,esp
+                      mov ecx,dword ptr [ebp+8]     the pushed allocator
+                      pop ebp
+                      jmp ?Remove@HeapAllocator@@QAEXXZ
+                THE RECEIVER GETS THERE THROUGH THE VENEERS' TAIL JUMPS, which
+                is the ROM's own shape rather than a workaround for it. Both
+                veneers are `ldr ip,[pc]; bx ip; .word 0x0204df38` in the ROM,
+                and both compile to exactly `jmp __ZN13HeapAllocator6RemoveEv`
+                on the host -- verified by disassembling the two objects --
+                so the allocator the VDestroy bodies push is still at [esp+4]
+                when the face reads it. That is the ride the ov007 slice rests
+                on in about fifty places.
+                AND IT IS NO LONGER AN ASSUMPTION. Both frames were added to
+                port/tools/tailjump_guard.py's Class C in the same change, so
+                the jmp is asserted in every hosting map at link time and the
+                guard says 34 frames where it used to say 32. The alternative
+                was displacing both veneers into port/unmatched host copies,
+                which works and costs two matched TUs out of the binary; the
+                faithful version won and the assumption got a guard.
+     FIXTURE    abi_prove ALIAS_FIXTURES, "HeapAllocator::Remove", plus
+                prove_ride -- which re-breaks the GUARD in a scratch copy so
+                the two declarations report as NEW, proving the exclusion is
+                exactly the guard's table and not something aritycheck decided
+                on its own.
+
+  3. Player::GetHurtState                    FIXED
+     the directive was at hal/actor_classes_ov073.cpp:190
+     __ZN6Player12GetHurtStateEv = ?GetHurtState@Player@@QAEHXZ
+     src/func_ov073_02120ed0.c:112 and :113 and src/func_ov077_02126640.cpp:37
+     all PUSH the player and call the flat name; all three TUs are compiled
+     today. The body src/_ZN6Player12GetHurtStateEv.cpp:10 is __thiscall and
+     reads `this` twice.
+
+     FIXED BY   the directive is DELETED and the flat name is a __cdecl face
+                in hal/actor_classes_ov073.cpp, the same emitted shape as
+                Remove above:
+                    mov ecx,dword ptr [ebp+8] / pop ebp
+                    jmp ?GetHurtState@Player@@QAEHXZ
+                No drive is claimed. All three sites are damage tests reached
+                from ov073 and ov077 behaviour, hurt state is a player-damage
+                condition, and no battery path takes damage; the proof is the
+                checker plus the emitted bridge. What the defect cost is a
+                wrong ANSWER rather than a fault -- the state test ran against
+                whatever object ECX held and the returned step came out of
+                that same object -- so it would have read as a character not
+                reacting to a hit, which is the hardest kind of bug to notice
+                and the reason this one is worth fixing without a repro.
+     FIXTURE    abi_prove ALIAS_FIXTURES, "Player::GetHurtState".
+
+  4/5. Player::St_EndingFly_Main, two declared spellings   BOTH FIXED
+     the directives were at hal/scene_boot.cpp:1124 and :1125
+       ?St_EndingFly_Main@Player@@QAEHXZ
+       ?St_EndingFly_Main@Player@@QAEXXZ
+       both = __ZN6Player17St_EndingFly_MainEv
+     src/func_ov007_020cbb04.cpp declares the int form and calls it seven
+     times; src/func_ov007_020b9770.cpp declares the void form and calls it
+     twice. All nine put the player in ECX and push nothing. The body
+     src/_ZN6Player17St_EndingFly_MainEv.cpp:13 is flat cdecl (void *self) and
+     hands whatever sits in its first stack slot to an indirect call through
+     data_ov007_02103254. Both TUs ride port/slice_ov007.txt.
+
+     WHAT IS ON THE OTHER END OF data_ov007_02103254, which nobody had looked
+     up and which decides whether a bridge or a trap is the right fix. From
+     the RELOCS, never the raw word:
+
+         config/arm9/overlays/ov007/relocs.txt:3264
+           from:0x02103254 kind:load to:0x020c3e4c module:overlay(7)
+
+     and 0x020c3e4c is six instructions, all six of which matter because four
+     of them are the argument setup:
+
+         020c3e4c  ldr ip,[pc,#0xc]      ip = 0x020590fc
+         020c3e50  mov r2,r0             arg 3 = the object
+         020c3e54  mov r0,#0             arg 1 = 0, the table index
+         020c3e58  mvn r1,#0             arg 2 = -1, "the current handle"
+         020c3e5c  bx  ip
+         020c3e60  .word 0x020590fc
+
+     func_020590fc disables interrupts, takes table[0] and -- because arg 2 is
+     negative -- reads the current handle out of its first word, indexes a run
+     of 12-byte records by it, and then calls TWO list functions on the node at
+     (obj - 0x20) before re-enabling. IT IS free().
+
+     WHICH TWO LISTS, AND WHAT EACH CALL DOES. The first version of this
+     paragraph said "unlinks the node from the two lists at +4 and +8" and that
+     is half right and half backwards; lane RFR1's review disassembled both and
+     only one of them is an unlink:
+
+       rec+8   func_02059364(head, node)   a doubly-linked UNLINK. Patches
+               node->next into node->prev->next and back, returns the new head.
+               This is the node leaving the ALLOCATED list.
+       rec+4   func_0205929c(head, node)   an INSERT, not an unlink. It walks
+               the list while `node > cursor`, so the list is ADDRESS-SORTED,
+               links the node in at that position, and then reads node[+8] as a
+               SIZE and tests `node + size == next` to COALESCE with its
+               neighbour. This is the node joining the FREE list.
+
+     Together they are exactly free(): out of the allocated list, into the
+     sorted free list, coalesced with the block above it. So the blast radius
+     is worse than "spliced out of two lists". THE CALLER'S OWN RETURN ADDRESS
+     WOULD HAVE BEEN INSERTED INTO THE FREE LIST AS A BLOCK HEADER, at
+     (return address - 0x20), with its SIZE FIELD READ OUT OF CODE BYTES --
+     whatever instruction happens to sit eight bytes into that header. The next
+     allocation walks that list.
+
+     It is a TEARDOWN, and both callers agree: func_ov007_020cbb04 calls this
+     on five sub-objects and then on the parent, and func_ov007_020b9770 calls
+     it on two globals and NULLS EACH ONE on the next line. The "Player state"
+     label on 0x020c3d1c is a mislabel -- section 1 of the 2d map warns about
+     it and this is the disassembly behind the warning.
+
+     SO THE FIX IS A BRIDGE AND NOT A TRAP. The mission this lane ran under
+     allowed for a loud trap if the true body turned out to be unseated. It is
+     not: src/_ZN6Player17St_EndingFly_MainEv.cpp is matched, in the slice, and
+     correct as written. The only thing wrong was how the three spellings
+     reached it.
+
+     FIXED BY   both directives are DELETED.
+                ?St_EndingFly_Main@Player@@QAEXXZ is now a real __thiscall
+                method in hal/scene_boot.cpp:
+                    push ecx / call __ZN6Player17St_EndingFly_MainEv
+                    pop ecx / ret
+                which publishes the receiver from ECX into the stack slot the
+                flat body reads, and rets 0 as a nullary __thiscall must.
+                The INT spelling is bridged onto the void one --
+                    ?St_EndingFly_Main@Player@@QAEHXZ
+                      = ?St_EndingFly_Main@Player@@QAEXXZ
+                -- because two decorations that differ only in return type
+                cannot both be declared on one class in one TU. That is the
+                Heap::Rescue precedent and it is NOT a crossing: both sides
+                are public __thiscall taking nothing, so rule R and rule P
+                both agree. EAX is then whatever the flat body left, which is
+                exactly as indeterminate as r0 is in the ROM (0x020c3d1c
+                returns whatever the pointer it dispatched returned), and all
+                seven int-form sites in src/func_ov007_020cbb04.cpp discard it.
+                No drive: ov007's ending path is not reachable from any
+                battery entry point. Checker and disassembly, as the mission
+                allows for this pair.
+     FIXTURE    abi_prove ALIAS_FIXTURES, "Player::St_EndingFly_Main (int
+                spelling)" and "(void spelling)" -- two rows, because two
+                directives were deleted and each has to be caught on its own.
+
+  6. Player::St_EndingFly_Main, a THIRD spelling, and until this document was
+     amended NO CHECKER IN THE SUITE COULD SEE IT.   FIXED
+     the directive was at hal/scene_boot.cpp:1126:
+     ?St_EndingFly_Main@Player@@YAXXZ =
+     __ZN6Player17St_EndingFly_MainEv. YA is a free function, so both sides
+     agree there is no receiver and aliascheck's rule R is CORRECT to stay
+     quiet -- it is not a crossing. And src/func_ov007_020b7764.cpp:9 calls
+     Player::St_EndingFly_Main() with nothing, while the definition takes a
+     receiver and hands it to an indirect call through data_ov007_02103254.
+
+     THE FIRST VERSION OF THIS DOCUMENT SAID IT WAS "on that checker's
+     receiver census". IT WAS NOT, and lane ABR1 caught the error. The SYMBOL
+     was on the census, reaching it through four other TUs that use the flat
+     spelling -- but THIS SITE was invisible, because
+     src/func_ov007_020b7764.cpp:2 declares it as
+
+         namespace Player { void St_EndingFly_Main(); }
+
+     and aritycheck's declaration reader only matched flat _ZN.../func_...
+     names. So the one call site that motivated the whole example was the one
+     nobody was checking. That is the same shape as the checker itself: a
+     count that looks like coverage.
+
+     CLOSED HERE. aritycheck now reads a single-level namespaced declaration
+     of a nullary function and mangles it to _ZN<len><NS><len><Name>Ev. That
+     added exactly 14 declarations tree-wide and exactly ONE census row --
+     this one. Deliberately narrow: templates, nested namespaces, arguments
+     and out-of-line class methods are NOT attempted, because a half-written
+     Itanium mangler emits confident wrong symbol names, which is worse than a
+     blind spot somebody wrote down. Proved both ways in abi_prove
+     (a scratch file carrying only that declaration must produce a new ratchet
+     row, and removing it must take the row away). The remaining spellings are
+     stated as a blind spot in section 7.
+
+     It is the clearest single argument for the suite having more than one
+     detector -- and, now, for reviewing the detectors against each other.
+
+     FIXED BY   the directive is DELETED and ?St_EndingFly_Main@Player@@YAXXZ
+                is aliased instead onto a hal free function that supplies the
+                receiver ITSELF. It can, because the receiver at that one call
+                site is a GLOBAL and the ROM says which one:
+
+                    020b7774  ldr r0,[pc,#0x2c]     &data_ov007_02103448
+                    020b7778  ldr r0,[r0]           r0 = *that word
+                    020b777c  cmp r0,#0
+                    020b7790  bl  0x020c3d1c        with r0 STILL the object
+
+                and src/func_ov007_020b7764.cpp is byte-locked, so the matched
+                C is `Player::St_EndingFly_Main();` with the argument dropped
+                and it stays that way. The face reads the same global:
+
+                    _port_ov007_b7764_endingfly:
+                      push dword ptr [_data_ov007_02103448]
+                      call __ZN6Player17St_EndingFly_MainEv
+                      pop ecx / ret
+
+                An ALIAS and not a second face declaration, because a
+                `namespace Player` in hal/scene_boot.cpp would collide with the
+                `struct Player` the QAEX face needs, and both sides are __cdecl
+                with no receiver so it is a pure NAME bridge. It is exact for
+                exactly one caller and that is all there is: a tree-wide grep
+                finds ONE `namespace Player` declaration.
+     AND THE    checker had to learn something too, or the row could never
+     CHECKER    retire. src/func_ov007_020b7764.cpp still says what it always
+                said, so a reader that looks only at declaration text cannot
+                tell a fixed site from a broken one. aritycheck now counts a
+                namespaced declaration ONLY when an /alternatename binds its
+                MSVC decoration to the flat Itanium name -- which is the thing
+                that makes the flat body the callee in the first place. With
+                the directive gone, the row is gone, and it is gone for the
+                real reason rather than by editing the baseline's prose.
+                Eleven namespaced declarations tree-wide are now unbound and
+                every one is PRINTED on each run, so the narrowing is visible.
+     FIXTURE    prove_nsdecl, now three arms: the spelling plus its binding
+                alias in a scratch file must produce a row; removing the file
+                must take it away; and re-adding ONLY the deleted scene_boot
+                directive must bring the REAL src/func_ov007_020b7764.cpp row
+                back. That third arm is the regression proof for this fix
+                rather than for the detector, and it is the one that fails if
+                somebody restores the alias without restoring the face.
+
+  7. A SEVENTH INSTANCE, FOUND WHILE FIXING THE SIX AND NOT FIXED.
+     hal/scene_boot.cpp still carries
+
+         /alternatename:_func_020c3d1c=__ZN6Player17St_EndingFly_MainEv
+
+     the fourth spelling of item 4/5's body: by ADDRESS. SIXTEEN matched ov007
+     TUs reach it, every one a long-branch veneer that declares
+
+         extern int func_020c3d1c(void);
+
+     and calls it with nothing, while the body takes the object:
+
+         func_ov007_020c0a9c   _020c105c   _020c1620   _020c2018
+         func_ov007_020c22f8   _020c2410   _020c338c   _020c3544
+         func_ov007_020c8098   _020c8440   _020c8b04   _020c8f58
+         func_ov007_020c9080   _020c92a0   _020c937c   _020c9460
+
+     THIS FILE SAID FIVE WHEN LANE RF1 FILED IT AND FIVE WAS WRONG. It named
+     the ones it happened to have grepped while fixing item 4/5, which is the
+     count-that-looks-like-coverage failure this document keeps recording
+     about other people's numbers. Lane RFR1's review took the honest census
+     (`grep -rl "extern int func_020c3d1c(void);" src/` returns 16) and the
+     deferred lane is roughly THREE TIMES the size that was filed. The
+     safety conclusion does not move -- see WHY IT IS NOT FIXED below -- but
+     the cost estimate does, and a deferred item is only useful if its size is
+     right.
+
+     A SEVENTEENTH TU, src/func_ov007_020c05f8.c, is the same veneer shape but
+     spells the FLAT Itanium name rather than the address, so it is not on
+     this list: it is the row the RIDE exclusion retires out of
+     aritycheck_receiver_baseline.txt in this very change.
+
+     AND THE CALLERS ARE REAL, INCLUDING TWO THAT PASS HONEST ARGUMENTS. Not
+     every one of the sixteen is called bare by its own caller, which is what
+     makes the ride load-bearing rather than merely latent:
+       src/func_ov007_020cbb04.cpp:18  passes a pointer into _020c8098 in a
+                                       loop over a grid (and :3 declares that
+                                       veneer as taking one)
+       src/func_ov007_020b9770.cpp     passes an int to _020c937c FOUR times
+                                       and to _020c9080 TWICE
+     In each of those six the caller pushes, the veneer names no parameter,
+     and the target reads the pushed word only because the veneer jmps.
+
+     NEITHER CHECKER CAN SEE IT, and that is the part worth carrying. Both
+     sides of the directive are flat __cdecl names, so there is no receiver
+     crossing and aliascheck's rule R is right to stay quiet. Nothing in the
+     tree DEFINES func_020c3d1c, so aritycheck has no definition to compare
+     the sixteen `(void)` declarations against and no census row exists. A
+     third detector would have to reason about what an alias makes the callee,
+     which is the direction the NS BINDING rule added for item 6 points in.
+
+     WHY IT IS NOT FIXED HERE, and this is the half the miscount did not
+     change. On the ROM all sixteen are `ldr ip,[pc]; bx ip` and r0 rides
+     through, and on the host all sixteen are inside the DERIVED veneer set
+     that tailjump_guard already scans overlay 7 for and asserts -- the
+     derivation covers all 22 ov007 veneers whatever this prose says, so the
+     ride is intact today and the guard fails the build if it stops being.
+     Fixing it properly means sixteen Class C rows keyed on the real callee
+     and a drive nobody has, on a scene (the ending) that is not reachable. It
+     is filed here rather than taken, which is the same call lane AB1 made
+     about the six, and it is filed with its mechanism and now with its real
+     size so the next lane does not have to re-derive either.
+
+  ADJUDICATED INERT, for the record (11 rows, all in aliascheck_baseline.txt):
+  Player::OnYoshiTryEat (the body is `(void)this; return 1;`); the eight
+  MeshColliderBase base-table bridges (address-taken only, and the live
+  dispatchers at src/_ZN11RaycastLine10DetectClsnEv.cpp:56 and
+  src/_ZN10SphereClsn10DetectClsnEv.cpp:55 are MSVC virtual calls that put the
+  receiver in ECX); ExpandingHeapAllocator::MemoryLeft (the directive never
+  fires -- the LHS is DEFINED by the face at hal/heap_vtable.cpp:96, which is
+  why the same pair is already row 68 of alternatename_baseline.txt); and
+  Stage::CheckInput (the body takes zero parameters and its one caller is in
+  no slice list).
+
+
+7. LIMITS, STATED
+-----------------
+
+  * abicheck judges 77% of the fills it reads: 4413 of 5702, measured on
+    cons 2026-08-27 after the parameter binding below. It was 47% of 2376
+    when this section was first written, and BOTH HALVES of that moved for
+    the same reason -- the binding recovered 3326 fills that used to be
+    dropped silently, so the denominator grew and the share judged grew with
+    it. The older figure is left named rather than overwritten because a
+    coverage number with no census beside it is unreadable.
+    The 133 NORETURN are UNCHECKED, not passed. They are thunks whose
+    tail-jump target is a flat Itanium body carrying no parameter list in its
+    spelling, so no demangler closes them; the fix is to read the pop out of
+    the target's own emitted `ret`, which means disassembling beyond the hal
+    objects. 393 more rest on consensus alone and 682 DECLINE are exempt.
+  * THE HEADER AUTHORITY STOPS AT SLOT 30, AND EXTENSION VIRTUALS USED TO FALL
+    THROUGH IT SILENTLY. ActorBase.h declares 0..17 and Actor.h 18..30, so a
+    slot a DERIVED class adds past the Actor tail has no key in
+    ACTOR_SLOT_ARGS, `need` came back None, and the row read NO_AUTHORITY --
+    whose wording ("non-Actor table: consensus") describes a short Model or HUD
+    table and is a false description of a 33-slot Actor table. Real classes do
+    add these: PathLift adds AfterClsn at 32, Bully and BigBully add six at
+    31..36, and Platform::Kill sits at 31 on thirty-odd tables.
+    AND CONSENSUS COULD NOT COVER FOR IT. `consensus_odd` asks whether a fill
+    disagrees with its PEERS, so a slot that is wrong EVERYWHERE produces no
+    outlier at all. Slot 32 had three fills, all the two-parameter shape, all
+    emitting a bare ret against a dispatch site that pushes one word: unanimous,
+    and unanimously wrong. Both detectors read clean over it and the port
+    shipped report 7447e46c -- a level 46 return into the stack, walker PLAYER,
+    `ebp` holding the un-popped Actor.
+    AND THE FIRST ATTEMPT AT CLOSING IT WAS ITSELF WRONG, THREE WAYS. Kept
+    here in full, because every one of the three is a shape a checker author
+    will reach for again.
+      (i)   IT NEVER SAW THE SEAT THE BUG SHIPPED FROM. port/hal seats most
+            Actor tables through one helper per overlay (pl_fill_shared,
+            ov63_fill_shared) which writes twenty-odd slots through a pointer
+            it was HANDED, so no register in that function names a table and
+            VTSTORE's binding dropped the lot. Measured: pl_after_clsn had
+            ZERO rows out of 2376, as did pl_kill, pl_pounded and pl_atk1. The
+            closure was written, and reported green, on a checker blind to the
+            exact thunk it was written for.
+      (ii)  IT KEYED THE AUTHORITY ON THE SLOT NUMBER. A virtual a derived
+            class ADDS is that class's own, so a slot index is not a contract.
+            Asserting "slot 32 takes one argument" widened Bully's thunk to
+            ret 4 against a site that pushes nothing -- the same wild execute,
+            mirrored into a second class by the fix for the first.
+      (iii) IT COULD NEVER EXIT 0 AGAIN, because EXT_UNJUDGED counted toward
+            the exit status over rows the tree already carries. That
+            permanently fails abi_prove's "GREEN on this build" arm, and a
+            checker that always fails proves as little as one that always
+            passes.
+    A fourth error was in the EVIDENCE rather than the code, and is the reason
+    (ii) looked safe: the claim that src/_ZN6Lakitu6RenderEv.cpp was a second,
+    agreeing slot-32 dispatch site. Its VObj declares SIX virtuals, so its
+    `m(0)` is slot 5 at +0x14, and the TU appears in no slice file and is not
+    linked. It was neither slot 32 nor in the build.
+
+    CLOSED PROPERLY 2026-08-27, run mg16 lane FIXD, after that review:
+      (a) THE PARAMETER BINDING. `push offset TAB` / `call FILLER` is recorded
+          as a fill edge and resolved after every object is parsed, so a slot
+          seated through a shared filler is attributed to every table its
+          callers hand it. 3326 fills recovered from 29 fillers; the census
+          goes 2376 -> 5702 and coverage 46% -> 77%. This is what makes
+          pl_after_clsn visible at all.
+      (b) ACTOR_EXT_SLOT_AUTHORITY, keyed on (TABLE, slot), each row naming the
+          site it came off. The site census is the evidence and it is written
+          down: sweeping the linked binary for `call dword ptr [reg+000000
+          80h]` finds exactly three slot-32 dispatches --
+            func_ov004_020b08f0 +0xb    pushes 0
+            func_ov002_020eff90 +0xb    pushes 1
+            func_ov064_02116d1c +0x129  pushes 0
+          -- so only the two PathLift tables have a row.
+      (c) EXT_UNJUDGED for an extension slot with no per-table authority, LOUD
+          and RATCHETED against port/tools/abicheck_extslot_baseline.txt. 78
+          rows frozen today, dominated by slot 31 (Platform::Kill). UNCHECKED
+          DEBT, not clearance; the set may shrink freely and only a NEW row
+          fails the run.
+      (d) consensus peers for an extension slot are scoped to its OWN TABLE.
+          Pooled across ACTOR31 it flagged the CORRECT pl_after_clsn as an
+          outlier, because Bully's two equally-correct bare rets outvoted it on
+          a 2-versus-2 split settled by tie-break.
+      (e) a CONSENSUS-VS-AUTHORITY arm, which fires when a whole peer group
+          disagrees with its slot's authority -- the case consensus alone
+          cannot raise, since nothing is an outlier when everything agrees.
+    Proved both ways. --selftest gained a filler fixture (a table pushed to a
+    helper that stores through [ebp+8], which must bind), a slot-32 fill on the
+    authoritative table that must read UNDERPOP, and a second table's slot 32
+    with no authority that must stay EXT_UNJUDGED rather than being judged by
+    its neighbour. abi_prove carries pl_after_clsn as a vtable fixture, which it
+    could not before: with the fill invisible, re-breaking it changed nothing
+    and the red arm could not fire. 33 of 33 proofs pass.
+  * aritycheck's full census (2075 rows since the else/return misparse fix;
+    2106 when this was written) does not gate and its parser is a regex over
+    C and C++ text. The honest route to gating it is to read arity out of
+    the emitted code -- the callers' push counts, the way abicheck reads
+    emitted rets -- not a bigger regex.
+  * THE PLAIN-NAME RATCHET COMPARES DECLARATIONS, NOT CALLS. A call under an
+    UNPROTOTYPED C declaration (`extern int f();`) can still pass fewer
+    words than the definition reads, and no declaration-vs-definition
+    comparison can see it. Counting arguments at every call site textually
+    was measured and rejected: 524 short-looking sites tree-wide, most of
+    them legal C++ calls of defaulted definitions, which is exactly the
+    switched-off-within-a-day shape. Same honest route as above.
+  * aritycheck reads ONE C++ declaration spelling beyond the flat names:
+    `namespace X { T f(); }`, single level, no arguments, AND ONLY WHEN an
+    /alternatename binds its decoration to the flat Itanium name. Templates,
+    nested namespaces, overloads, arguments and out-of-line class methods are
+    not attempted. Each of those is a place a call site can hide the way
+    src/func_ov007_020b7764.cpp did for six days.
+  * THE NS BINDING TEST IS COARSER THAN THE DECORATION IT READS. It asks only
+    that a directive have `?` and `@@YA` on one side and `__ZN` on the other;
+    it does NOT check that the return-type letter after YA matches the
+    declaration's. So a directive binding an INT-returning free-function
+    spelling would be accepted as binding a VOID-returning declaration of the
+    same name, and the row would count. That is not exploitable on this tree
+    -- there is exactly one namespaced declaration with a binding at all, and
+    the one it had was the matching void spelling -- and the failure mode is
+    a row that appears rather than one that vanishes, which is the safe
+    direction for a ratchet. Tightening it means decoding the return type,
+    which is a demangler's job and rule P already owns one.
+  * THE RIDE EXCLUSION IS ONLY AS GOOD AS tailjump_guard's HAND-DECLARED
+    TABLE, and that is a narrower claim than it sounds. It covers 12 frames
+    (7 Class A, which are 'call' and therefore never excluded, and 5+2 Class
+    C). The guard's 22 DERIVED veneer rows are NOT consulted, because deriving
+    them needs the extracted ROM and aritycheck has to keep running without
+    one -- so the baseline still carries rows for veneers that are in fact
+    rides, and nobody should read the 166 as adjudicated. Closing that gap
+    means giving the guard a ROM-free way to publish its derived set.
+  * The 166 frozen receiver-shape rows, the 118 frozen plain-name rows, the
+    11 INERT crossings and the 6 frozen vtspan fills are DEBT. The ratchets'
+    claim is deliberately narrow and true: the tree does not grow a new one
+    without somebody seeing it.
+  * aliascheck reads the DIRECTIVE, not the call sites. It says a crossing
+    exists; whether the crossing bites depends on what the callers do, which
+    is why every baseline row carries a hand adjudication rather than a
+    verdict the tool computed. The sixth defect is the standing proof that a
+    checker reading one artefact can be blind to the site that matters.
+  * AND SO IS ITEM 7 OF SECTION 6, which is the current standing proof and a
+    sharper one: a flat-to-flat alias where the LHS's five declarations all
+    say `(void)` and the RHS body takes an object. aliascheck sees no crossing
+    because there is none, and aritycheck has no census row because nothing
+    defines the LHS name. The suite has three detectors and this instance is
+    invisible to all three.
+  * AN ADJACENT TOOL, RECORDED HERE BECAUSE THIS BRANCH IS WHERE THE READING
+    HAPPENED: tools/resolve_crash.py HAS NO OUT-OF-MODULE GUARD. The port's
+    dumps print `offset = ExceptionAddress - GetModuleHandle(0)`, and for an
+    execute-at-stack fault -- the whole family the work above exists for --
+    that number is not an image offset at all. resolve_crash.py still resolves
+    it to "the symbol with the greatest RVA <= offset" and prints the result in
+    the same column, same format, same confidence as the genuine frames right
+    below it. On report 7447e46c it produced
+
+        offset +00a7f1bc -> ??__Fseen@?7??bind_from_vram@...@ntr@@YAXXZ@YAXXZ
+                            +0x83657c (ntr_2x:gx.cpp.obj)
+
+    An offset of 0x83657c is 8.6 MB past its symbol and cannot be a resolution,
+    but nothing in the output says so. port/tools/faultmap.py already reads the
+    PE's image size next to the map ("image size : 0x973000 from the PE next to
+    the map"), so the bound exists and resolve_crash.py simply does not use it.
+    It should refuse, or visibly mark, an offset past the end of the image or
+    absurdly far past its symbol. NOT FIXED in run mg16 lane FIXD; the lane read
+    around it by hand, which is exactly the reading a tool is supposed to spare
+    the next person.
+
+    FIXED 2026-08-27, in both symbolizers. resolve_crash.py now reads
+    SizeOfImage from the exe next to the map (faultmap's own reader) and
+    prints `<outside the module: image ends at +0xNNN, not resolvable>` in
+    the slot a resolution would have occupied. Both tools additionally refuse
+    a hit more than 0x40000 past its symbol -- the widest genuine gap between
+    code symbols on the linked map is 0x1dff0, the flagged resolution sat
+    0x83657c past its symbol -- which covers the exe-missing case and, in
+    resolve_crash.py's code-only view, the in-image data tail past the last
+    code symbol. faultmap's old "past the next symbol's start" warning was
+    removed outright: the bisect guarantees the offset is before the next
+    symbol, so that branch could never fire. Both tools carry a `--selftest`
+    with the report-7447e46c shape as a fixture arm.
+
+  * A CLEAN ZERO-OPEN RUN DOES NOT MEAN A PATH WAS EXERCISED. Lane RF1
+    measured this the hard way on section 6 items 1 and 2: with a probe in all
+    four entry points, thirty-three separate drives -- two full level-entry ->
+    ExitLevel -> destination cycles, two 300-frame selftests and 120-frame
+    selftests over 29 mounted levels -- produced ZERO dispatches of
+    _ZTV13ExpandingHeap slots 2 and 5. Both defects were real and both fixes
+    are correct; neither could have shown up in any behavioural number the
+    port can currently take. Static proof was the only proof available, which
+    is an argument for the suite rather than against it.
+  * Nothing here runs automatically. Section 8.
+
+  TWO LIMITS THIS DOCUMENT CLAIMED AND THEN LOST, kept here because a limit
+  that turns out to be a bug is the most useful kind to record:
+    - "undname is not installed here, so RULE P cannot run and 638 fills are
+      unchecked." It was installed. The helper piped into its stdin. Both the
+      rule and 506 of the unchecked fills came back for a few lines of work.
+    - "the sixth case is on aritycheck's census." It was not; only the symbol
+      was, via other files. Both were caught by lane ABR1's review, not by
+      this lane, and neither would have been caught by re-running anything
+      here -- the numbers were self-consistent and wrong.
+
+
+8. WHAT IS WIRED, AND WHAT IS ONLY PROPOSED
+-------------------------------------------
+
+WIRED (opt-in, nothing changes for anyone who does not type it):
+
+    ninja -C build/port port_checks_nobuild   the four no-build checkers
+    ninja -C build/port port_checks           + abicheck over THIS build
+    ninja -C build/port port_abi_prove        the green/red proof harness
+
+  NEITHER port_checks TARGET IS IN ALL, and that is deliberate. The recovered
+  CMake wiring put port_checks in ALL on MSVC. The port has no CI, so a target
+  in ALL is the only thing that would run these for other people -- and
+  turning a currently-green build red for every contributor is the port
+  owner's decision, not a recovering lane's. build-port.cmd is untouched for
+  the same reason, even though it already runs eight tool selftests and this
+  suite would fit that pattern exactly.
+
+PROPOSED, STAGED IN THEIR OWN COMMIT SO IT CAN BE DROPPED WHOLE:
+    .githooks/pre-commit                       runs the no-build set
+    .github/workflows/port-defect-checks.yml   runs two of them on every PR
+    port/tools/install_hooks.sh                opts a clone into the hook
+  These are POLICY, not tooling. They change contributor workflow on a public
+  repository, and the port has nothing in CI at all today, so adding the first
+  thing is a standing-gap decision rather than a wiring detail.
+
+  ONE OF THEM IS NOT AS INERT AS IT LOOKS, AND THIS IS THE PART TO READ. The
+  usual claim for a tracked hook is that it does nothing until somebody runs
+  install_hooks.sh. THAT IS FALSE HERE. The sm64ds-decomp clone at
+  the main checkout already has
+
+      core.hooksPath = .githooks
+
+  in its local config, shared by every worktree off it, and .githooks/ does
+  not exist there yet -- which is the only reason nothing runs today. The
+  moment that commit is checked out in that clone the hook is LIVE with no
+  install step, on every commit touching port/, src/ or include/, at roughly
+  a minute and a half a commit.
+
+  It was live in this lane's worktree for exactly that reason, and it did
+  work: the first commit on this branch ran the whole no-build set as a
+  pre-commit and passed. That is a nice demonstration and it is still a
+  workflow change nobody asked for. Turning it off afterwards is
+  `git config --unset core.hooksPath`.
+
+  The workflow file is genuinely inert until merged to a branch GitHub runs.

@@ -46,6 +46,61 @@ uint32_t rt_irq_enable();
 uint32_t rt_irq_restore(uint32_t prev);
 bool rt_irq_masked();
 
+// ---- THE HBLANK EDGE -------------------------------------------------------
+//
+// IRQ 2 is a MASK and not an ordinal: IE/IF bit 1, which is HBlank. The ROM's
+// dWipe_c motion path arms it with SetIRQHandler(2, func_0202f2c4),
+// EnableIRQs(2) and func_02053c10(1) (DISPSTAT bit 4, HBLANK IRQ ENABLE), and
+// the handler it installs programs the next scanline's window bounds out of a
+// 192-line table. Nothing on the host used to raise it, so the table was built
+// every fade and read never. See port/irq2_map.txt for the derivation.
+//
+// The delivery lives in the ntr layer beside the one interrupt path it already
+// had (runtime.cpp's GXFIFO handler for mask 0x200000) rather than in a fader
+// seam, because an interrupt is not a fader: any handler registered for mask 2
+// gets it.
+
+// The five gates the DS applies to a mask-2 edge, one bit each. Reported
+// separately from the verdict so a lane that finds the fade still frozen can
+// NAME the gate that is shut instead of re-deriving the chain.
+enum : unsigned {
+    HBLANK_GATE_HANDLER  = 1u << 0,  // SetIRQHandler(2, ...) ran
+    HBLANK_GATE_IE       = 1u << 1,  // EnableIRQs(2)
+    HBLANK_GATE_CPSR     = 1u << 2,  // the CPSR I bit is clear
+    HBLANK_GATE_IME      = 1u << 3,  // IME 0x4000208 bit 0
+    HBLANK_GATE_DISPSTAT = 1u << 4,  // DISPSTAT 0x4000004 bit 4, func_02053c10
+    HBLANK_GATE_ALL      = 0x1fu,
+};
+unsigned rt_hblank_gates();
+
+// Is the mask-2 edge armed right now? Re-asked per scanline, because a handler
+// may disarm itself mid-frame (func_0202fb30 does).
+bool rt_hblank_armed();
+
+// Call the registered mask-2 handler. Undefined unless rt_hblank_armed().
+void rt_hblank_dispatch();
+
+// One frame of display scan-out: walk VCOUNT across all 263 lines and raise
+// the HBlank edge on each. rt_run does this itself between the game fiber
+// yielding and the frame hook; the walk_window level loop and the scene loop
+// run their own frame clocks and call this directly, at the same point in the
+// frame -- after the game's behaviour work, before the host rasterises.
+void rt_scanout_frame();
+
+// The DS's power-on interrupt state (IME set, IE carrying VBlank). It stands
+// in for src/func_0201a054.c, the game's own IRQ init, which is in no slice.
+// Idempotent. rt_run calls it; a frame loop that does not run on the fiber
+// must call it before the first tick, because the ROM's arming code SAVES AND
+// RESTORES IME and therefore cannot set it.
+void rt_irq_boot_state();
+
+// What the last scan-out did, cumulative over the process.
+//   deliveries    handler entries
+//   window_writes deliveries after which WIN0H/WIN1H changed value, i.e. the
+//                 ones that read the motion table and programmed a scanline
+void rt_hblank_counters(unsigned long long *deliveries,
+                        unsigned long long *window_writes);
+
 }  // namespace ntr
 
 #endif  // NTR_RT_H

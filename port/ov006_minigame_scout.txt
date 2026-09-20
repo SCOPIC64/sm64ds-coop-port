@@ -1,0 +1,300 @@
+ov006 minigame boot: what it would cost
+=======================================
+
+Run linkw wave C, lane cat-ov006. Scout only -- no minigame
+infrastructure was built and nothing here is wired. Every number was
+measured in worktree C:\tmp\cl6 at 459f21a07 (+ the seam-map commit),
+private build C:\tmp\cl6\build\port, CMAKE_HOME_DIRECTORY verified.
+Gate before and after the probe: 4888/11243 linked (43.5%), battery ALL
+GREEN, git clean, src/ diff empty.
+
+This lane's base predates commit 93a666154 (#1336, 2026-08-09), which
+already moved St_Null_Init, St_WallJump_Init and
+St_InYoshiMouth_Cleanup off ov006's bytes onto ov002. Any ov006 symbol
+NAME quoted below is this tree's, not main's; see
+port/ov006_player_map.txt section 0 for what changed and section 6 for
+the rebase hazard. The measurements are unaffected: they key on
+addresses and on linkage.py's module rules, not on those names.
+
+Headline: ov006 is the biggest prize on the board and the one with the
+least reach. 1839 matched TUs, 0 linked, 28.9% of the 6355 unlinked.
+Every mechanical blocker is cheap and measured. The two things that are
+not cheap are a tooling regression that has to be fixed FIRST, and the
+fact that nothing in walk_window can call a minigame without the ROM's
+scene-switch spine.
+
+
+1. The entry path, read out of the ROM
+--------------------------------------
+
+A minigame is an ACTOR, not a separate program. It enters through the
+same spawn path every other actor uses:
+
+  func_02043098(id, ...)                      Actor spawn by id
+    -> func_02043060(id)                      calls the scene hook
+       -> data_020a4b58(id)                   installed by func_0201a5cc
+          = func_0201a694(id)
+             -> GetSceneOverlayID(id)
+                -> IsMinigameActorID(id)      true for 0x169..0x186
+                   -> returns &overlay_6
+             -> func_0201a754(previous)       UNLOAD the old scene overlay
+             -> func_0201a798(&overlay_6)
+                -> LoadOverlay(&overlay_4)    ov004 loads FIRST
+                -> LoadOverlay(&overlay_6)
+       -> returns 3 while the load is pending, and the spawn defers
+    -> (*data_020a4bb8[id])()                 data_020a4bb8 = the spawn
+                                              table 0x02090864, so this
+                                              calls SpawnInfo word 0
+
+All 30 ids 0x169..0x186 were resolved against the ROM's own spawn table:
+every one points at a SpawnInfo record that lives in ov006's own data,
+and 22 of them name an Mg*_Spawn symbol with a matched src TU. The other
+8 are address-named entries (func_ov006_*), also all with src.
+
+The whole chain is unlinked today. Checked by name against this build's
+walk_window.map: GetSceneOverlayID, IsMinigameActorID, func_0201a614,
+func_0201a694, func_0201a798, func_0201a754, LoadOverlay, UnloadOverlay
+-- none present.
+
+
+2. Why no level can reach a minigame
+------------------------------------
+
+func_0201a694 unloads the CURRENT scene overlay before loading the new
+one, and func_0201a754 unloads ov004 along with ov006. A level runs on
+ov002. Spawning a minigame id from inside a level would therefore
+unload the overlay the level is executing out of. So no level object
+table can hold a minigame id, and no registry row in
+hal/actor_classes_*.cpp can give a minigame reach the way the ov063 or
+ov022 packs got theirs.
+
+That is a proof from the load code, not an absence of evidence.
+
+The consequence is the reach lesson from the night census, sharpened:
+gate6 and gate1 wired clean and added ZERO functions because /OPT:REF
+strips what nothing references. Wiring ov006 without a caller is that
+case at 1839x scale. The mount and the slice on their own would buy
+approximately nothing.
+
+
+3. The blocker profile, measured
+--------------------------------
+
+Probe: all 1839 ov006 TUs wired into walk_window only, ninja -k 0,
+classify, revert. Slice list generated with linkage.py's own module
+rules so the probe set is exactly the 1839 the by-module headline
+counts.
+
+  compile   1817 of 1839 clean (98.8%)
+            22 fail: every one starts with the `//cpp` marker and has a
+            .c extension, so MSVC compiles C++ as C. The documented
+            hostgen case. CMakeLists has exactly one LANGUAGE CXX
+            override today, so this is 22 more lines or one rule.
+
+  link      2024 unresolved, 1991 distinct, ZERO duplicates.
+            No LNK2005 anywhere: this territory has no host stand-ins
+            to retire, same as the six sibling packs.
+
+  a  storage hosted nowhere          1751
+       1709 data_ov006_*  -> ONE ovdata mount
+         20 arm9
+          9 ov004,  2 ov007,  1 ov000,  1 ov034,  1 ov090
+          8 named
+  b  matched TU exists, not sliced    144
+         68 ov004,  42 arm9,  19 named,  12 ov006,  3 ov001
+  c  faces needed                      29
+  e  genuinely unmatched               62
+         32 ov006,  23 arm9,  5 named,  2 ov004
+
+  blocker density  1991 / 1817 = 1.10 per TU, inside the 0.34..1.0 band
+  the census measured for the six sibling packs.
+
+Mechanically this is the cheapest big family left. That is exactly why
+the reach question decides it.
+
+
+4. The blocker that has to be fixed first: the cross pass
+---------------------------------------------------------
+
+CORRECTION. An earlier version of this section put the damage at 985.
+That was the wrong test and overstates it by more than 5x. cross_mode
+rebases a pointer only when THREE conditions hold: it is not in
+HAND_SEATED, window_count(target) is at most 1, AND make_covering()
+finds a provider claim that actually covers the target. The 985 counted
+only the window test. Most of those words fail the provider test today
+and are ALREADY emitted raw, so an ov006 window just moves them from
+the no-provider bucket to the contested bucket and changes nothing on
+the host. The number that matters is how many pointers are rebased
+today and stop being rebased.
+
+ovdata.py --cross drops any pointer whose target lands inside MORE THAN
+ONE mounted overlay's window ("AN AMBIGUOUS DS RANGE IS DROPPED, NOT
+GUESSED AT"). ov006's window is
+
+    0x020bfec0 .. 0x021430a0   (image 0x80420 + bss 0x2dc0)
+
+which swallows ov002's upper half AND the entire level-overlay window at
+0x021111a0. Re-run of the real cross-pass decision over this build's 81
+mount sidecars (61 distinct windows, 6322 want words):
+
+                      rebased  contested  no provider  hand-seated
+    today                 215       1009         5092            6
+    with an ov006 mount    34       1990         4292            6
+
+    REAL LOSS: 181 pointers stop being rebased.
+
+Those 181 revert to raw DS addresses pointing into the port's zeroed
+reserved main RAM. That is the failure mode ovdata.py's own docstring
+describes: an OAM list with no terminator, a walk that runs 2.9 MB, and
+a fault megabytes from the cause. 181 of those is still a large silent
+regression rather than a link error, and it is spread across the level
+overlays that walk_window actually boots (ov022 15, ov015 13, ov025 10,
+ov027 9, ov045 9, ov065 9, ov055 8, ov030 7, ov016 6, ov062 6).
+
+ACCEPTANCE TEST for the residency lane: the 215 pointers rebased today
+stay rebased after an ov006 window exists. 181 of them are the ones at
+risk. Not 985, and not the contested count, which moves for reasons
+that have no host consequence.
+
+The fix is not in ov006. The ambiguity is an artifact of the test being
+purely address-based: ov002 and ov006 are NEVER co-resident (section 1
+proves the loader unloads one before loading the other), so a pointer
+from ov062 into 0x0210da20 unambiguously means ov002's copy. The cross
+pass needs a residency model -- which mounts can be live at the same
+time -- and then the test becomes "ambiguous among mounts that can
+co-exist with this pointer's owner". Every overlay sharing a base is
+mutually exclusive by construction, so the same change also un-drops
+the level-overlay cases the docstring currently calls honest.
+
+That is a tooling lane, and it is the prerequisite for ov006, ov004 and
+ov007 alike.
+
+
+5. Smallest candidate minigame
+------------------------------
+
+Sized by symbol-level reloc closure inside ov006 (nodes are all ov006
+symbols sized by next-symbol delta, edges are relocs.txt references, so
+vtable and jump-table words count, not just direct calls; roots are each
+id's SpawnInfo record from the ROM spawn table).
+
+    id      entry                     src TUs  ov006 data  external refs
+    0x176   MgShuffleShell_Spawn           19          22   37 arm9 + ~40 ov004
+    0x16e   MgWanted_Spawn                 19         188   43 arm9 + ~45 ov004
+    0x177   func_ov006_020e3854            24         138
+    0x016d  (Camera_UpdateMatrices in
+             closure)                      26         149
+    0x17a   MgCoincentration_Spawn         26         152
+    0x0172  MgSortOrSplode_Spawn           29          79
+    ...
+    0x181   MgTrampolineTerror_Spawn      192         391
+
+    union of all 30 : 1275 of the 1839 TUs, 1968 data symbols
+
+MgShuffleShell (id 0x176, actor 374) is the pick: 19 TUs and only 22
+ov006 data symbols, the smallest data footprint by a wide margin.
+
+Side confirmation, restated against main's layout: MgShuffleShell's own
+closure contains the 0x5c-byte ov006 body at 0x020e17f8. At this lane's
+base that body wore the name _ZN6Player16St_WallJump_InitEv. On main it
+does not: commit 93a666154 (#1336) gave that name to the 0xb0-byte
+ov002 function at the same shared address, and the ov006 body is
+src/func_ov006_020e17f8.cpp. So the sentence is that a minigame's own
+spawn closure reaches the OV006 body at 0x020e17f8, which is
+independent evidence that #1336 assigned the two names the right way
+round -- and this lane rediscovered it six days late.
+
+
+6. Cost estimate
+----------------
+
+Prerequisites, neither of them ov006 work:
+
+  P1  ovdata --cross residency model.  1 tooling lane.  BLOCKING.
+      Without it an ov006 mount silently un-rebases 181 of the 215
+      pointers the cross pass rebases today.
+  P2  ov004 scoping (the 2D/OAM layer: Hud_RenderSprite,
+      RenderOamMainScreen, DrawOamSprite, RenderOamBothScreens,
+      FreeGfxSlotsById). 276 TUs, 3 linked. cat-2d already owns this.
+
+Then, for the whole family:
+
+  W1  ov006 data mount, 1709 symbols. Bigger than any mount landed so
+      far (ov022's 188 was the record). --whole is the likelier shape
+      for 519 KB with tables walked across symbol boundaries, but
+      --whole makes the window claim maximal, so it depends on P1.
+      Vtable spans excluded, ptr_audit clean. 1 lane.
+  W2  22 C++-in-.c compile fixes. Hours.
+  W3  144 matched-but-unsliced TUs (68 ov004 + 42 arm9 + 34 other) and
+      20 arm9 + 9 ov004 storage. Mechanical, 1 lane shared with P2.
+  W4  29 faces. At the census's sampled ratio, ~25 are 2-line
+      forwarders, ~3 need thought. Hours.
+  W5  62 genuinely unmatched. Host copies or leave those paths
+      unreached. 1 lane, or defer.
+
+And the item that actually decides it:
+
+  R1  REACH. There is no ROM-faithful caller in walk_window today and
+      none can be added from a level (section 2). The honest options
+      are:
+        (a) build the scene-switch spine -- func_0201a5cc's hook pair,
+            func_0201a694/0201a614, LoadOverlay/UnloadOverlay against
+            hosted overlay handles, and a second boot mode in the test
+            harness that requests a scene rather than a level. This is
+            a boot-spine change of the same class as the census's
+            Heap::InitializeGameHeap item: genuine behaviour, wants
+            Tango's eye and a soak, not a lane cut in the dark.
+        (b) a synthetic caller that spawns actor 374 directly. This is
+            banned by the lane rules and would be metric-gaming: it is
+            the /OPT:NOREF shortcut wearing a different hat.
+
+  So the realistic sequence is P1, then P2+W3, then W1/W2/W4, and R1(a)
+  as its own reviewed piece of work. Until R1 lands, the measured
+  payout of everything before it is approximately zero linked TUs,
+  because /OPT:REF strips what nothing references.
+
+
+7. Read ov006's config names with suspicion
+-------------------------------------------
+
+ov006 has 1897 function symbols and only 41 carry a name rather than an
+address. None of the 41 collides with a name in arm9 or in any other
+overlay, so the mislabelling is not a duplicate-import: it is community
+labels landing on ov006 bodies. Two shapes are mixed in there and they
+have to be told apart before anyone trusts a name:
+
+  real ov006 copies of shared engine code. Camera_UpdateMatrices at
+    0x020c0134 (ov006 + 0x274, the very front of the overlay) really is
+    camera matrix work, and its matched TU says "Matched byte-for-byte
+    with mwccarm 1.2/sp2p3 (ov006)". Each mode overlay is its own link,
+    so shared source genuinely appears in several of them.
+
+  mislabelled minigame bodies. _ZN3OAM7SECONDSE at 0x0210c6c0 calls
+    Hud_RenderSprite, two ov004 sprite routines and GetGameLanguage --
+    it is a minigame's timer display, not anything to do with OAM. The
+    _ZN6Player names were the same class, and
+    _ZN8PathLift17BaseInitResourcesEv at 0x020efaf0 sits inside
+    minigame id 0x175's closure.
+
+The Player half of that set is already fixed on main: #1336 took three
+of the six, so main's ov006 carries exactly ONE _ZN6Player symbol
+(TryExitCharacterDoorWithIntro at 0x020ca78c) while ov002 carries 175
+St_ symbols. The rest of the 41 are unadjudicated, and renaming any of
+them is a config change. Recorded so the next reader does not take an
+ov006 name at face value, and so the count of remaining suspects is
+honest: roughly five, not eleven.
+
+
+8. Recommendation
+-----------------
+
+Do not cut an ov006 seating lane next wave. Cut the ovdata --cross
+residency lane (P1) instead: it is small, its acceptance test is
+concrete (all 215 pointers rebased today stay rebased, 181 being the
+ones an ov006 window puts at risk), it unblocks ov006, ov004 and ov007
+at once, and it removes a live foot-gun that any future lane mounting a
+big overlay would walk into.
+
+Rank ov006 as the largest deferred prize: 1839 TUs, 16.4 points of the
+headline, cheapest blocker density measured so far, gated on one
+tooling fix and one boot-spine decision.

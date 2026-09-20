@@ -1,0 +1,221 @@
+# abicheck EXTENSION-SLOT baseline -- UNCHECKED DEBT, NOT CLEARANCE.
+#
+# One line per (table, slot, thunk) fill at a slot PAST 30 on an Actor-layout
+# table for which ACTOR_EXT_SLOT_AUTHORITY has no row. The header authority
+# stops at slot 30 because ActorBase.h and Actor.h stop there; a virtual a
+# derived class ADDS has no header to read, and only its dispatch site fixes
+# its pop.
+#
+# DO NOT clear a row by guessing from the slot number. Slot 32 has three
+# dispatch sites in the binary and only ONE of them pushes -- keying on the
+# slot alone is what widened Bully's thunk into an overpop against a site that
+# pushes nothing. Read the site out of the emitted code, then add a row to
+# ACTOR_EXT_SLOT_AUTHORITY keyed on (table, slot).
+#
+# This set may shrink freely. A row NOT in it fails the run.
+__ZTV10MrBlizzard slot 31 ?mb_kill@@YIHPAX0@Z
+__ZTV10ShutterBob slot 31 ?bw_kill@@YIHPAX0@Z
+__ZTV10ShutterHmc slot 31 ?ov65_kill@@YIHPAX0@Z
+__ZTV10StarSwitch slot 31 ?bw_kill@@YIHPAX0@Z
+__ZTV11CannonHatch slot 31 ?bw_kill@@YIHPAX0@Z
+__ZTV11FallBlockWf slot 31 ?fb_slot31@@YIHPAX0@Z
+__ZTV11PyramidLift slot 31 ?ov25_kill@@YIHPAX0@Z
+__ZTV11PyramidStep slot 31 ?ov25_kill@@YIHPAX0@Z
+__ZTV11daObjPile_c slot 31 ?pile_kill@@YIHPAX0@Z
+__ZTV12FallBlockBbh slot 31 ?fbb_slot31@@YIHPAX0@Z
+__ZTV12FallBlockBfs slot 31 ?fb_slot31@@YIHPAX0@Z
+__ZTV12FortressWall slot 31 ?fw_s31@@YIHPAX0@Z
+__ZTV12MetalNetLift slot 31 ?w9tp_kill@@YIHPAX0@Z
+__ZTV12WorkElevator slot 31 ?ov65_kill@@YIHPAX0@Z
+__ZTV13BigBrickBlock slot 31 ?bbb_kill@@YIHPAX0@Z
+__ZTV13FortressTower slot 31 ?bw_kill@@YIHPAX0@Z
+__ZTV13PoleBillboard slot 31 ?wf_kill@@YIHPAX0@Z
+__ZTV13QuestionBlock slot 31 ?ac_kill@@YIHPAX0@Z
+__ZTV13UpDownLiftBbh slot 31 ?udl_kill@@YIHPAX0@Z
+__ZTV14ArrowSignRight slot 31 ?as_kill@@YIHPAX0@Z
+__ZTV14BlueCoinSwitch slot 31 ?ac_kill@@YIHPAX0@Z
+__ZTV14KnockDownPlank slot 31 ?mb_kill@@YIHPAX0@Z
+__ZTV14MovingBarSmall slot 31 ?ts_kill@@YIHPAX0@Z
+__ZTV14SquarePathLift slot 31 ?ov52_kill@@YIHPAX0@Z
+__ZTV14daObjMcWater_c slot 31 ?ac_kill@@YIHPAX0@Z
+__ZTV15ChainChompFence slot 31 ?ccf_kill@@YIHPAX0@Z
+__ZTV15FireSeaElevator slot 31 ?ov45_kill@@YIHPAX0@Z
+__ZTV15RotatingFirebar slot 31 ?fb_kill@@YIHPAX0@Z
+__ZTV16FloatingFloorBfs slot 31 ?ov45_kill@@YIHPAX0@Z
+__ZTV17BigMovingIceBlock slot 31 ?ov56_kill@@YIHPAX0@Z
+__ZTV17SlidingPlatformWf slot 31 ?swf_kill@@YIHPAX0@Z
+__ZTV17daObjFl_Amilift_c slot 31 ?aml_kill@@YIHPAX0@Z
+__ZTV18BowserFireSeaArena slot 31 ?ov60_kill@@YIHPAX0@Z
+__ZTV19BowserPuzzleManager slot 31 ?bp_kill@@YIHPAX0@Z
+__ZTV19FloatingFloorLllBig slot 31 ?ov22_kill@@YIHPAX0@Z
+__ZTV19RotatingPlatformLll slot 31 ?ov22_kill@@YIHPAX0@Z
+__ZTV19daObjKm1_Ukishima_c slot 31 ?o43_kill@@YIHPAX0@Z
+__ZTV20daObjFl_Fall_Block_c slot 31 ?fb83_slot31@@YIHPAX0@Z
+__ZTV21FloatingFloorLllSmall slot 31 ?ov22_kill@@YIHPAX0@Z
+__ZTV23FloatOnWaterPlatformJrb slot 31 ?sbx_kill@@YIHPAX0@Z
+__ZTV25RotatingUpDownPlatformUtm slot 31 ?rud_kill@@YIHPAX0@Z
+__ZTV5Bully slot 31 ?bly_v31@@YIHPAX0@Z
+__ZTV5Bully slot 32 ?bly_v32@@YIHPAX0@Z
+__ZTV5Bully slot 33 ?bly_v33@@YIHPAX0@Z
+__ZTV5Bully slot 34 ?bly_v34@@YIHPAX0@Z
+__ZTV5Bully slot 35 ?bly_v35@@YIHPAX0@Z
+__ZTV5Bully slot 36 ?bly_v36@@YIHPAX0@Z
+__ZTV5Crate slot 31 ?crate_kill@@YIHPAX0@Z
+__ZTV6Coffin slot 31 ?ov63_kill@@YIHPAX0@Z
+__ZTV6ShipUp slot 31 ?shu_kill@@YIHPAX0@Z
+__ZTV6Thwomp slot 31 ?thw_kill@@YIHPAX0@Z
+__ZTV8BigBully slot 31 ?bbly_v31@@YIHPAX0@Z
+__ZTV8BigBully slot 32 ?bbly_v32@@YIHPAX0@Z
+__ZTV8BigBully slot 33 ?bbly_v33@@YIHPAX0@Z
+__ZTV8BigBully slot 34 ?bbly_v34@@YIHPAX0@Z
+__ZTV8BigBully slot 35 ?bbly_v35@@YIHPAX0@Z
+__ZTV8BigBully slot 36 ?bbly_v36@@YIHPAX0@Z
+__ZTV8CccArena slot 31 ?ccc_kill@@YIHPAX0@Z
+__ZTV8IceBlock slot 31 ?icb_kill@@YIHPAX0@Z
+__ZTV8IceSheet slot 31 ?ics_kill@@YIHPAX0@Z
+__ZTV8MadPiano slot 31 ?ov63_kill@@YIHPAX0@Z
+__ZTV8MetalNet slot 31 ?ac_kill@@YIHPAX0@Z
+__ZTV8WallSign slot 31 ?ov85_kill@@YIHPAX0@Z
+__ZTV9SeesawBob slot 31 ?bw_kill@@YIHPAX0@Z
+__ZTV9Spindrift slot 31 ?spd_kill@@YIHPAX0@Z
+__ZTV9TowerStep slot 31 ?wf_kill@@YIHPAX0@Z
+_data_ov002_0210af70 slot 31 ?pl_kill@@YIHPAX0@Z
+_data_ov015_021147e8 slot 31 ?wf_kill@@YIHPAX0@Z
+_data_ov016_02114b00 slot 31 ?rkp_kill@@YIHPAX0@Z
+_data_ov016_02114bcc slot 31 ?fow_kill@@YIHPAX0@Z
+_data_ov018_021138cc slot 31 ?skl_kill@@YIHPAX0@Z
+_data_ov022_02113d18 slot 31 ?ov22_kill@@YIHPAX0@Z
+_data_ov045_02112cf4 slot 31 ?ov45_kill@@YIHPAX0@Z
+_data_ov045_02112f50 slot 31 ?ov45_kill@@YIHPAX0@Z
+_data_ov052_02112520 slot 31 ?ov52_kill@@YIHPAX0@Z
+_data_ov060_0211a9b0 slot 31 ?ov60_kill@@YIHPAX0@Z
+_data_ov079_02127fb8 slot 31 ?blz_kill@@YIHPAX0@Z
+_data_ov100_0214857c slot 31 ?pl_kill@@YIHPAX0@Z
+#
+# run rel0215 wave 2 (lane cast-ov027), ov027's Snowman's Land cast.
+#
+# EIGHT ROWS IN TWO SHAPES.
+#
+# SHAPE ONE, two rows: slot 31 on this overlay's two Platform-derived tables
+# (SLIDING_ICE's, shared by ids 92 and 93, and DA_PG_DFDR's), both seating
+# ov27_kill -- a __fastcall thunk whose whole body is
+# `_ZN8Platform4KillEv(s); return 0;`, the same body as bw_kill, ov22_kill,
+# ov25_kill, ov45_kill, ov52_kill, ov56_kill, ov63_kill, ov65_kill and the rest
+# of the 78 rows above. ov027's other two classes are CHILL_BULLY (Enemy-derived,
+# below) and SNOWMAN_BREATH, a plain 31-slot Actor with no slot 31 at all and
+# therefore no row here.
+#
+# SHAPE TWO, six rows and it is NEW to this file: slots 31..36 on CHILL_BULLY's
+# 37-slot table. These are not Platform::Kill -- they are Bully/Enemy's own
+# extension virtuals, two of them ov027 bodies and four of them ov064's, parked
+# directly in the ROM table.
+#
+# WHAT WAS ACTUALLY CHECKED, so these are rulings and not shrugs.
+#
+# (1) NONE of the seven targets has a direct call site anywhere in the ROM.
+#     Swept across config/arm9/relocs.txt and all 103
+#     config/arm9/overlays/*/relocs.txt, counting by kind:
+#         0x020ee55c Platform::Kill        115 load, 0 arm_call
+#         0x02111680 func_ov027_02111680     5 load, 0 arm_call
+#         0x021116f0 func_ov027_021116f0     2 load, 0 arm_call
+#         0x02116374 func_ov064_02116374     3 load, 0 arm_call
+#         0x02116360 func_ov064_02116360     3 load, 0 arm_call
+#         0x0211635c func_ov064_0211635c     3 load, 0 arm_call
+#         0x02116348 func_ov064_02116348     3 load, 0 arm_call
+#     Every reference is a vtable load. So there is no direct-call site whose
+#     push could be read, and the pop contract for these slots rests on the same
+#     dispatch site the 78 rows above are already waiting on. Recorded as
+#     unchecked debt rather than cleared -- the ov029 lane's ruling, reached the
+#     same way.
+#
+# (2) THE ARITY OF ALL SIX SHAPE-TWO BODIES WAS READ OFF THEIR OWN src TUs, and
+#     it turned up two receiver-less ones the fill was initially declaring
+#     wrongly (now corrected in hal/actor_classes_ov027.cpp):
+#         func_ov027_02111680  int  (char *self)   receiver only
+#         func_ov027_021116f0  int  (char *self)   receiver only
+#         func_ov064_02116374  void (char *self)   receiver only, returns void
+#         func_ov064_02116360  int  (char *self)   receiver only
+#         func_ov064_0211635c  void (void)         NO RECEIVER AT ALL
+#         func_ov064_02116348  int  (char *self)   receiver only
+#     Not one of the six takes an argument past the receiver, so no dispatch
+#     site can be pushing one for them to pop, and `ret 0` is the right shape
+#     for all six. That is a stronger statement than shape one gets, and it is
+#     why these six are recorded rather than left to fail.
+#
+# TWENTY-FIVE MORE ROWS ARE NEW IN THE SAME RUN AND ARE NOT THIS LANE'S. They
+# are wave 1's, one per lane, and abicheck is RED ON THE BASE TIP 3b4863d9a
+# without any of this lane's changes: that commit's copy of this file contains
+# ZERO rows for ov017, ov023, ov024, ov026, ov029, ov030, ov033, ov035 or ov036,
+# and the last commit to touch it is cc7a1c114, an abicheck tooling change. The
+# ov029 lane wrote its own rows on its own branch (a5192e657) and that branch is
+# NOT an ancestor of 3b4863d9a. Each of the 25 is attributable from abicheck's
+# own output by the thunk it names -- ov36_kill (6), ov29_kill (6), ov30_kill,
+# ov35_kill, ov26_kill, ov33_kill (2 each), ov24_kill, ov23_kill, ov17_kill
+# (1 each) and ov36_after_clsn (1). This lane does not adopt them: they belong
+# to lanes that can rule on their own tables.
+__ZTV10SlidingIce slot 31 ?ov27_kill@@YIHPAX0@Z
+_data_ov027_02113a90 slot 31 ?ov27_kill@@YIHPAX0@Z
+_data_ov027_02113930 slot 31 ?cb_v31@@YIHPAX0@Z
+_data_ov027_02113930 slot 32 ?cb_v32@@YIHPAX0@Z
+_data_ov027_02113930 slot 33 ?cb_v33@@YIHPAX0@Z
+_data_ov027_02113930 slot 34 ?cb_v34@@YIHPAX0@Z
+_data_ov027_02113930 slot 35 ?cb_v35@@YIHPAX0@Z
+_data_ov027_02113930 slot 36 ?cb_v36@@YIHPAX0@Z
+
+# ---------------------------------------------------------------------------
+# run rel0215 wave 2 (lane cast-sweep2), 2026-08-30. SIX ROWS, ov032 and ov047.
+#
+# All six are the shape seventy-eight rows above already carry: slot 31 of a
+# 32-slot PLATFORM table filled with the lane's own __fastcall Kill thunk
+# (`int __fastcall ovNN_kill(void *, void *) { _ZN8Platform4KillEv(s);
+# return 0; }`), which the compiler emits as ?ovNN_kill@@YIHPAX0@Z and abicheck
+# reads as `ret 0`. The ROM word at slot 31 is 0x020ee55c _ZN8Platform4KillEv,
+# a this-only method with no extra argument, so a zero pop is the only answer
+# that can be right -- and it is what every one of the seventy-eight
+# does. Recorded here as DEBT rather than as an ACTOR_EXT_SLOT_AUTHORITY row
+# for the reason that table's own two entries state: an authority row needs the
+# DISPATCH SITE read out of the emitted code, and nothing in this binary
+# dispatches slot 31 -- Platform::Kill is reached directly, never through the
+# table -- so there is no site to read. That is the same position the
+# seventy-eight are in.
+#
+# THIS LANE ADDS SIX AND FOUND EIGHTEEN MORE THAT PREDATE IT. Running
+# run_checks.py --disasm-dir on cons tip 3b4863d9a's own build reports
+# TWENTY-FOUR unbaselined rows; eighteen name tables and thunks in
+# hal/actor_classes_ov017/ov023/ov024/ov026/ov030/ov033/ov035/ov036.cpp, files
+# this lane never touched (`git log 3b4863d9a..HEAD -- <those files>` is empty),
+# so they were already unbaselined before this branch existed. They are NOT
+# cleared here: they are eight other lanes' rulings to make. The reason nobody
+# had seen them is that port/build-port.cmd does not pass --disasm-dir and
+# port/tools/battery.py does not run run_checks at all, so abicheck only runs
+# when a lane asks for it by hand -- which the wave-1 cast-sweep1 lane's own
+# run_checks_FINAL.log shows it did not.
+__ZTV9HugeCover slot 31 ?ov32_kill@@YIHPAX0@Z
+_data_ov032_021138e0 slot 31 ?ov32_kill@@YIHPAX0@Z
+__ZTV10RickshawBs slot 31 ?ov47_kill@@YIHPAX0@Z
+__ZTV18RickshawPlatformBs slot 31 ?ov47_kill@@YIHPAX0@Z
+_data_ov047_021122a0 slot 31 ?ov47_kill@@YIHPAX0@Z
+_data_ov047_0211244c slot 31 ?ov47_kill@@YIHPAX0@Z
+# ---------------------------------------------------------------------------
+# run rel0215 (lane cleanup-w2), 2026-08-30. NINETEEN ROWS DID NOT LAND HERE.
+#
+# The eighteen slot-31 fills wave 1 left unbaselined (ov017, ov023, ov024,
+# ov026 x2, ov030 x2, ov033 x2, ov035 x2, ov036 x6, ov092) and FLYING_CARPET's
+# slot 32 were adjudicated into ACTOR_EXT_SLOT_AUTHORITY in abicheck.py
+# instead, because their dispatch sites WERE read: eighteen zero-pop rows and
+# one one-word-pop row, each keyed on (table, slot), each with the ROM word at
+# that slot quoted from extracted/overlays. This file is for fills whose pop
+# nobody has measured, and those nineteen no longer qualify.
+#
+# ONE SENTENCE ABOVE IS WRONG AND IT IS LOAD-BEARING. The cast-sweep2
+# paragraph reads "nothing in this binary dispatches slot 31 -- Platform::Kill
+# is reached directly, never through the table -- so there is no site to read."
+# There are TWENTY-TWO slot-31 dispatch sites in walk_window.exe: the fourteen
+# `call dword ptr [reg+7Ch]` the cast-ov066 lane had already listed in
+# abicheck.py, plus eight `jmp dword ptr [reg+7Ch]` tail dispatches that a
+# call-only pattern misses. All twenty-two are enumerated in abicheck.py's
+# ACTOR_EXT_SLOT_AUTHORITY header and none of them pushes. The six rows that
+# paragraph adds are left in place -- they are that lane's file to shrink, and
+# their ret 0 is right for the reason the measurement gives rather than the
+# reason the prose gives -- but no further row should be parked here on the
+# strength of that sentence, because there IS a site to read.

@@ -1,0 +1,154 @@
+STAR-GET CUTSCENE CAMERA -- making the fly-around visible
+=========================================================
+
+Lane STARCAM, run link60. Base cons db7eb3235. Owns port/tests/walk_window.cpp
+only (BLND2-disjoint: BLND2 owns ppu_sub.cpp + message_compositor.cpp).
+
+2026-08-17
+----------
+
+THE SYMPTOM. The six star-get kuppa scripts are camera commands; Camera::Behavior
+consumes what they write and the fly-around RUNS every frame. It was INVISIBLE in
+real play because the analog camera rig re-published its OWN view over the actor's
+each frame. In CAM_DS mode the actor's view already shows, which is the tell.
+
+THE MECHANISM, confirmed from source and then measured.
+
+  * walk_window's per-frame camera path (main loop) is: hal_camera_behavior(cam)
+    runs the actor, which publishes its heading into the local comms record
+    data_020a1050 and (via hal_camera_render) parks its view matrix in
+    data_0209b3ec. The rig then OVERWRITES both when cam_mode != CAM_DS:
+      - the heading, one halfword: `*(short *)data_020a1050 = fc_yaw;`
+      - the view, three ROM calls: `fc_push_view(cam, fceye, pivot);` which
+        reloads PerspectiveW_ / LookAt_ / CopyToViewMat from the rig's own eye.
+  * Real play boots CAM_ANALOG (walk_window.cpp ~5545, `selftest ? CAM_DS :
+    CAM_ANALOG`); the selftest boots CAM_DS. So the harness's own regression
+    frames never saw the bug and real play always did.
+  * data_0209fc48 is the cutscene flag. func_0200ee8c -> RunKuppaScript seats it;
+    ProcessKuppaScript advances the script each frame (early-returns when the flag
+    is 0); EndKuppaScript clears it. It is seeded 0 at boot (walk_window.cpp 4761,
+    4829) and is nonzero for exactly the duration of the star cutscene.
+
+    MEASURED (SM64DS_COURSE_PROBE=kuppa,60, the tree's own probe that launches the
+    real star-get script and calls EndKuppaScript 80 frames on):
+        [kuppa] launched at frame 60: fc48=12716748 ...
+        [kuppa] f60..f139 fc48=12716748  b274 cursor 1 -> 80   (script advancing)
+        [kuppa] EndKuppaScript() at frame 140: fc48=0
+        [kuppa] f141 ... mag=4096                               (stick back = walk)
+
+THE GATE (port/tests/walk_window.cpp, 3 edits, +31 -4).
+
+  Computed once per frame at loop-body scope, ahead of both override sites:
+    7137  static int no_cutscene_cam = -1;
+    7138  if (no_cutscene_cam < 0)
+    7139      no_cutscene_cam = getenv("SM64DS_NO_CUTSCENE_CAM") ? 1 : 0;
+    7140  const int cutscene_cam = !no_cutscene_cam && data_0209fc48 != 0;
+
+  Heading override, gated:
+    7157  if (cam_mode != CAM_DS && !cutscene_cam)
+              *(short *)data_020a1050 = fc_yaw;
+
+  View override, gated:
+    7600  if (cam_mode != CAM_DS && !cutscene_cam) {   // fc_push_view block
+
+  While fc48 != 0 the rig stands down on BOTH writes, so the actor's own
+  script-driven heading and view present; when EndKuppaScript clears fc48 the rig
+  resumes exactly as before. SM64DS_NO_CUTSCENE_CAM=1 forces the old always-rig
+  behaviour for the A/B. The gate is a no-op when fc48 == 0, which is the
+  load-bearing safety property proven below. The rig's input/state block (fc_yaw,
+  fc_dist, an_pivot) is NOT gated, so its state stays current and the resume is
+  clean.
+
+GATES (guard-free path: gate.py/build-port.cmd abort at a guard SELFTEST that
+writes a fresh exe into %TEMP%, which is not in this box's AV exclusion -- a
+PermissionError in tailjump_guard.parse_image, not a real finding. cmake+ninja
+direct, battery --skip-build, linkage, mapdiff, dsstate_guard used instead).
+
+  base build  wt_base.exe  sha256 bc38eacd0b0e8c49aec1cdcae7cc28869b413419e8d0be84bde548e1bbd0f4c9
+  tip  build  walk_window.exe sha256 4b0fe64c72c11288f37682330c89e83ff83aedccb90395bc6fb2e56a8d37ec61
+
+  linkage     base 5831 / 11250 (51.8%), unlinked 5419
+              tip  5831 / 11250 (51.8%), unlinked 5419      delta 0
+  battery     ALL GREEN, skips []  (18 smokes, 46 levels, 3 scenes,
+              ptr_audit 0 unhosted code pointers)
+
+DELTA ZERO, ITEMISED. This lane seats no body and references no dropped TU; every
+added row is walk_window.cpp's own scaffolding. mapdiff base vs tip:
+    objects added 0 / removed 0, symbols moved between objects 0
+    added 26, removed 24, all in walk_window.cpp.obj
+    net +2 real symbols: the "SM64DS_NO_CUTSCENE_CAM" string literal and the
+      function-local static no_cutscene_cam.
+    the other 24 added are 24 removed re-tagged: MSVC's function-local-static
+      scope counter (?FAG@ -> ?FAI@ ...) ticks by one for every static after the
+      inserted one (dump_env, eye, no_actors, sw, ...). Same variables, new tag.
+  map 46684 rows (base 46682). No game body, no reloc, no data.
+
+.dsstate LAYOUT, base AND span, off both maps -- the precondition for any BMP
+comparison to mean anything (notes/port-selftest-bmp-gate.md: an equal base is
+necessary and NOT sufficient; the whole hosted span must hold):
+    base build   _dsstate_lo 0x00bb9000   _dsstate_hi 0x00ca33c8   span 959432
+    tip  build   _dsstate_lo 0x00bb9000   _dsstate_hi 0x00ca33c8   span 959432
+  Identical. The 31 added source lines land in .text/.rdata, outside the captured
+  section, and no hosted global moved.
+
+SELFTEST BMPs, byte-identical base vs tip -- the gate never fires in a selftest
+(no script launches, fc48 == 0), so this is the no-op proof on the shipped diff:
+    level 1  9129ce6cf3a229d4eb650927c5a68e6f8af3c2cd4af5cfbf8a134c063e4771f4  IDENTICAL
+    level 2  23340196bcdc2f1a24ebcf17a30cb034a2c01af6aa70f62f037b341be9e04d03  IDENTICAL
+    level 6  d59e09f133c053b307077363ce2efd0cc91513cf80b30836a1d65763f7cef20f  IDENTICAL
+    level 7  513dc187921d67085ed80a766f0211c454d5abdc44bdb110db95f7f1ca272dbe  IDENTICAL
+  (level 1 and level 6 also match the canonical hashes recorded in
+   exitlevel_seat.txt -- the base build reproduces the tree's own reference.)
+  LAYOUT CROSS-CHECK at 296 frames, a count on which the BMP-gate note's two
+  perturbations DISAGREE (300 is blind, 296 is not): level 1 @ 296 also
+  byte-identical (28b27cbcc0e5261f461a6448e8efe2b48683459c1e16b948687c9203bea10ad8),
+  which proves the layout truly did not move rather than 300 happening to agree.
+
+THE FLY-AROUND PROOF. SM64DS_LEVEL=6 (Bob-omb Battlefield), SM64DS_ANALOG_CAMERA=1
+(force the real-play rig into the selftest; the selftest would otherwise boot
+CAM_DS where the rig never overrides and the gate is moot), SM64DS_COURSE_PROBE=
+kuppa,60 (the tree's own launcher for the real star-get script), frames dumped
+55..205. Gate-on is the tip default; gate-off is SM64DS_NO_CUTSCENE_CAM=1, which
+reproduces wt_base byte-for-byte (verified: wt_base f100 == gate-off f100).
+
+  Camera actor eye (+0x8c) / look-at (+0x80), per frame -- IDENTICAL gate-on vs
+  gate-off across the whole run (the gate never touches the actor; the fly-around
+  always runs). They MOVE per the script through the cutscene:
+      f058 fc48=0 gate=0  at=(-6161,161,6288)  eye=(-6694,341,6762)
+      f060 fc48=1 gate=1  at=(-6174,139,6265)  eye=(-6653,301,6724)
+      f066 fc48=1 gate=1  at=(-6181,110,6225)  eye=(-6601,250,6675)
+      f100 ...            (sweeping)
+      f139 fc48=1 gate=1  at=(-6164,100,6192)  eye=(-6584,224,6654)
+      f140 fc48=0 gate=0  at=(-6163,101,6194)  eye=(-6584,244,6654)  (returning)
+
+  Rendered frames, gate-on vs gate-off (same binary):
+      55-59   fc48=0   byte-IDENTICAL   (gate no-op, before the cutscene)
+      60-139  fc48!=0  DIFFER           (gate presents the actor's fly-around)
+      140-188 fc48=0   DIFFER           (rig re-converges from the cutscene framing)
+      189+    fc48=0   byte-IDENTICAL    (rig fully resumed, base-exact again)
+
+  The 189+ re-convergence to a byte-exact match with base is the resume proof:
+  the rig returns to precisely the framing it would have had, after a ~48-frame
+  ease. The 140-188 transient carries no gate code (fc48 is 0 there); it is the
+  render-side settle documented at walk_window.cpp ~1290 (the presented view drives
+  the Clipper, so a frame the actor framed differently leaves transient render
+  state that self-heals).
+
+  MAGNITUDE. At mid-cutscene f100, tip differs from base by 92.8% of image bytes
+  -- the scene is completely reframed, not perturbed. And the tip camera is
+  MOVING (fly-around) while the base rig is static on a no-control Mario:
+      frame-to-frame pixels changed   tip (gate on)   base (rig only)
+        f075 -> f085                    45.5%            8.3%
+        f085 -> f095                    39.5%            2.2%
+        f095 -> f105                    39.4%            2.0%
+        f105 -> f115                     3.7%            2.8%  (fly settling)
+
+  Representative frames saved under build/port/proof/frames_ab/ as base_fNNN.bmp /
+  tip_fNNN.bmp for f059, f075, f100, f125, f160, f195 (589878 bytes each). The
+  LOOK is Tango's call; this lane proves the actor view now presents during the
+  cutscene and the rig resumes after.
+
+RESUME + WALK-AFTER. EndKuppaScript at frame 140 clears fc48; the [kuppa] trace
+shows the stick magnitude return at f141 (mag=4096), i.e. the STAR1 movement
+restore still works and you can walk after. Frames re-converge to base-exact by
+f189, so control returns to the normal analog rig cleanly.

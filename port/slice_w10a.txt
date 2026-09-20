@@ -1,0 +1,131 @@
+# Run linkw wave 10, lane w10-shared, slice A: ov031's SLIDE DECORATION QUAD --
+# SLIDE_DECORATION_SILVER_STAR (302), _YELLOW_STAR (303), _ORANGE_SMILEY (304)
+# and _BLUE_SMILEY (305), x3 each on level 23 (Tall Tall Mountain's slide).
+# TWELVE instances for ONE fill and ONE closure of bodies.
+#
+# ==== WHY THIS IS ONE CLASS AND NOT FOUR ===================================
+# The lane's tool resolves every one of the 512 spawn-table entries to the table
+# its factory stores. For ov031 it returns ONE table for four ids:
+#
+#     302 303 304 305  ->  0x02111984
+#
+# and the class picks its model out of its OWN actor id rather than out of four
+# separate classes: src/_ZN25SlideDecorationSilverStar13InitResourcesEv.cpp
+# switches on unk_00c (the id halfword at +0xc) over 0x12e/0x12f/0x130/0x131 =
+# 302/303/304/305, writes 0..3 into mVariant, and indexes the four-entry
+# SharedFilePtr table data_ov031_02111424 with it. CleanupResources releases
+# through the same index. So the four factories differ ONLY in which id the
+# ActorBase constructor stamps into +0xc, and one vtable fill serves all four.
+#
+# ==== BOTH ATTRIBUTION ROUTES, FOR EACH OF THE FOUR ========================
+# Out of extracted/overlays/overlay_0031.bin at base 0x021111a0 (ov031 is
+# compressed:true in overlays.yaml, so the dsd export is the wrong image for a
+# halfword read):
+#
+#     id 302  0x02090d1c -> 0x0211190c  word[0]=0x021113ec
+#                           SlideDecorationSilverStar_Spawn    +4 = 302, +6 = 191
+#     id 303  0x02090d20 -> 0x02111928  word[0]=0x021113b4
+#                           SlideDecorationYellowStar_Spawn    +4 = 303, +6 = 192
+#     id 304  0x02090d24 -> 0x02111944  word[0]=0x0211137c
+#                           SlideDecorationOrangeSmiley_Spawn  +4 = 304, +6 = 193
+#     id 305  0x02090d28 -> 0x02111960  word[0]=0x02111344
+#                           SlideDecorationBlueSmiley_Spawn    +4 = 305, +6 = 194
+#
+# Every spawn word lands inside ov031 and every id halfword matches the slot it
+# was reached from. A both-routes sweep of all 110 overlays returns exactly one
+# owner for each id (owners: [31]) despite the fifteen-overlay window citation
+# on each spawn-table site; port/ov031_syms.txt carries that check in full.
+#
+# ==== WIDTH 31, PINNED TWICE ===============================================
+# The table at 0x02111984 has a 31-entry `load` reloc run ending at 0x02111a00,
+# and 0x02111a00 is also the end of ov031's .text (base 0x021111a0 + code_size
+# 0x860). A 32nd slot would not fit in the overlay at all. Slot 30 is
+# Actor::OnAimedAtWithEggReturnVec, the plain-Actor shape (no Platform::Kill at
+# 31), which agrees. dsd split the table with an interior label at 0x02111994;
+# taking that as the bound would have given width 4.
+#
+# ==== IDENTITY FROM THE RTTI, NOT FROM THE NAMES ===========================
+# vtable[-1] (0x02111980) relocates to 0x021118e8, whose +4 word points at the
+# NUL-terminated name at 0x021118f4: "18daObjHsBillboard_c" -- daObjHsBillboard_c,
+# hs = the high_slider stage this overlay is, a billboard decoration. The dsd
+# spelling _ZTV25SlideDecorationSilverStar is the recovered name of ONE of the
+# four ids applied to the shared class; both labels sit at 0x02111984 in
+# config/arm9/overlays/ov031/symbols.txt and the fill resolves them to one array.
+#
+# ==== NO FACTORY WRAPPER ===================================================
+# Each of the four Spawns is the same 0x38-byte body with exactly ONE vtable
+# store: ActorBase::operator new(296), Actor::Actor(), `p[0] = <table>`,
+# Model::Model(this+0xd4). The store is by a REAL name (_ZTV25SlideDecoration-
+# SilverStar), not the zeroed VT0/VT1 placeholder, and nothing writes a vptr
+# after it -- so a raw spawn already leaves the real table installed and no
+# reseat wrapper is needed (the ov045/ov095 shape, not gate 177's bullies).
+#
+# ==== THE RENDER IS SLICED, AND THAT IS A MEASURED CALL ====================
+# src/_ZN25SlideDecorationSilverStar6RenderEv.cpp is the ROM-order slot-5
+# dispatch through a local six-virtual shadow (`Base *b = &((Derived *)this)
+# ->base; b->m(0)`, member at +0xd4) -- the shape that is a HOST COPY for Bird,
+# Flag, BabyPenguin and the ov064 Amilift. Those are all ModelAnim members:
+# hal/cxxname_bridge.cpp fills _ZTV9ModelAnim[5] with Virtual18, so ROM slot 5
+# lands on the wrong body there. THIS member is a plain Model --
+# SlideDecoration*_Spawn constructs it with _ZN5ModelC1Ev, which stores
+# _ZTV5Model, and hal_fill_model_vtable DUAL-FILLS _ZTV5Model[4] AND [5] with
+# mv_render for exactly this case (cxxname_bridge.cpp:508-511, "TUs that
+# dispatch through LOCAL shadow classes count in ROM/Itanium numbering ...
+# The object serves both"). hal/actor_classes_ov013.cpp and
+# hal/actor_classes_ov072.cpp both already rule the same way for their own
+# plain-Model members ("daBgSnwmn_c is not exposed: its +0xd4/+0x124 members are
+# plain 0x50-stride Models and _ZTV5Model[5] is dual-filled"). Sliced, and the
+# level-23 census run under SM64DS_FAULTS_FATAL=1 is the check.
+#
+# ==== ONE dsd LABEL SHIFT, LEFT AS IT IS AND WHY ===========================
+# InitResources calls `func_ov044_02111214`. The ROM reloc at 0x0211132c says
+# `to:0x02111214 module:overlay(31)` -- the callee is ov031's OWN
+# func_ov031_02111214, and the src TU carries a SIBLING overlay's spelling of
+# the same shared-window address. src/ is not this lane's to edit, so the call
+# stays as written, and it is correct: src/func_ov044_02111214.c and
+# src/func_ov031_02111214.c are character-for-character the same body (a
+# Matrix4x3_FromRotationY on this+0xf0 from the s16 at this+0x8e, then three
+# >>3 stores into +0x114/+0x118/+0x11c), and ov044's is ALREADY linked from
+# port/slice_w7c.txt. src/func_ov031_02111214.c is deliberately NOT added here:
+# nothing would reference it by that name, so /OPT:REF would strip it and the
+# line would be zero linkage.
+#
+# ==== THE SINIT IS IN THE SLICE, THE ov045 SHAPE ===========================
+# src/__sinit_ov031_02111434.c builds the four SharedFilePtrs the InitResources
+# switch reads (files 1565/1566/1569/1564) and registers each on the destructor
+# chain. It is the same four-call shape as src/__sinit_ov045_021121a8.c, and it
+# reaches func_02017acc with two arguments against a one-argument matched TU --
+# the arity that hal/cxx_aliases.cpp already owns and already serves for ov045's
+# five sinits (it is cxx_aliases.cpp.obj that defines _func_02017acc in the
+# baseline map). It is run from the fill's bring-up, before the registry
+# installs, so the pointers exist by the time any InitResources runs.
+#
+# ==== ONE TU HELD OUT: THE D1 (slot 16) ====================================
+# src/_ZN25SlideDecorationSilverStarD1Ev.cpp is NOT here. It is the shadow-class
+# MSVC destructor shape that port/slice_w7c.txt already held out for its own
+# class: the TU declares its OWN `struct Actor` / `struct Model` /
+# `struct SlideDecorationSilverStar : Actor` and defines
+# `SlideDecorationSilverStar::~SlideDecorationSilverStar() {}`, so MSVC emits
+# ??1SlideDecorationSilverStar@@UAE@XZ whose body calls ??1Model@@QAE@XZ and
+# ??1Actor@@UAE@XZ -- two decorated C++ names that do not exist anywhere in this
+# link (the port carries those bodies under their ROM C names _ZN5ModelD1Ev and
+# _ZN5ActorD2Ev). Adding the TU is an unresolved-external link failure, not a
+# linkage gain. Slot 16 is spelled inline in the fill instead, as the ROM's own
+# three relocs inside 0x021111a0 spell it: store the table (0x021111cc ->
+# 0x02111984), _ZN5ModelD1Ev (0x021111b4 -> arm9 0x02016d20) on this+0xd4, then
+# _ZN5ActorD2Ev (0x021111bc -> arm9 0x020112c8). The D0 IS in the slice: it is a
+# .c TU carrying the ROM's Itanium name in extern "C", and its body is that same
+# chain plus Memory::Deallocate on the game heap (0x021111fc -> 0x0203c1e8).
+#
+# ==== NO GUESSED BODIES ====================================================
+# None of these nine TUs is marked "recovered from vtable slot identity", so
+# port/tools/inferred_stub_guard.py's ratchet is untouched by this slice.
+src/SlideDecorationSilverStar_Spawn.c
+src/SlideDecorationYellowStar_Spawn.c
+src/SlideDecorationOrangeSmiley_Spawn.c
+src/SlideDecorationBlueSmiley_Spawn.c
+src/_ZN25SlideDecorationSilverStar13InitResourcesEv.cpp
+src/_ZN25SlideDecorationSilverStar16CleanupResourcesEv.cpp
+src/_ZN25SlideDecorationSilverStar6RenderEv.cpp
+src/_ZN25SlideDecorationSilverStarD0Ev.c
+src/__sinit_ov031_02111434.c

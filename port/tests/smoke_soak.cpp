@@ -45,6 +45,9 @@ static void ident_fx(void *m)
 static void reset_scene()
 {
     ntr::gx_reset();
+    /* the soak walks every model through the same VRAM slot offsets, so the
+       decoded textures from the previous one must not survive into this one */
+    ntr::gx_invalidate_textures();
     NTR_MMIO(uint32_t, 0x04000440) = 0;
     NTR_MMIO(uint32_t, 0x04000454) = 0;
     NTR_MMIO(uint32_t, 0x04000440) = 1;

@@ -1,6 +1,6 @@
 // HOST ADOPTION of the banked near-miss draft -- not byte-verified.
 //
-// Source: nearmiss/db.jsonl, _ZN7dBgW_Kc10DetectClsnER9dBgCh_Lin,
+// Source: nearmiss/db.jsonl, _ZN12MeshCollider10DetectClsnER11RaycastLine,
 // banked at div=476. Per notes/itcm.md the residual is REGISTER ALLOCATION
 // (the ROM's 0xfc frame vs our 0xc4 -- fourteen spilled scalars), not
 // logic: every step of the algorithm is confirmed against the disassembly
@@ -8,19 +8,14 @@
 // When the byte match lands in src/, this file retires per the port rule.
 //
 //cpp
-#include "dBgW_Kc.h"
+#include "MeshCollider.h"
 
-struct dBgPi { u8 raw[0x1c]; };
-/* Local copy kept deliberately: this file is the host adoption and is not in
-   the NDS build. include/SurfaceInfo.h now carries the real 0x14 definition
-   (added 2026-08-19) -- an earlier comment here saying include/ "only
-   forward-declares it" is stale. Folding this onto that header is a port-build
-   change and wants the port build to verify it, which the NDS gates cannot. */
+struct ClsnResult { u8 raw[0x1c]; };
 struct SurfaceInfo { u8 clps[8]; Vector3 normal; };
 
-struct dBgCh_Lin {
+struct RaycastLine {
     u8      head[0x10];
-    dBgPi result;      /* 0x10 */
+    ClsnResult result;      /* 0x10 */
     u8      pad_02c[0xc];
     Vector3 lineStart;      /* 0x38 */
     u8      pad_044[0xc];
@@ -33,13 +28,13 @@ struct dBgCh_Lin {
 extern "C" {
 int  func_020397dc(s32 x);
 int  func_020397b8(s32 x);
-void _ZN5dBgPcC1Ev(SurfaceInfo *info);
-void _ZN5dBgPcD1Ev(SurfaceInfo *info);
-void func_02037fd4(dBgPi *res, s16 triIdx, SurfaceInfo *info);
-void func_020375ec(dBgCh_Lin *ray, Vector3 *pos);
-u32  func_020396dc(dBgW_Kc *self, KCL_Tri *prism);
-int  _ZN5dBgCh21ShouldPassThroughImplEPvRK4CLPSRKS_b(void *self, SurfaceInfo *surf,
-                                                    dBgCh_Lin *ray, int isSteep);
+void func_02037eec(SurfaceInfo *info);
+void func_02037ee8(SurfaceInfo *info);
+void func_02037fd4(ClsnResult *res, s16 triIdx, SurfaceInfo *info);
+void func_020375ec(RaycastLine *ray, Vector3 *pos);
+u32  func_020396dc(MeshCollider *self, KCL_Tri *prism);
+int  _ZN4BgCh21ShouldPassThroughImplEPvRK4CLPSRKS_b(void *self, SurfaceInfo *surf,
+                                                    RaycastLine *ray, int isSteep);
 Fix12i Vec3_Dist(const Vector3 *a, const Vector3 *b);
 s32  _ZN4cstd4fdivEii(s32 a, s32 b);
 void _ZNK11SurfaceInfo12CopyNormalToER7Vector3(SurfaceInfo *self, Vector3 *out);
@@ -50,7 +45,7 @@ extern "C" int g_walk_dbg[16] = {0};
    [4] planeE [5..7] edge rejections [8] e3-high [9] denom [10] parallel
    [11] dist [12] pass-through. Cheap enough to keep permanently. */
 
-s32 dBgW_Kc::DetectClsn(dBgCh_Lin &ray)
+s32 MeshCollider::DetectClsn(RaycastLine &ray)
 {
     s32 loX, hiX;
     s32 loY, hiY;
@@ -74,15 +69,26 @@ s32 dBgW_Kc::DetectClsn(dBgCh_Lin &ray)
     const Vector3 *origin;
 
     /* Everything downstream -- origin, vertices, the plane math and its
-       0x20000 thresholds -- lives in Fix12i (the castle KCL proves it: its
-       floor vertices only sit inside the octree box at fx scale). The
-       endpoints therefore stay fx; cells are still (fx - origin) >> 6. */
-    s.x = lineStart->x;
-    s.y = lineStart->y;
-    s.z = lineStart->z;
-    e.x = lineEnd->x;
-    e.y = lineEnd->y;
-    e.z = lineEnd->z;
+       0x20000 thresholds -- lives in the KCL FILE's coordinate space, and the
+       ROM gets there with a PLAIN SHIFT: `asr r1, r5, #6` at 0x01ffb110, the
+       same six bits for every collider in the game. That is what runs here.
+
+       This used to route the conversion through the collider's own
+       MeshCollider+0x2c / +0x38 words instead, with the level's pair written
+       by hand as 0x40000 / 0x40 so the multiply reduced to the ROM's shift.
+       It reduced for the level and for nothing else: MovingMeshCollider::
+       SetFile leaves those words at SetFile's 1.0, so every actor-owned
+       collider -- the moat water, the sign posts, the metal nets -- ran its
+       walk in WORLD units against a FILE-unit mesh and could never be hit.
+       The moat is what caught it: CASTLE_WATER's collider was registered,
+       flagged 0x20 in its own CLPS, and answered no to every ray in the
+       level. */
+    s.x = lineStart->x >> 6;
+    s.y = lineStart->y >> 6;
+    s.z = lineStart->z >> 6;
+    e.x = lineEnd->x >> 6;
+    e.y = lineEnd->y >> 6;
+    e.z = lineEnd->z >> 6;
 
     min.x = s.x; max.x = s.x;
     min.y = s.y; max.y = s.y;
@@ -214,14 +220,16 @@ s32 dBgW_Kc::DetectClsn(dBgCh_Lin &ray)
                     dist = Vec3_Dist(&hit, &s) >> 6;
                     if (bestDist <= dist) { ++g_walk_dbg[11]; continue; }
 
-                    _ZN5dBgPcC1Ev(&info);
+                    func_02037eec(&info);
                     triIdx = func_020396dc(this, prism);
+                    g_walk_dbg[13] = (s32)triIdx;
+                    g_walk_dbg[14] = prism->attribute;
                     /* the ROM dispatches this virtually (notes/itcm.md, the
                        one lever); the port calls it direct -- same target,
                        no dependence on the synthetic vtable being filled */
-                    dBgW_Kc::GetSurfaceInfo(triIdx, info);
+                    MeshCollider::GetSurfaceInfo(triIdx, info);
                     _ZNK11SurfaceInfo12CopyNormalToER7Vector3(&info, &normal);
-                    if (!_ZN5dBgCh21ShouldPassThroughImplEPvRK4CLPSRKS_b(
+                    if (!_ZN4BgCh21ShouldPassThroughImplEPvRK4CLPSRKS_b(
                             this, &info, &ray, func_020397b8(normal.y))) {
                         best.x = hit.x;
                         best.y = hit.y;
@@ -230,7 +238,7 @@ s32 dBgW_Kc::DetectClsn(dBgCh_Lin &ray)
                         func_02037fd4(&ray.result, triIdx, &info);
                         found = 1;
                     } else ++g_walk_dbg[12];
-                    _ZN5dBgPcD1Ev(&info);
+                    func_02037ee8(&info);
                 }
             }
             prevLeaf = rowLeaf;
@@ -240,11 +248,10 @@ s32 dBgW_Kc::DetectClsn(dBgCh_Lin &ray)
     if (!found) return 0;
 
     ray.clsnDist = bestDist << 6;   /* undo the >>6 of the dist metric */
-    /* best is already Fix12i under the fx-consistent scale (the raw-scale
-       draft shifted here; that shift moved into the metric only) */
-    pos.x = best.x;
-    pos.y = best.y;
-    pos.z = best.z;
+    /* hit position back to world space -- the ROM's own <<6 */
+    pos.x = best.x << 6;
+    pos.y = best.y << 6;
+    pos.z = best.z << 6;
     func_020375ec(&ray, &pos);
     ray.hasClsn = 1;
     return 1;

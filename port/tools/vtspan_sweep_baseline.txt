@@ -1,0 +1,28 @@
+# vtspan_sweep_baseline.txt
+#
+# Host vtable arrays that `python port/tools/vtspan.py <root> --sweep` is
+# allowed to still find SHORTER than their ROM span. A short array is a live
+# wild call: a dispatch of slot N past the end reads whatever the linker put
+# next. Slot 21 is OnGroundPounded at byte offset 0x54, and a [20] array is
+# 0x50 bytes, so a player ground-pounding an ordinary sign called the next
+# symbol in the image.
+#
+# THIS LIST IS EMPTY, AND THAT IS A RESULT RATHER THAN AN OVERSIGHT. When the
+# wiring for these checkers was first written on 2026-08-10 (branch
+# port-defect-wiring 4ec689079) it carried four table names here, because four
+# were short on main while the port's vtable-sizing lanes were in flight.
+# Measured again on cons 3a5733c03, 2026-08-17:
+#
+#     $ python port/tools/vtspan.py . --sweep
+#     0 table(s) shorter than the ROM span
+#     75 table(s) where the routes disagreed
+#
+# The sizing lanes finished. The ratchet has already turned all the way, so
+# --sweep gates HARD: any short table at all is a new regression.
+#
+# The 75 route disagreements are a different measurement and are not gated
+# here. vtspan computes four independent widths per table and prints which
+# route produced the answer and which disagreed; a disagreement is a note
+# about the ROM's ambiguity, not a defect in the host array.
+#
+# The list may only shrink. It cannot.

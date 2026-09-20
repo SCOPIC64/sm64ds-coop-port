@@ -1,0 +1,118 @@
+# Gate 194: ov094, HOOT_THE_OWL (234)'s own overlay. Fresh per-symbol mount,
+# the ov079/ov080/ov081/ov072 convention: WHOLE data+bss span MINUS the
+# class's own vtable (_ZTV10HootTheOwl == _ZTV7daOwl_c, host array
+# hal/actor_classes_ov094.cpp fills) MINUS dsd's one .p__sinit_* pointer
+# entry (not a C identifier; the port calls the sinit by name directly).
+# ovdata.py's --pack mode pads the resulting address gaps automatically.
+#
+# ov006/ov094 DUAL CITATION RESOLVED (hoot-scope, main-brain re-verified via
+# arm9 relocs.txt): the spawn-table entry for id 234 (from:0x02090c0c,
+# relocs.txt) reads `to:0x02136a34 module:overlays(6,94)` -- BOTH overlay
+# ids cite the SpawnInfo address. This is NOT co-residency: ov006's own
+# .data section spans 0x02133600..0x021402e0 (config/arm9/overlays/ov006/
+# delinks.txt), which fully CONTAINS ov094's entire range
+# (0x02135700..0x02136b80, config/arm9/overlays/ov094/delinks.txt) --
+# ov094 is address-nested inside ov006's much larger 520KB span, a
+# dual-dump artifact of dsd's own overlay-table export, not two overlays
+# sharing one DS memory window. NO ov006 mount needed; this file mounts
+# ov094 alone, and the mount mechanism (an absolute-address --pack over
+# ov094's own symbol list) is unaffected by the ambiguous citation either
+# way -- it does not resolve by overlay id.
+#
+# HOOT_THE_OWL (daOwl_c), an Enemy, 31 SLOTS (no own Kill -- confirmed
+# both by the reloc dump stopping at slot 30 (0x02136a58..0x02136ad4) and
+# by three trailing zero words at 0x02136ad4/ad8/adc read directly out of
+# extracted/overlays/overlay_0094.bin, which are non-relocated plain data,
+# not a slot-31 pointer; .data ends at 0x02136ae0 per delinks.txt). Every
+# slot read with relocations applied:
+#   0  InitResources    0x02136634  own
+#   3  CleanupResources 0x021363e0  own
+#   6  Behavior         0x02136478  own
+#   9  Render           0x0213642c  own
+#  12  OnPendingDestroy 0x02136428  own (empty body, confirmed own not shared
+#                        by reloc target)
+#  16  D1               0x02135700  own -- stores _ZTV10HootTheOwl, its OWN
+#                        table, no shared-placeholder overwrite. STAYS in
+#                        the slice (the MotherPenguin/IceSheet/daBgSnwmn_c
+#                        D1 treatment, matched src, not a host thunk).
+#  17  D0               0x02135748  own -- stores _ZTV7daOwl_c, its own
+#                        table under its own RTTI alias, same treatment.
+# Slots 13/14 (0x0204357c/0x0204349c = _ZN9ActorBase9Virtual34Ejj /
+# _ZN9ActorBase9Virtual38Ejj) and slot 30 (0x020100dc =
+# _ZN5Actor25OnAimedAtWithEggReturnVecEv, an SRET method no __fastcall(void*,
+# void*) thunk shape can model) are the REPO-WIDE Enemy/ActorBase traps --
+# neither Virtual34/38 body is linked anywhere in the port (grepped every
+# slice_gate*.txt and hal/unmatched .cpp), matching every other Enemy class
+# that shares this base (bob_world/bowserpuzzle/flame/jrb/koopa_chuckya all
+# trap the identical two slots for the identical reason). Every OTHER shared
+# slot (1,2,4,5,7,8,10,11,15,18-29) is address-IDENTICAL to ov081's own
+# Enemy shared half (cross-checked target for target against Spindrift's
+# vtable in config/arm9/overlays/ov081/relocs.txt) -- hal/actor_classes_ov094.cpp
+# reuses the exact ov81_fill_shared body under a local name, minus slot 31
+# (this class has none).
+#
+# TWO PMF DISEASE SITES (both host copies, port/unmatched/HootTheOwl_*.cpp):
+#  1. Behavior (src/_ZN10HootTheOwl8BehaviorEv.cpp) dispatches
+#     `struct C3; typedef void (C3::*Fn)(); struct Obj { char pad[8]; Fn fn; };
+#     (((C3*)this)->*(o->fn))();` through the state cell at +0x3c8
+#     (mCurrentState) -- a real C++ pointer-to-member on a deliberately
+#     incomplete class, the SoundObject/Cap/MrBlizzard/BabyPenguin/Unagi
+#     shape confirmed by direct disasm read of the recovered source (not
+#     inferred): MSVC's PMF representation for an incomplete class does not
+#     reproduce the ROM's own dispatch. HOST COPY.
+#  2. func_ov094_02136188 (InitResources' own state-table installer,
+#     `struct C { char pad[0x3c8]; PMF *pp; }; c->pp = p; ... return (c->**q)();`)
+#     is the SAME disease on the SAME incomplete-class shape, installing the
+#     state pointer InitResources hands it (&data_ov094_02136b70, the
+#     table's own base) and immediately dispatching its first cell. HOST
+#     COPY.
+#
+# ONE CROSS-OVERLAY ALIAS TYPO, FOUND BUT NEEDING NO BRIDGE (the
+# Jrb_Aliases.cpp #1 SHAPE, but not its fix): func_ov094_021357a4's own body
+# (called from Behavior at 0x021365fc, reloc-confirmed to:0x021357a4
+# module:overlay(94)) is a real, matched, self-contained ov094 function --
+# but src/_ZN10HootTheOwl8BehaviorEv.cpp spells the call
+# "func_ov096_021357a4", a dsd cross-overlay mislabel (address 0x021357a4
+# ALSO exists in ov096 as a completely unrelated 8-byte function,
+# src/func_ov096_021357a4.c, "Pokey_OnYoshiTryEat" -- read and confirmed
+# different bodies, an address collision only, not a duplicate). UNLIKE the
+# Unagi case, no /alternatename bridge is needed: the ONLY caller of the
+# mislabeled spelling is Behavior itself (grepped, one hit besides the
+# mislabeled function's own file), and Behavior is a HOST COPY (below) that
+# calls func_ov094_021357a4 by its real name directly -- the matched
+# src/_ZN10HootTheOwl8BehaviorEv.cpp carrying the typo stays byte-locked in
+# src/ as proof but is dropped from this gate's slice, so its internal typo
+# never reaches the linker. Documented here so a future naming-wave pass
+# does not re-discover this as a live cross-overlay bug.
+#
+# THE THREE NEW ov002 CARRY-HANDSHAKE LEAVES func_ov094_021357a4 pulls in
+# (func_ov002_020df840/020df7f4/020df7ac): all three call
+# _ZN6Player11ChangeStateERNS_5StateE, which links via the existing
+# port/hal/reverse_bridges.cpp host bridge (spot-checked: no gap). Their
+# other callees (_ZN6Player7IsStateERNS_5StateE, _ZN6Player14St_Owl_CleanupEv,
+# Vec3_HorzAngle) and the St_Owl_Main/Init/Cleanup states themselves are
+# ALL already linked (gate 10, port/slice_gate10.txt) -- these three leaves
+# are the only NEW source added by this gate outside ov094 itself.
+#
+# RENDER'S OWN ModelAnim SLOT-5 COLLISION (the Whomp/Bully/BabyPenguin
+# shape): src/_ZN10HootTheOwl6RenderEv.cpp dispatches
+# `((O*)&mModelAnim)->m5(0)` through a local six-virtual ROM-order shadow
+# over mModelAnim at +0x30c -- HOST COPY, appended to the existing shared
+# port/unmatched/ModelAnim_Renders.cpp (the Bully/BigBully bare-call shape,
+# no scale argument), NOT a new file (that file is the established, actively
+# extended home for every class hitting this exact collision).
+#
+# Everything else -- Spawn, CleanupResources, OnPendingDestroy, InitResources
+# (its own body; only its func_ov094_02136188 CALL crosses the PMF disease,
+# the caller itself is plain matched src), the two matrix helpers
+# func_ov094_021361d8/021362e0 -- is plain matched src, all of its own
+# further callees already linked (Actor/ActorBase/Enemy/ModelAnim/
+# ShadowModel/WithMeshClsn/MovingCylinderClsnWithPos/CylinderClsn bases,
+# Matrix4x3_*, Vec3_Asr, MulMat4x3Mat4x3, DecIfAbove0_Short,
+# _ZN9Animation7AdvanceEv, func_02012694, IsStarCollectedInCurLevel,
+# _ZN9ActorBase18MarkForDestructionEv, _ZN13SharedFilePtr7ReleaseEv,
+# _ZN5Model8LoadFileER13SharedFilePtr, _ZN9ModelBase7SetFileEP8BMD_Fileii,
+# _ZN9Animation8LoadFileER13SharedFilePtr, _ZN9ActorBasenwEj, _ZN5EnemyC2Ev,
+# _ZN6Memory10DeallocateEPvP4Heap -- every one grepped present in an
+# existing slice_gate*.txt or host .cpp before this gate was written).
+data_ov094_021369c0 data_ov094_021369c8 data_ov094_021369d0 data_ov094_021369d8 data_ov094_021369e0 data_ov094_021369e8 data_ov094_021369f0 data_ov094_021369f8 data_ov094_02136a00 data_ov094_02136a08 data_ov094_02136a10 data_ov094_02136a1c data_ov094_02136a28 HootTheOwl_SpawnInfo data_ov094_02136ae0 data_ov094_02136ae8 data_ov094_02136af0 data_ov094_02136af8 data_ov094_02136b00 data_ov094_02136b0c data_ov094_02136b18 data_ov094_02136b24 data_ov094_02136b30 data_ov094_02136b40 data_ov094_02136b50 data_ov094_02136b60 data_ov094_02136b70

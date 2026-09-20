@@ -1,0 +1,19 @@
+# Gate 142/143: IceSlideManager (356), Cool Cool Mountain's slide (ov019), the
+# one class level 11 spawns that lives in the level's own overlay.
+#
+# The matched closure the host build compiles: the factory, the two lifecycle
+# methods dispatched through the vtable (InitResources slot 0, Behavior slot 6),
+# and the class's own static initialiser. The vtable fill and the two method
+# faces are hal (hal/actor_classes_ccm.cpp, hal/method_faces.cpp).
+#
+# D1/D0 are deliberately left out: slot 16 is an empty ~IceSlideManager over
+# ~Actor that the vtable fill spells inline as Actor::D2, and slot 17 traps, so
+# neither src TU is dispatched. Both spell the generic VT/HEAP placeholders that
+# only resolve inside a full class link anyway. The sinit's helper func_020731dc
+# and its callback func_020072c0 are already compiled (slice_gate10.txt); the
+# Behavior's externs (Actor::DistToCPlayer, Sound::PlaySub, DecIfAbove0_Short,
+# Actor::KillAndTrackInDeathTable) are provided by existing hal faces.
+src/IceSlideManager_Spawn.c
+src/_ZN15IceSlideManager13InitResourcesEv.cpp
+src/_ZN15IceSlideManager8BehaviorEv.cpp
+src/__sinit_ov019_02112b14.c

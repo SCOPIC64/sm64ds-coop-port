@@ -1,0 +1,185 @@
+# Gate 21: ov100's BUTTERFLY and FISH.
+#
+# The port's third actor overlay. ov100 carries seven classes -- BUTTERFLY,
+# ROLLING_IRON_BALL, UNCHAINED_CHOMP, DOOR, STAR_DOOR, FISH and PATH_LIFT --
+# and the castle grounds names three of them. Two here; the door is gate 22,
+# because its own Behavior and Render each need a host copy and its
+# InitResources reaches into a fourth overlay.
+#
+# THE CONFIG'S NAMES ARE MOSTLY RIGHT IN ov100 AND EXACTLY ONE PAIR IS
+# SHIFTED, which is why every one was checked. Each factory's literal pool
+# names the vtable it installs and the ROM's RTTI names it back:
+#
+#   Butterfly_Spawn 0x02141ea4 -> _ZTV9Butterfly      RTTI 9daBtfly_c   OK
+#   Fish_Spawn      0x02146d38 -> _ZTV4Fish           RTTI 8daFish_c    OK
+#   Door_Spawn      0x0214589c -> data_ov100_02148188 RTTI 8daDoor_c    UNNAMED
+#   StarDoor_Spawn  0x021461d4 -> _ZTV4Door           RTTI 12daStarGate_c
+#
+# So config's `_ZTV4Door` is the STAR door's table and the whole _ZN4Door*
+# method family implements the star door; the real door (actor 353) is the
+# unnamed func_ov100_* family. Gate 22 uses those; nothing is renamed.
+#
+# The mount is port/ov100_syms.txt -- and it is the first that has to exclude
+# a vtable BY ADDRESS, because the "_ZTV*" rule cannot see one dsd left as
+# data_ov100_*. See that file's header.
+
+# ---- BUTTERFLY (actor 336, ov100) x2 --------------------------------------
+# (-1610,254,5810) and (2410,254,5410) if the record reads the way the object
+# table does -- the two flutterers over the east lawn. An eight-state ambient
+# actor: Behavior dispatches data_ov100_02148628 and the rest of the body is
+# the flutter, a speed vector rotated by a sine table with a shadow dropped
+# under it.
+#
+# ITS BEHAVIOR NEEDS NO HOST COPY, unlike the fish's below. The matched source
+# reads the state pair as two plain ints and does the virtual-bit and
+# this-adjustment arithmetic itself, so MSVC's pointer-to-member
+# representation never comes into it -- the rabbit's case. Only the eight
+# statics need seating, and that is in hal/actor_overlays.cpp with the rest.
+src/Butterfly_Spawn.c
+src/_ZN9Butterfly13InitResourcesEv.cpp
+src/_ZN9ButterflyD0Ev.c
+src/_ZN9Butterfly8BehaviorEv.cpp
+# _ZN9Butterfly6RenderEv IS NOT HERE: it dispatches ModelAnim slot 5
+# through a local shadow class, which is ROM numbering, and _ZTV9ModelAnim
+# CANNOT be dual-filled the way _ZTV5Model can -- MSVC's slot 5 there is
+# Virtual18, which takes two arguments where the shadow passes one. Host
+# copy in port/unmatched/ModelAnim_Renders.cpp; measured as a c0000005 in
+# Model::Virtual10 before it was one.
+src/_ZN9Butterfly16CleanupResourcesEv.c
+src/_ZN9Butterfly16OnPendingDestroyEv.c
+# the eight states, all matched -- no hole and no trap
+src/func_ov100_0214109c.cpp
+src/func_ov100_0214117c.cpp
+src/func_ov100_021412d8.c
+src/func_ov100_02140e44.cpp
+src/func_ov100_02141470.c
+src/func_ov100_021415bc.c
+src/func_ov100_02141800.cpp
+src/func_ov100_02141848.c
+
+# ---- FISH (actor 344, ov100) x2 -------------------------------------------
+# The two shoals in the moat. Seven states, and the class is bound to a PARENT
+# ACTOR rather than to a position: Behavior looks its owner up by id every
+# frame (Actor::FindWithID on +0x13c) and marks itself for destruction if the
+# owner is gone or refuses it, which is how a shoal follows the water it was
+# spawned against.
+#
+# _ZN4Fish8BehaviorEv IS NOT HERE: it dispatches an mwcc pointer-to-member out
+# of a seven-entry table whose class is INCOMPLETE at the typedef, the gate-16
+# case for the fifth time, so MSVC would quadruple the stride. Host copy plus
+# the seven-static seat in port/unmatched/Fish_Behavior.cpp. All seven states
+# are matched src, so that file carries no trap.
+src/Fish_Spawn.cpp
+src/_ZN4Fish13InitResourcesEv.cpp
+src/_ZN4FishD0Ev.c
+# _ZN4Fish6RenderEv IS NOT HERE either, the same ModelAnim slot-5 case.
+src/_ZN4Fish16CleanupResourcesEv.cpp
+src/_ZN4Fish16OnPendingDestroyEv.c
+# the seven states, all matched
+src/func_ov100_021463b0.cpp
+src/func_ov100_02146468.c
+src/func_ov100_021464f4.cpp
+src/func_ov100_02146640.c
+src/func_ov100_021467d4.c
+src/func_ov100_021467e8.cpp
+src/func_ov100_02146828.c
+# the owner test Behavior runs before it will keep a fish alive
+src/func_ov100_0214639c.c
+
+# ---- the overlay's own static initialisers --------------------------------
+# All seven, in ROM order. They are what constructs every SharedFilePtr the
+# overlay's classes load through, and two of them are the state tables above.
+src/__sinit_ov100_021473bc.c
+src/__sinit_ov100_021474e8.c
+src/__sinit_ov100_021475a4.c
+src/__sinit_ov100_02147698.c
+src/__sinit_ov100_02147a70.c
+src/__sinit_ov100_02147bc0.c
+src/__sinit_ov100_02147d7c.c
+
+# --- linkloop round 0 ---
+# The two ov100 helpers the fish's own methods close over: 02146280 is the
+# release pass its CleanupResources runs and 0214629c the swim step one state
+# calls.
+src/func_ov100_02146280.c
+src/func_ov100_0214629c.cpp
+# Two arm9 bodies no class the port carried before now needed: the butterfly
+# asks its own animation how long it is, and one of its states poofs.
+src/_ZNK9Animation13GetFrameCountEv.cpp
+src/_ZN5Actor14TriplePoofDustEv.c
+
+# --- linkloop round 1 ---
+src/_ZN5Actor16TriplePoofDustAtERK7Vector3.c
+
+# --- linkloop round 2 ---
+# The butterfly's D1 teardown chain (hal/actor_classes.cpp hosts slot 16 for
+# the three classes that die once woken): the +0x394 member's own D1 and the
+# MovingCylinderClsn D2 it chains to. Aliases in hal/cxx_aliases.cpp.
+src/_ZN25MovingCylinderClsnWithPosD1Ev.c
+src/_ZN18MovingCylinderClsnD2Ev.c
+# ...and the rest of the WithPos table, for the same reason gate 16 carries
+# the parent's: _ZTV25MovingCylinderClsnWithPos is [D1, D0, GetPos,
+# GetOwnerID], the last of those inherited through a linker veneer, so only D0
+# and GetPos are new files here.
+src/_ZN25MovingCylinderClsnWithPosD0Ev.c
+src/_ZN25MovingCylinderClsnWithPos6GetPosEv.c
+
+# ---- UNCHAINED_CHOMP (actor 337, ov100) -----------------------------------
+# The obstacle BoB star 3 (5 Silver Stars) needs; registered in
+# port/hal/actor_classes.inc / actor_classes.cpp. Behavior is a Whomp/Fish-
+# shaped mwcc PMF dispatch through a single Holder* at +0x668 -- the simplest
+# seen, a 2-entry {function,delta} pair (data_ov100_02147ff8 hi /
+# data_ov100_02148000 lo). Host copy + seat in
+# port/unmatched/UnchainedChomp_Behavior.cpp; the two PMF targets it seats are
+# func_ov100_02143aa4 (hi, the one Behavior reads) and func_ov100_02143ae0
+# (lo), both plain matched src added below, the Fish-precedent shape.
+# UnchainedChomp_Spawn IS NOT HERE: it calls Enemy's ctor func_020aed98
+# (=_ZN5EnemyC2Ev) with a no-arg r0 ride-through the matched src leaves implicit
+# (operator new -> ctor with `this` in r0), the ChainChomp_Spawn case. Host copy
+# in port/unmatched/UnchainedChomp_Behavior.cpp spells the argument.
+# InitResources IS NOT HERE either: it declares PathPtr as a real C++ class and
+# calls pp.FromID/NumNodes/GetNode as THISCALL members, whose MSVC-mangled names
+# nothing defines; the C-linkage _ZN7PathPtr* bodies (slice_gate10) are cdecl,
+# so an alias would mismatch the calling convention (verified: a c0000005 in
+# FromID). Host copy in UnchainedChomp_Behavior.cpp spells the PathPtr calls the
+# C-linkage way level_boot.cpp does.
+# _ZN14UnchainedChomp8BehaviorEv IS NOT HERE: mwcc PMF dispatch through the
+# +0x668 Holder (typedef'd over an incomplete Actor in the matched TU), the
+# Fish/Whomp/LakituBro case. Host copy in
+# port/unmatched/UnchainedChomp_Behavior.cpp, which also carries the 2-static seat.
+src/_ZN14UnchainedChomp16CleanupResourcesEv.c
+src/_ZN14UnchainedChomp16OnPendingDestroyEv.c
+# _ZN14UnchainedChomp6RenderEv IS NOT HERE: ModelAnim slot-5 shadow dispatch
+# off mModelAnim (+0x30c, not the usual +0xd4) plus a 5-iteration loop over the
+# +0x370 Model array. Host copy in port/unmatched/ModelAnim_Renders.cpp.
+# the two Behavior helpers (plain matched, no PMF/ModelAnim trickery)
+src/func_ov100_02143370.cpp
+src/func_ov100_02143b68.cpp
+# _ZN14UnchainedChomp8BehaviorEv IS NOT HERE, and NEITHER is func_ov100_02143b18:
+# both form a pointer-to-member while its class is INCOMPLETE (Behavior's Actor
+# stand-in; 02143b18's own `struct C;` typedef), so MSVC widens the PMF to the
+# 4-word rep and dispatches wrong -- the Door func_ov100_021453d8 case exactly.
+# Both are host copies in port/unmatched/UnchainedChomp_Behavior.cpp, which also
+# carries the 2-static seat. (The prep artifact mislabelled 02143b18 as safe
+# matched src; it is not.)
+# the two PMF targets the seat wires as host bodies (Fish precedent: real names
+# in the seat table). 02143aa4 (hi) is the one Behavior actually dispatches.
+src/func_ov100_02143aa4.c
+src/func_ov100_02143ae0.c
+# ...and 02143aa4's own three ov100 callees (its state-advance chain)
+src/func_ov100_0214344c.c
+src/func_ov100_021435e8.cpp
+src/func_ov100_021437d4.c
+# the two ctor/dtor helpers Spawn and D1 pass to func_020733a8 / __destroy_arr
+# (func_0203d384 and func_020072c0 are already in slice_gate10); leaf funcs.
+src/func_02011508.c
+src/func_0203d73c.c
+
+# ---- slot 29, UnchainedChomp::OnAimedAtWithEgg ----------------------------
+# func_ov100_021442d4 (ov100 0x021442d4, 8 bytes, `return 0`) is the class's own
+# override of Actor::OnAimedAtWithEgg -- the ROM word in _ZTV14UnchainedChomp
+# slot 29. It is needed now because the class's slot 30 is seated with the Actor
+# base body, and that body's one job is to add slot 29's result to y: seating 30
+# over a trapped 29 would only move the freeze one slot along. Byte-matches on
+# 1.2/base, 1.2/sp2, 1.2/sp2p3 with strict relocs.
+src/func_ov100_021442d4.c

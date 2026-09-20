@@ -1,0 +1,51 @@
+# Gate 172: CRATE (194), the breakable wooden box (daObjBlockS_c), level 13's
+# first fresh hosting candidate (ov098, already mounted per symbol).
+#
+# The matched closure the host build compiles: the factory, the four lifecycle
+# methods (real C++ methods against include/Crate.h, called qualified by the
+# vtable fill in hal/actor_classes_hmc.cpp), both destructors (explicit-chain
+# forms, no auto-emitted member dtors), the four virtual-slot bodies the class
+# owns past the core (OnYoshiTryEat 18 / OnTurnIntoEgg 19 / OnGroundPounded 21 /
+# Kill 31), the fourteen state-machine halves the seven-state table dispatches,
+# and their transitive ov098 helpers.
+#
+# Crate_SetState.cpp and func_ov098_02138b70.cpp are DELIBERATELY NOT here:
+# both dispatch the state table through an incomplete-class pointer-to-member
+# (the OneUpMushroom case), so they are host copies with the table seat in
+# port/unmatched/Crate_StateDispatch.cpp. The sinit that fills the runtime
+# table (__sinit_ov098_0213c058) is already in the build.
+src/Crate_Spawn.cpp
+src/_ZN5Crate13InitResourcesEv.cpp
+src/_ZN5Crate16CleanupResourcesEv.cpp
+src/_ZN5Crate8BehaviorEv.cpp
+src/_ZN5Crate6RenderEv.cpp
+src/_ZN5CrateD1Ev.cpp
+src/_ZN5CrateD0Ev.c
+src/func_ov098_02139e64.c
+src/func_ov098_02139e78.c
+src/func_ov098_02139e44.cpp
+src/func_ov098_02139070.c
+src/func_ov098_02138ce0.c
+src/func_ov098_02138e08.c
+src/func_ov098_02138b18.c
+src/func_ov098_021389f8.cpp
+src/func_ov098_021389cc.c
+src/func_ov098_021388bc.cpp
+src/func_ov098_02138818.c
+src/func_ov098_02138734.cpp
+src/func_ov098_021385e0.c
+src/func_ov098_021384fc.cpp
+src/func_ov098_02138484.c
+src/func_ov098_02138344.cpp
+src/func_ov098_02138318.c
+src/func_ov098_02138238.c
+src/func_ov098_021381e8.c
+src/func_ov098_0213814c.cpp
+src/func_ov098_02138bb8.cpp
+src/func_ov098_02138bfc.c
+src/func_ov098_02138e6c.cpp
+src/func_ov098_021390ec.cpp
+src/func_ov098_02139228.cpp
+src/func_ov098_021396a4.cpp
+src/func_ov098_021397c8.cpp
+src/func_ov098_02139850.c

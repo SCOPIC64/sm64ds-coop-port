@@ -1,0 +1,301 @@
+# slice_w1l1.txt -- lane-owned slice for the linkage campaign (run linkw).
+# One matched src TU per line, path relative to the repo root, comments with #.
+# THIS FILE HAS ONE OWNER (lane l1); other lanes never touch it, which is what
+# keeps five parallel seat lanes out of CMakeLists.txt and each other.
+#
+# EMPTY ON PURPOSE, and the reason is worth the next lane's time.
+#
+# A slice line alone cannot raise "linked into walk_window". walk_window links
+# without /DEBUG, so link.exe runs its default /OPT:REF and drops every COMDAT
+# nothing references; cl emits each of these bodies as its own COMDAT. A slice
+# line therefore compiles a TU and hands the linker an object it is free to
+# throw away, and it does.
+#
+# Measured, not assumed. Seventy-five unlinked matched TUs from ov002 and ov098
+# were mined for this lane: compiled with walk_window's own flags, their object
+# symbol tables read, the set closed under its own dependencies so no survivor
+# leaned on a TU that stayed out, zero duplicate definitions against the map's
+# publics. They built and linked clean. The headline did not move -- 3881 before
+# and 3881 after -- and none of the seventy-five appears in walk_window.map.
+# Of the 4261 objects on the link line, 132 contribute nothing to the image,
+# and all seventy-five were in that set.
+#
+# That is not a mining failure, it is arithmetic. If a linked object referenced
+# an unlinked TU the link would already be failing, so no unlinked TU is
+# referenced by the linked set; every reference that exists today resolves,
+# either to another matched TU or to a host stand-in. The host stand-ins are
+# exactly what port/tools/linkage.py calls the replacement queue, and that queue
+# is now fully ruled on (132 of 132 documented). What grows the headline from
+# here is a REFERENCE: a hal veneer or vtable seat naming the body, which lives
+# in files this lane does not own. Seat first, then add the slice line.
+#
+# The five host copies this lane owns were each judged on that basis and each is
+# a real host-ABI exception, tagged with its reason and the MSVC listing behind
+# it (unmatched/Player_HeadBonk.cpp, Actor_OnAttacked2Dispatch.cpp,
+# Actor_OnKickedDispatch.cpp, Ov085_Rabbit_b8dc.cpp, ArrowSign_OnAttacked1.cpp).
+
+# ===========================================================================
+# LANE w2-a RULING RECORD (run linkw, wave 2). STILL EMPTY, and this time the
+# reason is not the reference edge, it is that every edge that exists is
+# already owned by a decision someone else made on purpose.
+#
+# THE SET. Wave 1 estimated "~55 TUs compiled into walk_window and stripped".
+# Measured against the wave-1 tip (linkage 3900 of 11240): walk_window's link
+# line carries 4227 objects, the map holds 4439, and 79 link-line objects never
+# reach the image. 77 of the 79 are matched src TUs; the other two are
+# unmatched/MrBlizzard_Behavior.cpp and unmatched/Jrb_Aliases.cpp.
+#
+# WHY EACH WAS STRIPPED, mechanically. Every one of the 77 objects was read
+# with dumpbin /SYMBOLS and its definitions checked against the map. All 77 are
+# the same shape: the name they define appears nowhere in the image. Not one is
+# blocked by a duplicate definition, so no seat in this campaign has to fight a
+# host body for a symbol. They are stripped purely for want of a reference.
+#
+# WHERE THE ROM SAYS THEY BELONG. Each body's address was looked up in the
+# config symbol tables and every relocation pointing at it was resolved back to
+# the symbol containing the `from` address, which separates a vtable slot from
+# a call site. Then each holder was checked against the map. That splits the 77
+# cleanly:
+#
+#   45 are STRANDED. Every ROM caller they have is itself absent from the
+#      image, so no seat written anywhere reaches them. The reach arrives with
+#      the caller, which is the same conclusion lane l5 reached for its own 23
+#      ov002 and Player TUs (they are 23 of these 45). Seating them is not
+#      blocked, it is simply not yet possible.
+#
+#   32 have a live holder, and all 32 are ruled out below.
+#
+# ---------------------------------------------------------------------------
+# THE WIRING QUESTION, MEASURED RATHER THAN ARGUED.
+#
+# This lane was asked to create port/hal/w2_edge_seats.cpp and, if wiring its
+# boot call needed an unowned file, to try a self-registering static. Both of
+# the existing seat files (hal/meshcollider_dtor_seat.cpp,
+# hal/model_dtor_seat.cpp) are called from level_boot.cpp's port_stage_a2_seat
+# and listed in CMakeLists.txt, and this lane owns neither file. So the
+# mechanism was built and measured instead of assumed.
+#
+# It works, completely. A path on a line of THIS file resolves to the repo
+# root, so port/hal/w2_edge_seats.cpp compiles into walk_window, smoke_player
+# and walk_window_hires with no CMakeLists.txt edit. A dynamic initializer in
+# that file survives /OPT:REF (its ??__E thunk and its $initializer$ entry both
+# land in the map), and naming a stripped body from that initializer pulls the
+# body's TU into the image. Measured end to end: linkage went 3900 to 3901 off
+# a single address-take. The probe was then reverted.
+#
+# THAT RESULT IS THE WARNING, NOT THE PERMISSION. A static initializer that
+# takes a body's address is a reference the linker honours and a lie the game
+# never executes. All 77 could be "linked" this way in one sitting, the
+# headline would read 3977, and not one instruction of it would run. The
+# counter is trivially farmable from a file a lane already owns, which is
+# exactly why the honest-edge bar is the only thing holding this campaign's
+# number to something worth quoting. No seat was landed here, and no
+# w2_edge_seats.cpp exists, because a seat file with nothing honest to carry is
+# worse than no file.
+#
+# ---------------------------------------------------------------------------
+# THE 32 WITH A LIVE HOLDER, AND WHY EACH STAYS STRIPPED.
+#
+# (1) QUARANTINED ACTOR, 9 TUs. The whole Mr Blizzard family
+#     (_ZN10MrBlizzard{13InitResourcesEv,16CleanupResourcesEv,6RenderEv,
+#     16OnPendingDestroyEv,D1Ev,D0Ev}, MrBlizzard_Spawn, func_ov081_02125eb8,
+#     func_ov081_021261b8, plus func_ov081_021243cc and func_ov081_021254d8 in
+#     the stranded set) is held by _ZTV11daSnowman_c, whose slots the ROM fills
+#     with exactly these bodies. The port already has the fill that seats them,
+#     hal/actor_classes_ov081.cpp's hal_fill_mr_blizzard_vtable. Nothing calls
+#     it: hal/actor_classes.inc:957 says "MR_BLIZZARD (223) is NOT registered
+#     here" over a long note about an unresolved callee-saved register
+#     violation, ending "223 stays out: it cannot meet the zero-quarantine
+#     bar". The fill function is absent from the map, so _ZTV10MrBlizzard is
+#     all zeros at runtime, by design. Seating this family from another file
+#     would be a second writer for a table whose owner deliberately parked it,
+#     and would put a known-faulting actor back in the image. The honest fix is
+#     the register-state investigation actor_classes.inc asks for, not a seat.
+#
+# (2) ROM SLOT 17, THE DELETING DESTRUCTOR THE PORT TRAPS ON PURPOSE.
+#     _ZN4CoinD0Ev            from:0x02108830 -> _ZTV8daCoin_c+0x44, slot 17
+#     _ZN4TrapD0Ev            from:0x02112bec -> _ZTV4Trap+0x44, slot 17
+#     _ZN14KnockDownPlankD0Ev from:0x021145d0 -> _ZTV14KnockDownPlank+0x44
+#     func_ov015_021111d0     from:0x0211189c -> _ZTV5Cloud+0x44, slot 17
+#     The port's convention is stated in three separate fills in identical
+#     terms (hal/actor_classes_bob_world.cpp's bw_trap17,
+#     hal/actor_classes.cpp's ac_trap17, hal/actor_classes_wf.cpp's wf_trap17):
+#     AfterCleanupResources dispatches slot 16 and performs the Deallocate
+#     itself, so a landing on the deleting form means something reached the
+#     actor through operator delete, and the trap is the bug report. Every one
+#     of these ROM bodies ends in its own Memory::Deallocate. Seating them
+#     replaces a diagnostic with a double free. This is the same call lane l5
+#     made for _ZN6PlayerD0Ev and lane l3 made for _ZN11ShadowModelD0Ev.
+#     Trap is worse than the others and would corrupt rather than merely
+#     double-free: hal/actor_classes.cpp's tr_d1 note records that the ROM
+#     shares _ZN4TrapD0Ev across two layouts and the body fits LIGHT_BEAM's
+#     only, so on a 944-byte TRAP its 0xd4/0x124 chain smashes Platform's
+#     fields. That file already chose a bounded leak over that corruption.
+#
+# (3) SLOT ALREADY HELD, 3 TUs.
+#     _ZN11CommonModelD0Ev is from:0x0208e8a8 -> _ZTV11CommonModel+0x4, ROM
+#       slot 1, and hal/actor_classes_bob_world.cpp writes both index 1 and
+#       index 2 there to carry the MSVC and ROM numberings at once. Lane l3
+#       ruled this one already and the reading holds.
+#     _ZN8CapEnemyD2Ev and _ZN8CapEnemyD0Ev are from:0x021082c4 and 0x021082c8
+#       into data_ov002_02108284+0x40 and +0x44. That symbol is raw ov002
+#       romdata (port/ov002_syms.txt), aliased to _ZTV11dCapEnemy_c by
+#       hal/bob_enemy_bridges.cpp. Its words are DS addresses, so it is not a
+#       port-dispatched table at all and CapEnemy's methods are faced
+#       individually instead. There is no slot here to seat.
+#
+# (4) A VENEER THE PORT DELIBERATELY BYPASSES, 1 TU.
+#     func_ov079_02123b54 is from:0x02127cf8 -> _ZTV5Whomp+0x78, slot 30, and
+#     hal/actor_classes_wf_enemy.cpp dispatches that slot to
+#     func_ov079_02123d4c instead, on purpose. The ROM body is the
+#     ldr ip,[pc] / bx ip veneer; its C transcription is void(void), drops
+#     both arguments, and the note there records that writing it the obvious
+#     way "popped nothing and wrote through whatever the stale stack word
+#     pointed at". Seating it reintroduces a fixed stack corruption.
+#
+# (5) A HOST STAND-IN OWNS THE NAME THE LIVE CALLERS CALL, 10 TUs. These are
+#     the real replacement work and every one of them is a one-line change in
+#     a file this lane does not own, so all ten are reported blocked rather
+#     than seated. In each case the matched TU defines the C++ method under
+#     MSVC mangling while the linked callers call the Itanium C name that a
+#     host file defines, so the two never meet and no duplicate is raised.
+#       _ZN11ShadowModel12InitCylinderEv   73 distinct ROM callers, 30 in the
+#         image (Coin, PowerStar, StarMarker, Goomba, BobOmb, KingBobOmb and
+#         more). Host face: hal/actor_faces_bob.cpp. Worth a look first in
+#         wave 3: lane l3 recorded that hal/bob_enemy_bridges.cpp stubs this to
+#         return 1 only because ShadowModel::DoSetFile was null, and l3 has
+#         since seated DoSetFile at _ZTV11ShadowModel[1], so the stub's stated
+#         reason may already be spent.
+#       _ZNK10ClsnResult9GetClsnIDEv       27 callers, 22 in the image. Host
+#         body hal/reverse_bridges.cpp, which also warns that forwarding it
+#         back to the method made a two-instruction jmp cycle under /O2.
+#       _ZNK12WithMeshClsn12TouchesWaterEv 7 callers, 5 in the image. Host body
+#         hal/actor_class_faces.cpp.
+#       _ZN8Platform20UpdateKillByMegaCharEsss5Fix12IiE  7 callers, 5 live.
+#       _ZN9ActorBase7ProcessEMS_FivEMS_FbvEMS_FvjE  4 callers, all 4 live, and
+#         all four are the func_0204322c/02043288/020432e4/0204335c group the
+#         port already host-copies in port/unmatched for the mwcc
+#         pointer-to-member stride. This one is a documented host-ABI
+#         exception, not scaffolding.
+#       _ZN4Heap11_DeallocateEPv, _ZN4cstd10fdiv_asyncE5Fix12IiE5Fix12IiE,
+#       func_02017e48, func_0201a03c, func_0203ad6c   same shape, lower value.
+#
+# WHAT WAVE 3 SHOULD TAKE FROM THIS. The remaining linkage in the stripped set
+# is not gated on seats and not gated on wiring. It is gated on two things this
+# lane could not touch: retiring host stand-ins, which needs the host file's
+# owner, and landing callers, which brings the stranded 45 along for free. A
+# lane pointed at this set again should be given hal/reverse_bridges.cpp,
+# hal/actor_faces_bob.cpp and hal/bob_enemy_bridges.cpp to own, or it will
+# reach the same wall.
+# ===========================================================================
+
+# ===========================================================================
+# LANE w3-a (run linkw, wave 3). NOT EMPTY ANY MORE. Three host stand-ins
+# retired for their matched bodies, and the shadow templates mounted.
+#
+# w2-a's closing paragraph asked for hal/reverse_bridges.cpp and two of the
+# bob files. This lane got reverse_bridges.cpp, actor_class_faces.cpp and
+# cxxname_bridge.cpp, and that is exactly the difference between the three
+# swaps below and the one that is still blocked.
+#
+# ---------------------------------------------------------------------------
+# THE CUBOID SHADOW, and the correction that made it possible.
+#
+# Only ONE line below is a slice line, because the other two matched TUs were
+# already compiled and merely stripped -- GetClsnID rides slice_gate10.txt and
+# TouchesWater rides slice_gate16.txt, and both were in w2-a's 132. Their
+# swaps are pure reference edges in the host files. InitCuboid was in no slice
+# at all, so it needs the line.
+src/_ZN11ShadowModel10InitCuboidEv.cpp
+#
+# The edge: SIGN_POST calls the METHOD ?InitCuboid@ShadowModel@@QAEXXZ, and
+# hal/actor_class_faces.cpp used to define that decorated name itself over a
+# local one-method struct. Deleting it hands the name to the matched TU with
+# the call site untouched. The C-named callers reach the same body through
+# hal/cxxname_bridge.cpp, which is now a real bridge instead of `{}`.
+#
+# The data: port/ov001_syms.txt now names the cuboid's nine symbols. The wave-1
+# note that ov001 "is not mounted" was wrong in a way that matters -- it has
+# been mounted since gate 27, but only for the HUD sprites, and --pack pads
+# between named symbols with ZEROS. So the template was 432 bytes of present
+# zero, not absent bytes. Reading a zero BMD_File gives numBones 0 and
+# numMaterials 0, which is why the stub was harmless and why nothing crashed.
+#
+# ---------------------------------------------------------------------------
+# THE RENDERALL CHAIN IS STILL BLOCKED, AND WAVE 2 NAMED THE WRONG TEMPLATE.
+#
+# slice_w1l3.txt's wave-2 note says the faulting node "has data == 0 because
+# ShadowModel::InitCuboid IS stubbed". Measured, that is the wrong half:
+#
+#   src/_ZN9Butterfly13InitResourcesEv.cpp:38  InitCylinder on this+0x188
+#   src/_ZN9Butterfly13InitResourcesEv.cpp:40  InitCylinder on this+0x1b0
+#   src/_ZN9Butterfly8BehaviorEv.cpp:73        DropShadowRadHeight on c+0x188
+#   src/_ZN9Butterfly8BehaviorEv.cpp:78        DropShadowRadHeight on c+0x1b0
+#
+# The two ShadowModels the butterfly registers every frame are the same two it
+# initialises, and both are CYLINDERS. InitCuboid never runs on that path, so
+# seating it cannot fill node->data for the node that faults. It is the
+# cylinder that has to land, and the cylinder needs three files this lane does
+# not own:
+#
+#   hal/player_bridges.cpp:806     void _ZN11ShadowModel12InitCylinderEv(void*){}
+#                                  the C name every live caller calls
+#   hal/bob_enemy_bridges.cpp:153  int ShadowModel::InitCylinder(){ return 1; }
+#                                  the MSVC name, the ride-through return
+#   hal/actor_vtables.cpp:485      int data_020ad560[0x3c / 4];
+#                                  a zero host copy of the template the matched
+#                                  body reads BY NAME, which would shadow the
+#                                  ov001 mount even if the body were seated
+#
+# The bytes are already waiting: port/ov001_syms.txt mounts the cylinder chain
+# this wave. The handoff is one line per file -- delete the two stubs, delete
+# the host array and alias _data_020ad560 to _data_ov001_020ad560 the way
+# cxxname_bridge.cpp now does for the cuboid, then add
+# src/_ZN11ShadowModel12InitCylinderEv.cpp's reference edge (it is already
+# compiled, via slice_gate10.txt, so no slice line is needed).
+#
+# THE SCRATCH PROOF and the exact one-line RenderAll seat are written up in the
+# lane's final report, not here, because the seat line belongs to
+# tests/walk_window.cpp and that file is frozen this wave.
+# ===========================================================================
+
+# ===========================================================================
+# LANE w4-a (run linkw, wave 4). THE CYLINDER SHADOW, and w3-a's handoff taken
+# line for line. No slice line is added by this half; the three files w3-a
+# named were the whole of it.
+#
+#   hal/player_bridges.cpp     the `void ...(void *) {}` stub replaced by the
+#                              C-name bridge into the matched method
+#   hal/bob_enemy_bridges.cpp  the `int ShadowModel::InitCylinder() {return 1;}`
+#                              MSVC face deleted
+#   hal/actor_vtables.cpp      the host `int data_020ad560[0x3c/4]` removed and
+#                              the arm9 spelling aliased onto the ov001 mount
+#
+# WHY THERE IS NO SLICE LINE HERE, measured in this tree rather than assumed:
+# src/_ZN11ShadowModel12InitCylinderEv.cpp is already an active line of
+# slice_gate10.txt (line 128), and SLICE10_CAM_SOURCES reaches all three
+# targets that compile these host files (walk_window, walk_window_hires,
+# smoke_player). A second line would put the same object in the same link.
+# w3-a said the same thing; this is the confirmation, not a new claim.
+#
+# WHAT THE MAP SAYS AFTER THE SWAP (walk_window.map, this tree):
+#   ?InitCylinder@ShadowModel@@QAEXXZ   _ZN11ShadowModel12InitCylinderEv.cpp.obj
+#     -- it was absent before, dropped by /OPT:REF for want of a reference
+#   ?InitCylinder@ShadowModel@@QAEHXZ   actor_faces_bob.cpp.obj
+#     -- the int spelling now folds onto ShadowModelFace::InitCylinder, i.e.
+#        the /alternatename that was there all along finally fires
+#   _data_020ad560 and _data_ov001_020ad560 both at 0x00986b20, ov001_syms.c.obj
+#     -- one object, two names, and the host zeros gone
+# linkage 3939 -> 3940.
+#
+# THE ONE THING THE HANDOFF DID NOT PREDICT. smoke_player faulted on the swap:
+# c0000005 accessing 0, with ?InitCylinder@ShadowModel@@QAEXXZ + 0xe called
+# from func_ov002_020e5948 + 0x6d7, which is Mario's own drop shadow at
+# Player + 0x2ac. That harness hand-fills its vtables and calls
+# hal_fill_shadow_vtable, which seats slot 0 only; hal_seat_model_family_dtors,
+# which seats _ZTV11ShadowModel[1] = DoSetFile, is called from
+# port_stage_a2_seat and never runs there. walk_window does run it, and runs
+# 1000 frames through the same call without a word. The bridge therefore checks
+# the seat and no-ops with one stderr line where it is missing -- the wave-3
+# abort-vs-no-op lesson, and the reason is written out at the bridge.
+# ===========================================================================

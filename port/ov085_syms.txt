@@ -1,0 +1,78 @@
+# The ov085 data the castle grounds' RABBIT and LAKITU_BRO name.
+#
+# ov085 is an ACTOR overlay, not a level overlay: nothing walks a table across
+# its symbol boundaries the way ov009's loaders do, so it is mounted PER
+# SYMBOL the way ov002 is -- the code reaches its SharedFilePtrs, spawn tables
+# and CLPS blocks by name. --pack keeps the runs that are really one array
+# contiguous, and the emitted check asserts every offset at boot.
+#
+# This is the overlay's WHOLE data span (.rodata, .data, .bss) rather than a
+# hand-picked subset, because an actor's InitResources reaches its own
+# statics through addresses dsd named wherever code happened to touch one:
+# picking a subset means discovering the misses one link error at a time and
+# leaving a neighbour's bytes wherever the walk steps past what was picked.
+#
+# TWO KINDS OF SYMBOL ARE LEFT OUT ON PURPOSE.
+#   * _ZTV* -- the vtables are HOST arrays the registry fills at runtime
+#     (hal/actor_classes.cpp). Mounting ROM bytes over one would hand the
+#     factory a table of DS code addresses.
+#   * dsd's ".p__sinit_*" pointer entries -- their names are not C
+#     identifiers, and the port calls the four sinits by name anyway.
+#
+# Every *_SpawnInfo is pinned to the record's real 0x1c. dsd names the next
+# symbol four bytes inside two of them, and without the pin the registry
+# reads the +4 id halfword out of a neighbour and says WRONG RECORD.
+data_ov085_0212f27c:0x4 data_ov085_0212f280:0x1c data_ov085_0212f29c:0xc
+data_ov085_0212fe20:0x8 data_ov085_0212fe28:0x8 data_ov085_0212fe30:0x8
+data_ov085_0212fe38:0x8 data_ov085_0212fe40:0x8 data_ov085_0212fe48:0x8
+data_ov085_0212fe50:0xc data_ov085_0212fe5c:0x10 Toad_SpawnInfo:0x1c data_ov085_0212fe88:0xac
+data_ov085_0212ff34:0x8 data_ov085_0212ff3c:0x8 data_ov085_0212ff44:0x8
+data_ov085_0212ff4c:0x8 data_ov085_0212ff54:0x8 data_ov085_0212ff5c:0x8
+data_ov085_0212ff64:0x8 data_ov085_0212ff6c:0x8 data_ov085_0212ff74:0x8
+data_ov085_0212ff7c:0x8 data_ov085_0212ff84:0xc data_ov085_0212ff90:0xc
+PrincessPeach_SpawnInfo:0x1c data_ov085_0212ffff:0x3d data_ov085_0213003c:0x8
+data_ov085_02130044:0x8 data_ov085_0213004c:0x8 data_ov085_02130054:0x8
+data_ov085_0213005c:0x8 data_ov085_02130064:0x8 data_ov085_0213006c:0x8
+data_ov085_02130074:0x8 data_ov085_0213007c:0x8 data_ov085_02130084:0x8
+data_ov085_0213008c:0x8 data_ov085_02130094:0x8 data_ov085_0213009c:0x8
+data_ov085_021300a4:0x8 data_ov085_021300ac:0x8 data_ov085_021300b4:0x8
+data_ov085_021300bc:0xc data_ov085_021300c8:0xc Rabbit_SpawnInfo:0x1c data_ov085_02130174:0x8
+data_ov085_0213017c:0x8 data_ov085_02130184:0x8 data_ov085_0213018c:0x8
+data_ov085_02130194:0xc data_ov085_021301a0:0x14 RabbitKey_SpawnInfo:0x1c
+data_ov085_0213020b:0x7 data_ov085_02130212:0x42 data_ov085_02130254:0x8
+data_ov085_0213025c:0x8 data_ov085_02130264:0x8 data_ov085_0213026c:0x8
+data_ov085_02130274:0x8 data_ov085_0213027c:0x8 data_ov085_02130284:0x8
+data_ov085_0213028c:0x8 data_ov085_02130294:0x8 data_ov085_0213029c:0x8
+data_ov085_021302a4:0x8 data_ov085_021302ac:0x8 data_ov085_021302b4:0x8
+data_ov085_021302bc:0x8 data_ov085_021302c4:0x8 data_ov085_021302cc:0x8
+data_ov085_021302d4:0x8 data_ov085_021302dc:0x8 data_ov085_021302e4:0x8
+data_ov085_021302ec:0x8 data_ov085_021302f4:0x8 data_ov085_021302fc:0x8
+data_ov085_02130304:0xc data_ov085_02130310:0x10 LakituBro_SpawnInfo:0x1c
+data_ov085_021303c0:0xc data_ov085_021303cc:0x10 WallSign_SpawnInfo:0x1c
+data_ov085_02130480:0x8 data_ov085_02130488:0x8 data_ov085_02130490:0x8
+data_ov085_02130498:0xc data_ov085_021304a4:0xc data_ov085_021304b0:0xc
+data_ov085_021304bc:0x8 data_ov085_021304c4:0x8 data_ov085_021304cc:0x8
+data_ov085_021304d4:0x8 data_ov085_021304dc:0x8 data_ov085_021304e4:0x8
+data_ov085_021304ec:0x8 data_ov085_021304f4:0x8 data_ov085_021304fc:0xc
+data_ov085_02130508:0xc data_ov085_02130514:0xc data_ov085_02130520:0xc
+data_ov085_0213052c:0xc data_ov085_02130538:0xc data_ov085_02130544:0xc
+data_ov085_02130550:0xc data_ov085_0213055c:0x50 data_ov085_021305ac:0x4
+data_ov085_021305b0:0x8 data_ov085_021305b8:0x8 data_ov085_021305c0:0x8
+data_ov085_021305c8:0x8 data_ov085_021305d0:0x8 data_ov085_021305d8:0x8
+data_ov085_021305e0:0x8 data_ov085_021305e8:0xc data_ov085_021305f4:0xc
+data_ov085_02130600:0xc data_ov085_0213060c:0xc data_ov085_02130618:0xc
+data_ov085_02130624:0xc data_ov085_02130630:0xc data_ov085_0213063c:0xc
+data_ov085_02130648:0xc data_ov085_02130654:0xc data_ov085_02130660:0xc
+data_ov085_0213066c:0x10 data_ov085_0213067c:0x10 data_ov085_0213068c:0x10
+data_ov085_0213069c:0x10 data_ov085_021306ac:0x10 data_ov085_021306bc:0x10
+data_ov085_021306cc:0x10 data_ov085_021306dc:0x10 data_ov085_021306ec:0xc
+data_ov085_021306f8:0xc data_ov085_02130704:0xc data_ov085_02130710:0xc
+data_ov085_0213071c:0x10 data_ov085_0213072c:0x10 data_ov085_0213073c:0x8
+data_ov085_02130744:0x8 data_ov085_0213074c:0x8 data_ov085_02130754:0xc
+data_ov085_02130760:0xc data_ov085_0213076c:0xc data_ov085_02130778:0xc
+data_ov085_02130784:0xc data_ov085_02130790:0x10 data_ov085_021307a0:0x10
+data_ov085_021307b0:0x10 data_ov085_021307c0:0x10 data_ov085_021307d0:0x10
+data_ov085_021307e0:0x10 data_ov085_021307f0:0x10 data_ov085_02130800:0x10
+data_ov085_02130810:0x10 data_ov085_02130820:0x10 data_ov085_02130830:0x10
+data_ov085_02130840:0xc data_ov085_0213084c:0xc data_ov085_02130858:0x8
+data_ov085_02130860:0x20

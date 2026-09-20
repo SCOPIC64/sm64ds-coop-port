@@ -1,0 +1,84 @@
+# Gate 51: the CAP (WaterfallMist / daObjMarioCap_c, actor 269), ov002.
+#
+# Mario's cap on the ground: metal, vanish and wing variants. Its class was
+# BUILT at gate 33 (vtable fill, faces, the six WaterfallMist method TUs) but
+# left unregistered because WaterfallMist::Behavior dispatches a
+# pointer-to-member out of the object's +0x3bc, and the nine state tables
+# __sinit_ov002_02101064 fills (data_ov002_0210df04..0210df84) were left holding
+# DS code addresses. Cap_StateDispatch.cpp seats them; this slice adds the
+# eighteen state functions those tables point at and the closure they reach
+# that no earlier gate linked.
+#
+# All eighteen are the {function, 0} form (a complete class, the butterfly
+# case), so the seat is a plain function-pointer rewrite with no host copy of
+# the dispatcher.
+
+# ---- the eighteen state Init/Main functions --------------------------------
+src/func_ov002_020b71e8.c
+src/func_ov002_020b71f0.c
+src/func_ov002_020b7200.c
+src/func_ov002_020b7330.c
+src/func_ov002_020b74d0.c
+src/func_ov002_020b76ec.c
+src/func_ov002_020b781c.c
+src/func_ov002_020b7b70.c
+src/func_ov002_020b7c30.c
+src/func_ov002_020b7cdc.c
+src/func_ov002_020b7cec.cpp
+src/func_ov002_020b7d58.c
+src/func_ov002_020b7d6c.c
+src/func_ov002_020b7d94.c
+src/func_ov002_020b7d9c.cpp
+src/func_ov002_020b7e08.c
+src/func_ov002_020b7e1c.cpp
+src/func_ov002_020b7f24.c
+
+# ---- the closure the states reach that no earlier gate linked --------------
+# The angle helper, the shared collision-clear the states call, a tuning helper
+# and SaveData::PlayerLoseCap (its sibling HasPlayerLostCap is already linked at
+# gate 10). The metal/vanish/wing form-change closure (Player::InitMetalWario,
+# InitVanishLuigi and their file loads) is already linked -- the cap's
+# InitResources reached it when the class was built at gate 33.
+src/_Z11UpdateAngleRssis.cpp
+src/func_ov002_020b6fcc.cpp
+src/func_02013a88.c
+src/func_020139b8.c
+src/_ZN8SaveData13PlayerLoseCapEv.c
+# the metal/vanish form-change entry points func_ov002_020b6fcc dispatches
+src/_ZN6Player14InitMetalWarioEv.cpp
+src/_ZN6Player15InitVanishLuigiEv.c
+
+# ---- EXCLAMATION_SWITCH (11): the ten state halves + closure ----------------
+# StarSwitch's five-state machine, the ten records data_ov002_0210e00c holds.
+# Its two dispatchers are host copies (ExclamationSwitch_StateDispatch.cpp);
+# these are the states they call and the two arm9/ov002 helpers they reach that
+# no earlier gate linked. func_ov002_020ba4d8/020ba520 are EXCLUDED from
+# slice_gate33 -- see the note there.
+src/func_ov002_020ba3fc.cpp
+src/func_ov002_020ba3a8.c
+src/func_ov002_020ba4c0.c
+src/func_ov002_020ba2d0.c
+src/func_ov002_020ba2ac.c
+src/func_ov002_020ba1ac.c
+src/func_ov002_020ba0f8.cpp
+src/func_ov002_020ba0bc.c
+src/func_02012310.c
+src/func_ov002_020e7104.c
+
+# ---- ROLLING_IRON_BALL (220, ov100): the four state functions + helpers -----
+# RollingIronBall::Behavior dispatches data_ov100_0214867c[idx] as a plain
+# {function, delta} pair (the butterfly case, no host copy); the seat is in
+# hal/actor_overlays.cpp. These are the four state functions and the ov100/ov002
+# helpers they reach that no earlier gate linked. The particle/collision/Actor
+# closure and the FS/decompress path are already host-provided (the ntr layer
+# and earlier gates), so nothing below descends into them.
+src/func_ov100_02142b90.c
+src/func_ov100_02142918.cpp
+src/func_ov100_021424c0.c
+src/func_ov100_0214272c.cpp
+src/func_ov100_02141fb0.cpp
+src/func_ov100_02142130.cpp
+src/func_ov100_02142264.cpp
+src/func_ov100_0214233c.cpp
+src/func_ov002_020ad660.cpp
+src/func_02012694.cpp

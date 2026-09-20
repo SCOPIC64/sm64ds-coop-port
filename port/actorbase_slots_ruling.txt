@@ -1,0 +1,361 @@
+# actorbase_slots_ruling.txt
+#
+# A RULING ON FOUR VTABLE SLOTS. Two review chains stopped on the same thing:
+# every Actor-shaped vtable in the ROM puts four DISTINCT arm9 addresses in
+# slots 4, 5, 8 and 11, and the port binds ActorBase's methods in three of
+# them. Nothing in the port measures the substitution. If those ROM bodies are
+# real overrides, every actor fill calls the wrong function on three slots and
+# has done so silently. If they are forwarders, the substitution is right and
+# belongs in writing as a convention rather than surviving as an accident.
+#
+# The ruling below is FORWARDER on all four. The port is correct. The rest of
+# this file is the evidence, because a "no problem here" ruling is exactly the
+# kind that gets taken on trust and should not be.
+#
+# Vocabulary, fixed before the reading so a result could not pick its own label:
+#
+#   IDENTICAL   Actor's body and ActorBase's body are the same bytes, whether
+#               by tail-sharing or by duplication. Substitution correct.
+#   FORWARDER   Actor's body transfers control to ActorBase's body and does
+#               nothing else observable. Substitution correct.
+#   DISTINCT    Actor's body contains divergent behaviour. Substitution WRONG,
+#               and the consequence section has to enumerate what breaks.
+#
+# Lane L3 of run link60. Base 0d81b845c.
+#
+# ---------------------------------------------------------------------------
+# WHERE THE BYTES CAME FROM
+#
+# arm9 code and data: extracted/arm9_dec.bin mapped flat at 0x02004000.
+#   extracted/dsd/arm9/arm9.bin is the COMPRESSED image and disassembles to
+#   garbage read flat; it was not used.
+# overlay code and data: extracted/overlays/overlay_NNNN.bin at the OVT
+#   base_address from extracted/dsd/arm9_overlays/overlays.yaml.
+# names: config/arm9/symbols.txt and config/arm9/overlays/*/symbols.txt.
+#   include/*.h names are placeholders and were not treated as authority.
+# a second, independent witness: config/arm9/relocs.txt, which records the
+#   same edges the disassembly shows. Where the two agree it is said so.
+#
+# The four addresses were re-derived from the ROM. They were NOT taken from
+# the review that raised the question. They came out the same.
+#
+# ---------------------------------------------------------------------------
+# THE SLOT MAP, AND THE OFF BY TWO THAT ALMOST LIVES HERE
+#
+# The _ZTV symbol in config sits AT the vptr target, not two words before it,
+# so word index from the symbol address equals C++ vtable slot with no header
+# to skip. Confirmed by naming every word of _ZTV5Actor (0x0208e3a4) and
+# _ZTV9ActorBase (0x02099edc) out of config/arm9/symbols.txt:
+#
+#   slot  0  InitResources          slot  7  BeforeBehavior
+#   slot  1  BeforeInitResources     slot  8  AfterBehavior
+#   slot  2  AfterInitResources      slot  9  Render
+#   slot  3  CleanupResources        slot 10  BeforeRender
+#   slot  4  BeforeCleanupResources  slot 11  AfterRender
+#   slot  5  AfterCleanupResources   slot 12  OnPendingDestroy
+#   slot  6  Behavior                slot 13  Virtual34
+#
+# So the review's "slots 4/5/8/11" is right on this numbering. In ordinary C++
+# terms these are the 5th, 6th, 9th and 12th virtual functions. A reader who
+# assumes an Itanium two word header and subtracts 2 lands on Behavior and
+# CleanupResources instead, which is a much worse place to be wrong.
+#
+# ---------------------------------------------------------------------------
+# THE FOUR ADDRESSES, RE-DERIVED FROM CONCRETE ACTOR TABLES
+#
+# Four Actor-shaped vtables read out of four different overlay images:
+#
+#   _ZTV4Coin           ov002 0x021087ec   (base 0x020ad660)
+#   _ZTV8WallSign       ov085 0x02130400   (base 0x02129020)
+#   _ZTV13MontyMoleRock ov080 0x0212802c   (base 0x02123740)
+#   _ZTV6Goomba         ov084 0x02130948   (base 0x02129020)
+#
+# All four carry the identical words in the four slots:
+#
+#   slot  4   0x02011220   _ZN5Actor22BeforeCleanupResourcesEv  size 0x24
+#   slot  5   0x02011214   _ZN5Actor21AfterCleanupResourcesEj   size 0x0c
+#   slot  8   0x02010fc8   _ZN5Actor13AfterBehaviorEj           size 0x0c
+#   slot 11   0x02010f6c   _ZN5Actor11AfterRenderEj             size 0x0c
+#
+# The ActorBase counterparts, from config/arm9/symbols.txt:
+#
+#   0x02043bac   _ZN9ActorBase22BeforeCleanupResourcesEv   size 0x44
+#   0x02043b2c   _ZN9ActorBase21AfterCleanupResourcesEj    size 0x80
+#   0x02043af8   _ZN9ActorBase13AfterBehaviorEj            size 0x04
+#   0x02043ac4   _ZN9ActorBase11AfterRenderEj              size 0x04
+#
+# Three of the four Actor bodies are 0xc bytes. That is two instructions and a
+# literal, and it is the shape the ruling turns on.
+#
+# ---------------------------------------------------------------------------
+# RULING 1 of 4.  slot 11, Actor::AfterRender @ 0x02010f6c.   FORWARDER
+#
+#   02010F6C  E59FC000   ldr   ip, [pc]
+#   02010F70  E12FFF1C   bx    ip
+#   02010F74  02043AC4   .word 0x02043AC4      ; ActorBase::AfterRender
+#
+# The literal is at PC+8+0 = 0x02010F74 and holds 0x02043AC4, which
+# config/arm9/symbols.txt names _ZN9ActorBase11AfterRenderEj.
+# config/arm9/relocs.txt line 1374 records the same edge independently:
+#
+#   from:0x02010f74 kind:load to:0x02043ac4 module:main
+#
+# The callee:
+#
+#   02043AC4  E12FFF1E   bx    lr                ; ActorBase::AfterRender, empty
+#
+# No push, no sp adjustment, lr untouched, r0 through r3 untouched. The only
+# register written is ip, which is the AAPCS intra-procedure-call scratch
+# register and is exactly what a veneer is allowed to clobber. ActorBase's
+# `bx lr` therefore returns to Actor's own caller. This is a pure tail forward
+# with no observable difference from calling ActorBase directly.
+#
+# ---------------------------------------------------------------------------
+# RULING 2 of 4.  slot 8, Actor::AfterBehavior @ 0x02010fc8.   FORWARDER
+#
+#   02010FC8  E59FC000   ldr   ip, [pc]
+#   02010FCC  E12FFF1C   bx    ip
+#   02010FD0  02043AF8   .word 0x02043AF8      ; ActorBase::AfterBehavior
+#
+#   config/arm9/relocs.txt:1376
+#   from:0x02010fd0 kind:load to:0x02043af8 module:main
+#
+# The callee:
+#
+#   02043AF8  E12FFF1E   bx    lr                ; ActorBase::AfterBehavior, empty
+#
+# Same shape as ruling 1, byte for byte in the veneer. Pure tail forward onto
+# an empty body.
+#
+# ---------------------------------------------------------------------------
+# RULING 3 of 4.  slot 5, Actor::AfterCleanupResources @ 0x02011214.  FORWARDER
+#
+#   02011214  E59FC000   ldr   ip, [pc]
+#   02011218  E12FFF1C   bx    ip
+#   0201121C  02043B2C   .word 0x02043B2C      ; ActorBase::AfterCleanupResources
+#
+#   config/arm9/relocs.txt:1390
+#   from:0x0201121c kind:load to:0x02043b2c module:main
+#
+# Same veneer shape. This is the one where the callee is NOT empty, so the
+# callee is pasted in full to show that nothing about the forward is
+# conditional and no argument is touched on the way in:
+#
+#   02043B2C  E92D4010   push  {r4, lr}
+#   02043B30  E1A04000   mov   r4, r0
+#   02043B34  E3510002   cmp   r1, #2                 ; VS_SUCCESS
+#   02043B38  18BD4010   popne {r4, lr}
+#   02043B3C  112FFF1E   bxne  lr                     ; not success, return
+#   02043B40  E59F0058   ldr   r0, [pc, #0x58]        ; 0x020A4B6C
+#   02043B44  E2841014   add   r1, r4, #0x14
+#   02043B48  EBFFDE1C   bl    0x0203B3C0
+#   02043B4C  E59F0050   ldr   r0, [pc, #0x50]        ; 0x020A4BA8
+#   02043B50  E2841028   add   r1, r4, #0x28
+#   02043B54  EBFFDDC8   bl    0x0203B27C
+#   02043B58  E594004C   ldr   r0, [r4, #0x4c]
+#   02043B5C  E3500000   cmp   r0, #0
+#   02043B60  0A000000   beq   0x02043B68
+#   02043B64  EBFFE2F8   bl    0x0203C74C             ; Heap::_Destroy
+#   02043B68  E5940048   ldr   r0, [r4, #0x48]
+#   02043B6C  E3500000   cmp   r0, #0
+#   02043B70  0A000000   beq   0x02043B78
+#   02043B74  EB0001EE   bl    0x02044334
+#   02043B78  E1A00004   mov   r0, r4
+#   02043B7C  E5901000   ldr   r1, [r0]
+#   02043B80  E5911040   ldr   r1, [r1, #0x40]        ; vtable slot 16, ~ActorBase
+#   02043B84  E12FFF31   blx   r1
+#   02043B88  E59F1018   ldr   r1, [pc, #0x18]        ; 0x020A0EAC
+#   02043B8C  E1A00004   mov   r0, r4
+#   02043B90  E5911000   ldr   r1, [r1]
+#   02043B94  EBFFE193   bl    0x0203C1E8             ; Memory::Deallocate
+#   02043B98  E8BD4010   pop   {r4, lr}
+#   02043B9C  E12FFF1E   bx    lr
+#   02043BA0  020A4B6C   .word
+#   02043BA4  020A4BA8   .word
+#   02043BA8  020A0EAC   .word
+#
+# The veneer adds nothing to any of that. r0 (this) and r1 (the
+# VirtualFuncSuccess code) ride straight through, so the vfSuccess != 2 guard
+# sees the caller's own value.
+#
+# ---------------------------------------------------------------------------
+# RULING 4 of 4.  slot 4, Actor::BeforeCleanupResources @ 0x02011220. FORWARDER
+#
+# Not one of the three in dispute (the port already has this body), read
+# anyway so the set is closed and so the ruling covers what the fills bind.
+#
+#   02011220  E92D4000   stmdb sp!, {lr}
+#   02011224  E24DD004   sub   sp, sp, #4
+#   02011228  EB00CA5F   bl    0x02043BAC   ; ActorBase::BeforeCleanupResources
+#   0201122C  E3500000   cmp   r0, #0
+#   02011230  13A00001   movne r0, #1
+#   02011234  03A00000   moveq r0, #0
+#   02011238  E28DD004   add   sp, sp, #4
+#   0201123C  E8BD4000   ldm   sp!, {lr}
+#   02011240  E12FFF1E   bx    lr
+#
+#   config/arm9/relocs.txt:1391
+#   from:0x02011228 kind:arm_call to:0x02043bac module:main
+#
+# This one is a real frame, not a veneer, so it is a forwarder on a weaker
+# reading unless the wrapper is shown to be a no-op. It is. The wrapper calls
+# ActorBase's body and normalises the result to 0 or 1, which is the codegen
+# of an int to bool narrowing. ActorBase's body has exactly two exits and both
+# already return a literal 0 or 1:
+#
+#   02043BAC  E92D4010   push  {r4, lr}
+#   02043BB0  E1A04000   mov   r4, r0
+#   02043BB4  E5940048   ldr   r0, [r4, #0x48]
+#   02043BB8  E3500000   cmp   r0, #0
+#   02043BBC  0A000002   beq   0x02043BCC
+#   02043BC0  EB0001A1   bl    0x0204424C
+#   02043BC4  E3500000   cmp   r0, #0
+#   02043BC8  0A000002   beq   0x02043BD8
+#   02043BCC  E5940018   ldr   r0, [r4, #0x18]
+#   02043BD0  E3500000   cmp   r0, #0
+#   02043BD4  0A000002   beq   0x02043BE4
+#   02043BD8  E3A00000   mov   r0, #0                 ; exit A, literal 0
+#   02043BDC  E8BD4010   pop   {r4, lr}
+#   02043BE0  E12FFF1E   bx    lr
+#   02043BE4  E3A00001   mov   r0, #1                 ; exit B, literal 1
+#   02043BE8  E8BD4010   pop   {r4, lr}
+#   02043BEC  E12FFF1E   bx    lr
+#
+# So `r0 != 0 ? 1 : 0` over a value already in {0,1} is the identity, and the
+# wrapper is behaviourally a forward. Recorded as FORWARDER, with the caveat
+# that this one is a forward by ARGUMENT rather than by inspection: it depends
+# on the callee's range, not on the wrapper's own shape. If ActorBase's body
+# ever gains a third exit returning something other than 0 or 1, this ruling
+# stops holding and slot 4 becomes DISTINCT.
+#
+# ---------------------------------------------------------------------------
+# SCOPE. HOW MANY TABLES, AND DOES ANY CLASS OVERRIDE THESE FOUR
+#
+# The rulings above are about four bodies. The consequence depends on whether
+# some derived class supplies its own body in one of these slots, because a
+# port-wide ActorBase substitution would then be wrong for that class even
+# though it is right for Actor. Two independent counts, and they agree.
+#
+# COUNT 1, raw images. Scan arm9_dec.bin and every overlay image for the word
+# 0x02011268 (Actor::BeforeInitResources) 4 byte aligned, treat that offset as
+# slot 1, require slot 2 == 0x02011244 (Actor::AfterInitResources) as a second
+# fingerprint word, then read slots 4, 5, 8 and 11.
+#
+#   Actor-shaped vtables found:                        288
+#   distinct values seen in slot  4:  0x02011220 x288
+#   distinct values seen in slot  5:  0x02011214 x288
+#   distinct values seen in slot  8:  0x02010FC8 x288
+#   distinct values seen in slot 11:  0x02010F6C x288
+#
+# Not one deviation. Zero classes override any of the four.
+#
+# COUNT 2, the config's own symbol list. Every _ZTV symbol in
+# config/arm9/symbols.txt and config/arm9/overlays/*/symbols.txt, read out of
+# the matching image. 381 _ZTV names over 249 distinct addresses (132
+# addresses carry two names each, the RTTI recovery having supplied a second
+# one: _ZTV4Coin and _ZTV8daCoin_c are the same table). Of the 249 distinct
+# addresses, 217 are Actor-shaped and all 217 carry all four Actor addresses
+# with no deviation. The tuples that are not Actor's:
+#
+#   (02043BAC, 02043B2C, 02043AF8, 02043AC4)  x7    ActorBase's own, direct
+#   (0202E5F0, 0202E5D0, 0202E3C8, 0202E398)  x2    Scene's, a parallel family
+#   the remainder are not vtables of this family at all
+#
+# COUNT 3, the reloc census, which is the strongest of the three because it
+# does not depend on recognising a table shape. Every inbound reference in
+# config/arm9/relocs.txt and every overlay relocs.txt to the four Actor
+# addresses, tallied by kind:
+#
+#   to 0x02010f6c :  288 load,  0 arm_call
+#   to 0x02010fc8 :  288 load,  0 arm_call
+#   to 0x02011214 :  288 load,  0 arm_call
+#   to 0x02011220 :  288 load,  0 arm_call
+#
+# 288 loads is exactly the 288 tables from count 1, one word each, so every
+# reference is accounted for and there are no others. And ZERO arm_call: no
+# code anywhere in the game calls these four bodies by address. They are
+# reached only through vtable dispatch. That closes the last hole, which was
+# that some direct caller might depend on the Actor name existing.
+#
+# ---------------------------------------------------------------------------
+# THE SRC SIDE AGREES
+#
+# The three matched TUs for the names the port map does not carry, read
+# against the disassembly above rather than summarised:
+#
+#   src/_ZN5Actor11AfterRenderEj.cpp
+#   src/_ZN5Actor13AfterBehaviorEj.cpp
+#   src/_ZN5Actor21AfterCleanupResourcesEj.cpp
+#
+# All three are the same three lines, and all three say in their header
+# comment what the bytes say: "tail-call veneer to <the ActorBase name>",
+# with the exact `ldr ip, [pc]; bx ip; .word <addr>` written out and the
+# addresses matching. Each body is a single unqualified call to the ActorBase
+# C name and nothing else. A matched TU that is a forwarder looks like one
+# here, which is the check that was asked for and it passes.
+#
+#   src/_ZN5Actor22BeforeCleanupResourcesEv.c
+#
+# is the slot 4 wrapper and reads `if (ActorBase::BeforeCleanupResources() != 0)
+# return 1; return 0;`, which is ruling 4 exactly.
+#
+# ONE STALE COMMENT worth recording and NOT edited here, because the file is
+# matched arm9 territory and a comment change there is not this lane's to
+# make. src/_ZN9ActorBase13AfterBehaviorEj.cpp and
+# src/_ZN9ActorBase11AfterRenderEj.cpp both say "Base ActorBase does nothing;
+# leaf classes override." The first clause is right. The second is wrong for
+# this game: count 1 above shows no leaf class overrides either slot in any of
+# the 288 tables. Harmless as a comment, misleading if a later reader treats it
+# as a reason to expect per-class bodies.
+#
+# ---------------------------------------------------------------------------
+# CONSEQUENCE
+#
+# All four rule FORWARDER, so the port's substitution is CORRECT and there is
+# no fix to plan. Written down as a convention so it stops being an accident:
+#
+#   THE ACTORBASE SUBSTITUTION, port-wide standing convention.
+#   In vtable slots 4, 5, 8 and 11 of any Actor-shaped host table, binding
+#   ActorBase's method is ROM-faithful. The ROM's Actor bodies in slots 5, 8
+#   and 11 are `ldr ip,[pc]; bx ip` veneers onto exactly those ActorBase
+#   bodies and contribute no behaviour; the slot 4 body is a wrapper whose
+#   only addition, a narrowing of the result to 0 or 1, is provably the
+#   identity over what ActorBase returns. No class in the game overrides any
+#   of the four, and nothing calls them outside vtable dispatch. A fill that
+#   binds ActorBase in these slots is not a shortcut and does not owe anyone
+#   a later replacement.
+#
+# What this means for the three unlinked matched TUs. They stay unlinked, and
+# that costs nothing: their only ROM callers are vtable words, the port's
+# tables bind the ActorBase bodies those veneers jump to, and there is no
+# arm_call site that would want the C name. If a later lane does link them,
+# they resolve onto the same ActorBase bodies and stay correct, which the
+# existing note at port/hal/method_faces.cpp already predicted for the
+# AfterBehavior and AfterRender pair. This file extends that reading to
+# AfterCleanupResources and to slot 4, and supplies the scope sweep that the
+# earlier note did not have.
+#
+# WHAT IS NOT PROVEN HERE, said plainly so nobody reads more into the ruling
+# than it carries:
+#
+#   1. This lane adjudicated ROM Actor against ROM ActorBase. It did NOT
+#      adjudicate the port's MSVC ActorBase bodies against the ROM's. Whether
+#      the port's ActorBase::AfterCleanupResources faithfully reproduces the
+#      0x80 byte teardown above is a separate question and a different lane's.
+#      A wrong body there would be wrong whether or not Actor forwarded to it.
+#   2. Slot 4's ruling depends on ActorBase::BeforeCleanupResources returning
+#      only 0 or 1, which is true of the ROM body read above. It is a range
+#      argument, not a shape argument, and is the weakest of the four.
+#   3. The 288 count covers arm9 plus every overlay image present in
+#      extracted/overlays/. A vtable built at runtime rather than linked into
+#      an image would not appear in it. None was looked for.
+#
+# ---------------------------------------------------------------------------
+# REPRODUCING THE COUNTS
+#
+# Nothing here needs a build. The three counts are a short read over
+# extracted/ plus config/, and the shape is written out above precisely enough
+# to redo from scratch: fingerprint on slots 1 and 2, read slots 4, 5, 8, 11,
+# then tally relocs.txt inbound edges by kind. Redoing it from the description
+# rather than from a saved script is the point; a saved script that drifted
+# would agree with itself.

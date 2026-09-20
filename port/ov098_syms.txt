@@ -1,0 +1,36 @@
+# The ov098 data the castle grounds' CANNON names.
+#
+# The gate-18 shape (see ov085_syms.txt for the long version): an ACTOR
+# overlay is mounted PER SYMBOL with --pack, the list is the overlay's whole
+# data span, the vtables are left out because they are host arrays the
+# registry fills, and every *_SpawnInfo is pinned to the record's real 0x1c.
+#
+# ov098 IS ALSO WHERE THE GATE-9 HARNESS USED TO LIE. data_ov098_0213c380 is
+# the arrow signs' {model, kcl, ?} entry table and data_ov098_0213c384 is the
+# same table's second column, which on the DS is just base+4 -- an offset
+# alias a host cannot spell. The smoke faked it with a second array; --pack
+# lays the two symbols four bytes apart the way the ROM does, so both walks
+# read one table. The fiction stays only in port/tests/smoke_actor.cpp, which
+# does not mount the overlay.
+data_ov098_0213bf60:0x4 data_ov098_0213bf64:0x4 data_ov098_0213bf68:0x28
+data_ov098_0213bf90:0xc data_ov098_0213c360:0xc data_ov098_0213c36c:0x14
+data_ov098_0213c380:0x4 data_ov098_0213c384:0x4 data_ov098_0213c388:0x10
+ArrowSignLeft_SpawnInfo:0x1c ArrowSignRight_SpawnInfo:0x1c MgShellSmash_SpawnInfo:0x1c
+data_ov098_0213c458:0x8 data_ov098_0213c460:0x8 data_ov098_0213c468:0x8
+data_ov098_0213c470:0x8 data_ov098_0213c478:0x8 data_ov098_0213c480:0x8
+data_ov098_0213c488:0x8 data_ov098_0213c490:0x8 data_ov098_0213c498:0x8
+data_ov098_0213c4a0:0x8 data_ov098_0213c4a8:0x8 data_ov098_0213c4b0:0x8
+data_ov098_0213c4b8:0x8 data_ov098_0213c4c0:0x8 data_ov098_0213c4c8:0xc
+data_ov098_0213c4d4:0xc data_ov098_0213c4e0:0x10 data_ov098_0213c4f0:0x10
+data_ov098_0213c500:0x10 Crate_SpawnInfo:0x1c data_ov098_0213c5bc:0x80 data_ov098_0213c63c:0x8
+data_ov098_0213c644:0x8 data_ov098_0213c64c:0x8 data_ov098_0213c654:0x8
+data_ov098_0213c65c:0x8 data_ov098_0213c664:0xc data_ov098_0213c670:0xc
+Cannon_SpawnInfo:0x1c data_ov098_0213c71c:0x8 data_ov098_0213c724:0x8 data_ov098_0213c72c:0x8
+data_ov098_0213c734:0xc data_ov098_0213c740:0xc WaterBomb_SpawnInfo:0x1c
+data_ov098_0213c78c:0x74 data_ov098_0213c800:0x8 data_ov098_0213c808:0x8
+data_ov098_0213c810:0x8 data_ov098_0213c818:0x8 data_ov098_0213c820:0xc
+data_ov098_0213c82c:0xc data_ov098_0213c838:0xc data_ov098_0213c844:0xc
+data_ov098_0213c850:0x8 data_ov098_0213c858:0x8 data_ov098_0213c860:0xc
+data_ov098_0213c86c:0xc data_ov098_0213c878:0x70 data_ov098_0213c8e8:0x8
+data_ov098_0213c8f0:0xc data_ov098_0213c8fc:0x20 data_ov098_0213c91c:0x8
+data_ov098_0213c924:0xc data_ov098_0213c930:0x30

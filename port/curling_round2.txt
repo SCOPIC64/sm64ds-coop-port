@@ -1,0 +1,515 @@
+CURLING, ROUND 2. The three defects the owner filed after playing scene 374,
+what each one actually is, and what this lane did about it.
+
+Run link60, lane CUR2. Base cons 5752bf74d, branch s5-curling-round2, worktree
+C:/tmp/cur2, build C:/tmp/cur2/build/port (CMAKE_HOME_DIRECTORY C:/tmp/cur2/port).
+
+THE REPORT, VERBATIM: "No music, no light blue filter over the shadow, and no
+collision against each other on the shells."
+
+THE SESSION LOG IS BANKED AT
+  the link60 run curling review log (private run dir)
+and it is a flight-recorder playlog from the shipped kit (SM64DSPort_v0.1.1 on
+the Desktop), not a battery run. That matters twice over below: the kit boots
+the whole game and reaches states the scene selftest never does, and the
+selftest is silent, so nothing in the battery could have caught any of this.
+
+The log names five things. This lane's finding is that they do NOT map one to
+one onto the three defects, and the mapping in the brief this lane was given
+is wrong in two places. What the evidence says:
+
+  log line                              defect
+  ------------------------------------  ---------------------------------------
+  func_ov006_020e1dc8 entered           collision (shot-time half)     FIXED
+  func_ov006_020e20bc entered           collision (per-frame half)     FIXED
+  snd command 0x04 param 0x0a ignored   NOT the music. 3D SFX trim.    FIXED
+  snd command 0x04 param 0x0c ignored   NOT the music. 3D SFX trim.    FIXED
+  func_0202e78c entered                 candidate for the tint         ROUTED
+  (nothing in the log)                  the music                      ROUTED
+
+TWO DEFECTS ARE FIXED HERE (collision, and the sound trim that was reported as
+if it were the music). TWO ARE ROUTED WITH A NAMED MECHANISM AND EVIDENCE (the
+music, the tint). Nothing is left as a guess.
+
+
+================================================================================
+1. THE SHELLS DID NOT COLLIDE.  FIXED.
+================================================================================
+
+WHAT IT WAS. dScMgCurling_c has exactly two functions that move one shell out
+of another shell's way, and BOTH of them were return-0 faces in
+hal/scene_mg_faces.cpp. Neither has a delink block in
+config/arm9/overlays/ov006/delinks.txt and neither has a src TU, so the port
+had refused both and the shells slid through one another.
+
+  func_ov006_020e1dc8  size 0x2f4  the SHOT-TIME separation. Called once per
+                                   shot by src/func_ov006_020e2c08.c, the
+                                   matched release handler, right after it
+                                   writes the shot shell's heading and speed.
+                                   Un-stacks whatever the shot shell is already
+                                   overlapping, one level of cascade deep.
+  func_ov006_020e20bc  size 0x5e0  the PER-FRAME collision. Called by
+                                   src/func_ov006_020e2868.c, the matched
+                                   physics tick, every frame for every shell it
+                                   ticks, and again through the veneer
+                                   func_ov006_020e285c for shells at rest. This
+                                   is the one that carries the physics: equal-
+                                   mass elastic exchange along the contact
+                                   normal, new heading and speed for both
+                                   shells, de-penetration, rink clamp, clack.
+
+THE BRIEF EXPECTED ONE OF THESE TO BE THE TINT PASS. IT IS NOT. Both are
+physics and the disassembly settles it without needing the symptoms: neither
+touches a GX register, a polygon list, a palette or a display-control word.
+Their entire callee set is three functions -- cstd::sqrt, cstd::atan2 and
+func_02012718 (a sound) -- and their entire data reference is data_02082214,
+the arm9 angle table. There is nothing in either body that could draw anything.
+
+WHAT WAS DONE. Both transcribed from the ROM as host copies:
+    port/unmatched/MgCurling_Collide_020e1dc8.cpp
+    port/unmatched/MgCurling_Collide_020e20bc.cpp
+under port_ names (port_mg_curling_collide_020e1dc8 / _020e20bc), the same
+naming ruling CT1 applied to port_mg_curling_st_020e1854 and the port applied
+before that to port_player_st_climb_main: the decomp has no body for either
+address and nothing in this tree may spell one as if it did. The two faces in
+hal/scene_mg_faces.cpp now forward to them. Full derivation, literal pools,
+field tables and the four ROM oddities that were transcribed rather than tidied
+are in the two files' own banners and are not repeated here.
+
+THE BASE WAS PROVED BEFORE ANYTHING WAS READ. extracted/overlays/overlay_0006.bin
+at 0x020bfec0, checked three ways against this pair's own relocation rows:
+    relocs.txt:3440  from:0x020e2d6c arm_call -> 0x020e1dc8
+      word at that address is 0xebfffc15; the BL displacement resolves to
+      0x020e1dc8 exactly.
+    relocs.txt:3430  from:0x020e2b44 arm_call -> 0x020e20bc
+      word 0xebfffd5c, resolves to 0x020e20bc exactly.
+    relocs.txt:3425  from:0x020e2864 load     -> 0x020e20bc
+      the word at that address literally READS 0x020e20bc.
+extracted/dsd/arm9_overlays/ov006.bin was not read for any purpose.
+
+CALLEE CENSUS. NO CASCADE, for either body. Same three callees, all in main,
+all with decompiled bodies already:
+    0x0203d744  _ZN4cstd4sqrtEy              src/_ZN4cstd4sqrtEy.c
+    0x0203b4dc  _ZN4cstd5atan2E5Fix12IiES1_  src/_ZN4cstd5atan2E5Fix12IiES1_.c
+    0x02012718  func_02012718                src/func_02012718.c
+Call sites: 020e1dc8 has 2 + 2 + 1; 020e20bc has 3 + 3 + 1. Data: data_02082214
+only. Zero new bodies were needed, so the estimate did not move.
+
+ONE THING BROKE AND WAS FIXED IN THE SAME CHANGE, AND THE FIRST FIX FOR IT WAS
+WRONG. src/func_ov006_020e285c.c is a twelve-byte ARM tail-call veneer to
+020e20bc whose src declares itself and its callee `(void)`.
+unmatched/MgCurling_StateDispatch.cpp calls it with no arguments and its header
+argues, correctly, that this is the harmless ARM ride-through class because the
+callee ignores its arguments. That stopped being true the moment 020e20bc
+became a real body.
+
+The first attempt hosted the veneer with named riders and commented its src TU
+out of port/slice_mg1.txt. THE GATE REFUSED IT: linkage fell 5831 -> 5830,
+because that TU was one of the 5831 and taking a matched TU out of the link to
+replace it with a host copy is a coverage loss however faithful the copy is.
+Reverted.
+
+What is there instead is the mechanism the port already built for this exact
+shape. MSVC compiles a one-call forwarder as a JMP, reusing the caller's own
+cdecl frame, so the two arguments the dispatch pushes are still at [esp+4] and
+[esp+8] when the collision body reads them -- the same ride func_0204f76c gives
+func_0205ac5c and roughly fifty ov007 rows depend on. The matched src TU stays
+in the link untouched, the dispatch declares 020e285c as (char *, int) and
+passes (c, a), and port/tools/tailjump_guard.py gets a CLASS C row that fails
+the build if MSVC ever emits a call there. The dispatch header carries the
+amendment.
+
+---- HOW THE FIX WAS PROVED, AND WHAT THE PROOF DOES NOT COVER ----------------
+
+A curling shot is reachable from the scripted stylus, and this is the recipe,
+written down because getting there took four tries:
+
+  walk_window.exe with
+    SM64DS_SCENE=374  SM64DS_SCENE_WINDOW=1  SM64DS_SCENE_FRAMES=<n>
+    SM64DS_MG_CURLING_TRACE=1
+    SM64DS_CLICK_TEST="256,724>256,584@100-119[,256,724>256,584@620-639]"
+
+  * The window is STACKED 512x768, so client (2x, 384+2y) is DS pixel (x,y).
+    Client (256,724) is DS (128,170) and (256,584) is DS (128,100).
+  * A TAP IS NOT ENOUGH AND A SLOW DRAG IS NOT EITHER. The shot handler
+    src/func_ov006_020e2c08.c fires only while the cursor is within +-0x2e of
+    the shell on axis A and +-0x14 on axis B. A shell is placed at (128,128)
+    and src/func_ov006_020e2dbc.c parks the cursor at (128,176) when it places
+    one, which is 48 out on axis B -- refused. The aim state clamps the cursor
+    to B >= 148 (0x94000), and 148 - 128 = 20 = 0x14 exactly, so the shot fires
+    ONLY with the cursor driven to its own clamp floor. Twenty frames of drag
+    gets there; fourteen does not, because the state's dead zone throws away any
+    frame that moved one pixel or less.
+  * THE SECOND SHOT HAS TO WAIT OUT A FREEZE. When every shell stops,
+    src/func_ov006_020e3078.cpp writes 0xc0 to +0x4ee2 and returns early for
+    the next 192 frames. A tap inside that window is swallowed whole -- two
+    attempts at frames 300 and 420 looked like input failures and were not.
+    Frame 620 is clear.
+
+The census the proof reads is new and is in hal/scene_mg.cpp, gated on
+SM64DS_MG_CURLING_TRACE so an ordinary run and every selftest frame are
+unaffected. It prints the cursor, the class sub-state, and all five shells.
+
+MEASUREMENT, CONTROL FIRST. One shot, one shell on the board, nothing to hit:
+
+    [scene] curling cursor: A 128 B 176  substate 0  nextShell 2 placePending 0
+    [scene] shell 0: onBoard 1 state 2 fast 0  posA 128 posB -75  speed 0 heading 0xc000
+    [scene] shell 1: onBoard 1 state 0 fast 0  posA 128 posB 128  speed 0 heading 0x0000
+    [scene] curling collision: shot separation 0x020e1dc8 entered 1 time(s), shell-vs-shell 0x020e20bc entered 297 time(s)
+
+  The shell leaves (128,128), runs down axis B and stops at -75. That is the
+  free-travel distance for this exact shot.
+
+TWO SHOTS, THE SECOND FIRED IDENTICALLY INTO THE FIRST:
+
+    [scene] shell 0: onBoard 1 state 2 fast 0  posA 128 posB -93  speed 0 heading 0xc000
+    [scene] shell 1: onBoard 1 state 2 fast 0  posA 128 posB -51  speed 0 heading 0x0000
+    [scene] shell 2: onBoard 1 state 0 fast 0  posA 128 posB 128  speed 0 heading 0x0000
+    [scene] curling collision: shot separation 0x020e1dc8 entered 2 time(s), shell-vs-shell 0x020e20bc entered 681 time(s)
+
+  Shell 1 was fired with the same drag from the same place along the same
+  heading as shell 0, and STOPPED AT -51 instead of -75: twenty-four units
+  short of where an unobstructed shell ends up. Shell 0 did not stay at -75
+  either; it was knocked on to -93. The eighteen units shell 0 gained and the
+  twenty-four shell 1 lost are the momentum transfer, and the two finish 42
+  apart rather than stacked. Before this change shell 1 would have coasted
+  through shell 0 to -75 and the two would have ended in the same place.
+
+  Shell 2 is the game placing the next shell after shot two, which is
+  src/func_ov006_020e2dbc.c doing its ordinary job and is not part of the claim.
+
+WHAT THE PROOF DOES NOT COVER, STATED PLAINLY:
+
+  * NO FRAME WAS LOOKED AT for the collision. The claim above is entirely about
+    twenty numbers in the shell array. Somebody should watch two shells hit
+    each other on screen before this is called done to the owner's standard.
+  * The clack (func_02012718 with id 0xe8) was not heard, only reached. It is
+    on the path both bodies take and the entry counts prove the path ran.
+  * THE SELFTEST CANNOT REACH THIS AT ALL. A bare scene-374 run puts exactly
+    one shell on the board and never moves it, so the battery's scene row
+    exercises neither body -- the census reads "0 time(s), 0 time(s)" without
+    the scripted stylus. That is why this defect survived every green gate the
+    port has run, and it is worth someone's time to decide whether a scripted
+    curling row belongs in the battery.
+
+
+================================================================================
+2. THE SOUND COMMANDS.  FIXED -- AND THEY ARE NOT THE MUSIC.
+================================================================================
+
+WHAT THE LOG SAID:
+    [snd] command 0x04 parameter 0x0a not implemented -- ignored
+    [snd] command 0x04 parameter 0x0c not implemented -- ignored
+
+WHAT THEY ARE. Command 0x04 is TRACK_PARAM and it has exactly ONE emitter in
+the whole decomp: src/func_0205a8f0.c, a one-liner. Five matched TUs call it
+and each pins one parameter to one constant, which is the entire vocabulary:
+
+    func_0205ac5c  param 0x19  size 1
+    func_0205ac84  param 0x1a  size 1
+    func_0205acac  param 0x09  size 1   pan        (was already hosted)
+    func_0205acfc  param 0x0a  size 2   THIS LANE
+    func_0205acd4  param 0x0c  size 2   THIS LANE
+
+  0x0a IS AN ATTENUATION IN TENTHS OF A DECIBEL. Its only ARM9 feeder,
+  src/func_0204f82c.c, does not pass a number through: it passes
+  data_02086384[idx]. That symbol is 0x100 bytes of arm9 rodata (symbols.txt
+  puts data_02086384 at 0x02086384 and the next symbol at 0x02086484) and
+  reading it out of extracted/arm9_dec.bin at base 0x02004000 gives 128 s16:
+      -723 -421 -361 -325 -300 ... -3 -3 -2 -1 -1 0
+  monotone, ending at 0, bottoming at -723. It is the NITRO volume-to-decibel
+  table. The proof it is being USED as one is that src/func_0204fafc.c builds
+  PLAYER_PARAM 6 by summing three lookups into the same array and clamping to
+  -0x2d3, which is -723. So 0x0a is player param 6's per-track twin: same
+  table, same units, same clamp, one track instead of all of them.
+
+  0x0c IS A PITCH OFFSET IN 1/64 OF A SEMITONE. Two matched callers fix the
+  scale between them. src/func_ov007_020bdbcc.c sweeps
+      -(((0x1000 - t) * 0x300) >> 12)
+  so full deflection is -0x300 = -768 units, and 768 units to the octave is
+  what port/hal/sdat/sseq.cpp's own bend arithmetic already works in.
+  src/func_02048af4.c sends (height - 0x28) * 2 from the 3D sound updater.
+
+WHERE THEY COME FROM IN CURLING. Both are sent by the 3D positional sound
+updater beside the pan the port already had -- src/func_02012860.c sends all
+three together on flag bits 1, 2 and 4 -- and curling's rolling-shell loop is a
+3D positional sound (src/func_ov006_020e2868.c ends by refreshing a looping
+handle through func_02012468). So what was being dropped is the shell sound's
+distance attenuation and its pitch, every frame, for every rolling shell.
+
+WHAT WAS DONE. Track volDb10 and pitch added to the sequencer's per-track
+state, applied at note start and to notes ALREADY SOUNDING (both parameters are
+re-sent every frame, which is the whole point of them), with the track mask
+honoured rather than assumed to be track 0. sd_mix_set_rate was added for the
+pitch, so a retune cannot drag the level and pan along with it, and the three
+places that recompute a sounding voice's level now go through one helper. Files:
+port/hal/sdat/sseq.cpp, mixer.cpp, consumer.cpp, sdat.h.
+
+WHY THIS IS NOT THE MUSIC, AND THE BRIEF SAID IT WAS. Three independent
+reasons, any one of which is enough:
+
+  a. A BGM layer is started by command 0x00 and nothing else. No matched TU
+     sends 0x04 for a music layer.
+  b. Both parameters are TRIMS. They adjust a sequence that is already
+     playing. Dropping them cannot stop one from starting.
+  c. The level path and the minigame path start music through THE SAME
+     FUNCTION, _ZN5Sound22LoadAndSetMusic_Layer1Ei. hal/star_flow.cpp calls it
+     for a course and src/func_ov004_020ae330.c calls it for a minigame. The
+     brief's guess that curling uses "a different player/group start variant"
+     does not survive reading either caller.
+
+REGRESSION EVIDENCE FOR THE LEVEL PATH. There is no audio gate in the battery,
+so this is the honest form of the guard rather than a green: the change adds
+two `else if` arms to a switch that previously fell through to a print, and
+touches no other opcode and no other parameter. A level boot's command stream
+is unchanged because it never sends 0x04 with 0x0a or 0x0c -- the emitters are
+the 3D updater and the ov007 pair, neither of which runs on a course boot's
+music start -- and both new setters return immediately for an inactive player.
+The full battery is green either side of the change with delta 0, which covers
+everything about the sound layer except the part nothing in this repo can
+measure yet.
+
+
+================================================================================
+3. THE LIGHT BLUE FILTER OVER THE SHADOW.  ROUTED, WITH A NAMED CANDIDATE.
+================================================================================
+
+NOT FIXED HERE, AND NOT GUESSED AT. The brief assigned this to one of the two
+ov006 bodies. Section 1 refutes that from the disassembly: both are physics and
+neither can draw. So the tint is somewhere else, and the honest output of this
+lane is a named candidate plus the evidence for it.
+
+THE CANDIDATE IS THE THIRD LOG LINE, func_0202e78c, and it is a defect
+whatever it turns out to draw:
+
+    [scene] UNMATCHED ov004/ov006 body entered: func_0202e78c
+
+  * 0x0202e78c IS NOT AN ADDRESS WITH NO SYMBOL. config/arm9/symbols.txt:1116
+    reads `_ZN2GX15DisableAllBanksEv kind:function(arm,size=0x48)
+    addr:0x0202e78c`, and src/_ZN2GX15DisableAllBanksEv.c is a matched body
+    that turns off all thirteen VRAM banks. The face's own comment ("an arm9
+    address with no config symbol at all") is simply wrong, and
+    port/mg_fanout_costs.txt:907 and port/nfs_names_map.txt:373 repeat it.
+  * So this is a NAME-SPELLING hole, not a missing body. src/func_ov004_020b2980.c
+    is a twelve-byte ov004 veneer spelling the same address func_0202e78c
+    (config/arm9/overlays/ov004/relocs.txt:526 `from:0x020b2988 kind:load
+    to:0x0202e78c module:main`), the port stubbed that spelling, and the real
+    body was never called. hal/scene_boot.cpp:1182 already aliases a THIRD
+    spelling of the same function, the MSVC-mangled one, so the tree carries
+    two working routes to it and one dead stub.
+  * WHY IT IS A PLAUSIBLE TINT. Its one caller, src/func_ov004_020b265c.c, is
+    the minigame's VRAM setup: set graphics mode, DISABLE ALL BANKS, then
+    re-assign BG/OBJ/sub-BG/sub-OBJ and decompress tiles into 0x6404000 and
+    0x6604000. Skipping the teardown leaves the previous scene's bank
+    assignments live underneath the new ones, which is exactly the shape of "a
+    layer that should be there is not".
+  * WHY THIS LANE DID NOT JUST FIX IT. Two reasons, and the second is the real
+    one. First, the brief scoped it out on the grounds that the same trap fired
+    in working sessions -- which is weak evidence (a session with no tint is
+    also a session where this fired). Second and decisively: NOBODY HAS LOOKED
+    AT A FRAME. Routing a stub to its real body is a two-line change and it is
+    the wrong two lines to make blind, because DisableAllBanks running where it
+    did not before changes what every 2D layer in the scene reads. That wants a
+    before/after capture and the owner's eye on it, which is the standing rule
+    for anything visual.
+
+THE OTHER CANDIDATE, and it is not exclusive with the first: the port's 2D unit
+has no blend hardware. port/ntr/include/ntr/ppu.h says so twice -- "the
+blend/window units are not implemented" and "No BLDCNT blending" -- and a light
+blue wash over a shadow is what a semi-transparent layer looks like. If the
+tint is a BLDCNT alpha blend it cannot appear no matter what runs, and the fix
+is in the PPU, not in ov006. Deciding between the two is one capture with the
+scene's BLDCNT/BLDALPHA writes logged, which is a small job for whoever owns
+port/ntr.
+
+RECOMMENDED NEXT STEP: capture scene 374 before and after routing func_0202e78c
+to _ZN2GX15DisableAllBanksEv, and log the scene's writes to 0x04000050..0x04000054
+in the same run. That answers both candidates at once. It is deliberately not
+done here.
+
+
+================================================================================
+4. THE MUSIC.  ROUTED, WITH A NAMED MECHANISM.
+================================================================================
+
+**SUPERSEDED 2026-08-17, run link60 review CR2. THE DIAGNOSIS BELOW IS WRONG IN
+TWO PLACES AND THE REAL BLOCKER IS ELSEWHERE. Left in full per the append-only
+house style; read this note first, then the original text as the record of a
+wrong turn.**
+
+  The corrected picture, on which the scout and reviewer CR2 agree:
+
+  * THE MUSIC START IS ALREADY DISPATCHED, through a LINKED route, and the wall
+    is not in the way of it. The chain is the fourth route below --
+    func_ov004_020b08f0 (framework slot 2, hosted and entered)
+      -> func_ov004_020ae330
+        -> _ZN5Sound22LoadAndSetMusic_Layer1Ei
+    and it runs. "Reachable only through func_ov004_020b87e0" is FALSE: that is
+    a claim about the first three TUs (020ae20c / 020ae2c8, called from the
+    unrouted 020b7124 / _020b746c / _020b77b4), and it does not generalise to
+    the music start, which reaches it by the linked slot-2 path instead.
+
+  * data_ov004_020beb68 IS NOT THE DESCRIPTOR AND ITS NULLNESS IS NOT THE GATE.
+    It is an OAM/HUD sprite pointer. The real gate in func_ov004_020ae330 is
+        if (data_0209b308 != 0x16f) return;
+    -- the early return the original text below misread as the beb68 null
+    check. So "the descriptor is null and the starter refuses itself" is the
+    wrong mechanism for the right observation (no sound commands emitted).
+
+  * THE ACTUAL BLOCKER is data_0209b308 itself: the session record is HOSTED
+    UNDERSIZED (16 bytes) against a ROM span of 0x34, and it is unseeded, so
+    the 0x16f gate never reads true. That is a hosted-global sizing bug, the
+    undersized-global class, NOT the pointer-to-member wall.
+
+  * ROUTED TO LANE MUS1, which owns the data_0209b308 sizing-and-seeding fix.
+    It is NOT the func_ov004_020b87e0 wall lane, and it is not the same twenty
+    addresses. The last paragraph of this section (the two-track-params-firing
+    observation) still stands and is still worth MUS1's attention.
+
+  Nothing in section 1, 2, 3, 5 or 6 depends on this section; the two seated
+  collision bodies and the two sound params are unaffected.
+
+--------------------------------------------------------------------------------
+ORIGINAL TEXT (SUPERSEDED, see the note above):
+
+NOT FIXED HERE. Section 2 shows the two sound parameters the brief pointed at
+are not it. The real mechanism is the one wall this tree already knows about,
+and the chain is short enough to write down in full.
+
+The minigame music start is _ZN5Sound22LoadAndSetMusic_Layer1Ei, the SAME
+function a course boot uses. Four matched TUs call it on the minigame side:
+
+    src/func_ov004_020ae20c.c   \
+    src/func_ov004_020ae2c8.cpp  }  called only from func_ov004_020b7124,
+                                 }  func_ov004_020b746c, func_ov004_020b77b4
+    src/func_ov004_020ae330.c   -- called from func_ov004_020b08f0
+    src/func_ov006_0211c5d0.c   -- a different minigame
+
+THE FIRST THREE HAVE NO CALLER IN src/ AT ALL. Nothing in the decomp reaches
+func_ov004_020b7124, _020b746c or _020b77b4 by name; they are reachable only
+through a member-pointer dispatch. That dispatch is dScMgBase_c's state setter,
+func_ov004_020b87e0, which is THE WALL -- still a reporting trap in
+hal/scene_mg_faces.cpp, and unmatched/MgBase_StateDispatch.cpp's section 4 says
+in as many words that it "needs its twenty addresses routed ... and that is a
+lane of its own". The twenty addresses were read out of ov004 for this note
+(pairs at data_ov004_020bc92c..020bca3c, base 0x020ad660, every adjustment
+zero) and run 0x020b6c10 through 0x020b8688: the framework's whole shell --
+intro, countdown, play, results -- is behind that one setter.
+
+THE FOURTH ROUTE IS REACHABLE AND WAS MEASURED. func_ov004_020b08f0 is hosted
+as framework slot 2 in hal/scene_mg.cpp and a scene-374 run reports it entered
+once. It calls func_ov004_020ae330, which opens with
+
+    if (data_ov004_020beb68 == 0) return;
+
+and a 600-frame scene-374 run with SM64DS_SND_TRACE=1 emits ZERO sound commands
+of any opcode -- not a START_SEQ, not a track param, nothing. So on the selftest
+path the descriptor is null and the one reachable music start refuses itself
+before it sends anything. src/func_ov004_020b2adc.c:37 is the only writer of
+that global.
+
+SO THE MUSIC HAS TWO POSSIBLE MECHANISMS AND THIS LANE COULD NOT SEPARATE THEM:
+either the framework never reaches the states that start the music (the wall),
+or data_ov004_020beb68 is null when the one reachable starter runs. Both are
+ov004 framework problems, both are well past the "three new bodies" ceiling
+this lane was given, and neither is a curling problem. ROUTED to whoever takes
+the func_ov004_020b87e0 lane -- it is the same twenty addresses either way.
+
+WHAT THE OWNER'S SESSION ADDS, and it is worth the next lane's attention: his
+log DOES show the two track params firing, so on the kit's real boot the sound
+system is live and 3D sound effects are being updated. That is a stronger start
+than the selftest gives, and it means the next lane should reproduce from the
+kit's boot path and not from SM64DS_SCENE=374.
+
+
+================================================================================
+5. THE FRAME EVIDENCE
+================================================================================
+
+NOTHING THIS LANE TOUCHES IS ON A DRAW PATH, so every rendered frame must come
+out byte-identical, and section 3 depends on that being checked rather than
+assumed: a tint routed rather than fixed is a claim that the picture did not
+change.
+
+THE .dsstate BASE MOVED, WHICH IS WHY THE PAD RECIPE WAS RUN. Three builds, the
+span from tools/dsstate_guard.py at link time, the base from the same line:
+
+    build                       .dsstate base   span
+    base 5752bf74d              0xbb5000        959392
+    base + 8 KB inert .data     0xbb7000        959392
+    this lane's tip             0xbb7000        959392
+
+The span is IDENTICAL across all three, which is the half of
+notes/port-selftest-bmp-gate.md's rule that an equal base does not cover. It is
+identical for a structural reason and not by luck: nothing this lane adds is
+inside a DSSTATE bracket. hal/sdat/sound_bss.cpp is the only bracketed file in
+the sound directory and it was not touched; the sequencer's per-track fields
+and the census pointer in hal/scene_mg.cpp are ordinary host statics outside
+the section.
+
+BMPs, MD5, same fixed recipe on each build -- the four smoke captures plus
+walk_window level 1 at SM64DS_WINDOW_SELFTEST=300:
+
+    smoke_anim.bmp            0c0288f29c9f7dae6d83d9363c00ad93
+    smoke_gx.bmp              1b11ed016e4f89b0624016a8330730eb
+    smoke_model.bmp           93f30803e8dc160f065d66049111a923
+    smoke_oam.bmp             d2834647b3eb328ff1924dda77a0d132
+    walk_window_selftest.bmp  5b783a29d753ce4dfbd35c79a7b2850f
+
+IDENTICAL ON ALL THREE BUILDS. Byte-identical at the equal base, which is the
+comparison with meaning, and byte-identical at the unequal base too, so the pad
+had nothing to explain in the end. It was run anyway because the rule says an
+unequal base makes the comparison silent, not because a difference showed up.
+
+SCENE 374's OWN CAPTURE, at the equal base, 300 frames:
+
+    _tip374.bmp   12a97fbf4fe0c12573dbf8a56eb32aed   == base
+    _tip374s.bmp  cf12486def75c64b162b9bee2c9f0bce   == base   (stacked)
+
+UNCHANGED, AND THAT IS THE RESULT THIS LANE WANTED. The brief warned the
+scene-374 frame might legitimately move if the tint pass started drawing. It
+did not move, which is the correct outcome for a lane that seats two physics
+bodies and routes the tint: if this frame HAD changed, something in the seat
+was touching rendering and the change would need explaining. There is nothing
+for the owner to judge here. When somebody takes the tint, this pair of hashes
+is the before.
+
+THE TAIL JUMP IS CHECKED, NOT ASSUMED. port/tools/tailjump_guard.py runs over
+every map on every build and now reports
+
+    tailjump_guard: 35 frames (7 A, 8 C, 22 veneer derived, 2 overlap),
+                    97 assertions over 21 map(s) ... forms OK
+
+-- 8 class-C rows where the base had 7, and the new one is
+func_ov006_020e285c -> func_ov006_020e20bc. That green is the statement that
+MSVC really did emit the jmp, so the two arguments really do ride the frame.
+
+
+================================================================================
+6. GATE
+================================================================================
+
+Baseline, at 5752bf74d, clean tree, recorded with --record:
+    linked 5831 / 11250 (51.8%), unlinked 5419
+    battery ALL GREEN, skips []
+    verdict GREEN
+Tip:
+    linked 5831 / 11250 (51.8%), unlinked 5419   delta 0 / 0 / 0
+    battery ALL GREEN, skips []
+    verdict GREEN
+
+The linkage numbers do not move and must not: nothing here seats a src TU and
+nothing here removes one. The intermediate state that DID move them is written
+up in section 1 and is the reason the tail-jump row exists.
+
+THE BATTERY FLAKED TWICE AND IT IS WORTH RECORDING, because a lane that reads
+one red and stops has thrown away a green it earned, and a lane that reads one
+red and re-runs until it goes green has learned nothing. Two consecutive gate
+runs off this identical tree failed on DIFFERENT levels -- 39, then 1 -- and
+both levels passed standalone immediately afterwards with rc 0 and their normal
+end-of-run position line. A code regression does not move between levels. The
+battery was then run on its own and came back ALL GREEN, and the gate after it
+came back GREEN, which is the run quoted above. Recorded rather than swept up:
+whoever sees a single-level red on this box next should re-run the level alone
+before believing it, and should also know that this lane's own scripted-stylus
+runs were driving the real mouse on the same desktop.

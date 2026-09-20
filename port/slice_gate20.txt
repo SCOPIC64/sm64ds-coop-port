@@ -1,0 +1,76 @@
+# Gate 20: the two ov002 classes the castle grounds still names.
+#
+# EXIT (349) x4 and WATERFALL_MIST (197) x7. Both live in ov002, which has
+# been mounted per symbol since gate 14, so this gate adds no overlay: two
+# SpawnInfo records in port/ov002_syms.txt and the code below.
+#
+# THE CONFIG'S NAMES ARE SHIFTED IN ov002 TOO, and in the opposite direction
+# from ov009's. There the factory names were right and the method names were
+# the neighbour's; here it is the *_SpawnInfo names that are right. Each
+# factory's own literal pool names the vtable it installs, and the ROM's RTTI
+# names that vtable from the other side:
+#
+#   Exit_Spawn          0x020b0f24 -> _ZTV11VirtualDoor        = 0x021086b4,
+#                                     RTTI 11daChScene_c -- "change scene",
+#                                     which is what an exit is
+#   WaterfallMist_Spawn 0x020b6ee8 -> _ZTV18PoppingLavaBubbles = 0x021094a0,
+#                                     RTTI 16daObjWaterfall_c
+#
+# So the bodies these two classes are built from are spelled with the
+# NEIGHBOUR'S class name. The port uses the files the vtables point at and
+# renames nothing, exactly as gate 17 did for CastleWater/METAL_NET.
+
+# ---- EXIT (actor 349, ov002) x4 -------------------------------------------
+# The four level-transition trigger volumes: the castle's front door, the
+# two side doors and the basement. No model and no collider -- Render returns
+# 1 without drawing. InitResources builds an oriented box out of the spawn
+# record (its low two nibbles are the box's half-width and height in 100-unit
+# steps) and inverts the actor's own matrix so Behavior can test the Player
+# in the box's local frame; Behavior then watches for him to cross the near
+# plane and hands off to the fader.
+#
+# NOTHING TRIGGERS ON THE GROUNDS AS THE PORT BOOTS. Behavior's whole body is
+# behind `data_02092110 < 0` -- the pending-entrance slot, which the level
+# boot leaves non-negative until an entrance has been consumed -- so the four
+# exits sit in the lists and measure distances. That is the ROM's own gate,
+# not a port guard, and it is why the walk does not fall through the castle
+# door into a level the port cannot load.
+src/Exit_Spawn.c
+src/_ZN11VirtualDoor13InitResourcesEv.cpp
+src/_ZN11VirtualDoor8BehaviorEv.cpp
+src/_ZN11VirtualDoor6RenderEv.c
+src/_ZN11VirtualDoor16CleanupResourcesEv.c
+src/_ZN11VirtualDoor16OnPendingDestroyEv.c
+
+# ---- WATERFALL_MIST (actor 197, ov002) x7 ---------------------------------
+# The moat's waterfall spray. These are NOT in the level's object tables:
+# CASTLE_WATER's own InitResources (func_ov009_02111c74, gate 17) ends by
+# calling func_ov009_02111b1c, which spawns seven of them along one of three
+# seven-element Vector3 arrays in ov009 -- which array depends on the save.
+# Seven skips in the census was that call, and this is what it was asking for.
+#
+# The class is three slots of its own and nothing else: InitResources picks a
+# particle id from the level (0x24 on the castle grounds), Behavior hands that
+# id to Particle::System::New every frame, and slots 3/9/12 are ActorBase's
+# own. It has no model, so its Render is ActorBase's do-nothing one.
+#
+# IT WILL NOT DRAW YET, and that is a pre-existing HAL condition rather than
+# anything about this class: Particle::System::New is still the no-op in
+# hal/reverse_bridges.cpp (the particle manager is not seated), so the seven
+# actors spawn, sit at the ROM's own positions and tick their Behavior into a
+# stub. Every one of their eighteen vtable slots is matched src; the day the
+# particle subsystem is hosted they start spraying with no change here.
+src/WaterfallMist_Spawn.c
+src/_ZN18PoppingLavaBubbles13InitResourcesEv.cpp
+src/_ZN18PoppingLavaBubbles8BehaviorEv.cpp
+
+# --- linkloop round 0 ---
+# ActorBase's own slot 3 and slot 9 -- the do-nothing bases the mist inherits.
+# No class the port carried before gate 20 left either slot unoverridden, so
+# this is the first time either body is compiled.
+src/_ZN9ActorBase16CleanupResourcesEv.cpp
+src/_ZN9ActorBase6RenderEv.cpp
+# The exit's hand-off: 020b0a0c is the LoadLevel call its Behavior makes once
+# the Player has crossed, and LookAtExit is the camera move that precedes it.
+src/func_ov002_020b0a0c.c
+src/_ZN6Camera10LookAtExitER5Actor.cpp

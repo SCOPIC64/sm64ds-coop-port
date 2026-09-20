@@ -1,0 +1,39 @@
+# Gate 71: FIRE_PIRANHA_PLANT (actor 253, ov084), Whomp's Fortress.
+#
+# THE ov015 NAME SHIFT: FirePiranhaPlant_SpawnInfo's +4 halfword is 253 and
+# FirePiranhaPlant_Spawn is its factory, but that factory installs
+# _ZTV19FirePiranhaPlantBig (ov084 0x02130b28), so an id-253 object runs the
+# FirePiranhaPlantBig class. Wired by the vtable the factory installs, read out
+# of relocs.txt, not the class name the config carries. RTTI daFPkn_c.
+#
+# ov084 has been mounted since gate 32 (GOOMBA/BOB_OMB_BUDDY). A 31-slot Enemy
+# table; its Behavior is a straight switch on mState, no pointer-to-member. Only
+# its Render is a host copy (the ModelAnim slot-5 case,
+# port/unmatched/PiranhaPlant_States.cpp).
+src/FirePiranhaPlant_Spawn.c
+src/_ZN19FirePiranhaPlantBig13InitResourcesEv.cpp
+src/_ZN19FirePiranhaPlantBig8BehaviorEv.cpp
+# _ZN19FirePiranhaPlantBig6RenderEv IS NOT HERE: the ModelAnim slot-5 case.
+# port/unmatched/PiranhaPlant_States.cpp.
+src/_ZN19FirePiranhaPlantBig16CleanupResourcesEv.cpp
+src/_ZN19FirePiranhaPlantBigD1Ev.c
+src/_ZN19FirePiranhaPlantBigD0Ev.c
+# slots 18 (OnYoshiTryEat), 19 (OnTurnIntoEgg) and 29 (OnAimedAtWithEgg)
+src/func_ov084_0212e9f8.cpp
+src/func_ov084_0212e9d4.cpp
+src/func_ov084_0212e998.c
+# the fire piranha's own closure: the four states its switch dispatches, the
+# fireball spit and the shared helpers
+src/func_ov084_0212e4e0.c
+src/func_ov084_0212e010.cpp
+src/func_ov084_0212ddbc.c
+src/func_ov084_0212dc30.c
+src/func_ov084_0212d86c.c
+src/func_ov084_0212d564.cpp
+src/func_ov084_0212d560.c
+src/func_ov084_0212d42c.c
+src/func_ov084_0212d2dc.c
+src/func_ov084_0212ec04.c
+# Actor::SpawnFireball, which the fire piranha's spit state calls -- its only
+# leaf is Actor::Spawn, already in the build
+src/_ZN5Actor13SpawnFireballERK7Vector3PK10Vector3_165Fix12IiES7_j.c

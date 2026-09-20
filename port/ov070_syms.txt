@@ -1,0 +1,170 @@
+# run linkw wave 5 (lane w5-c): ov070's ENEMY PACK, per symbol.
+#
+# ov070 is an ACTOR overlay (base 0x0211f000, overlays.yaml; it shares that
+# load window with ov071/ov073/ov074, the census's measured caution) carrying
+# FOUR classes -- FlyGuy (232), Amp (266), FlameChomp (270) and FlameChompFire
+# (271). Level 37 places Amp x2 and FlameChomp x1; FlameChompFire is spawned at
+# run time by the chomp.
+#
+# FLYGUY'S ROW IS ON NOW (lane w3-d), and the sentence that used to sit here --
+# "FlyGuy's levels are unmounted, so its registry row is OFF" -- was true when
+# it was written and is not any more. Level 19's baseline census on cons
+# cc10acd4e reads "[spawn] actor 0xe8 not registered, skipped", and 0xe8 is 232:
+# Snowman's Land places FlyGuy and the level is mounted. This file predicted the
+# rest of it exactly -- "a future FlyGuy row then needs only a row and a fill" --
+# because the vtable was already left out as host storage and the seat already
+# rewrote all twelve of FlyGuy's PMF sources with host addresses.
+#
+# ONE THING THAT NOTE DID NOT COVER: FlyGuy_SpawnInfo (0x02123144) was NOT in
+# the mount, so the row had nothing to point at. It is added below in the
+# siblings' own shape -- the two data symbols ahead of it plus the record --
+# and it needs no size pin for the reason theirs do not: ovdata.py sizes off
+# next-SYMBOL deltas out of symbols.txt, and the next symbol is _ZTV6FlyGuy at
+# 0x02123168, giving the same 0x24 the three sibling records get.
+#
+# This is the per-symbol mount (the gate-83/gate-50/gate-176 shape): the
+# classes reach their SpawnInfo records, SharedFilePtr statics, dtor-chain
+# nodes, state PMF arrays and file tables BY NAME. --pack keeps the runs at
+# the ROM's own spacing.
+#
+# ==== WINDOW-ALIAS CHECK (the gate-199/202 rule) ============================
+# The three registered SpawnInfo records were read as raw bytes out of
+# extracted/overlays/overlay_0070.bin (base 0x0211f000; the probe rule --
+# never the dsd export):
+#   0x02123254 word[0]=0x021210ac Amp_Spawn             word[1]&0xffff=266
+#   0x0212334c word[0]=0x02121af8 FlameChomp_Spawn      word[1]&0xffff=270
+#   0x02123424 word[0]=0x021221fc FlameChompFire_Spawn  word[1]&0xffff=271
+# Every spawn word lands inside ov070 itself and every id matches the arm9
+# spawn-table slot it was reached from (0x02090864 + id*4). NO NAMING SHIFT in
+# this overlay, checked class by class: each *_Spawn's literal pool stores the
+# vtable adjacent to its own SpawnInfo, and every own slot of all four tables
+# stays inside its own class's code -- 33 own slots measured, 28 in
+# class-named TUs and 5 in address-named TUs of the same class, zero
+# cross-class (delinks.txt, class by class). ov045's shift is ov045's, not
+# a law of dsd.
+#
+# ==== FOUR SYMBOLS LEFT OUT =================================================
+# The four vtables are HOST ARRAYS hal/actor_classes_ov070.cpp fills (the
+# ov095/ov080 rule -- a mounted vtable hands a factory DS code addresses):
+#   0x02123168..0x021231e4  _ZTV6FlyGuy         == _ZTV19daPropeller_Heyho_c
+#                           (+ dsd splits data_ov070_02123184 / _021231a0)
+#   0x02123278..0x021232f4  _ZTV3Amp            == _ZTV7daBrq_c
+#   0x02123370..0x021233ec  _ZTV10FlameChomp    == _ZTV8daKrpa_c
+#   0x02123448..0x021234c4  _ZTV14FlameChompFire == _ZTV8daKpFr_c
+# All four are 31 slots (each span pinned by the next dsd symbol and by the
+# reloc run ending at slot 30). _ZTV6FlyGuy is defined as zeroed host storage
+# (FlyGuy_Spawn names it and the slice carries that TU's callers) but NOT
+# filled -- the class is unregistered, so a fill would be dead words and a
+# filled-looking table on a class the census must keep declining.
+# The .init bodies and dsd's ".p__sinit_*" .ctor words stay out as always;
+# all four __sinit_ov070_* are FUNCTIONS and all four link as slice TUs (the
+# ov045 collision was swept for here: each sinit name is referenced by its own
+# defining TU and nothing else, src-wide).
+#
+# ==== THE STATE PMFs HOLD DS CODE ADDRESSES (the Scuttlebug treatment) ======
+# The four sinits copy 8-byte {fn, 0} source records out of .data into the
+# live bss state arrays:
+#   FlyGuy      12 sources 0x021230c0..0x0212311f -> six [2] arrays
+#               0x0212358c/9c/ac/bc/cc/dc
+#   Amp          6 sources 0x0212320c..0x0212323b -> data_ov070_02123668
+#   FlameChomp   8 sources 0x021232f4..0x02123333 -> data_ov070_021236ac[8]
+#   FlameChompFire 4 sources 0x021233ec..0x0212340b -> data_ov070_021236ec[4]
+# Every source fn word relocates to an ov070 function that IS a matched src TU
+# (relocs.txt, all 30 checked). The seat (ov70_seat_state_pmfs in
+# hal/actor_classes_ov070.cpp) rewrites each source's fn word with its host
+# body BEFORE the sinits copy -- the Scuttlebug/MontyMole/Crate recipe. All
+# 30 are rewritten, FlyGuy's included: the ROM's arrays hold those bodies'
+# DS addresses, the host arrays hold the same bodies' host addresses, and a
+# future FlyGuy row then needs only a row and a fill.
+#
+# ==== SIZES =================================================================
+# Everything below sizes correctly off the next-symbol delta except the LAST
+# bss symbol: data_ov070_021236ec is FlameChompFire's 4-record state array
+# (4 x 8 = 0x20, the sinit's own copy count), and the delta rule would give it
+# the 4-byte floor. Pinned. bss runs to 0x02123720 (delinks.txt), so the pin
+# stays inside the overlay's own span with 0x14 to spare.
+
+# ---- .rodata ---------------------------------------------------------------
+# 021222e0/021222e8: FlameChomp Behavior's fix tables; 02122404: Amp's.
+data_ov070_021222e0 data_ov070_021222e8 data_ov070_02122404
+# A symmetric Fix12 curve, sized because dsd guessed a boundary exactly on its
+# APEX (0x2800) -- the point where the byte pattern reverses, so the 35 words
+# after the cut mirror the 35 before it. The real end is the .rodata end
+# 0x02122afc, where __sinit_ov070_02122afc begins; data_ov070_021234c4 + 0x10
+# is the word that points at it.
+#
+# SIDE EFFECT, and it needs a second line to close. Naming it takes 0x02122968
+# out of the discovered-target set, so port_ov070_gap_02122594 shrinks
+# 0x4d8 -> 0x304 and ROM [0x02122898, 0x02122968) -- 208 bytes -- stops being
+# hosted. An earlier draft of this banner called that an acceptable trade
+# because nothing reaches the dropped span. THAT WAS THE WRONG STANDARD: a
+# hosted interval that stops being hosted is the same defect this file is
+# fixing, whoever reads it. The measure is an interval diff, not a byte total.
+#
+# The dropped span is inside a run of 171 constant 0x1000 words spanning
+# [0x021226bc, 0x02122968), and that run has a real non-ambiguous symbol at
+# 0x021227d8 -- the first of the four .rodata pointers in the record at
+# 0x021234c4. Sizing that symbol to the curve's start closes the hole with a
+# handle that is a reloc target rather than a dsd guess:
+# 0x02122968 - 0x021227d8 = 0x190, 100 words, every one of them 0x1000.
+# Closing that one moved the gap's end back to the ambiguous guess at
+# 0x0212279c, dropping [0x0212279c, 0x021227d8). Same answer one step further
+# back: 0x021226bc is the other real reloc-target symbol in the constant run
+# (the first .rodata pointer of the record at 0x021234dc), and 0x11c takes it
+# to 0x021227d8. With both lines the gap now ends on a named symbol and the
+# cascade stops -- everything below 0x021226bc is real symbol to real symbol
+# with no ambiguous cut between, so dsd's own deltas already size it.
+data_ov070_02122968:0x194
+data_ov070_021227d8:0x190
+data_ov070_021226bc:0x11c
+
+# ---- .data: the 30 state PMF sources (each 8 bytes, {fn, 0}) ---------------
+data_ov070_021230c0 data_ov070_021230c8 data_ov070_021230d0
+data_ov070_021230d8 data_ov070_021230e0 data_ov070_021230e8
+data_ov070_021230f0 data_ov070_021230f8 data_ov070_02123100
+data_ov070_02123108 data_ov070_02123110 data_ov070_02123118
+data_ov070_0212320c data_ov070_02123214 data_ov070_0212321c
+data_ov070_02123224 data_ov070_0212322c data_ov070_02123234
+data_ov070_021232f4 data_ov070_021232fc data_ov070_02123304
+data_ov070_0212330c data_ov070_02123314 data_ov070_0212331c
+data_ov070_02123324 data_ov070_0212332c
+data_ov070_021233ec data_ov070_021233f4 data_ov070_021233fc
+data_ov070_02123404
+
+# ---- .data: file tables, the BTA, and the SpawnInfo records ----------------
+# data_ov070_021231f4 is the BTA_File Amp's TextureSequence binds
+# (func_ov070_02120bf8); 021234c4 is the BCA table FlameChomp's Kill anim
+# reads; 021234dc is FlameChompFire's. data_ov070_02123248 / _02123340 /
+# _02123418 are the RTTI records each SpawnInfo's +0x20 word points at
+# ({typeinfo-vt, name, base}, 0xc each) and 0212323c / 02123334 / 0212340c
+# the name strings their middle words point at ("7daBrq_c" and kin) --
+# mounted so the pointer pass can rebase the whole chain (the ov045 recipe).
+# Each SpawnInfo sizes to 0x24 by delta, ending exactly on its excluded
+# vtable.
+data_ov070_021231f4
+data_ov070_02123120 data_ov070_0212312c FlyGuy_SpawnInfo
+data_ov070_0212323c data_ov070_02123248 Amp_SpawnInfo
+data_ov070_02123334 data_ov070_02123340 FlameChomp_SpawnInfo
+data_ov070_0212340c data_ov070_02123418 FlameChompFire_SpawnInfo
+data_ov070_021234c4 data_ov070_021234dc
+
+# ---- .bss: FlyGuy's SharedFilePtrs (model 0x411, anims 0x412..0x417),
+# their chain nodes, and the six state PMF pair arrays ----------------------
+data_ov070_02123500 data_ov070_02123508 data_ov070_02123510
+data_ov070_02123518 data_ov070_02123520 data_ov070_02123528
+data_ov070_02123530 data_ov070_02123538 data_ov070_02123544
+data_ov070_02123550 data_ov070_0212355c data_ov070_02123568
+data_ov070_02123574 data_ov070_02123580
+data_ov070_0212358c data_ov070_0212359c data_ov070_021235ac
+data_ov070_021235bc data_ov070_021235cc data_ov070_021235dc
+
+# ---- .bss: Amp's (models 0x2b1/0x2b3, anim 0x2b2/0x2b5, texseq 0x2b4,
+# the {0,-0x28000,0} vector and its chain node), then FlameChomp's (model
+# 0x351) and the two chomp state arrays --------------------------------------
+data_ov070_021235ec data_ov070_021235f4 data_ov070_021235fc
+data_ov070_02123604 data_ov070_0212360c data_ov070_02123614
+data_ov070_02123620 data_ov070_0212362c data_ov070_02123638
+data_ov070_02123644 data_ov070_02123650 data_ov070_0212365c
+data_ov070_02123668
+data_ov070_02123698 data_ov070_021236a0 data_ov070_021236ac
+data_ov070_021236ec:0x20
