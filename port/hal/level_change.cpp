@@ -147,6 +147,9 @@ int  port_quarantine_is_frozen(void *actor);  /* same TU: is this actor frozen?
    tail of the teardown needs both -- see the scene-tree pass there. */
 int   func_0203b3c0(void *list, void *node);
 void *func_0203b394(void *node);
+/* hal/actor_vtables.cpp: how many spawns func_0203b438 refused to link into
+   the scene tree (a parentless spawn into an already-rooted tree). */
+int   port_tree_link_refusals(void);
 void port_actor_scene_pass(void);
 void *port_stage_object(void);
 void *port_stage_a_boot(void *mc, int spawn);
@@ -184,6 +187,10 @@ extern void *data_0209f318;          /* the Camera */
 extern unsigned char data_0209f2c4;  /* the input/VS-timer suppress flag */
 
 extern int data_020a4b6c[];   /* scene tree     {head, cb, 0} */
+/* the spawn parent ActorDerived::Spawn hands func_02043098 for every actor a
+   level loads: on the ROM the Stage, written by Scene::ResetFadersAndSound
+   (_ZTV5Stage slot 1) on every entry. hal/actor_vtables.cpp defines it. */
+extern int data_0209f5c0[];
 extern int data_020a4b78[];   /* behaviour list {head, tail, cb, 0} */
 extern int data_020a4b88[];   /* pending list */
 extern int data_020a4b98[];   /* render list */
@@ -336,6 +343,49 @@ static int port_level_live_count(void)
    the Stage. Two runs of the same cycle have to produce the same number, and
    an actor that survives a teardown shows up here as the count going up. */
 extern "C" int port_actor_live_count(void) { return port_level_live_count(); }
+
+/* THE SCENE TREE'S OWN CENSUS, and it is the one number the teardown never
+   printed. The banner above port_level_live_count says the phase-1 scene pass
+   (func_02043880) is what moves a marked actor onto the cleanup list, so an
+   actor that is marked and never destroyed is first of all an actor that pass
+   never reached. Three things can put it out of reach and the three look
+   identical from the behaviour list: the tree's callback word cleared (then
+   func_020441cc walks nobody), the tree's head cleared, or the actor linked
+   under a parent that is no longer in the tree (then the pre-order walk from
+   the head simply never arrives at it).
+
+   So this walks the tree exactly as func_020441cc does -- head at
+   data_020a4b6c[0], successor from func_0203b394, owner at node[4] -- and
+   answers how many nodes it reaches, how many of those own a live actor, and
+   whether a named actor is among them. Printed only under SM64DS_TRACE_LEVEL;
+   it reads and writes nothing. */
+static int port_level_tree_count(int *reached_actors)
+{
+    int n = 0, owners = 0, guard = 0;
+    for (int *nd = (int *)(size_t)data_020a4b6c[0];
+         nd && guard < 8192; nd = (int *)func_0203b394(nd), ++guard) {
+        ++n;
+        if (nd[4])
+            ++owners;
+    }
+    if (reached_actors)
+        *reached_actors = owners;
+    return n;
+}
+
+/* Is this actor's SceneNode (actor+0x14) reachable from the tree head? */
+static int port_level_tree_holds(void *actor)
+{
+    if (!actor)
+        return 0;
+    void *want = (char *)actor + 0x14;
+    int guard = 0;
+    for (int *nd = (int *)(size_t)data_020a4b6c[0];
+         nd && guard < 8192; nd = (int *)func_0203b394(nd), ++guard)
+        if ((void *)nd == want)
+            return 1;
+    return 0;
+}
 
 static int port_level_mark_all(void)
 {
@@ -589,6 +639,47 @@ extern "C" int port_level_teardown(void)
 {
     const int trace = std::getenv("SM64DS_TRACE_LEVEL") != 0;
     int rounds = 0;
+    if (trace) {
+        int owners = 0;
+        const int nodes = port_level_tree_count(&owners);
+        void *first = 0;
+        for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+             node = (int *)(size_t)node[1])
+            if (node[2] && (void *)(size_t)node[2] != port_stage_object()) {
+                first = (void *)(size_t)node[2];
+                break;
+            }
+        void *stage = port_stage_object();
+        std::printf("  [lvl] teardown entry: %d live | scene tree head %p cb "
+                    "%p, %d node(s), %d owned | first live actor %p %s in the "
+                    "tree | %d spawn(s) refused by the tree this session\n",
+                    port_level_live_count(),
+                    (void *)(size_t)data_020a4b6c[0],
+                    (void *)(size_t)data_020a4b6c[1], nodes, owners, first,
+                    port_level_tree_holds(first) ? "IS" : "is NOT",
+                    port_tree_link_refusals());
+        /* SceneNode is {parent, firstChild, prevSibling, nextSibling, owner}
+           (src/func_0203b438.c). Whether the subtree is orphaned at the TOP
+           (the Stage's firstChild cleared) or at the BOTTOM (the actors
+           pointing at a parent that is not the Stage) are two different bugs
+           that look identical from the node count, so print both words. */
+        if (stage)
+            std::printf("  [lvl] teardown entry: Stage %p node %p "
+                        "{parent %p, firstChild %p, nextSibling %p}\n", stage,
+                        (void *)((char *)stage + 0x14),
+                        *(void **)((char *)stage + 0x14),
+                        *(void **)((char *)stage + 0x18),
+                        *(void **)((char *)stage + 0x20));
+        if (first)
+            std::printf("  [lvl] teardown entry: actor %p node %p "
+                        "{parent %p%s, firstChild %p, nextSibling %p}\n", first,
+                        (void *)((char *)first + 0x14),
+                        *(void **)((char *)first + 0x14),
+                        (stage && *(void **)((char *)first + 0x14) ==
+                         (void *)((char *)stage + 0x14)) ? " = THE STAGE" : "",
+                        *(void **)((char *)first + 0x18),
+                        *(void **)((char *)first + 0x20));
+    }
     for (; rounds < 16; ++rounds) {
         int marked = port_level_mark_all();
         /* phase 1 moves the marked onto the cleanup list, phase 4 runs it */
@@ -1336,6 +1427,25 @@ static void port_level_scene_interlude(void)
                      "a harness rule, not the game's: a session has no cap.\n",
                      cap);
 
+    /* On the DS the Stage IS scene 3, and Scene::SpawnIfNecessary destroys
+       the current scene before it spawns the next one -- so the tree root is
+       EMPTY when dScStarSel_c spawns, and the star select becomes the root
+       itself. The port keeps ONE Stage object alive across every level
+       change instead of destroying and recreating it, so without this the
+       Stage's node is still sitting in the root when the scene spawns, the
+       spawn is parentless, and func_0203b438's handle_a refuses to link it
+       at all ("if (a->f0 != 0) return 0"). Hand the root to the scene here,
+       the way the cartridge's own object lifetime would, and take it back
+       once the scene is gone (see the pump and the restore below). */
+    void *il_stage = port_stage_object();
+    const int il_root_was = data_020a4b6c[0];
+    if (il_stage &&
+        il_root_was == (int)(size_t)((char *)il_stage + 0x14)) {
+        data_020a4b6c[0] = 0;
+        std::fprintf(stderr, "[starsel] tree root released for the scene "
+                     "(was the Stage node %p)\n", (void *)(size_t)il_root_was);
+    }
+
     int f = 0, asked = -1, closed = 0;
     g_interlude_live = 1;
     port_scene_killed_reset();
@@ -1462,7 +1572,44 @@ static void port_level_scene_interlude(void)
                          "being dispatched 64 frames after the mark; the course "
                          "boots with a scene the port could not reap\n");
     }
+    /* The scene is MARKED at this point, not gone: on the ROM its own reap
+       runs on the next dispatch of phase 1 (func_02043880), which is a frame
+       this interlude does not otherwise run. Pump the ROM's own phase passes
+       here, with the Stage still OUT of the root (g_interlude_live is still
+       1), until the destroyed scene's node comes out of the tree by itself
+       (func_0203b3c0 clears the head when it unlinks a root node with no
+       parent and no previous sibling). This has to happen BEFORE the Stage
+       goes back into the root: a root node with no parent and no previous
+       sibling unlinks by clearing `*list` outright, so if the Stage were
+       back in the root already, the scene's later reap would wipe the Stage
+       back out of it and the next teardown would read an empty tree just the
+       same. Measured that way before this pump was added. */
+    {
+        int k = 0;
+        for (; k < 16 && data_020a4b6c[0]; ++k) {
+            port_actor_scene_pass();
+            port_actor_tick();
+            port_actor_scene_pass();
+        }
+        std::fprintf(stderr, "[starsel] scene reap pump: %d round(s), tree "
+                     "root now %p, live actors %d\n", k,
+                     (void *)(size_t)data_020a4b6c[0], port_level_live_count());
+    }
     g_interlude_live = 0;
+    /* Put the Stage back where the cartridge's Scene::ResetFadersAndSound
+       would have put it on its own next entry: back in the scene tree's
+       root, and back in the spawn-parent seat (data_0209f5c0) that the star
+       select's own ResetFadersAndSound took when it ran. The port never
+       constructs a second Stage, so nothing else will ever do this. */
+    if (il_stage) {
+        std::fprintf(stderr, "[starsel] tree root after the scene: %p; spawn "
+                     "parent %p -- restoring the Stage (%p / node %p)\n",
+                     (void *)(size_t)data_020a4b6c[0],
+                     (void *)(size_t)data_0209f5c0[0], il_stage,
+                     (void *)((char *)il_stage + 0x14));
+        data_020a4b6c[0] = (int)(size_t)((char *)il_stage + 0x14);
+        data_0209f5c0[0] = (int)(size_t)il_stage;
+    }
     if (cap > 0 && f >= cap)
         std::fprintf(stderr, "[starsel] the star select did not finish inside "
                      "%d frames (asked at %d, pending %u, latch %u, "
