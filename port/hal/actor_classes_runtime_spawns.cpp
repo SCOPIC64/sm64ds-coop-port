@@ -62,6 +62,10 @@
 extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include <cstdlib>
 
+/* ntr::gx_polygons -- the frame's polygon list, for the egg's own render
+   measurement in ye_render below. */
+#include "ntr/gx.h"
+
 #include "dActor_c.h"
 #include "fBase_c.h"
 
@@ -473,9 +477,66 @@ static int __fastcall ye_clean(void *s, void *)
 static int __fastcall ye_behavior(void *s, void *)
 { rs_probe("YOSHI_EGG", s, *(int *)((char *)s + 0x3f0));
   return _ZN8YoshiEgg8BehaviorEv(s); }
+/* SM64DS_EGG_TRIS=1: what the egg's OWN Render puts into the frame's polygon
+   list, and where on the screen it lands. Tango's report is "yoshi egg doesnt
+   show up", which is a DRAWING report, and the two instruments that existed
+   could not answer it: the [actor] render probe only proves Render was
+   entered, and walk_window.cpp's "[actors] render bucket: N triangles" line is
+   sampled once at frame 0, before any egg exists, so it reads the same number
+   in an egg run and a no-egg run (lane YEGG1 recorded it as a dead end; lane
+   YEGG2 measured why).
+
+   This brackets the egg's own Render call with ntr::gx_polygons, which is the
+   list the rasteriser consumes, so the count is triangles SUBMITTED TO THE
+   RASTER by this actor on this frame, not a guess from a bucket total. The
+   screen box is the same triangles' vertex extent in DS pixels (a screen is
+   256x192), so a run can say "the egg drew N triangles inside the visible
+   screen at x[a..b] y[c..d]" instead of "Render was entered". alpha is the
+   POLYGON_ATTR alpha of the first triangle: 0 there would be an egg that
+   submits geometry the raster then discards.
+
+   Off unless the env is set; when it is off the call is the same one line it
+   has always been. */
 static int __fastcall ye_render(void *s, void *)
-{ port_actor_render_probe("YOSHI_EGG", (char *)s + 0x300);
-  return _ZN8YoshiEgg6RenderEv(s); }
+{
+    port_actor_render_probe("YOSHI_EGG", (char *)s + 0x300);
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_EGG_TRIS") != 0;
+    if (!on)
+        return _ZN8YoshiEgg6RenderEv(s);
+
+    static int call;
+    size_t before = 0, after = 0;
+    ntr::gx_polygons(before);
+    const int r = _ZN8YoshiEgg6RenderEv(s);
+    const ntr::GxTriangle *t = ntr::gx_polygons(after);
+    const size_t n = after > before ? after - before : 0;
+    float mnx = 1e30f, mxx = -1e30f, mny = 1e30f, mxy = -1e30f;
+    unsigned amin = 255, amax = 0;
+    int textured = 0;
+    for (size_t i = before; i < after; ++i) {
+        for (int v = 0; v < 3; ++v) {
+            const float X = t[i].v[v].x, Y = t[i].v[v].y;
+            if (X < mnx) mnx = X;
+            if (X > mxx) mxx = X;
+            if (Y < mny) mny = Y;
+            if (Y > mxy) mxy = Y;
+        }
+        if (t[i].alpha < amin) amin = t[i].alpha;
+        if (t[i].alpha > amax) amax = t[i].alpha;
+        if (t[i].tex) ++textured;
+    }
+    if (n == 0)
+        std::fprintf(stderr, "[eggtris] render %d: 0 triangles submitted\n",
+                     call++);
+    else
+        std::fprintf(stderr, "[eggtris] render %d: %u triangles screen "
+                     "x[%.0f..%.0f] y[%.0f..%.0f] alpha %u..%u textured %d\n",
+                     call++, (unsigned)n, mnx, mxx, mny, mxy, amin, amax,
+                     textured);
+    std::fflush(stderr);
+    return r;
+}
 static int __fastcall ye_d1(void *s, void *)
 { return (int)(size_t)_ZN8YoshiEggD1Ev((int *)s); }
 static int __fastcall ye_d0(void *s, void *)
