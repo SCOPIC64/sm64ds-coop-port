@@ -44,6 +44,10 @@ match/auto/
 # external reference repos (not ours; do not commit)
 reference/
 
+# Unlicensed third-party character sources and generated native packs stay local.
+/port/mods/.local-src/
+/port/mods/characters/*/assets/
+
 # --- Internal working files: kept local, not published ---
 knowledge/
 match/
