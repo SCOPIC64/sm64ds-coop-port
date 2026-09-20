@@ -131,6 +131,8 @@ unsigned short data_020a4b54;   /* PENDING ACTOR ID (the spawn context) */
 unsigned char data_020a4b48;    /* pending area byte */
 int data_020a4b64[1];
 int data_020a4b6c[8];           /* the scene tree root the ctor links into */
+int port_tree_link_refused;     /* spawns func_0203b438 refused, see below */
+int port_tree_link_refusals(void) { return port_tree_link_refused; }
 void *data_020a4bb8_storage[512];
 void **data_020a4bb8 = data_020a4bb8_storage;  /* actorID -> SpawnInfo* */
 
@@ -166,7 +168,19 @@ void *_ZN7fBase_cC2Ev(char *self)
     *(int *)(self + 8) = data_020a4b60[0];
     *(unsigned short *)(self + 0xc) = data_020a4b54;
     *(unsigned char *)(self + 0x12) = data_020a4b48;
-    func_0203b438(data_020a4b6c, self + 0x14, (void *)(size_t)data_020a4b64[0]);
+    /* THE REFUSAL IS SILENT AND IT IS THE ONE OUTCOME THAT MATTERS. Read
+       src/func_0203b438.c: with a null parent it takes handle_a, and handle_a
+       opens `if (a->f0 != 0) return 0` -- a parentless spawn into a tree that
+       already has a root LINKS NOTHING and says nothing. The actor then runs
+       normally (its behaviour/render nodes are separate lists) but the phase-1
+       scene pass, func_02043880, never reaches it, and that pass is the only
+       thing that moves a marked actor onto the cleanup list. So a refused link
+       is invisible until a level change, when it becomes "TEARDOWN DID NOT
+       CONVERGE". Counting it costs one branch and turns that into a number.
+       port_tree_link_refusals reports it; nothing here changes behaviour. */
+    if (!func_0203b438(data_020a4b6c, self + 0x14,
+                       (void *)(size_t)data_020a4b64[0]))
+        ++port_tree_link_refused;
     {
         unsigned short *info = (unsigned short *)data_020a4bb8[
             *(unsigned short *)(self + 0xc)];
