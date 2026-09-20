@@ -6,6 +6,7 @@
 
 #include "ntr/gx.h"
 
+#include "ntr/hdtex.h"
 #include "ntr/mmio.h"
 #include "ntr/texture.h"
 
@@ -1091,6 +1092,12 @@ void gx_bind_texture(const uint32_t *rgba, int width, int height) {
     // keeps the plain repeat-in-both-directions behaviour it always had; the
     // VRAM bind below overrides this with the material's real wrap mode.
     g.tex_wrap = 3;
+    // AND ONE HOST PIXEL PER DS TEXEL. Every caller of this entry hands over a
+    // buffer at the DS texture's own size, so the scale is 1 unless the VRAM
+    // bind below knowingly replaced the image and says otherwise AFTER this
+    // call. Clearing it here rather than leaving it is what stops a replaced
+    // texture's scale riding along into the next unreplaced bind.
+    g.tex_scale = 1;
 }
 
 // --- VRAM-sourced texturing: the game path ----------------------------------
@@ -1124,7 +1131,19 @@ struct TexKey {
         return cp < o.cp;
     }
 };
-std::map<TexKey, std::vector<uint32_t>> g_vram_tex_cache;
+/* What a key maps to. This used to be the decoded texels alone, and it is now
+   the BUFFER THAT ACTUALLY GETS BOUND plus its real pixel size, because an HD
+   pack (ntr/hdtex.h) may have replaced the picture with a whole multiple of
+   itself. `scale` is that multiple and travels to the raster through
+   GxTriangle::tex_scale; w/h are px's real dimensions, which is what the
+   sampler wants for its wrap and clamp arithmetic. With no pack every entry
+   is the decode, at the DS's own size, with scale 1. */
+struct TexEntry {
+    std::vector<uint32_t> px;
+    int w = 0, h = 0;
+    uint8_t scale = 1;
+};
+std::map<TexKey, TexEntry> g_vram_tex_cache;
 
 uint32_t probe_word(const uint8_t *p, int32_t len, int32_t off) {
     if (!p || off < 0 || off + 4 > len) return 0;
@@ -1224,10 +1243,38 @@ void bind_from_vram() {
                 fclose(f);
             }
         }
-        it = g_vram_tex_cache.emplace(key, std::move(rgba)).first;
+        TexEntry entry;
+        entry.w = d.width;
+        entry.h = d.height;
+        entry.scale = 1;
+        /* THE HD PACK, AND ONLY ON A CACHE MISS. hdtex_wants_work() is an int
+           compare and it is false unless a pack was indexed or a dump
+           directory was named, so a default run reaches nothing below: no
+           hash, no file, no allocation. Hanging the whole thing off the MISS
+           rather than off the bind is what keeps the cost proportional to the
+           number of distinct textures a level has rather than to the hundreds
+           of binds a frame makes -- the key above already discriminates a
+           stale slot, so a hit needs no re-examination. */
+        if (hdtex_wants_work()) {
+            const uint64_t name = hdtex_name(g_teximage, g_plttbase);
+            hdtex_dump(name, d.width, d.height, rgba.data());
+            std::vector<uint32_t> hd;
+            const int s = hdtex_lookup(name, d.width, d.height, hd);
+            if (s >= 1) {
+                entry.px = std::move(hd);
+                entry.w = d.width * s;
+                entry.h = d.height * s;
+                entry.scale = static_cast<uint8_t>(s);
+            }
+        }
+        if (entry.px.empty()) entry.px = std::move(rgba);
+        it = g_vram_tex_cache.emplace(key, std::move(entry)).first;
     }
-    const int w = 8 << ((g_teximage >> 20) & 7), h = 8 << ((g_teximage >> 23) & 7);
-    gx_bind_texture(it->second.data(), w, h);
+    /* The bound buffer's REAL dimensions, which are the DS texture's unless a
+       pack replaced it; the scale beside them is what lets the sampler put the
+       DS's own texel grid back over a bigger picture. */
+    gx_bind_texture(it->second.px.data(), it->second.w, it->second.h);
+    g.tex_scale = it->second.scale;
     /* THE WRAP MODE IS PART OF THE BIND. TEXIMAGE_PARAM bits 16/17 select
        repeat vs CLAMP, bits 18/19 add mirroring on top of repeat (GBATEK).
        The raster used to wrap everything unconditionally, which is right
