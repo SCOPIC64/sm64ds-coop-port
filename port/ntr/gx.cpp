@@ -92,6 +92,11 @@ struct State {
     const uint32_t *tex_rgba = nullptr; // bound texture (Mat tex above is the
     int tw = 0, th = 0;                 // texture *matrix* -- different thing)
     uint8_t tex_wrap = 3;               // TEXIMAGE_PARAM bits 16-19, see GxTriangle
+    /* Host pixels per DS texel for the bound texture; see GxTriangle::tex_scale
+       in ntr/gx.h. 1 is every texture the ROM supplies, and `g = State{}` in
+       gx_reset puts it back to 1 at the head of every frame, so only a bind
+       that knowingly replaced the image can leave it anything else. */
+    uint8_t tex_scale = 1;
     int prim = -1;                 // BEGIN_VTXS type, -1 when not inside a primitive
     uint32_t poly_attr = 0x80;     // POLYGON_ATTR latch; bit6 back, bit7 front
     int16_t vx = 0, vy = 0, vz = 0;
@@ -433,6 +438,9 @@ void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
     GxTriangle t{};
     t.v[0] = a; t.v[1] = b; t.v[2] = c;
     t.tex = g.tex_rgba; t.tw = g.tw; t.th = g.th;
+    /* the bound texture's host-pixels-per-texel travels with the triangle
+       exactly as its dimensions do; 1 unless a pack replaced the image */
+    t.tex_scale = g.tex_scale ? g.tex_scale : 1;
     t.cull = static_cast<uint8_t>((g.poly_attr >> 6) & 3);
     t.alpha = static_cast<uint8_t>((g.poly_attr >> 16) & 31);
     t.mode = static_cast<uint8_t>((g.poly_attr >> 4) & 3);
@@ -2122,6 +2130,13 @@ void gx_render(Framebuffer &fb) {
         const bool textured = t.tex && t.tw > 0 && t.th > 0;
         const bool rep_s = (t.wrap & 1) != 0, rep_t = (t.wrap & 2) != 0;
         const bool flip_s = (t.wrap & 4) != 0, flip_t = (t.wrap & 8) != 0;
+        /* Host pixels per DS texel (GxTriangle::tex_scale). The UVs the
+           geometry engine produced are in DS TEXELS, and tw/th are the bound
+           buffer's real pixel dimensions, so the sampler works in buffer
+           pixels by multiplying. 1 for everything the ROM supplies, and a
+           multiply by exactly 1.0f returns its operand bit for bit, so the
+           default run samples the texel it always sampled. */
+        const float tsc = (float)(t.tex_scale ? t.tex_scale : 1);
         const float acol[3] = {(float)((a.color >> 16) & 0xFF),
                                (float)((a.color >> 8) & 0xFF),
                                (float)(a.color & 0xFF)};
@@ -2208,8 +2223,8 @@ void gx_render(Framebuffer &fb) {
                                 uu = l0 * a.u + l1 * b.u + l2 * c.u;
                                 vv = l0 * a.v + l1 * b.v + l2 * c.v;
                             }
-                            const int ui = tex_coord(uu, t.tw, rep_s, flip_s);
-                            const int vi = tex_coord(vv, t.th, rep_t, flip_t);
+                            const int ui = tex_coord(uu * tsc, t.tw, rep_s, flip_s);
+                            const int vi = tex_coord(vv * tsc, t.th, rep_t, flip_t);
                             texel = t.tex[vi * t.tw + ui];
                             if ((texel >> 24) == 0) continue;
                         }
@@ -2281,8 +2296,8 @@ void gx_render(Framebuffer &fb) {
                         uu = l0 * a.u + l1 * b.u + l2 * c.u;
                         vv = l0 * a.v + l1 * b.v + l2 * c.v;
                     }
-                    const int ui = tex_coord(uu, t.tw, rep_s, flip_s);
-                    const int vi = tex_coord(vv, t.th, rep_t, flip_t);
+                    const int ui = tex_coord(uu * tsc, t.tw, rep_s, flip_s);
+                    const int vi = tex_coord(vv * tsc, t.th, rep_t, flip_t);
                     texel = t.tex[vi * t.tw + ui];
                     if ((texel >> 24) == 0) continue;      // transparent texel
                 }

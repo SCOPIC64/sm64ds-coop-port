@@ -393,9 +393,11 @@ static bool winapi_load(void)
 }
 
 #include "ntr/gx.h"
+#include "ntr/hdtex.h"
 #include "ntr/mmio.h"
 #include "ntr/ppu.h"
 #include "ntr/rt.h"
+#include "ntr/smooth.h"
 
 /* walk_window is the one TU that installs the crash probe, so it also emits the
    external seams (port_rich_dump_ex, port_crash_dir_get) the quarantine walker
@@ -8402,6 +8404,20 @@ int main(void)
        byte-for-byte the 4:3 build. On a non-runtime tier configure_aspect is a
        no-op. */
     ntr::configure_aspect(host_setting_aspect());
+    /* THE OTHER TWO PICTURE SETTINGS ARE LATCHED HERE FOR THE SAME REASON,
+       and beside the aspect so there is one place in the program where the
+       picture's shape is decided. Both default to off, both are no-ops while
+       they are off, and with all three keys absent every one of these three
+       calls leaves the render path exactly as the build before them drew it.
+
+       HdTextures names a replacement texture pack and the directory to find
+       it in (ntr/hdtex.h); SmoothModels is the model subdivision level
+       (ntr/smooth.h). Neither reads anything back from the render path, so
+       the order of the three calls does not matter; they are together
+       because they answer one question. */
+    ntr::hdtex_configure(host_setting_hd_textures(),
+                         host_setting_hd_textures_dir());
+    ntr::smooth_configure(host_setting_smooth_models());
     /* fault_probe.h has been included here since gate 4 and was never armed,
        so every crash in the window build printed nothing at all. It costs
        nothing until something faults, and it prints a module-relative address
