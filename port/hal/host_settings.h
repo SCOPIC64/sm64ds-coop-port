@@ -29,17 +29,17 @@ extern "C" {
 int host_setting_swap_camera_turn(void);
 
 /* ---- CameraMode: WHICH CAMERA AN INTERACTIVE RUN BOOTS INTO -------------
-   "analog" (default) | "freecam" | "ds", the three modes tests/walk_window.cpp
+   "analog" | "freecam" | "ds" (default), the three modes tests/walk_window.cpp
    names CAM_ANALOG / CAM_FREE / CAM_DS. Returned as that numbering: 0 analog,
-   1 freecam, 2 ds. The default is analog because that is what main has always
-   promoted an interactive run to once the Camera actor is up, so a
-   settings.json without the key boots exactly the program that shipped before
-   the key existed. A SELFTEST IGNORES IT and stays DS-exact, for the reason
-   the RunMode pin gives: a comparator run must not depend on a preferences
-   file. SM64DS_ANALOG_CAMERA / SM64DS_DS_CAMERA / SM64DS_FREECAM still win
-   over the file, because an environment knob is a per-run request and the
-   file is a standing one. The debug menu's camera row writes the key back
-   through host_setting_save_camera_mode, the way the run row writes RunMode.
+   1 freecam, 2 ds. The default is ds, on Tango's order, because that is the
+   cartridge's own stepped rotate and it is the mode the bumpers turn in;
+   analog and freecam stay one F1 press (or one menu row) away. A SELFTEST
+   IGNORES IT and stays DS-exact, for the reason the RunMode pin gives: a
+   comparator run must not depend on a preferences file. SM64DS_ANALOG_CAMERA
+   / SM64DS_DS_CAMERA / SM64DS_FREECAM still win over the file, because an
+   environment knob is a per-run request and the file is a standing one. The
+   debug menu's camera row writes the key back through
+   host_setting_save_camera_mode, the way the run row writes RunMode.
    Boot-latched: F1 and the row move the live mode, the file moves the next
    boot. */
 int host_setting_camera_mode(void);

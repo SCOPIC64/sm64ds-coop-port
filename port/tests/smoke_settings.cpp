@@ -10,7 +10,7 @@
 
      defaults    no file at all: every key and pad default the header
                  promises, RunButtonKey/RunButtonPad agreeing with
-                 KeyRun/PadRun, CameraMode analog.
+                 KeyRun/PadRun, CameraMode ds, RunMode analog.
      remap       a file that moves jump, attack, the walk keys, a pad button
                  and the camera mode, and leaves everything else alone --
                  the moved ones move, the rest stay at their defaults, an
@@ -133,7 +133,8 @@ static int child(const char *which)
                  "KeyRun agrees with RunButtonKey");
         check_eq(host_setting_pad(HOST_PAD_RUN), host_setting_run_pad(),
                  "PadRun agrees with RunButtonPad");
-        check_eq(host_setting_camera_mode(), 0, "CameraMode analog");
+        check_eq(host_setting_camera_mode(), 2, "CameraMode ds");
+        check_eq(host_setting_run_mode(), 1, "RunMode analog");
         check_eq(host_setting_key(-1), 0, "out of range key is unbound");
         check_eq(host_setting_pad(99), 0, "out of range pad is unbound");
     } else if (!strcmp(which, "remap")) {

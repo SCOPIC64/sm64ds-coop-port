@@ -496,7 +496,7 @@ int g_swap_camera_turn;              /* default 0 */
    input record on the way in and nothing else: the game reads the same
    fields it always read, and src/ has no idea any of this exists.
 
-     RunMode         "button" (default) | "analog" | "auto"
+     RunMode         "button" | "analog" (default) | "auto"
      RunButtonKey    Win32 virtual-key code for the keyboard binding.
                      Default 0x10, which is shift -- what the window has
                      always used. 0 means no keyboard binding at all.
@@ -505,20 +505,24 @@ int g_swap_camera_turn;              /* default 0 */
                      has always used. 0 means no pad binding.
 
    A missing file, a missing key or a value that will not parse is the
-   default, so a player who never opens the menu gets exactly the program
-   that shipped before this existed. */
-int g_run_mode;                      /* default RUN_BUTTON (0) */
+   default. The bindings and the keys are unchanged from what this window has
+   always used; the MODE now defaults to analog on Tango's order. A keyboard
+   has no stick to push, so with no pad (or the stick in its dead zone) it
+   falls back to button mode: WASD walk, the bound run key holds the run bit,
+   exactly as before. */
+int g_run_mode;                      /* default RUN_ANALOG (1) */
 int g_run_key;                       /* default 0x10, VK_SHIFT */
 int g_run_pad;                       /* default 0x4000, pad X */
 
 const char *const RUN_MODE_KEY[3] = { "button", "analog", "auto" };
 
 /* ---- CameraMode -----------------------------------------------------------
-   0 analog, 1 freecam, 2 ds -- tests/walk_window.cpp's CAM_ numbering, and the
-   default is analog because that is what main has always promoted an
-   interactive run to. The header carries the rest. Read by name and, like
-   RunMode, by number too. */
-int g_camera_mode;                   /* default 0, analog */
+   0 analog, 1 freecam, 2 ds -- tests/walk_window.cpp's CAM_ numbering. The
+   default is ds, on Tango's order, because that is the cartridge's own
+   stepped rotate and it is the mode the bumpers turn in; analog and freecam
+   stay one F1 press (or one menu row) away. The header carries the rest.
+   Read by name and, like RunMode, by number too. */
+int g_camera_mode;                   /* default 2, ds */
 const char *const CAMERA_MODE_KEY[3] = { "analog", "freecam", "ds" };
 
 /* ---- THE CONTROL BINDINGS -------------------------------------------------
@@ -1139,10 +1143,10 @@ void load_once(void)
     if (g_loaded) return;
     g_loaded = 1;
     g_swap_camera_turn = 0;
-    g_run_mode = 0;
+    g_run_mode = 1;      /* RunMode analog, on Tango's order */
     g_run_key = 0x10;
     g_run_pad = 0x4000;
-    g_camera_mode = 0;
+    g_camera_mode = 2;   /* CameraMode ds, on Tango's order */
     for (int i = 0; i < 14; ++i) g_key[i] = KEY_BIND[i].dflt;
     for (int i = 0; i < 6; ++i) g_pad[i] = PAD_BIND[i].dflt;
     g_gap_on = 1;
@@ -1199,7 +1203,7 @@ void load_once(void)
                     matched = 1;
                 }
             if (!matched) {
-                const int n = json_int(text, "RunMode", 0);
+                const int n = json_int(text, "RunMode", 1);
                 if (n >= 0 && n <= 2) g_run_mode = n;
             }
         }
@@ -1222,7 +1226,7 @@ void load_once(void)
                         matched = 1;
                     }
                 if (!matched) {
-                    const int n = json_int(text, "CameraMode", 0);
+                    const int n = json_int(text, "CameraMode", 2);
                     if (n >= 0 && n <= 2) g_camera_mode = n;
                 }
             }
@@ -1428,11 +1432,11 @@ void load_once(void)
                         "every player's input each frame instead of the "
                         "default rollback (predicts each peer and rewinds on "
                         "a wrong guess). (%s)\n", path);
-    if (g_run_mode || g_run_key != 0x10 || g_run_pad != 0x4000)
+    if (g_run_mode != 1 || g_run_key != 0x10 || g_run_pad != 0x4000)
         fprintf(stderr, "[settings] RunMode %s key 0x%02x pad 0x%04x (%s)\n",
                 RUN_MODE_KEY[g_run_mode], (unsigned)g_run_key,
                 (unsigned)g_run_pad, path);
-    if (g_camera_mode)
+    if (g_camera_mode != 2)
         fprintf(stderr, "[settings] CameraMode %s (%s)\n",
                 CAMERA_MODE_KEY[g_camera_mode], path);
     for (int i = 0; i < g_padlayout_n; ++i)
