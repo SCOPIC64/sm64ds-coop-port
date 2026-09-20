@@ -76,7 +76,9 @@ course still standing. Nothing else in this run has ever run a course's exit.
               level change back to the hub with the death reason (2)
   exit=star   SM64DS_STAR_DROP=#0,200 plus A presses -- stand on the level's
               first PowerStar, let its collision run the star-get sequence and
-              the course-clear exit (reason 1)
+              the course-clear exit (reason 1). Also drives HOST_PAD (A then
+              DPAD_LEFT) after the arrival and fails the row if [exitpos]
+              shows the player never moved.
   exit=pause  START then the fourth pause button on the touch screen -- exit
               course (reason 0)
 All three set selftest 1200 and SM64DS_EXIT_WATCH=1, and a row is FAIL unless
@@ -106,7 +108,7 @@ is still a finding: its position barely moves under the held-forward walk while
 record 0's travels. Scene rows are untouched by the arm, and a sweep that does
 not name it is byte-identical to one from before the arm existed.
 """
-import os, sys, time, shutil, subprocess, queue, threading, signal
+import os, re, sys, time, shutil, subprocess, queue, threading, signal
 from concurrent.futures import ThreadPoolExecutor
 EXE = os.path.abspath(sys.argv[1]); OUT = os.path.abspath(sys.argv[2])
 FRAMES = sys.argv[3] if len(sys.argv) > 3 else "600"
@@ -377,6 +379,20 @@ def run(kind, ident, label, ent=None, wdir=None):
                 env["SM64DS_STAR_DROP"] = "#0,200"
                 env["SM64DS_PROBE_INPUT"] = \
                     "260:A,300:A,340:A,380:A,420:A,460:A"
+                # AFTER THE ARRIVAL, through the HOST INPUT LAYER. The A
+                # pulses answer whatever the held-forward walk bumps into
+                # in the castle (a star gate's message opened at f603 on
+                # the level 6 row and never closed, which is what a
+                # 1200-frame row used to end in); 4 is DPAD_LEFT, a
+                # direction the selftest is NOT already holding, so the
+                # movement it produces is the PLAYER'S and not the
+                # harness's. The window opens at f500, long after the
+                # change (f298 on the level 6 row), so no row's level
+                # change verdict can move because of it.
+                env["SM64DS_HOST_PAD"] = (
+                    ",".join("1000@%d-%d" % (f, f + 3)
+                             for f in range(500, 1160, 60))
+                    + ",4@600-1150")
             elif EXIT == "pause":
                 # START, then the fourth pause button (exit course). The four
                 # buttons are touch boxes x 8..247, y 0x20/0x48/0x70/0x98 each
@@ -441,6 +457,46 @@ def run(kind, ident, label, ent=None, wdir=None):
             ok = False
             chg += "  (WRONG EXIT: wanted reason %d)" % want
         note = (note + " | " if note else "") + (chg or "NO LEVEL CHANGE")
+        # MOVES AFTER THE ARRIVAL. A change that completes and
+        # leaves the player unable to move is the softlock Tango
+        # reported, and until now this arm could not see it: the
+        # [exitwatch] stream prints only on change, so a frozen
+        # player prints nothing and a row that ends rc 0 reads as
+        # a pass. [exitpos] is the position on a fixed cadence.
+        # Take the samples from AFTER the pad window opens that
+        # are in the level the change named, and require the
+        # player to have moved more than a quarter of a walking
+        # stride in some axis over them. A frozen player's
+        # samples are byte-identical, so the threshold is not
+        # near anything.
+        if EXIT == "star" and ok:
+            dest = None
+            m = re.search(r"-> (-?\d+), entrance", chg)
+            if m: dest = int(m.group(1))
+            pts = []
+            for line in out.splitlines():
+                mm = re.match(r"\[exitpos\] f(\d+) level=(-?\d+) "
+                              r"pos=\((-?\d+),(-?\d+),(-?\d+)\)",
+                              line.strip())
+                if not mm: continue
+                if int(mm.group(1)) < 700: continue
+                if dest is not None and int(mm.group(2)) != dest: continue
+                pts.append(tuple(int(mm.group(i)) for i in (3, 4, 5)))
+            if len(pts) < 4:
+                ok = False
+                note = (note + " | " if note else "") + \
+                    "NO ARRIVAL POSITION SAMPLES (%d)" % len(pts)
+            else:
+                span = max(max(abs(p[i] - pts[0][i]) for p in pts)
+                           for i in range(3))
+                if span <= 16:
+                    ok = False
+                    note = (note + " | " if note else "") + \
+                        ("PLAYER NEVER MOVED AFTER THE ARRIVAL "
+                         "(span %d over %d samples)" % (span, len(pts)))
+                else:
+                    note = (note + " | " if note else "") + \
+                        "moved %d after arrival" % span
     if ent is not None and kind == "SM64DS_LEVEL":
         # how far the held-forward walk actually got. An entrance whose mode
         # wedges the player in his arrival animation exits 0 with a position

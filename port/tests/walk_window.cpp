@@ -5577,6 +5577,30 @@ static void pad_test_apply(int frame, int *pad_live, XPad *pad)
     unsigned mask = 0;
     if (pt_env) mask |= pad_script_mask(pt_env, frame);
     if (hp_env) mask |= pad_script_mask(hp_env, frame);
+    /* THE TRAP THIS LINE EXISTS FOR (run link100, lanes STAREXIT1
+       and STARLAND1). A walking selftest already holds the stick
+       fully forward, so a HOST_PAD script whose mask carries
+       DPAD_UP (bit 0) adds the direction the run is already
+       pushing: a pad / no-pad pair then comes out BYTE-IDENTICAL
+       whatever the player can or cannot do, and two lanes read
+       that as a frozen player. Say so once, in the log, where the
+       next lane will see it. */
+    if (hp_env && (mask & 1) && g_selftest &&
+        !getenv("SM64DS_SELFTEST_IDLE")) {
+        static int warned;
+        if (!warned) {
+            warned = 1;
+            fprintf(stderr, "[hostpad] NOTE: this is a walking "
+                    "selftest, which already holds the stick "
+                    "fully forward, and this script's DPAD_UP "
+                    "bit pushes the same way -- a pad / no-pad "
+                    "pair will be byte-identical whatever the "
+                    "player can do. Measure control with another "
+                    "direction (4 LEFT, 8 RIGHT, 2 DOWN), with "
+                    "1000 (A), or with SM64DS_SELFTEST_IDLE=1.\n");
+            fflush(stderr);
+        }
+    }
     /* THE EDGES, so a row can say on which host frames the script was actually
        APPLIED rather than on which frames it was scheduled. The two differ by
        exactly the bug this instrument exists for: a frame the loop never
@@ -12362,6 +12386,19 @@ int main(void)
                                 (int)data_0209f250,
                                 pz, psub, pnext, pcool, pbtn);
                     }
+                    /* THE ARRIVAL READ-OUT. [exitwatch] prints only when a word
+                       CHANGES, so a player who cannot move prints nothing and a
+                       row cannot tell "he is standing still" from "he is frozen".
+                       This is the position itself, on a fixed cadence, so
+                       bootab's exit arm can assert that the player MOVED after
+                       the level change instead of only that the change happened.
+                       Reads only, and only with SM64DS_EXIT_WATCH set. */
+                    if ((frame % 30) == 0)
+                        fprintf(stderr, "[exitpos] f%d level=%d pos=(%d,%d,%d)\n",
+                                frame, lvl,
+                                *(int *)(c + 0x5c) >> 12,
+                                *(int *)(c + 0x60) >> 12,
+                                *(int *)(c + 0x64) >> 12);
                 }
             }
 
