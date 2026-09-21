@@ -108,33 +108,33 @@ src/__sinit_ov085_0212fdb0.c
 # set save bit re-entered and stuck the caught dialog on a re-talk. Registered in
 # hal/actor_classes.inc (id 229), vtable fill hal/actor_classes.cpp, three faces in
 # hal/method_faces.cpp. Every callee below is a matched TU; no host copy needed.
-src/d_a_obj_mip_key.c
-src/_ZN9RabbitKey13InitResourcesEv.cpp
-src/_ZN9RabbitKey8BehaviorEv.cpp
+src/actors/daObj_Mip_Key_c.cpp
+src/actors/daObj_Mip_Key_c.cpp
+src/actors/daObj_Mip_Key_c.cpp
 # _ZN9RabbitKey6RenderEv is NOT here: the third ov085 render host copy
 # (port/unmatched/Ov085_Renders.cpp). Its shadow-struct Model slot-5 dispatch
 # is a cdecl call into the __fastcall mv_render -- garbage `this` in ECX,
 # measured as a frame-1 DEP fault on the spawn-assisted key.
-src/_ZN9RabbitKey16CleanupResourcesEv.cpp
+src/actors/daObj_Mip_Key_c.cpp
 src/_ZN9RabbitKey16OnPendingDestroyEv.cpp
-src/_ZN9RabbitKeyD1Ev.cpp
+src/actors/daObj_Mip_Key_c.cpp
 # RETIRED at SLICE1: body now in src/_ZN9RabbitKeyD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
 #src/_ZN9RabbitKeyD0Ev.cpp
 # the state machine: d268 is the PMF dispatcher, d038 the caught entry (save bit +
 # cutscene), cd80 the main (DisplaySaving/StartMinigameMenu/EndTalk), cd0c the
 # talk-teardown, d108 the approach-then-caught, d24c a small setter, d2b8 the
 # shadow/matrix helper, e480 the Kill.
-src/func_ov085_0212cd0c.cpp
-src/func_ov085_0212cd80.c
-src/func_ov085_0212d038.c
-src/func_ov085_0212d108.c
-src/func_ov085_0212d24c.c
+src/actors/daObj_Mip_Key_c.cpp
+src/actors/daObj_Mip_Key_c.cpp
+src/actors/daObj_Mip_Key_c.cpp
+src/actors/daObj_Mip_Key_c.cpp
+src/actors/daObj_Mip_Key_c.cpp
 # func_ov085_0212d268 is NOT here: the seat-and-enter's real MSVC
 # pointer-to-member call is the gate-16 case (a PMF over an incomplete class is
 # the four-word general representation, reading sixteen bytes from the ROM's
 # eight-byte pair and dispatching thiscall at cdecl hosts). Host copy with the
 # dispatch hand-rolled: port/unmatched/RabbitKey_StateSeat.cpp (CMakeLists).
-src/func_ov085_0212d2b8.cpp
+src/actors/daObj_Mip_Key_c.cpp
 src/func_ov085_0212e480.c
 # the save/menu ring the grant reaches: the caught-bit writer and its companion,
 # the minigame-menu entry, and a save-side counter. func_02012790 (the sound this

@@ -24,7 +24,7 @@
 //
 // 2. THE ARROW SIGNS' ENTRY TABLE GREW ITS THIRD COLUMN VIEW. The ROM gives
 //    each column of the 0xc-stride table at ov098:0x0213c380 its own symbol, and
-//    the synced src/_ZN14ArrowSignRight13InitResourcesEv.cpp names all three
+//    the synced src/actors/daObjYajirusi_c.cpp names all three
 //    (0x380 model, 0x384 collision, 0x388 the CLPS block it hands
 //    dBgW_KcMbg::SetFile). The pre-sync body reached that third word as
 //    data_ov098_0213c380[idx].c through the one symbol it declared, so this

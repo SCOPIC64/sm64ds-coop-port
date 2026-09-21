@@ -69,7 +69,7 @@
 // ---------------------------------------------------------------------------
 // AND ONE C-NAME FACE, for the same reason lane FACEF needed four of them.
 //
-// src/_ZN9RabbitKey6RenderEv.cpp recovered as a REAL C++ METHOD against
+// src/actors/daObj_Mip_Key_c.cpp recovered as a REAL C++ METHOD against
 // include/RabbitKey.h, so the only symbol it puts in the map is MSVC's own
 // mangling ?Render@RabbitKey@@QAEHXZ. The seat that fills the ROM's vtable
 // word -- hal/actor_classes.cpp:1679, `vt[9] = rk_render` -- calls the ROM's

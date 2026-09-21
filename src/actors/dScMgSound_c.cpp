@@ -407,9 +407,9 @@ extern "C" void *dScMgSound_c_classInit(void)
  * The split literals retain the measured instruction shape; they do not
  * recover an original C++ spelling. `r7 + 0x5000 + 0xe0` lets mwccarm
  * build a shared base before the displacement, as the cartridge does.
- * Folding those expressions needs a fresh comparison. Offsets 0x50e0,
- * 0x5608, 0x5618 and 0x5626 lie within the declared mTable storage, whose
- * component/state boundary is not established by the ctor/dtor calls.
+ * Folding those expressions needs a fresh comparison. Offset 0x50e0 is
+ * mTable.mSuppressSound; 0x5608 and 0x5626 are named scene fields. The
+ * countdown at 0x5618 remains in the indexed raw storage.
  *
  * mHudScore is dScMgBase_c's, and reads as an inherited member; the
  * pre-migration file wrote it as `*(int *)(r7 + 0xb4)`.
@@ -455,7 +455,7 @@ s32 dScMgSound_c::InitResources()
     Deallocate((void *)r5);
 
     func_ov006_020c225c((void *)(r7 + 0x4660));
-    if (func_ov006_020c3050((void *)mTable) == 0)
+    if (func_ov006_020c3050((void *)&mTable) == 0)
         return 0;
 
     *(int *)(r7 + 0x5000 + 0xe0) = 1;
@@ -482,10 +482,9 @@ s32 dScMgSound_c::InitResources()
  *
  * The minigame's state machine, on the word at 0x5608: 0 = init, 1 = intro
  * countdown at 0x5618, 2 = result countdown at 0x5616 with the win/lose
- * handling and the 9999-capped win counter, 3 = retry countdown. Every one of
- * those offsets lies within the unreconstructed mTable storage. The
- * component's full extent and the ownership of these live state fields
- * remain uncertain; their current raw accesses need measured replacements.
+ * handling and the 9999-capped win counter, 3 = retry countdown. The state
+ * word is named mState; the countdowns remain raw accesses within the
+ * indexed storage at 0x5610, pending a consistent array reconstruction.
  *
  * mPromptBlinkTimer, mPromptEnabled and mPromptBlinkCount are dScMgBase_c's, and read as inherited
  * members. The pre-migration file wrote all three as `*(u8 *)(c + 0xc3)` and
@@ -500,9 +499,9 @@ s32 dScMgSound_c::Behavior()
 {
     char *c = (char *)this;
 
-    switch (*(int *)(c + 0x5608)) {
+    switch (mState) {
     case 0:
-        *(int *)(c + 0x5608) = 1;
+        mState = 1;
         break;
     case 1:
         if (*(u16 *)(c + 0x5618) != 0) {
@@ -527,10 +526,10 @@ s32 dScMgSound_c::Behavior()
         if (*(u16 *)(c + 0x5616) != 0) {
             (*(u16 *)(int)(c + 0x5616))--;
             if (*(u16 *)(c + 0x5616) == 0) {
-                if (*(u8 *)(c + 0x5626) != 0) {
-                    *(int *)(c + 0x50e0) = 0;
-                    func_ov006_020c2594((char *)mTable);
-                    if (*(u8 *)(c + 0x5626) == 3)
+                if (unk_5626 != 0) {
+                    mTable.mSuppressSound = 0;
+                    func_ov006_020c2594((char *)&mTable);
+                    if (unk_5626 == 3)
                         func_ov004_020b67f8();
                     func_ov004_020b0a54(0);
                     {
@@ -548,7 +547,7 @@ s32 dScMgSound_c::Behavior()
                     func_ov006_02119a88(c);
                     mPromptEnabled = 0;
                 } else {
-                    *(int *)(c + 0x5608) = 3;
+                    mState = 3;
                     *(u16 *)(c + 0x5616) = 0x20;
                     func_ov006_0211b9c8(c);
                 }
@@ -564,8 +563,8 @@ s32 dScMgSound_c::Behavior()
         if (*(u16 *)(c + 0x5616) != 0) {
             (*(u16 *)(int)(c + 0x5616))--;
             if (*(s16 *)(c + 0x5616) <= 0) {
-                *(int *)(c + 0x50e0) = 0;
-                func_ov006_020c2440((char *)mTable);
+                mTable.mSuppressSound = 0;
+                func_ov006_020c2440((char *)&mTable);
                 func_ov004_020b0a54(0x12);
                 mPromptEnabled = 0;
                 *(u16 *)(c + 0x5616) = 0;
@@ -574,7 +573,7 @@ s32 dScMgSound_c::Behavior()
         break;
     }
 
-    func_ov006_020c2b8c((char *)mTable);
+    func_ov006_020c2b8c((char *)&mTable);
     return 1;
 }
 
@@ -601,7 +600,7 @@ s32 dScMgSound_c::Render()
     func_ov006_02119bc4(c);
     func_ov006_021199c0(c);
     func_ov006_02119aa8(c);
-    func_ov006_020c29dc(mTable);
+    func_ov006_020c29dc(&mTable);
     return 1;
 }
 
@@ -635,7 +634,7 @@ void dScMgSound_c::OnYoshiTryEat(int r1)
     int *base;
     int v;
 
-    *(int*)(self + 0x5608) = 0;
+    mState = 0;
 
     base = (int*)self;
     if (r1 == 0) {
@@ -660,10 +659,10 @@ void dScMgSound_c::OnYoshiTryEat(int r1)
         func_ov004_020adb1c(v);
     }
 
-    *(int*)(self + 0x50e0) = 1;
+    mTable.mSuppressSound = 1;
     func_ov006_0211c478(self);
 
-    *(signed char*)(self + 0x5626) = 3;
+    unk_5626 = 3;
     func_ov006_0211c080(self);
 
     *(short*)(self + 0x5618) = 0x20;
@@ -692,6 +691,7 @@ void dScMgSound_c::Virtual50()
 extern "C" {  /* .c-derived member: C linkage for the whole block */
 void func_ov006_0211c478(char *base)
 {
+    dScMgSound_c *self = (dScMgSound_c *)base;
     int i;
     int cnt1;
     int cnt2;
@@ -734,22 +734,22 @@ void func_ov006_0211c478(char *base)
         b += 0x24;
     }
 
-    *(unsigned char *)(base + 0x5604) = 0;
-    *(unsigned char *)(base + 0x5605) = 1;
-    *(int *)(base + 0x55f8) = 0xbd000;
-    *(int *)(base + 0x55fc) = 0x97000;
-    *(unsigned char *)(base + 0x5606) = 0;
-    *(unsigned char *)(base + 0x55f4) = 0;
-    *(unsigned char *)(base + 0x55f5) = 1;
-    *(int *)(base + 0x55e8) = 0xa0000;
-    *(int *)(base + 0x55ec) = 0x9d000;
-    *(unsigned char *)(base + 0x55f6) = 0;
+    self->mSpriteB.active = 0;
+    self->mSpriteB.visible = 1;
+    self->mSpriteB.x = 0xbd000;
+    self->mSpriteB.y = 0x97000;
+    self->mSpriteB.frame = 0;
+    self->mSpriteA.active = 0;
+    self->mSpriteA.visible = 1;
+    self->mSpriteA.x = 0xa0000;
+    self->mSpriteA.y = 0x9d000;
+    self->mSpriteA.frame = 0;
 
     *(short *)(base + 0x5612) = 0;
     *(short *)(base + 0x5610) = *(unsigned short *)(base + 0x5612);
     *(short *)(base + 0x5614) = 0;
-    *(unsigned char *)(base + 0x5625) = 0;
-    *(unsigned char *)(base + 0x5624) = 0;
+    self->unk_5625 = 0;
+    self->unk_5624 = 0;
     *(short *)(base + 0x5616) = 0;
 
     func_ov006_020c2924(base + 0x4f38);
@@ -763,6 +763,7 @@ void func_ov006_0211c478(char *base)
 extern "C" {  /* .c-derived member: C linkage for the whole block */
 void func_ov006_0211c080(char *o)
 {
+    dScMgSound_c *self = (dScMgSound_c *)o;
     int sel;
     int k;
     int count;
@@ -772,28 +773,28 @@ void func_ov006_0211c080(char *o)
     int i;
 
     sel = *(int *)(o + 0xbc);
-    *(u8 *)(o + 0x5628) = *(u8 *)(o + 0x5627);
+    self->mPrevPattern = self->mPattern;
     if (sel >= 5) {
         sel = (u32)(RND * 5) >> 15;
-        if (sel == *(u8 *)(o + 0x5628)) {
+        if (sel == self->mPrevPattern) {
             sel += ((u32)(RND << 2) >> 15) + 1;
             if (sel >= 5)
                 sel -= 5;
         }
     }
-    *(u8 *)(o + 0x5627) = sel;
-    k = *(u8 *)(o + 0x5627);
+    self->mPattern = sel;
+    k = self->mPattern;
     count = data_ov006_0212ee18[k];
     speed = data_ov006_0212ee10[k];
     if (k == 3) {
         int a = (u32)(RND << 2) >> 15;
         int b = (u32)(RND * 3) >> 15;
-        *(u8 *)(o + 0x561f) = b;
-        *(u8 *)(o + 0x5620) = *(u8 *)(o + 0x561f) + 1;
-        if (*(u8 *)(o + 0x5620) >= 3)
+        self->mLanes[0] = b;
+        self->mLanes[1] = self->mLanes[0] + 1;
+        if (self->mLanes[1] >= 3)
             *(u8 *)LAUNDER(o + 0x5620) -= 3;
-        *(u8 *)(o + 0x5621) = *(u8 *)(o + 0x5620) + 1;
-        if (*(u8 *)(o + 0x5621) >= 3)
+        self->mLanes[2] = self->mLanes[1] + 1;
+        if (self->mLanes[2] >= 3)
             *(u8 *)LAUNDER(o + 0x5621) -= 3;
         *(u8 *)LAUNDER(o + 0x561f) += a * 3;
         *(u8 *)LAUNDER(o + 0x5620) += a * 3;
@@ -822,13 +823,13 @@ void func_ov006_0211c080(char *o)
             }
         }
     }
-    k = *(u8 *)(o + 0x5627);
+    k = self->mPattern;
     if (k == 1 || k == 4) {
-        *(int *)(o + 0x560c) = data_ov006_0212efb0[((u32)*(int *)(o + 0xbc) >> 2) & 3];
+        self->unk_560c = data_ov006_0212efb0[((u32)*(int *)(o + 0xbc) >> 2) & 3];
     }
     half = count >> 1;
     for (i = 0; i < half; i++) {
-        *(u8 *)LAUNDER(o + i + 0x561f) += data_ov006_0212ef9c[*(u8 *)(o + 0x5627)];
+        *(u8 *)LAUNDER(o + i + 0x561f) += data_ov006_0212ef9c[self->mPattern];
     }
     {
         int xi;
@@ -845,7 +846,7 @@ void func_ov006_0211c080(char *o)
         xi = 0;
         p = o;
         do {
-            t = data_ov006_0212ee20[*(u8 *)(o + 0x5627)];
+            t = data_ov006_0212ee20[self->mPattern];
             *(int *)(p + 0x50e8) = data_ov006_0213f6fc[t][xi] << 12;
             *(int *)(p + 0x50ec) = (*(u16 * volatile *)&data_ov006_0213f6fc[t])[zi] << 12;
             *(u16 *)(p + 0x50f0) = 0;
@@ -955,9 +956,9 @@ void func_ov006_0211bf44(char* base, int slot)
  * destinations wired differently. Finally, when the mode byte at +0x5624 is
  * 1, the whole helper object at +0x4f38 is retriggered.
  *
- * These offsets lie within the current mTable storage, but the component
- * and scene-state boundary remains unresolved. The raw accesses are a
- * reconstruction limit, not evidence that all fields belong to one helper.
+ * These scene fields follow mTable's observed footprint. The remaining
+ * raw array accesses are a reconstruction limit; the component's full
+ * original extent remains unresolved.
  *
  * TWO SPELLINGS ARE LOAD-BEARING, both measured. First,
  * func_ov006_0211b654's SECOND argument: the callee is (scene, slot) --
@@ -1029,7 +1030,7 @@ extern "C" void func_ov006_0211bc8c(dScMgSound_c *self, int idx)
         }
     }
 
-    if (*(u8 *)(c + 0x5624) == 1) func_ov006_020c2300((char *)self->mTable);
+    if (*(u8 *)(c + 0x5624) == 1) func_ov006_020c2300((char *)&self->mTable);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1232,8 +1233,9 @@ void func_ov006_0211b80c(char *c){
 extern "C" {  /* .c-derived member: C linkage for the whole block */
 void func_ov006_0211b790(char* base)
 {
-    if (*(u8*)(base + 0x5626) == 0) {
-        *(int*)(base + 0x5608) = 2;
+    dScMgSound_c *self = (dScMgSound_c *)base;
+    if (self->unk_5626 == 0) {
+        self->mState = 2;
         *(s16*)(base + 0x5616) = 0x50;
         return;
     }
@@ -1251,7 +1253,7 @@ void func_ov006_0211b790(char* base)
         } while (i < 0xa);
         if (count != 0) return;
         *(s16*)(base + 0x5616) = 0x50;
-        *(int*)(base + 0x5608) = 2;
+        self->mState = 2;
     }
 }
 }
@@ -2317,9 +2319,10 @@ void func_ov006_02119bc4(void *c)
 extern "C" {  /* .c-derived member: C linkage for the whole block */
 void func_ov006_02119ba4(char *p)
 {
-    *(char *)(p + 0x55f4) = 1;
-    *(short *)(p + 0x55f0) = 0;
-    *(char *)(p + 0x55f6) = 0;
+    dScMgSound_c *self = (dScMgSound_c *)p;
+    self->mSpriteA.active = 1;
+    self->mSpriteA.timer = 0;
+    self->mSpriteA.frame = 0;
 }
 }
 
@@ -2330,17 +2333,18 @@ void func_ov006_02119ba4(char *p)
 extern "C" {  /* .c-derived member: C linkage for the whole block */
 void func_ov006_02119b00(char *o)
 {
-    if (*(u8 *)(o + 0x55f4) == 0)
+    dScMgSound_c *self = (dScMgSound_c *)o;
+    if (self->mSpriteA.active == 0)
         return;
-    if (*(u8 *)(o + 0x55f6) >= 2)
+    if (self->mSpriteA.frame >= 2)
         return;
     {
         u16 *p = (u16 *)(((int)o + 0x55f0));
         *p = *p + 1;
     }
-    if (*(u16 *)(o + 0x55f0) < data_ov006_0212ee28[*(u8 *)(o + 0x55f6)])
+    if (self->mSpriteA.timer < data_ov006_0212ee28[self->mSpriteA.frame])
         return;
-    *(u16 *)(o + 0x55f0) = 0;
+    self->mSpriteA.timer = 0;
     {
         u8 *q = (u8 *)(((int)o + 0x55f6));
         *q = *q + 1;
@@ -2370,9 +2374,10 @@ void func_ov006_02119aa8(void*pv){
 extern "C" {  /* .c-derived member: C linkage for the whole block */
 void func_ov006_02119a88(char *p)
 {
-    *(char *)(p + 0x5604) = 1;
-    *(short *)(p + 0x5600) = 0;
-    *(char *)(p + 0x5606) = 0;
+    dScMgSound_c *self = (dScMgSound_c *)p;
+    self->mSpriteB.active = 1;
+    self->mSpriteB.timer = 0;
+    self->mSpriteB.frame = 0;
 }
 }
 
@@ -2383,11 +2388,12 @@ void func_ov006_02119a88(char *p)
 extern "C" {  /* .c-derived member: C linkage for the whole block */
 void func_ov006_02119a18(char *b)
 {
-    if (*(unsigned char *)(b + 0x5604) == 0) return;
-    if (*(unsigned char *)(b + 0x5606) >= 3) return;
+    dScMgSound_c *self = (dScMgSound_c *)b;
+    if (self->mSpriteB.active == 0) return;
+    if (self->mSpriteB.frame >= 3) return;
     *(unsigned short *)A(b + 0x5600) += 1;
-    if (*(unsigned short *)(b + 0x5600) < data_ov006_0212ee38[*(unsigned char *)(b + 0x5606)]) return;
-    *(unsigned short *)(b + 0x5600) = 0;
+    if (self->mSpriteB.timer < data_ov006_0212ee38[self->mSpriteB.frame]) return;
+    self->mSpriteB.timer = 0;
     *(unsigned char *)A(b + 0x5606) += 1;
 }
 }
@@ -2419,4 +2425,5 @@ void func_ov006_021199c0(void*pv){
    other way to emit its variant; merged they are a duplicate definition AND
    the wrong order. mwccarm 2004/b56 emits D1 then D0 for an in-class body,
    which is the order ov006 uses -- D1 at 0x02119904 below D0 at 0x02119958.
-   The body itself is unchanged: `func_ov006_020c3288((char *)mTable)`. */
+   The body calls the same component destructor at the same address:
+   `func_ov006_020c3288((char *)&mTable)`. */

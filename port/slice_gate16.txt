@@ -64,7 +64,7 @@ src/func_02017060.c
 src/func_020469e0.c
 src/_ZN4Heap6SizeofEPv.cpp
 src/_ZN4Heap10ReallocateEPvj.cpp
-src/_ZN9ModelBase12ApplyOpacityEj.cpp
+src/_ZN9ModelBase12ApplyOpacityEjj.cpp
 src/func_020461b4.c
 src/func_02046208.c
 src/_ZN7Clipper13Func_02015560ER9Matrix4x3R7Vector35Fix12IiES3_.cpp
@@ -202,14 +202,14 @@ src/actors/da1up_c.cpp
 # the fourteen type behaviours the PMF table names
 # ...and the ring: the Enemy base the factory constructs, the Yoshi-eat check
 # its Behavior opens with, and the per-frame helper it closes with.
-# THE ENEMY CONSTRUCTOR IS NOT src/_ZN12dEnemyBase_cC2Ev.cpp. ov002 and ov007 are
+# THE ENEMY CONSTRUCTOR formerly lived in its own mangled-name shard. ov002 and ov007 are
 # linked at the SAME base (0x020ad660) and the config named 0x020aed98 in
 # ov007 -- a different function entirely -- so the file carrying that name is
 # ov007's body and pulls twenty ov007 symbols in behind it. ov002's own
 # Enemy::Enemy is func_ov002_020aed98: Actor::Actor, then the Enemy vtable.
 # da1up_c_classInit_ONEUPKINOKO's call is relocated to 0x020aed98 module:overlay(2),
 # which is what settles it. The name is bridged in hal/cxx_aliases.cpp.
-src/_ZN12dEnemyBase_cC2Ev.cpp
+src/actors/dEnemyBase_c.cpp
 
 # ---- the ov002 tier's shared closure ---------------------------------------
 # What the three classes above reach into once and share: the moving-mesh
@@ -262,8 +262,8 @@ src/func_02037a04.c
 src/func_02039db8.c
 src/func_02039e30.c
 src/func_02039e48.c
-# RETIRED at SLICE1: body now in src/_ZN12dEnemyBase_cD0Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
-#src/_ZN12dEnemyBase_cD2Ev.cpp
+# RETIRED at SLICE1: body now in src/actors/dEnemyBase_c.cpp. MSVC folds the ROM destructor variants into one symbol, so only one class TU can be compiled.
+#src/actors/dEnemyBase_c.cpp
 src/func_ov002_020e496c.c
 # the 1-up's own leaves: the shared per-frame helper, the collect path and the
 # five type bodies' common tail
@@ -277,7 +277,7 @@ src/_ZN13CLPS_BlockRefD1Ev.cpp
 # RETIRED at SLICE1: body now in src/_ZN8dM3dGSphD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
 #src/_ZN8dM3dGSphD2Ev.cpp
 src/_ZNK10dBgCh_Actr13JustHitGroundEv.cpp
-src/_ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj.cpp
+src/actors/dEnemyBase_c.cpp
 src/_ZN8dActor_c12ReflectAngleE5Fix12IiES1_s.cpp
 src/DeathTable_SetBit.c
 src/dBgCh_Actr_UpdateContinuous_Veneer.c
@@ -356,8 +356,8 @@ src/_ZN6Player13OnYoshiTryEatEv.cpp
 # mid-teardown and never dispatched through; the seat gives the hosted
 # storage the ROM's contents. Its VT/HEAP placeholders are settled in
 # hal/cxx_aliases.cpp (Enemy base vtable, game heap word).
-# RETIRED at SLICE1: body now in src/_ZN12dEnemyBase_cD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
-#src/_ZN12dEnemyBase_cD0Ev.cpp
+# RETIRED at SLICE1: body now in src/actors/dEnemyBase_c.cpp. MSVC folds the ROM destructor variants into one symbol, so only one class TU can be compiled.
+#src/actors/dEnemyBase_c.cpp
 # LANE-LK4 LINKAGE SEAT: the model family's own deleting dtors (D0), seated
 # into slot 0 of the five hosted primary tables at boot by
 # hal/model_dtor_seat.cpp (Model 0x02016ce0, Animation 0x02015cc4,

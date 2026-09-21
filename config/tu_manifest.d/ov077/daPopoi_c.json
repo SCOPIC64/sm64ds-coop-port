@@ -1,0 +1,430 @@
+{
+  "id": "ov077/daPopoi_c",
+  "module": "ov077",
+  "source": "src/actors/daPopoi_c.cpp",
+  "promoted_source": "src/actors/daPopoi_c.cpp",
+  "status": "promoted",
+  "boundary_confidence": "high",
+  "boundary_evidence": [
+    "contiguous linker run: 0x212624c..0x2127230, 22 function(s), from build/tu_map.json (tools/tu_map.py)",
+    "class label(s): daPopoi_c",
+    "module sinit corroboration: 3 sinit(s) / 3 .ctor entries, sinit_vs_tu=ok, corroborated=True (module-wide, NOT narrowed to this one TU -- see notes/tu-reconstruction-pilot-report.md sec 2 for the by-hand narrowing step)"
+  ],
+  "sections": [
+    {
+      "name": ".text",
+      "start": "0x0212624c",
+      "end": "0x02127230"
+    }
+  ],
+  "functions": [
+    {
+      "symbol": "_ZN9daPopoi_cD1Ev",
+      "address": "0x0212624c",
+      "size": "0x00000050",
+      "legacy_source": "src/_ZN9daPopoi_cD1Ev.cpp",
+      "ordinal": 0
+    },
+    {
+      "symbol": "_ZN9daPopoi_cD0Ev",
+      "address": "0x0212629c",
+      "size": "0x00000064",
+      "legacy_source": "src/_ZN9daPopoi_cD0Ev.cpp",
+      "ordinal": 1
+    },
+    {
+      "symbol": "func_ov077_02126300",
+      "address": "0x02126300",
+      "size": "0x00000228",
+      "legacy_source": "src/func_ov077_02126300.c",
+      "ordinal": 2
+    },
+    {
+      "symbol": "func_ov077_02126528",
+      "address": "0x02126528",
+      "size": "0x00000118",
+      "legacy_source": "src/func_ov077_02126528.cpp",
+      "ordinal": 3
+    },
+    {
+      "symbol": "func_ov077_02126640",
+      "address": "0x02126640",
+      "size": "0x00000118",
+      "legacy_source": "src/func_ov077_02126640.cpp",
+      "ordinal": 4
+    },
+    {
+      "symbol": "func_ov077_02126758",
+      "address": "0x02126758",
+      "size": "0x00000044",
+      "legacy_source": "src/func_ov077_02126758.cpp",
+      "ordinal": 5
+    },
+    {
+      "symbol": "func_ov077_0212679c",
+      "address": "0x0212679c",
+      "size": "0x00000194",
+      "legacy_source": "src/func_ov077_0212679c.c",
+      "ordinal": 6
+    },
+    {
+      "symbol": "func_ov077_02126930",
+      "address": "0x02126930",
+      "size": "0x00000078",
+      "legacy_source": "src/func_ov077_02126930.cpp",
+      "ordinal": 7
+    },
+    {
+      "symbol": "func_ov077_021269a8",
+      "address": "0x021269a8",
+      "size": "0x0000005c",
+      "legacy_source": "src/func_ov077_021269a8.cpp",
+      "ordinal": 8
+    },
+    {
+      "symbol": "func_ov077_02126a04",
+      "address": "0x02126a04",
+      "size": "0x0000004c",
+      "legacy_source": "src/func_ov077_02126a04.c",
+      "ordinal": 9
+    },
+    {
+      "symbol": "func_ov077_02126a50",
+      "address": "0x02126a50",
+      "size": "0x00000034",
+      "legacy_source": "src/func_ov077_02126a50.c",
+      "ordinal": 10
+    },
+    {
+      "symbol": "func_ov077_02126a84",
+      "address": "0x02126a84",
+      "size": "0x0000004c",
+      "legacy_source": "src/func_ov077_02126a84.c",
+      "ordinal": 11
+    },
+    {
+      "symbol": "func_ov077_02126ad0",
+      "address": "0x02126ad0",
+      "size": "0x00000204",
+      "legacy_source": "src/func_ov077_02126ad0.c",
+      "ordinal": 12
+    },
+    {
+      "symbol": "func_ov077_02126cd4",
+      "address": "0x02126cd4",
+      "size": "0x00000088",
+      "legacy_source": "src/func_ov077_02126cd4.cpp",
+      "ordinal": 13
+    },
+    {
+      "symbol": "func_ov077_02126d5c",
+      "address": "0x02126d5c",
+      "size": "0x00000050",
+      "legacy_source": "src/func_ov077_02126d5c.cpp",
+      "ordinal": 14
+    },
+    {
+      "symbol": "func_ov077_02126dac",
+      "address": "0x02126dac",
+      "size": "0x00000040",
+      "legacy_source": "src/func_ov077_02126dac.c",
+      "ordinal": 15
+    },
+    {
+      "symbol": "_ZN9daPopoi_c16CleanupResourcesEv",
+      "address": "0x02126dec",
+      "size": "0x00000048",
+      "legacy_source": "src/_ZN9daPopoi_c16CleanupResourcesEv.cpp",
+      "ordinal": 16
+    },
+    {
+      "symbol": "_ZN9daPopoi_c16OnPendingDestroyEv",
+      "address": "0x02126e34",
+      "size": "0x00000004",
+      "legacy_source": "src/_ZN9daPopoi_c16OnPendingDestroyEv.cpp",
+      "ordinal": 17
+    },
+    {
+      "symbol": "_ZN9daPopoi_c6RenderEv",
+      "address": "0x02126e38",
+      "size": "0x00000050",
+      "legacy_source": "src/_ZN9daPopoi_c6RenderEv.cpp",
+      "ordinal": 18
+    },
+    {
+      "symbol": "_ZN9daPopoi_c8BehaviorEv",
+      "address": "0x02126e88",
+      "size": "0x000001e4",
+      "legacy_source": "src/_ZN9daPopoi_c8BehaviorEv.cpp",
+      "ordinal": 19
+    },
+    {
+      "symbol": "_ZN9daPopoi_c13InitResourcesEv",
+      "address": "0x0212706c",
+      "size": "0x00000168",
+      "legacy_source": "src/_ZN9daPopoi_c13InitResourcesEv.cpp",
+      "ordinal": 20
+    },
+    {
+      "symbol": "daPopoi_c_classInit",
+      "address": "0x021271d4",
+      "size": "0x0000005c",
+      "legacy_source": "src/d_a_popoi.c",
+      "ordinal": 21
+    }
+  ],
+  "data": [],
+  "bss": [],
+  "notes": [
+    "Generated by tools/tubuild.py create. See the file's own header comment for what was and was not reconciled, and notes/translation-unit-reconstruction-plan.md section 7.3 for what this generator does and does not attempt to resolve automatically.",
+    "tubuild create warning: hand-assembled: raw concatenation in reverse ROM order; tubuild create refused this TU (extern \"C\"-wrapped legacy bodies)",
+    "22/22 MATCH, objisolate clean, reloc-destinations clean. Hand-assembled. Two different pointer-to-member shadows both named PMF (a Klass-dispatch view and the state-machine view) -- the state one renamed TU-locally; AngleDiff keeps its byte-load-bearing (short, short) view via a block-scope extern declaration against decl_common's (int, int); one ~daPopoi_c() emits D0+D1; Spawn stores &_ZTV9daPopoi_c[2]."
+  ],
+  "verification": {
+    "round": "tools/tubuild.py verify -- text-only, whole shadow TU compiled once",
+    "toolchain": "tools/mwccarm/2004/b56/mwccarm.exe",
+    "flags": "-O4,p -enum int -lang c++ -char signed -interworking -proc arm946e -gccext,on -msgstyle gcc -Cpp_exceptions off",
+    "object": "build/tu/ov077-daPopoi_c/daPopoi_c.o (gitignored)",
+    "comparison": "tools/match.py extract_func+compare (bytes/relocs) AND tools/objisolate.py plan() (relocation type/addend) AND tools/reloc_audit.py check_destinations() (relocation target identity)",
+    "functions_matched": 22,
+    "functions_declared": 22,
+    "criteria": {
+      "every_declared_function_defined": "PASS",
+      "every_declared_function_bytes_match": "PASS",
+      "declared_function_set_equals_defined_function_set": "PASS",
+      "functions_occur_in_expected_order": "PASS",
+      "relocation_destinations_verified": "PASS"
+    },
+    "linkcheck": {
+      "round": "tools/tubuild.py linkcheck -- scratch dsd delink+lcf, whole-tree mwccarm, mwldarm link, linked-range and module byte comparison, dsd check symbols --fail, full ROM build",
+      "result": "object-audit-refused",
+      "scratch": "build/tu/ov077-daPopoi_c/link (gitignored)",
+      "phases": {
+        "delink": true,
+        "lcf": true,
+        "compile": true
+      },
+      "tuRange": null,
+      "tuRanges": null,
+      "objectAudit": {
+        "counts": {
+          "COLLIDES-GAP": 9,
+          "HOMELESS": 2,
+          "LICENSED": 22
+        },
+        "emittedTextOrderIsRomAscending": false,
+        "nonLicensedSymbols": [
+          "COLLIDES-GAP _ZTI7fBase_c STB_LOPROC .data size=0x8 already at arm9:0x02086d70",
+          "COLLIDES-GAP _ZTS7fBase_c STB_LOPROC .data size=0x9 already at arm9:0x02086e60",
+          "COLLIDES-GAP _ZTS7dBase_c STB_LOPROC .data size=0x9 already at arm9:0x02086e54",
+          "HOMELESS _ZTS9daPopoi_c STB_LOPROC .data size=0x9",
+          "COLLIDES-GAP _ZTS8dActor_c STB_LOPROC .data size=0xa already at arm9:0x0208e384",
+          "COLLIDES-GAP _ZTI12dEnemyBase_c STB_LOPROC .data size=0xc already at ov002:0x021081c0",
+          "COLLIDES-GAP _ZTS12dEnemyBase_c STB_LOPROC .data size=0xf already at ov002:0x021081cc",
+          "COLLIDES-GAP _ZTI8dActor_c STB_LOPROC .data size=0xc already at arm9:0x0208e390",
+          "COLLIDES-GAP _ZTI7dBase_c STB_LOPROC .data size=0xc already at arm9:0x02086e78",
+          "HOMELESS _ZTI9daPopoi_c STB_LOPROC .data size=0xc",
+          "COLLIDES-GAP _ZTV9daPopoi_c STB_GLOBAL .data size=0x84 already at ov077:0x02127a98"
+        ],
+        "unlicensedSections": [
+          {
+            "name": ".data",
+            "size": 8
+          },
+          {
+            "name": ".data",
+            "size": 9
+          },
+          {
+            "name": ".data",
+            "size": 9
+          },
+          {
+            "name": ".data",
+            "size": 9
+          },
+          {
+            "name": ".data",
+            "size": 10
+          },
+          {
+            "name": ".data",
+            "size": 12
+          },
+          {
+            "name": ".data",
+            "size": 12
+          },
+          {
+            "name": ".data",
+            "size": 12
+          },
+          {
+            "name": ".data",
+            "size": 12
+          },
+          {
+            "name": ".data",
+            "size": 15
+          },
+          {
+            "name": ".data",
+            "size": 132
+          }
+        ]
+      },
+      "nontextSectionOrder": {
+        "groups": [],
+        "objisolate": null,
+        "errors": null
+      },
+      "linkedStorageAliases": null,
+      "symbolCheckNewVsBaseline": null,
+      "symbolCheckErrors": null,
+      "symbolCheckBaselineErrors": null,
+      "moduleSetSha256": null,
+      "rom": null,
+      "linkerOutput": null
+    },
+    "compilerOnlyOutput": {
+      "requested": [
+        "_ZN7Vector3D1Ev"
+      ],
+      "deadstripped": [
+        "_ZN7Vector3D1Ev"
+      ],
+      "droppedSections": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        28
+      ],
+      "data": [
+        "_ZTS9daPopoi_c",
+        "_ZTI9daPopoi_c",
+        "_ZTV9daPopoi_c",
+        "_ZTI7fBase_c",
+        "_ZTS7fBase_c",
+        "_ZTI7dBase_c",
+        "_ZTS7dBase_c",
+        "_ZTI8dActor_c",
+        "_ZTS8dActor_c",
+        "_ZTI12dEnemyBase_c",
+        "_ZTS12dEnemyBase_c"
+      ],
+      "dataExternalized": [
+        "_ZTI12dEnemyBase_c",
+        "_ZTI7dBase_c",
+        "_ZTI7fBase_c",
+        "_ZTI8dActor_c",
+        "_ZTI9daPopoi_c",
+        "_ZTS12dEnemyBase_c",
+        "_ZTS7dBase_c",
+        "_ZTS7fBase_c",
+        "_ZTS8dActor_c",
+        "_ZTS9daPopoi_c",
+        "_ZTV9daPopoi_c"
+      ]
+    }
+  },
+  "compiler_only_output": [
+    {
+      "symbol": "_ZN7Vector3D1Ev",
+      "disposition": "deadstrip-duplicate",
+      "canonical_module": "arm9",
+      "canonical_address": "0x020072c0",
+      "reason": "include/types.h declares Vector3 a deliberately empty inline destructor (`~Vector3() {}`), which makes the type non-POD everywhere, so every TU that gives a Vector3 automatic storage re-emits that destructor as vague linkage. In this TU _ZN9daPopoi_c8BehaviorEv, func_ov077_0212679c, func_ov077_02126ad0 and func_ov077_02126640 (three locals of its own) declare block-scope Vector3s that are passed by reference to SurfaceInfo::CopyNormalTo, Sound::PlayLong, dCcAcPos_c::SetPosRelativeToActor and dBgCh_Lin::SetObjAndLine. The cartridge keeps exactly one copy at arm9:0x020072c0, kind:function(arm,size=0x4), delinked to src/_ZN7Vector3D1Ev.cpp, which owns it; this object's copy is the identical 4-byte `bx lr` body. rombuild compares it against those cartridge bytes and refuses anything but byte-identical vague-linkage output before the duplicate is discarded, so the address cannot be lost -- the owning source still supplies it."
+    },
+    {
+      "symbol": "_ZTS9daPopoi_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "ov077",
+      "canonical_address": "0x02127a50",
+      "reason": "The TU naturally emits the ROM-proven class type-name string. Text-only: deadstripped, data: []."
+    },
+    {
+      "symbol": "_ZTI9daPopoi_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "ov077",
+      "canonical_address": "0x02127a68",
+      "reason": "The TU naturally emits the class single-inheritance RTTI. Text-only: deadstripped, data: []."
+    },
+    {
+      "symbol": "_ZTV9daPopoi_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "ov077",
+      "canonical_address": "0x02127a98",
+      "reason": "The TU naturally emits the complete class vtable; romdata_check applies the measured eight-byte public address-point bias. Text-only: deadstripped, data: []. The symbols.txt address point 0x02127a98 is unchanged."
+    },
+    {
+      "symbol": "_ZTI7fBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x02086d70",
+      "reason": "Inherited vague-linkage RTTI; romdata_check proves the natural compiler copy at its canonical arm9 home before text isolation."
+    },
+    {
+      "symbol": "_ZTS7fBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x02086e60",
+      "reason": "Inherited vague-linkage type-name string; romdata_check proves its exact canonical bytes before text isolation."
+    },
+    {
+      "symbol": "_ZTI7dBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x02086e78",
+      "reason": "Inherited vague-linkage RTTI; romdata_check proves the canonical arm9 object and relocations before text isolation."
+    },
+    {
+      "symbol": "_ZTS7dBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x02086e54",
+      "reason": "Inherited vague-linkage type-name string; romdata_check proves its exact canonical bytes before text isolation."
+    },
+    {
+      "symbol": "_ZTI8dActor_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x0208e390",
+      "reason": "Inherited vague-linkage RTTI; romdata_check proves the canonical arm9 object and relocations before text isolation."
+    },
+    {
+      "symbol": "_ZTS8dActor_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x0208e384",
+      "reason": "Inherited vague-linkage type-name string; romdata_check proves its exact canonical bytes before text isolation."
+    },
+    {
+      "symbol": "_ZTI12dEnemyBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "ov002",
+      "canonical_address": "0x021081c0",
+      "reason": "Inherited vague-linkage RTTI; romdata_check proves the canonical ov002 object and relocations before text isolation."
+    },
+    {
+      "symbol": "_ZTS12dEnemyBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "ov002",
+      "canonical_address": "0x021081cc",
+      "reason": "Inherited vague-linkage type-name string; romdata_check proves its exact canonical bytes before text isolation."
+    }
+  ]
+}

@@ -312,7 +312,7 @@ Vector3 dBgCh_Lin::GetClsnPos()
 //
 //   ?DisappearPoofDustAt@ArrowSignRight@@QAEXABUVector3@@@Z
 //   ?MarkForDestruction@ArrowSignRight@@QAEXXZ
-//       include/ArrowSignRight.h:74 asks for these two by name: "INHERITED, AND
+//       include/daObjYajirusi_c.h:74 asks for these two by name: "INHERITED, AND
 //       THEREFORE THE PORT'S TO BIND ... they resolve to
 //       _ZN8dActor_c19DisappearPoofDustAtERK7Vector3 and
 //       _ZN7fBase_c19MarkForDestructionEv, which is an /alternatename the port
