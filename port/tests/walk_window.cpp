@@ -410,6 +410,7 @@ static bool winapi_load(void)
 #include "hal/comms_seam.h"       /* run mg15 lane MP1: the radio seam */
 #include "hal/voice_chat.h"      /* lane VOICE: proximity voice chat */
 #include "hal/comms_loopback.h"   /* run mg16 lane MP2: the loopback carrier */
+#include "hal/resource_pack.h"    /* declarative Lua resource packs */
 /* run mg16 lane MP3: hal/comms_lockstep.h is RETIRED. Its transcription of
    src/func_0203ea5c.c existed only because that TU was in no slice; the TU is
    linked now and drives itself. Its lessons live in comms_seam.h's frozen
@@ -8819,6 +8820,26 @@ int main(void)
             printf("flight recorder: %s\n", logname);
             fprintf(stderr, "[recorder] session start\n");
         }
+    }
+    /* Lua is a declarative resource-pack language, not a gameplay scripting
+       back door. Each pack is sandboxed and may only register validated native
+       models, animations, texture replacements and character metadata. Loading
+       happens once before game resources are mounted; a broken pack is skipped
+       with a complete playlog diagnostic while the unmodified game continues. */
+    {
+        const char *pack_root = getenv("SM64DS_RESOURCE_PACKS");
+        std::string pack_error;
+        if (!sm64ds::packs::load_all(pack_root ? pack_root
+                                               : "mods/resource-packs",
+                                     pack_error))
+            fprintf(stderr, "[resource-pack] rejected pack(s):\n%s",
+                    pack_error.c_str());
+        fprintf(stderr, "[resource-pack] registry: %zu character(s), "
+                        "%zu texture replacement(s)\n",
+                sm64ds::packs::characters().size(),
+                sm64ds::packs::textures().size());
+        for (const auto &texture : sm64ds::packs::textures())
+            ntr::hdtex_register(texture.target_hash, texture.source.c_str());
     }
     /* A stale file from an earlier run must never be read as this run's verdict.
        Clear it before the decision, write it only if the decision goes badly. */

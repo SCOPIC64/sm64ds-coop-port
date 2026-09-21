@@ -1277,6 +1277,28 @@ port_configure_input("${CMAKE_CURRENT_SOURCE_DIR}/tools/tierscan.py")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+# Resource-pack scripts are part of the shipped port, so Lua is built from the
+# pinned vendored source instead of depending on a user's machine-wide install.
+file(GLOB LUA_RESOURCE_PACK_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src/*.c")
+list(FILTER LUA_RESOURCE_PACK_SOURCES EXCLUDE REGEX "/lua\.c$")
+list(FILTER LUA_RESOURCE_PACK_SOURCES EXCLUDE REGEX "/luac\.c$")
+list(FILTER LUA_RESOURCE_PACK_SOURCES EXCLUDE REGEX "/ltests\.c$")
+list(FILTER LUA_RESOURCE_PACK_SOURCES EXCLUDE REGEX "/onelua\.c$")
+add_library(lua_resource_pack STATIC ${LUA_RESOURCE_PACK_SOURCES})
+target_include_directories(lua_resource_pack PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src")
+if(MSVC)
+    target_compile_options(lua_resource_pack PRIVATE /wd4244 /wd4267 /wd4996)
+endif()
+
+add_executable(resource_pack_probe
+    tests/resource_pack_probe.cpp
+    hal/resource_pack.cpp)
+target_include_directories(resource_pack_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/hal")
+target_link_libraries(resource_pack_probe PRIVATE lua_resource_pack)
+
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate1.txt" SLICE_LINES)
 set(SLICE_SOURCES "")
 foreach(line IN LISTS SLICE_LINES)
@@ -17349,7 +17371,8 @@ endforeach()
 # a special build of it. Inert unless SM64DS_IO_PRESSURE_AT is set in the
 # environment, and nothing in the tree sets it.
 
-add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
+add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp
+    hal/resource_pack.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # run link100 lane BOOT: the ROM's own boot chain, called from the four
     # port_boot_rom_* seams in tests/walk_window.cpp's main. See the gate-214
     # block above and the header of hal/boot_os.cpp.
@@ -17638,7 +17661,7 @@ target_include_directories(walk_window PRIVATE
 # exe, the Aspect settings key (a ratio, 0 = native) picks it at boot. Was ntr_2x
 # (NTR_HIRES2, the fixed 512x384 tier); the wide-max buffer with a 4:3 default
 # active size is byte-for-byte that build when the key is off.
-target_link_libraries(walk_window PRIVATE ntr_wide_rt)
+target_link_libraries(walk_window PRIVATE ntr_wide_rt lua_resource_pack)
 target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
     ${PORT_REPO_ROOT_DEF}
     # GATE STARSEL (run link100, lane STARSELENTRY): this target carries
@@ -17756,7 +17779,8 @@ add_custom_command(TARGET walk_window POST_BUILD
     COMMENT "arm9_globals_guard: no ROM write runs past a hosted arm9 global")
 
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
-add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
+add_executable(walk_window_hires tests/walk_window.cpp hal/resource_pack.cpp
+    "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # run link100 lane BOOT: same slice as walk_window, for the same reason --
     # this target compiles tests/walk_window.cpp, which carries the boot calls.
     ${SLICE214_SOURCES} ${SLICE_IPCSEND_SOURCES}
@@ -18025,7 +18049,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(walk_window_hires PRIVATE ntr_hires)
+target_link_libraries(walk_window_hires PRIVATE ntr_hires lua_resource_pack)
 target_compile_definitions(walk_window_hires PRIVATE SM64DS_PLATFORM_PC
     ${PORT_REPO_ROOT_DEF}
     # GATE STARSEL (run link100, lane STARSELENTRY): this target carries
