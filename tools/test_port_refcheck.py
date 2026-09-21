@@ -88,6 +88,29 @@ add_extra_sources(smoke SRC extra.cpp)
 ''', ('real',))
         self.assertEqual((count, failures), (1, []))
 
+    def test_patterned_variable_write_preserves_unrelated_selection(self):
+        text = '''
+set(SELECTED "${CMAKE_CURRENT_SOURCE_DIR}/tests/selected.cpp")
+set(PORT_HOSTGEN_TU_ROW_existing old)
+foreach(dynamic IN LISTS UNKNOWN_ROWS)
+    set(PORT_HOSTGEN_TU_ROW_${dynamic} replacement)
+endforeach()
+add_executable(smoke "${SELECTED}")
+'''
+        selected, _ = P._cmake_build_inputs(text)
+        self.assertEqual(selected, {(self.port / 'tests/selected.cpp').resolve()})
+
+    def test_wholly_dynamic_variable_write_still_fails_closed(self):
+        text = '''
+set(SELECTED "${CMAKE_CURRENT_SOURCE_DIR}/tests/selected.cpp")
+foreach(dynamic IN LISTS UNKNOWN_ROWS)
+    set(${dynamic} replacement)
+endforeach()
+add_executable(smoke "${SELECTED}")
+'''
+        selected, _ = P._cmake_build_inputs(text)
+        self.assertEqual(selected, set())
+
     def test_host_definitions_resolve_cross_file_reference(self):
         self.write(self.port / "hal" / "sections.h",
                    '#define DSSTATE_BEGIN __pragma(data_seg("sample"))\n'
@@ -110,6 +133,10 @@ extern "C" void func_02000000();
         })
         self.assertGreater(count, 6)
         self.assertEqual(failures, [])
+
+    def test_later_definition_inherits_prior_c_language_linkage(self):
+        text = 'extern "C" { void func_02000000(char *); }\nvoid func_02000000(char *) {}\n'
+        self.assertEqual(set(P._host_c_definitions(text)), {'func_02000000'})
 
     def test_externs_and_initializer_references_are_not_definitions(self):
         _, failures = self.hal({'externs.cpp': '''extern "C" {
@@ -532,6 +559,19 @@ add_executable(host ${ACTOR_OV_SYMS})
         self.assertEqual(P._generated_data_owners([command]), set())
         # Config-only and merely present list files cannot establish selection.
         self.assertEqual(P._generated_data_owners([]), set())
+
+    def test_generated_overlay_owner_accepts_an_explicit_config_address(self):
+        self.generated_fixture()
+        command = ['python', str(self.port / 'tools' / 'ovdata.py'), 'ov002', str(self.repo / 'build' / 'ov002.c'), '--from-list', str(self.port / 'ov002_syms.txt'), '--pack']
+        self.write(self.repo / 'config' / 'arm9' / 'overlays' / 'ov002' / 'symbols.txt', '@446 kind:data addr:0x02100004\n')
+        pinned = 'data_ov002_02100004'
+        self.write(self.port / 'ov002_syms.txt', pinned + '@0x02100004:0x4\n')
+        self.assertEqual(P._generated_data_owners([command]), {pinned})
+        for entry in (pinned + '@02100004', 'legacy-name@0x02100004',
+                      pinned + '@0x02109999', pinned + '@0x02100004:0'):
+            with self.subTest(entry=entry):
+                self.write(self.port / 'ov002_syms.txt', entry + '\n')
+                self.assertEqual(P._generated_data_owners([command]), set())
 
     def test_arm9_generation_uses_declared_inputs_not_every_config_row(self):
         self.generated_fixture()
