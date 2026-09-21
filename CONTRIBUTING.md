@@ -1,4 +1,4 @@
-# Contributing to sm64ds-decomp
+# Contributing to 64DS-DX
 
 Thanks for wanting to help. This is a decompilation of Super Mario 64 DS
 written as a love letter to the original EAD team: every file in `src/`
@@ -6,6 +6,17 @@ should read like idiomatic, period-accurate C++ from 2004 *and* compile
 byte-identical to the retail ROM under the pinned compiler. See
 [`AGENTS.md`](AGENTS.md) for what a change looks like and what the merge gate
 checks — this file is setup and ground rules.
+
+64DS-DX carries two kinds of work on the same `main` branch:
+
+- Decompilation changes under `src/`, `include/`, and `config/` follow the
+  byte-identity rules below.
+- PC-only co-op, platform, launcher, and Lua resource-pack changes belong under
+  `port/`. They must build and pass their port-side probes, but they are not
+  presented as reconstructed cartridge code.
+
+Keep those concerns separate in commits and pull requests. Resource packs must
+not include ROM content or third-party assets without redistribution permission.
 
 ## Get in touch
 
@@ -54,8 +65,8 @@ You bring your own copy of the game. Nothing copyrighted lives in this repo.
 ## First-time setup
 
 ```sh
-git clone https://github.com/tangosdev/sm64ds-decomp
-cd sm64ds-decomp
+git clone https://github.com/SahilKDas/64DS-DX
+cd 64DS-DX
 pip install ndspy capstone pyelftools py7zr pefile
 
 # 1. get mwccarm.zip per notes/setup-mwccarm.md and extract to tools/mwccarm/

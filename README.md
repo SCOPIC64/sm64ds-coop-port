@@ -1,11 +1,22 @@
-# Super Mario 64 DS Decompilation (sm64ds-decomp)
+# 64DS-DX
 
 [![Discord Server][discord-badge]][discord]
 
 [discord]: https://discord.gg/YpReERF4e3
 [discord-badge]: https://img.shields.io/discord/1520811338568569112?color=7289DA&logo=discord&logoColor=ffffff
 
-> **Looking for the PC port?** [Download it here.](https://tangos.dev/downloads)
+> **This fork combines the SM64DS decompilation and native PC port.** The
+> canonical development branch is `main`; the former `coop-port` and feature
+> branches have been consolidated into it.
+
+64DS-DX extends Tango's SM64DS PC port with online co-op, native character-pack
+manifests, and sandboxed Lua resource/texture packs. It does not ship a ROM,
+Nintendo assets, or unlicensed third-party character assets.
+
+Port documentation starts at **[port/README.md](port/README.md)**. Lua pack
+authors should read **[the resource-pack guide](port/mods/resource-packs/README.md)**,
+and native character importers should read
+**[the character-pack guide](port/mods/characters/README.md)**.
 
 A from-scratch decompilation (decomp) of **Super Mario 64 DS**, written as a love
 letter to the original EAD team: the goal is source that reads like it shipped in
@@ -85,10 +96,11 @@ flat C. It read 3.8% for that reason. See [notes/converted-tier.md](notes/conver
 which also records two evasions in the other criteria that are left open on purpose.
 
 LINKED is a stamped measurement, not a live counter. It needs an MSVC build of the
-port, which CI on this branch cannot produce, so it is measured by hand and recorded
-in [config/port_linkage.json](config/port_linkage.json) with the branch and commit it
-came from. Because the port branches are not merged, it is the best single branch and
-so a floor. Reproduce it with `python port/tools/linkage.py` against a port build.
+port, which CI cannot produce, so it is measured by hand and recorded in
+[config/port_linkage.json](config/port_linkage.json) with the commit it came from.
+The port and decomp histories now meet on `main`; the recorded value remains a floor
+until it is re-measured. Reproduce it with `python port/tools/linkage.py` against a
+port build.
 
 ## What "matching" means
 

@@ -1,5 +1,9 @@
 # Native character packs
 
+For distributable, declarative packs, see the
+[Lua resource-pack format](../resource-packs/README.md). This directory holds the
+lower-level native import manifests and tooling used to prepare compatible assets.
+
 Character packs extend the port without replacing the four cartridge character
 slots. A pack owns a logical ID above the retail range and supplies ordinary
 SM64DS `BMD_File` assets. The game renderer, material loader, and animation path
