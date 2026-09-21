@@ -300,7 +300,7 @@ src/_ZN6Klepto6RenderEv.cpp
 #     hal/actor_classes_koopa_chuckya.cpp:370.
 #     RECORD: kind:function(arm,size=0x168) addr:0x02118f84, body e92d4010
 #     e24dd010 e1a04000.
-src/_ZN5Koopa6RenderEv.cpp
+src/game/actors/d_a_nknk.cpp
 
 # 15. src/_ZN6Bowser6RenderEv.cpp -- BOWSER's own Render, the ModelAnim at +0xd4
 #     with the scale triple at +0x80. FACE.

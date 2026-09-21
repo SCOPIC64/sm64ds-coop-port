@@ -192,7 +192,7 @@ ARITY_FIXTURES = [
      "extern void _ZN12dEnemyBase_cC2Ev(void);",
      "extern void _ZN12dEnemyBase_cC2Ev(void *);",
      "spawn sites that already had the receiver in hand and were not passing "
-     "it; the definition src/_ZN12dEnemyBase_cC2Ev.cpp:5 takes one",
+     "it; the definition src/actors/dEnemyBase_c.cpp takes one",
      "PR #1543, cons b74cf657d, 2026-08-16 (that PR fixed the ChainChomp / "
      "ChiefChilly / Wiggler spellings; this row re-breaks a sibling that "
      "carries the identical declaration today)"),

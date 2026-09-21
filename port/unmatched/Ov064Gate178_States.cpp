@@ -82,7 +82,7 @@ void _ZN10dBgActor_c19UpdateClsnPosAndRotEv(void *self);
    compiles and dispatches data_ov064_0211c750 itself. TWO THINGS HAD TO BE
    TRUE AND BOTH WERE MEASURED: the file is a .c whose own text spells
    `typedef void (C::*PMF)();`, which is not C, so it carries LANGUAGE CXX in
-   block R10e -- lane PMFB2's treatment for src/func_ov002_020aea30.cpp -- and
+   block R10e -- lane PMFB2's treatment for src/actors/dEnemyBase_c.cpp -- and
    its table comes in decorated as ?data_ov064_0211c750@@3PAUEntry@@A, which
    port/hal/fwd_forwarders.cpp aliases onto the mounted C name. Its src defines
    the FLAT C symbol, so unlike gate 1's nine rows it needs no forwarder; the

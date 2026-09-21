@@ -227,7 +227,7 @@ void func_0203d384(void);
      src/func_ov073_02120ed0.c:20   extern int _ZN6Player12GetHurtStateEv(void *self);
      src/func_ov073_02120ed0.c:112  if (_ZN6Player12GetHurtStateEv(p) == 4) goto hz;
      src/func_ov073_02120ed0.c:113  if (_ZN6Player12GetHurtStateEv(p) == 5) goto hz;
-     src/func_ov077_02126640.cpp:37 if (_ZN6Player12GetHurtStateEv(a) < 0) {
+     src/actors/daPopoi_c.cpp:37 if (_ZN6Player12GetHurtStateEv(a) < 0) {
 
    -- and the body src/_ZN6Player12GetHurtStateEv.cpp:10 reads `this` twice:
 

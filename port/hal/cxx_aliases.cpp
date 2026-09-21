@@ -1616,7 +1616,7 @@ extern "C" int _ZN9dBgCh_Gnd10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?G1@@3PAHA=_data_ov002_0210e05c")
 #pragma comment(linker, "/alternatename:_G0=_data_020a0eac")
 /* VT/HEAP, the other two shared-header placeholder names, settled the same
-   way for their ONE linked reader: src/_ZN12dEnemyBase_cD0Ev.cpp (the Enemy base
+   way for their ONE linked reader: src/actors/dEnemyBase_c.cpp (the Enemy base
    table's deleting destructor, seated by hal_fill_enemy_base_vtable). Its
    ROM relocs are the Enemy base vtable ov002 0x021081e4 for the vptr store
    and the 0x020a0eac game heap word for the Memory::Deallocate argument.
@@ -1631,7 +1631,7 @@ extern "C" int _ZN9dBgCh_Gnd10DetectClsnEv(void *self)
    pool names its own table, so bare VT would have stored the ov002 dEnemyBase_c base
    table into a minigame scene object. All three are exempted by a per-source -D
    in port/CMakeLists.txt onto their own table rather than by a change here, so
-   the row above keeps serving src/_ZN12dEnemyBase_cD0Ev.cpp untouched:
+   the row above keeps serving src/actors/dEnemyBase_c.cpp untouched:
      src/actors/dScMgLuigi_c.cpp  dScMgLuigi_c    -> data_ov006_0213cf10
      src/_ZN14dScMgCurling_cD0Ev.cpp  dScMgCurling_c  -> data_ov006_0213c304
      src/_ZN11dScMgCoin_cD0Ev.cpp  dScMgCoin_c     -> data_ov006_0213bf50
@@ -1763,7 +1763,7 @@ extern "C" int _ZN9dBgCh_Gnd10DetectClsnEv(void *self)
    than re-pointed (Andrew's third review of PR #2474).
 
    The evidence, in the order it settles the question:
-     * src/_ZN12dEnemyBase_cC2Ev.cpp is in the slice (port/slice_gate16.txt:233) and
+     * src/actors/dEnemyBase_c.cpp is in the slice (port/slice_gate16.txt:233) and
        the link publishes __ZN12dEnemyBase_cC2Ev from its own object --
        walk_window.map: `0001:00110a20  __ZN12dEnemyBase_cC2Ev  _ZN12dEnemyBase_cC2Ev.cpp.obj`.
        An /alternatename only fires while its LHS is UNDEFINED, so with that

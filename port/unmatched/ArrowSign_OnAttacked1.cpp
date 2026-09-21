@@ -1,4 +1,4 @@
-/* HOST COPY of src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp -- ArrowSignRight's slot-22
+/* HOST COPY of src/actors/daObjYajirusi_c.cpp -- ArrowSignRight's slot-22
  * (OnAttacked1) body.
  *
  * WHY THIS FILE EXISTS. This function's job, when it is attacked and the
@@ -43,7 +43,7 @@
  *
  * PROOF (run linkw, lane l1). Both spellings compiled standalone with the port's
  * own cl, /O2 /FAsc; the whole body is short enough to quote entire.
- * src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp:
+ * src/actors/daObjYajirusi_c.cpp:
  *
  *     ; c->vt->f[0x7c/4](c);
  *       8b 44 24 04  mov  eax, DWORD PTR _c$[esp-4]
@@ -91,7 +91,7 @@ struct KillSelf {
    Lane FACEF called the fix decomp-side ('only the matched TU's own
    spelling can put `this` in ecx'). The generated TU's spelling does
    exactly that, and src/ does not move.
-   The matched TU src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp is seated in its place: port/tools/hostgen.py's VIRTUAL_CALL table calls word 31
+   The matched TU src/actors/daObjYajirusi_c.cpp is seated in its place: port/tools/hostgen.py's VIRTUAL_CALL table calls word 31
    __fastcall(c, 0), which is where as_kill reads its `this` from.
    Per-row ROM evidence (referrer, RTTI name, kind:function record, the
    dispatch instruction read at its own address) is in port/slice_seat6.txt. */

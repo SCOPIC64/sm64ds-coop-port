@@ -1157,7 +1157,7 @@ src/_ZN10daKpa2Bg_c16CleanupResourcesEv.cpp
 # own symbol in its `// @symbol` header. That is a true statement about the
 # text and a false one about what MSVC emits. A scan for this shape should
 # ask what the object DEFINES, not what the source says.
-#src/_ZN12dEnemyBase_cD2Ev.cpp
+#src/actors/dEnemyBase_c.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -1573,7 +1573,7 @@ src/_ZN13RollingLogLll8BehaviorEv.cpp
 # FALLS_OFF_RETURN can express it, but the value the ROM actually leaves
 # in r0 on that path has to be read off the ROM body first, one row at a
 # time, so it is a ruling and not plumbing. ArrowSignRight::OnAttacked1
-#src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp
+#src/actors/daObjYajirusi_c.cpp
 
 # 1 unresolved: __ZN14ArrowSignRight4KillEv
 # RETIRED at SYNC6: this TU is already named by an older slice list, and

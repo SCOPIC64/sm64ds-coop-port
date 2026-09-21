@@ -92,7 +92,7 @@
 #   the four furniture ids share. port/unmatched/MansionSteps_InitResources.c:
 #   "NOT matched in src/ (the other six slots all are)". It is now.
 #
-# src/_ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr.cpp -- the eaten actor's
+# src/actors/dEnemyBase_c.cpp -- the eaten actor's
 #   state machine inside Yoshi's mouth, ov002 0x020ade78, 0x3cc bytes.
 #   port/unmatched/Enemy_UpdateYoshiEat.cpp ruled it "UNMATCHED and ... NOT
 #   MATCHABLE in this lane: 241 of 243 instructions are byte-exact and the
@@ -141,7 +141,7 @@ src/func_ov063_021166ac.cpp
 src/func_ov071_021211e0.c
 src/game/actors/daTrs_c/_ZN7daTrs_c8BehaviorEv.cpp
 src/game/actors/daTrsTrap_c/_ZN11daTrsTrap_c13InitResourcesEv.cpp
-src/_ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr.cpp
+src/actors/dEnemyBase_c.cpp
 src/_ZN12Flamethrower8BehaviorEv.cpp
 src/_ZN6Coffin13InitResourcesEv.cpp
 

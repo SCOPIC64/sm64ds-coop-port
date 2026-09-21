@@ -407,7 +407,7 @@ static unsigned ghost_alpha()
 }
 
 /* ModelBase::ApplyOpacity, the ROM's own one-argument body (method_faces.cpp
-   forwards to the matched src/_ZN9ModelBase12ApplyOpacityEj.cpp). It walks the
+   forwards to the matched src/_ZN9ModelBase12ApplyOpacityEjj.cpp). It walks the
    model's components and stamps the alpha into each material, the same call
    Player::Render makes on the wings. Re-applied every frame because the
    material flags are rebuilt by the per-frame update. */

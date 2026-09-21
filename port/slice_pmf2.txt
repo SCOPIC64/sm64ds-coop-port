@@ -247,11 +247,11 @@ src/func_ov065_02117944.cpp
 # duplicate symbol and taking the src one puts the host copy's reason back. The
 # row returns when the host copy covers the whole consolidated TU.
 #src/actors/Eyerok.cpp
-src/func_ov077_02126d5c.cpp
+src/actors/daPopoi_c.cpp
 src/func_ov081_02125488.cpp
 src/func_ov090_02131e00.cpp
 src/func_ov090_02132ac4.cpp
-src/func_ov090_021332e8.cpp
+src/actors/daPukupuku_c.cpp
 src/func_ov090_021338b4.cpp
 src/func_ov091_02134044.cpp
 src/func_ov100_02143b18.cpp
