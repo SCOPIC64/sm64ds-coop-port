@@ -1,0 +1,94 @@
+/* HOST COPIES of src/_ZN8Goomboss6RenderEv.cpp and src/func_ov074_021222e0.cpp
+ * -- run rel0215 wave 2, lane w2-ov074. Both are the ModelAnim slot-5
+ * collision, the Butterfly/Fish/QuestionBlock/Whomp/FlyingCarpet case
+ * documented at length in port/unmatched/ModelAnim_Renders.cpp.
+ *
+ * WHY BOTH: Goomboss HOLDS a ModelAnim at +0x210 (daKuriKing_c_classInit_KURIKING.cpp and
+ * daKuriKing_c_classInit_KURIKING_VANISH.cpp both construct it there with _ZN9ModelAnimC1Ev,
+ * and both destructors tear it down with _ZN9ModelAnimD1Ev at the same
+ * offset). Each of these two TUs dispatches through a LOCAL SIX-VIRTUAL
+ * ROM-order shadow over that member:
+ *
+ *   Render:            struct Sub { v0..v4; virtual void m(void *); };
+ *                      ((Sub *)&mModelAnim)->m(&mScaleX);
+ *   func_ov074_021222e0: struct Obj210 { v0..v4; virtual void v5(int); };
+ *                      ((Obj210 *)(c + 0x210))->v5(0);
+ *
+ * so their "slot 5" is the ROM's ModelAnim::Render(Vector3 const *), while
+ * hal/cxxname_bridge.cpp fills _ZTV9ModelAnim in MSVC numbering where slot 5
+ * is Virtual18 -- a two-argument method reached with the shadow's one. Model's
+ * table is dual-filled and would have served this; ModelAnim's cannot be,
+ * because Virtual18 really occupies that slot.
+ *
+ * NOT MEASURED AS A CRASH HERE, and neither body claims it was: the collision
+ * is predicted from the member's own constructor/destructor pair and from the
+ * fourteen prior instances of the identical shape, and both TUs are hosted
+ * before the first boot rather than after a fault. Both matched sources stay
+ * byte-locked in src/ as proof and are dropped from port/slice_ov074.txt.
+ *
+ * THE ARGUMENT DIFFERS BETWEEN THE TWO and that is the ROM's own doing.
+ * Render passes &mScaleX (this+0x80), the Fix12 scale triple the ROM hands
+ * ModelAnim::Render; func_ov074_021222e0 passes 0, the null-scale form. Both
+ * are spelled as the qualified ModelAnim::Render below, with the ROM's own
+ * argument.
+ *
+ * func_ov074_021222e0 IS ALSO ONE HALF OF AN ALIAS RACE. src/_ZN3Amp16Cleanup-
+ * ResourcesEv.c (ov070) reads `struct SharedFilePtr *func_ov074_021222e0[2]`
+ * -- ov070's own two-pointer file table at the same shared-window address --
+ * under this FUNCTION's spelling, and hal/cxx_aliases.cpp used to alias that
+ * name onto data_ov070_021222e0. Defining the name here (or in src/) defeats
+ * that alias silently, so this lane re-cuts it as a per-source -D on the AMP
+ * TU and deletes the pragma; see port/slice_ov074.txt section 4b.
+ *
+ * PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case.
+ */
+#include "Model.h"
+#include "ModelAnim.h"
+#include "common.h"
+
+extern "C" {
+
+extern void _ZN15TextureSequence6UpdateER15ModelComponents(void *a, void *b);
+extern void _ZN15MaterialChanger6UpdateER15ModelComponents(void *a, void *b);
+extern void _ZN18TextureTransformer6UpdateER15ModelComponents(void *a, void *b);
+extern void Vec3_Asr(Vector3 *d, Vector3 *s, int sh);
+extern void Matrix4x3_FromTranslation(void *m, int x, int y, int z);
+extern void Matrix4x3_ApplyInPlaceToTranslation(void *m, int x, int y, int z);
+extern void Matrix4x3_ApplyInPlaceToRotationZXYExt(void *m, int x, int y, int z);
+extern Matrix4x3 data_020a0e68;
+extern int func_ov074_021222e0(char *c);
+
+/* ---- (1) Goomboss::Render, ROM 0x02121b70 -- RETIRED --------------------
+   Run link100, lane FACEF. The stated reason above ("hal/cxxname_bridge.cpp
+   fills _ZTV9ModelAnim in MSVC numbering where slot 5 is Virtual18") stopped
+   being true when lane SLOT5F respelled the ROM's destructor pair under
+   _MSC_VER in include/ModelBase.h: cxxname_bridge.cpp:577 now fills
+   _ZTV9ModelAnim[5] with ma2_render, so the matched TU's own six-virtual
+   ROM-order shadow reaches Render at index 5, which is the draw the ROM
+   means. Read first-hand out of extracted/overlays/overlay_0074.bin at base
+   0x0211f000: _ZTV8Goomboss[9] @ 0x02122edc = 0x02121b70, the vtable's own
+   RTTI name string reads "12daKuriKing_c", and the body's dispatch at
+   0x02121bb0 is `add r1,r4,#0x80 / ldr r2,[r2,#0x14] / blx r2` -- byte +0x14,
+   the SIXTH word, ROM slot 5, with mScaleX as the argument.
+   src/_ZN8Goomboss6RenderEv.cpp is on port/slice_facef.txt and its Itanium C
+   name comes from hal/except_faces.cpp. The mParam == 0x1111 path still calls
+   func_ov074_021222e0, which is defined below and stays here: its own second
+   reason (the ov070/ov074 shared-window name race, hal/cxx_aliases.cpp:1133)
+   is a different mechanism and is untouched by this lane. */
+
+/* ---- (2) func_ov074_021222e0, ROM 0x021222e0 ----------------------------
+   The mParam == 0x1111 Render. Same slot-5 collision, null scale.
+   PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case. */
+/* func_ov074_021222e0 RETIRED (run link100, lane SEAT6, batch B6).
+   Both of its reasons expired. The ROM-order ModelAnim slot-5 numbering
+   died with lane SLOT5F (cxxname_bridge.cpp:577 fills _ZTV9ModelAnim[5]
+   with ma2_render, which is why lane FACEF could seat Goomboss::Render
+   above from the same instruction), and the ov070/ov074 shared-window
+   NAME RACE is re-cut as the per-source COMPILE_DEFINITIONS at
+   port/CMakeLists.txt:12640. This file has been DEFINING the name all
+   along, which is the proof that defining it from src is no change.
+   The matched TU src/func_ov074_021222e0.cpp is seated in its place: a plain line on port/slice_seat6.txt.
+   Per-row ROM evidence (referrer, RTTI name, kind:function record, the
+   dispatch instruction read at its own address) is in port/slice_seat6.txt. */
+
+}  /* extern "C" */

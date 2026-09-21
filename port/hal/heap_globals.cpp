@@ -13,15 +13,23 @@
 // TUs are C (plain-name definitions). Each alias below names the x86-32
 // decorated forms.
 
+#include "dsstate_seg.h"
+
 extern "C" {
 // The single real storage. Memory::rootHeapIterator is a NestedHeapIterator
 // (a list head); the decomp TUs address it as a blob. 0x20 covers the
-// evidenced fields with room; the ctor initializes it.
+// evidenced fields with room; the ctor initializes it. Both are hosted DS
+// globals the save state must roll back (the list head threads INTO the
+// arena), so they live in the .dsstate capture section -- they were in the
+// old hand-picked list and stay captured under the section scheme.
+DSSTATE_BEGIN
 char _ZN6Memory16rootHeapIteratorE[0x20];
 int _ZN6Memory25isRootHeapIterInitializedE;
+DSSTATE_END
 
 // SDK asm primitive (stmia burst fill) -> plain word fill on host. The
 // frontier classifies its TU as HAL-owned; this is the HAL half.
+// PORT_HOST_ABI: ARM asm primitive (stmia burst fill), MSVC cannot assemble.
 void MultiStore_Int(int val, int *dst, int len)
 {
     for (int i = 0; i < len / 4; ++i)
@@ -37,7 +45,8 @@ void MultiStore_Int(int val, int *dst, int len)
 #pragma comment(linker, "/alternatename:?_ZN6Memory25isRootHeapIterInitializedE@@3HA=__ZN6Memory25isRootHeapIterInitializedE")
 // FUNCTION alias only where the conventions MATCH: this reference and the C
 // definition are both __cdecl free functions.
-#pragma comment(linker, "/alternatename:?_ZN18NestedHeapIteratorC1Ej@@YAXPAXI@Z=__ZN18NestedHeapIteratorC1Ej")
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEAD RHS and an UNREFERENCED left hand side: nothing in the build defines __ZN18NestedHeapIteratorC1Ej, and nothing references ?_ZN18NestedHeapIteratorC1Ej@@YAXPAXI@Z, so the row can never fire and nothing wants it to. */
+// #pragma comment(linker, "/alternatename:?_ZN18NestedHeapIteratorC1Ej@@YAXPAXI@Z=__ZN18NestedHeapIteratorC1Ej")
 
 // FUNCTION BRIDGES where aliasing would be a silent ABI bug: C TUs call the
 // iterator entry points as __cdecl free functions under Itanium names, but
@@ -53,9 +62,10 @@ void _ZN18NestedHeapIterator8AddFirstEP13HeapAllocator(void *self, HeapAllocator
 int _ZN18NestedHeapIterator4NextEP13HeapAllocator(void *self, HeapAllocator *a)
 { return ((NestedHeapIterator *)self)->Next(a); }
 }
-// And the reverse direction: AddLast/AddFirst reference Init as a C++
-// __cdecl FREE function (?_ZN..4Init..@@YAXPAD0@Z, char* args) while
-// Init.cpp defines the method. C++ linkage on purpose -- extern "C" would
-// decorate this wrong.
-void _ZN18NestedHeapIterator4InitEP13HeapAllocator(char *self, char *a)
+// And the reverse direction: AddLast/AddFirst reference Init as a __cdecl
+// FREE function with char* args while Init.cpp defines the method. This face
+// carried C++ linkage until include/decl_NestedHeapIterator.h was wrapped in
+// extern "C" (#1049) -- the callers now emit the plain C symbol, so this must
+// too, or both callers go unresolved.
+extern "C" void _ZN18NestedHeapIterator4InitEP13HeapAllocator(char *self, char *a)
 { ((NestedHeapIterator *)self)->Init((HeapAllocator *)a); }

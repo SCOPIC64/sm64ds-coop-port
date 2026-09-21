@@ -1,4 +1,4 @@
-# Gate 24: the boot spine -- the real Stage actor.
+# Gate 26: the boot spine -- the real Stage actor. (Renumbered from 24 at merge.)
 #
 # The port's level boot already runs the game's own Stage::LoadClsnAndObjects
 # (gate 14) but against harness-staged storage: a bare MeshCollider in
@@ -13,7 +13,7 @@
 # +0x91c. The seam it needs -- the vtable array, the ROM SpawnInfo the
 # ActorBase constructor reads, and the one honest stub for the particle
 # tracker -- is port/hal/stage_bridges.cpp.
-src/_ZN5StageC1Ev.c
+src/d_s_stage.cpp
 
 # The level MODEL. The harness loaded it by hand -- SharedFilePtr::Construct on
 # a hard-coded 1943, Model::LoadFile, ModelBase::SetFile, into its own 0x50-byte
@@ -37,6 +37,14 @@ src/_ZN5Stage9LoadModelEv.cpp
 # {125.0, 125.0, 125.0} scale.
 src/_ZN5Stage11RenderModelEv.cpp
 
+# ...and the table's FILLER: Stage::InitResources' own call that news a
+# TextureTransformer into the area-table slot of every area entry naming a
+# BTA. The port drives it from port_stage_advance_anims
+# (hal/stage_bridges.cpp), which also runs Stage::Render's first block -- the
+# per-frame Advance of every shown area's transformer -- so the waterfall
+# scrolls instead of holding frame 0.
+src/_ZN5Stage23LoadTextureTransformersEv.cpp
+
 # ...and its companion. Stage::Render's own order is RenderModel,
 # ShadowModel::RenderAll, RenderModelTransparent, and the two model passes are
 # exact inverses: RenderModel keeps the components whose polygon-attribute
@@ -45,3 +53,15 @@ src/_ZN5Stage11RenderModelEv.cpp
 # moat EMPTY -- the water is translucent, so the opaque pass hides it and
 # nothing brought it back.
 src/_ZN5Stage22RenderModelTransparentEv.cpp
+
+# The SKYBOX. Stage::LoadSkybox reads the skybox id out of the current
+# LVL_Overlay (GetSkyboxID: word 6, bits 4..8; 0 means no skybox), maps it
+# through data_02075620 to a vrbox file handle (id 1 -> 2040 ->
+# data/vrbox/vr01.bmd on castle grounds), news a Model off the game heap and
+# LoadAndSetFiles it into Stage+0x9bc. Every name it needs is already in this
+# link: _Znwj (hal/cxxname_bridge.cpp), Model's C1 (slice_gate4b), the
+# LoadAndSetFile face (hal/method_faces.cpp), and data_02075620 comes from
+# romdata. The draw side is Stage::Render's own block, carried as
+# port_stage_render_skybox in hal/stage_bridges.cpp.
+src/_ZN5Stage11GetSkyboxIDEv.cpp
+src/_ZN5Stage10LoadSkyboxEv.cpp

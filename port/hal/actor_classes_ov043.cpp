@@ -1,0 +1,553 @@
+// GATE 206 (run link60, lane A2): DIAMOND_LIFT (135, ov043), the first class
+// seated out of Bowser in the Dark World's own overlay. daObjKm1_Ukishima_c,
+// six instances on level 35.
+//
+// ov043 is already whole-mounted in PORT_LEVEL_OVERLAYS; this adds the SECOND,
+// per-symbol mount of the same overlay, the ov012/ov013/ov021/ov044/ov045/ov046
+// dual-mount shape. The full derivation -- the cast map, the four widths, the
+// naming shift and the two classes this slice deliberately leaves skipped -- is
+// port/ov043_syms.txt, and this gate's own reading of it is
+// port/slice_gate206.txt.
+//
+// Same law as hal/actor_classes_ov045.cpp beside it: ROM slot order, __fastcall
+// thunks that call the class's own C body, unhosted slots trap by name. The
+// table is the 32-slot Platform shape and every vtspan route agrees on 32.
+//
+// SLOT 9 IS THE WAVE-19 SLOT-5 SHADOW AND IT IS SAFE, adjudicated from how the
+// class constructs the member it dispatches rather than from any header name:
+// InitResources feeds Model::LoadFile into ModelBase::SetFile at +0xd4 and both
+// destructors call _ZN5ModelD1Ev on +0xd4, so it is a plain Model and
+// hal/cxxname_bridge.cpp's dual-filled _ZTV5Model[5] is Model::Render. The
+// matched TU is linked.
+//
+// THE VTABLE NAME IS THE ROM'S OWN, taken from the table's own RTTI record and
+// not from a dsd label: 0x021122b8's vtable[-1] is 0x02112270 and that record's
+// word[1] names "19daObjKm1_Ukishima_c". dsd calls the table
+// _ZTV19daObjKm1_Ukishima_c, which is what the matched factory spells, so that
+// spelling is an /alternatename onto this one array. 0x021122b8 is excluded
+// from the mount (the ov015/ov016/ov022/ov045/ov080 rule) -- mounting it would
+// hand the factory DS code addresses.
+#include "port_d16.h"
+
+#include <cstdio>
+
+/* hal/actor_slot30_seat.cpp -- the shared seat for vtable slot 30,
+   Actor::OnAimedAtWithEggReturnVec. The ROM word in slot 30 of every vtable
+   this file fills IS the arm9 base body 0x020100dc (checked against
+   config/<module>/relocs.txt at vtable+30*4), and that body is now in the
+   link from src/_ZN8dActor_c25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
+   The three-parameter __fastcall is the sret contract MSVC uses for a
+   thiscall member returning a 12-byte struct: this in ecx, the hidden result
+   pointer the one (callee-popped) stack argument. Same shape as whomp_s30. */
+extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
+#include <cstdlib>
+
+#include "dActor_c.h"
+#include "fBase_c.h"
+#include "dsstate_seg.h"
+
+extern "C" {
+/* the shared lifecycle halves, the same functions every sibling fill writes */
+int _ZN8dActor_c19BeforeInitResourcesEv(void *self);            /* slot 1  */
+void _ZN8dActor_c18AfterInitResourcesEj(void *self, unsigned a); /* slot 2  */
+int _ZN8dActor_c14BeforeBehaviorEv(void *self);                 /* slot 7  */
+int _ZN8dActor_c12BeforeRenderEv(void *self);                   /* slot 10 */
+int _ZN8dActor_c13OnYoshiTryEatEv(void *self);                  /* slot 18 */
+void _ZN8dActor_c13OnTurnIntoEggER6Player(void *self, void *p); /* slot 19 */
+int _ZN8dActor_c9Virtual50Ev(void *self);                       /* slot 20 */
+void _ZN8dActor_c15OnGroundPoundedERS_(void *self, void *o);    /* slot 21 */
+void _ZN8dActor_c11OnAttacked1ERS_(void *self, void *o);        /* slot 22 */
+void _ZN8dActor_c11OnAttacked2ERS_(void *self, void *o);        /* slot 23 */
+void _ZN8dActor_c8OnKickedERS_(void *self, void *o);            /* slot 24 */
+void _ZN8dActor_c8OnPushedERS_(void *self, void *o);            /* slot 25 */
+void _ZN8dActor_c24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
+void _ZN8dActor_c15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
+void _ZN8dActor_c19OnHitFromUnderneathERS_(void *self, void *o);      /* slot 28 */
+int _ZN8dActor_c16OnAimedAtWithEggEv(void *self);                     /* slot 29 */
+void _ZN10dBgActor_c4KillEv(void *self);                              /* slot 31 */
+
+extern int data_02099f24[];          /* the frame phase the lists are in */
+extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
+const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
+void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp */
+void port_actor_render_probe(const char *cls, void *model); /* actor_classes */
+void hal_fill_platform_vtable(void);              /* hal/actor_classes.cpp */
+
+/* the mount's generated bring-up halves */
+void port_ov043_pack_check(void);
+void port_ov043_syms_patch(void);
+void __sinit_ov043_021117fc(void);   /* id 135's own two SharedFilePtrs */
+/* lane SEAT-BDW: the file constructors of the two SEATED classes (136, 134),
+   run in the same bring-up (declared here so port_ov43_bringup can call them).
+   link100 SPAWN2 adds the THIRD: 137's own __sinit_ov043_02111868 comes ON with
+   this gate, because 137 is seated now. It builds exactly the pair 137's
+   InitResources consumes -- Model file 1621 into data_ov043_02112610 and
+   collision file 1622 into data_ov043_02112608, the first two words of the
+   3-word Arg record data_ov043_02112344 the mount rebases -- so the ov081 rule
+   ("a sinit for an unhosted class stays off") no longer applies to it. */
+void __sinit_ov043_021118d4(void);   /* id 136 */
+void __sinit_ov043_02111940(void);   /* id 134 */
+void __sinit_ov043_02111868(void);   /* id 137, ON since link100 SPAWN2 */
+
+/* id 135's own bodies, all matched src on slice_gate206.txt */
+int _ZN19daObjKm1_Ukishima_c13InitResourcesEv(void *self);     /* slot 0,  InitResources */
+int _ZN19daObjKm1_Ukishima_c16CleanupResourcesEv(void *self);     /* slot 3,  CleanupResources */
+int _ZN19daObjKm1_Ukishima_c8BehaviorEv(void *self);     /* slot 6,  Behavior */
+int _ZN19daObjKm1_Ukishima_c6RenderEv(void *self);     /* slot 9,  Render */
+int *_ZN19daObjKm1_Ukishima_cD1Ev(int *self);     /* slot 16, D1 */
+int *_ZN19daObjKm1_Ukishima_cD0Ev(int *self);     /* slot 17, D0 */
+void *daObjKm1_Ukishima_c_classInit(void);
+
+/* The array the ROM factory installs. Thirty-two slots, defined here and not
+   just declared: the `int` type and C linkage match the
+   `extern int _ZTV19daObjKm1_Ukishima_c[]` in include/decl_common.h:680 that
+   the matched D1 reads. Inside DSSTATE because the factory's spelling of it,
+   _ZTV19daObjKm1_Ukishima_c, is a hosted DS name and dsstate_guard requires every
+   one of those to be inside the captured segment -- the ov045 treatment of
+   _ZTV15FireSeaElevator. */
+DSSTATE_BEGIN
+int _ZTV19daObjKm1_Ukishima_c[32];
+DSSTATE_END
+}
+
+/* The matched factory and the D0's VT0 spell the same address the way dsd
+   named it. Both references are C linkage, so point that spelling at the one
+   host array -- the daChoropu_c / ami_bou precedent. The LHS is undefined
+   everywhere (0x021122b8 is excluded from the mount by name), so the alias
+   cannot be defeated. */
+#pragma comment(linker, "/alternatename:_data_ov043_021122b8=__ZTV19daObjKm1_Ukishima_c")
+
+/* The G0/G1 landing pads. src/game/actors/d_a_obj_km1_ukishima.cpp releases ov043's own two
+   bss SharedFilePtrs through the shared role-name placeholders G0 and G1, which
+   hal/cxx_aliases.cpp has already bound to OTHER objects -- _G0 to the game
+   heap pointer, _G1 to SignPost's KCL -- so the body would have released the
+   game heap pointer without failing at link. port/CMakeLists.txt renames that
+   one file's G0/G1 to the two private names below and they bind here, the
+   PATH_LIFT remedy. The addresses come from the body's own literal pool:
+   0x02111278 -> 0x021125e8 and 0x0211127c -> 0x021125e0, both
+   module:overlay(43). The destructor's G0 is a different object -- the game
+   heap at 0x020a0eac -- and is deliberately left on the cxx_aliases binding. */
+extern "C" {
+int port_ov043_ukishima_file0[];   /* -> data_ov043_021125e8, the Model file */
+int port_ov043_ukishima_file1[];   /* -> data_ov043_021125e0, the collision file */
+}
+#pragma comment(linker, "/alternatename:_port_ov043_ukishima_file0=_data_ov043_021125e8")
+#pragma comment(linker, "/alternatename:_port_ov043_ukishima_file1=_data_ov043_021125e0")
+
+// ---- the trap --------------------------------------------------------------
+static void o43_trap_report(void *self, int slot)
+{
+    unsigned id = self ? *(unsigned short *)((char *)self + 0xc) : 0u;
+    std::fprintf(stderr,
+                 "UNHOSTED: vtable slot %d is not hosted (actor id %u %s, "
+                 "phase %d, spawn step %d)\n",
+                 slot, id, port_actor_class_name(id), data_02099f24[0],
+                 (int)data_020a4b4c);
+    { static char _m[128];
+      std::snprintf(_m, sizeof _m, "unhosted vtable slot %d on id %u %s",
+                    slot, id, port_actor_class_name(id));
+      port_actor_slot_decline(_m); }
+}
+#define O43_TRAP(n) \
+    static int __fastcall o43_trap##n(void *s, void *) \
+    { o43_trap_report(s, n); return 0; }
+/* 13/14 are ActorBase::Virtual34/38, the pair every sibling fill traps. 30 is
+   Actor::OnAimedAtWithEggReturnVec, the SRET body no fill's thunk models. */
+O43_TRAP(13) O43_TRAP(14)
+#undef O43_TRAP
+
+// ---- the shared half -------------------------------------------------------
+static int __fastcall o43_binit(void *s, void *)
+{ return _ZN8dActor_c19BeforeInitResourcesEv(s); }
+static void __fastcall o43_ainit(void *s, void *, unsigned a)
+{ _ZN8dActor_c18AfterInitResourcesEj(s, a); }
+static int __fastcall o43_bclean(void *s, void *)
+{ return ((dActor_c *)s)->dActor_c::BeforeCleanupResources(); }
+static void __fastcall o43_aclean(void *s, void *, unsigned a)
+{ ((fBase_c *)s)->fBase_c::AfterCleanupResources(a); }
+static int __fastcall o43_bbeh(void *s, void *)
+{ return _ZN8dActor_c14BeforeBehaviorEv(s); }
+static void __fastcall o43_abeh(void *s, void *, unsigned a)
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
+static int __fastcall o43_bren(void *s, void *)
+{ return _ZN8dActor_c12BeforeRenderEv(s); }
+static void __fastcall o43_aren(void *s, void *, unsigned a)
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
+static int __fastcall o43_pdes(void *s, void *)
+{ ((fBase_c *)s)->fBase_c::OnPendingDestroy(); return 0; }
+static int __fastcall o43_heap(void *s, void *)
+{ return ((fBase_c *)s)->fBase_c::OnHeapCreated(); }
+static int __fastcall o43_yoshi(void *s, void *)
+{ return _ZN8dActor_c13OnYoshiTryEatEv(s); }
+static int __fastcall o43_turn_egg(void *s, void *, void *p)
+{ _ZN8dActor_c13OnTurnIntoEggER6Player(s, p); return 0; }
+static int __fastcall o43_v50(void *s, void *)
+{ return _ZN8dActor_c9Virtual50Ev(s); }
+static int __fastcall o43_pounded(void *s, void *, void *o)
+{ _ZN8dActor_c15OnGroundPoundedERS_(s, o); return 0; }
+static int __fastcall o43_atk1(void *s, void *, void *o)
+{ _ZN8dActor_c11OnAttacked1ERS_(s, o); return 0; }
+static int __fastcall o43_atk2(void *s, void *, void *o)
+{ _ZN8dActor_c11OnAttacked2ERS_(s, o); return 0; }
+static int __fastcall o43_kicked(void *s, void *, void *o)
+{ _ZN8dActor_c8OnKickedERS_(s, o); return 0; }
+static int __fastcall o43_pushed(void *s, void *, void *o)
+{ _ZN8dActor_c8OnPushedERS_(s, o); return 0; }
+static int __fastcall o43_cannon(void *s, void *, void *o)
+{ _ZN8dActor_c24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+static int __fastcall o43_mega(void *s, void *, void *p)
+{ _ZN8dActor_c15OnHitByMegaCharER6Player(s, p); return 0; }
+static int __fastcall o43_under(void *s, void *, void *o)
+{ _ZN8dActor_c19OnHitFromUnderneathERS_(s, o); return 0; }
+static int __fastcall o43_egg(void *s, void *)
+{ return _ZN8dActor_c16OnAimedAtWithEggEv(s); }
+static int __fastcall o43_kill(void *s, void *)
+{ _ZN10dBgActor_c4KillEv(s); return 0; }
+
+// ---- the mount bring-up ----------------------------------------------------
+//
+// LANE OWNERSHIP, the ov045 note applied again. The right home for this is
+// port_actor_overlays_sinits() in hal/actor_overlays.cpp, beside the ov013
+// block. No lane owns that file in this wave, so the bring-up rides the
+// registry fill behind a done-guard the way ov045's does. The ordering ov045
+// measured holds here unchanged: port_actor_overlays_sinits() completes before
+// port_actor_registry_install(), the generated port_ov043_syms_patch() writes
+// SpawnInfo + 32 and nothing else, and the SharedFilePtrs the sinit builds are
+// read by InitResources at spawn, after registration.
+// THE HANDOFF: whoever next owns hal/actor_overlays.cpp should move this body
+// beside the ov013 block and cut this to a call.
+//
+// ONE SINIT, NOT FOUR. 021117fc is id 135's own -- Model file 1625 into
+// data_ov043_021125e8, collision file 1626 into data_ov043_021125e0, the exact
+// two cells this class's CleanupResources releases. The other three build other
+// classes' pairs and stay OFF (the ov081 rule), and 02111940 could not link if
+// it were wanted: it spells twenty-odd cells with ov047 and ov052 names, none
+// of which resolve in port/.
+/* CAPTURED, and the argument is hal/level_boot.cpp's on g_level_mounted: this
+   flag says "port_ov43_bringup has run", and everything that pass writes --
+   the mount's rebased pointers and the SharedFilePtrs its static initialisers
+   construct -- lives in .dsstate. A restore rolls that back. A guard that does
+   not roll back with it leaves the pass skipped forever and the overlay
+   holding raw DS pointers, which is the defect behind both of the RELOAD
+   review's referrals. Bracketed, the pass re-runs exactly when its results
+   were rolled away. */
+DSSTATE_BEGIN
+static int g_ov43_bringup_done;
+DSSTATE_END
+
+extern "C" void port_ov43_bringup(void)
+{
+    if (g_ov43_bringup_done)
+        return;
+    g_ov43_bringup_done = 1;
+    port_ov043_pack_check();
+    port_ov043_syms_patch();
+    /* the Platform base table the D1/D0 install between member teardowns */
+    hal_fill_platform_vtable();
+    __sinit_ov043_021117fc();
+    /* lane SEAT-BDW: the file constructors of the two SEATED classes. 136's
+       (021118d4) and 134's (02111940, the five-stair array) feed the
+       InitResources those classes run. DIAMOND_LIFT's "one sinit, not four"
+       note is now fully discharged: 135, 136, 134 and -- as of link100 SPAWN2 --
+       137 are all hosted, so all four of ov043's file constructors run. */
+    __sinit_ov043_021118d4();
+    __sinit_ov043_02111940();
+    __sinit_ov043_02111868();
+}
+
+// ---- DIAMOND_LIFT (id 135) -- table 0x021122b8 -----------------------------
+static int __fastcall dl_init(void *s, void *)
+{ return _ZN19daObjKm1_Ukishima_c13InitResourcesEv(s); }
+static int __fastcall dl_clean(void *s, void *)
+{ return _ZN19daObjKm1_Ukishima_c16CleanupResourcesEv(s); }
+static int __fastcall dl_behavior(void *s, void *)
+{ return _ZN19daObjKm1_Ukishima_c8BehaviorEv(s); }
+static int __fastcall dl_render(void *s, void *)
+{ port_actor_render_probe("DIAMOND_LIFT", (char *)s + 0xd4);
+  return _ZN19daObjKm1_Ukishima_c6RenderEv(s); }
+static int __fastcall dl_d1(void *s, void *)
+{ return (int)(size_t)_ZN19daObjKm1_Ukishima_cD1Ev((int *)s); }
+static int __fastcall dl_d0(void *s, void *)
+{ return (int)(size_t)_ZN19daObjKm1_Ukishima_cD0Ev((int *)s); }
+
+extern "C" void hal_fill_diamond_lift_vtable(void)
+{
+    port_ov43_bringup();
+    void **vt = (void **)_ZTV19daObjKm1_Ukishima_c;
+    vt[0]  = (void *)dl_init;
+    vt[1]  = (void *)o43_binit;
+    vt[2]  = (void *)o43_ainit;
+    vt[3]  = (void *)dl_clean;
+    vt[4]  = (void *)o43_bclean;
+    vt[5]  = (void *)o43_aclean;
+    vt[6]  = (void *)dl_behavior;
+    vt[7]  = (void *)o43_bbeh;
+    vt[8]  = (void *)o43_abeh;
+    vt[9]  = (void *)dl_render;
+    vt[10] = (void *)o43_bren;
+    vt[11] = (void *)o43_aren;
+    vt[12] = (void *)o43_pdes;
+    vt[13] = (void *)o43_trap13;
+    vt[14] = (void *)o43_trap14;
+    vt[15] = (void *)o43_heap;
+    vt[16] = (void *)PORT_D16(dl_d1);
+    vt[17] = (void *)dl_d0;
+    vt[18] = (void *)o43_yoshi;
+    vt[19] = (void *)o43_turn_egg;
+    vt[20] = (void *)o43_v50;
+    vt[21] = (void *)o43_pounded;
+    vt[22] = (void *)o43_atk1;
+    vt[23] = (void *)o43_atk2;
+    vt[24] = (void *)o43_kicked;
+    vt[25] = (void *)o43_pushed;
+    vt[26] = (void *)o43_cannon;
+    vt[27] = (void *)o43_mega;
+    vt[28] = (void *)o43_under;
+    vt[29] = (void *)o43_egg;
+    vt[30] = (void *)port_actor_s30_base;
+    vt[31] = (void *)o43_kill;
+}
+
+// ============================================================================
+// lane SEAT-BDW: the rest of ov043's cast -- RICKSHAW_BDW (137),
+// RICKSHAW_PLATFORM_BDW (136), STAIRS_BDW (134). Bowser in the Dark World,
+// level 35. Seated on top of DIAMOND_LIFT (135) above, the ov047 152/151/153
+// shape applied to the Bowser-in-the-Dark-World siblings.
+//
+// THE ID<->BODY MAP IS THE NAMING SHIFT (port/ov043_syms.txt): each id is
+// pinned by its OWN Spawn's final vtable store, never by a name. dsd's
+// _ZTV17daObjKm1_Kuruma_c / _ZN11RickshawBdw* are id 136's; _ZTV17daObjKm1_Dorifu_c
+// / _ZN19RickshawPlatformBdw* are id 134's; and daObjKm1_Kurumajiku_c_classInit is id 137's.
+//
+// 136, 134 AND -- SINCE link100 SPAWN2 -- 137 ARE SEATED. The note that stood
+// here said 137 could not be: its four own bodies carried the "recovered from
+// vtable slot identity" marker, so InitResources had no body the guard would
+// let through, and a half-built 137 (InitResources DECLINED) NULL-derefs during
+// its own spawn continuation -- a hard c0000005 on level 35, not a survivable
+// quarantine. That reading is retired by a ruling, not by a rewrite: three of
+// the four (0x021114c4 slot 0, 0x021114b0 slot 3, 0x0211144c slot 17) are ruled
+// REAL_DECOMP in port/tools/inferred_stub_adjudicated.txt, each a match.py
+// 2004/b56 strict-reloc MATCH against the ROM with 0 WRONG-DEST, and the fourth
+// (0x021113fc slot 16, the D1) never carried the marker. So the crash the note
+// describes was the DECLINE path, and seating the real bodies is what removes
+// it: InitResources is two instructions of delegation into the shared ov002
+// generic-object loader func_ov002_020b6c54 with this class's own 3-word Arg
+// record data_ov043_02112344, which the mount already rebases onto the pair
+// 137's sinit builds.
+//
+// SLOTS 6/9 are inherited ov002 bodies already in the link (ov036 + ov047
+// slices); declared and faced here, never re-enrolled. SLOTS 0/3/16/17 are each
+// seated class's own matched bodies.
+extern "C" {
+/* the two seated factories are referenced only by the registry rows in
+   hal/actor_classes.inc (declared there as void*(void) to match the registry
+   field); nothing in this file calls them. */
+
+/* id 136's four matched own bodies (slots 0/3/16/17) */
+int _ZN17daObjKm1_Kuruma_c13InitResourcesEv(void *self);      /* slot 0  */
+int _ZN17daObjKm1_Kuruma_c16CleanupResourcesEv(void *self);   /* slot 3  */
+int *_ZN17daObjKm1_Kuruma_cD1Ev(int *self);                   /* slot 16 */
+int *_ZN17daObjKm1_Kuruma_cD0Ev(int *self);                   /* slot 17 */
+
+/* id 137's four matched own bodies (slots 0/3/16/17), link100 SPAWN2. Every one
+   taken from the reloc at _ZTV21daObjKm1_Kurumajiku_c + 4*slot and confirmed by a
+   kind:function(arm,size=..) record at exactly that address:
+     slot 0  0x0211238c -> 0x021114c4  _ZN21daObjKm1_Kurumajiku_c13InitResourcesEv size 0x18
+     slot 3  0x02112398 -> 0x021114b0  _ZN21daObjKm1_Kurumajiku_c16CleanupResourcesEv size 0x14
+     slot 16 0x021123cc -> 0x021113fc  _ZN21daObjKm1_Kurumajiku_cD1Ev size 0x50
+     slot 17 0x021123d0 -> 0x0211144c  _ZN21daObjKm1_Kurumajiku_cD0Ev size 0x64 */
+void _ZN21daObjKm1_Kurumajiku_c13InitResourcesEv(unsigned char *self);  /* slot 0,  InitResources */
+int  _ZN21daObjKm1_Kurumajiku_c16CleanupResourcesEv(unsigned char *self);  /* slot 3,  CleanupResources */
+int *_ZN21daObjKm1_Kurumajiku_cD1Ev(int *self);            /* slot 16, D1 */
+int *_ZN21daObjKm1_Kurumajiku_cD0Ev(int *self);            /* slot 17, D0 */
+
+/* id 134's four matched own bodies (slots 0/3/16/17) */
+int _ZN17daObjKm1_Dorifu_c13InitResourcesEv(void *self);    /* slot 0  */
+int _ZN17daObjKm1_Dorifu_c16CleanupResourcesEv(void *self); /* slot 3  */
+int *_ZN17daObjKm1_Dorifu_cD1Ev(void *self);                /* slot 16 */
+int _ZN17daObjKm1_Dorifu_cD0Ev(void *self);                 /* slot 17 */
+
+/* the four inherited slot 6/9 bodies (for 136 and 134), already linked by the
+   ov036 and ov047 slices -- declared and faced, NEVER enrolled here (a second
+   definition would be a duplicate symbol). */
+int _ZN13daObjKuruma_c8BehaviorEv(void *self);   /* 136 Behavior, ov047 slice */
+int _ZN13daObjKuruma_c6RenderEv(void *self);   /* 136 Render,   ov047 slice */
+int _ZN13daObjDorifu_c8BehaviorEv(void *self);   /* 134 Behavior, ov036 slice */
+int _ZN13daObjDorifu_c6RenderEv(void *self);   /* 134 Render,   ov036 slice */
+int _ZN17daObjKurumajiku_c8BehaviorEv(void *self);   /* 137 Behavior, slot 6 of 0x0211238c */
+int _ZN17daObjKurumajiku_c6RenderEv(void *self);   /* 137 Render,   slot 9 of 0x0211238c */
+
+/* the seated classes' file-constructor sinits, re-declared here beside the
+   bodies they feed (all four run; see port_ov43_bringup). */
+void __sinit_ov043_021118d4(void);   /* id 136's Model 1619 + clsn 1620 */
+void __sinit_ov043_02111940(void);   /* id 134's five-stair array (files 1609-1618) */
+
+/* the host vtables for the seated classes, all excluded from the mount (the
+   four-spans rule in port/CMakeLists.txt; the generator leaves each span as a
+   zero-filled pk043_gap_* so the pack layout still matches the ROM's). The
+   names are what each class's OWN bodies spell after the per-source -D binds
+   resolve -- dsd's for the ADDRESS, not the class. 137's table 0x0211238c joins
+   them with link100 SPAWN2; `int` and C linkage because include/decl_common.h
+   declares the placeholder the -D renames as `extern int _ZTV...[]`. */
+DSSTATE_BEGIN
+int _ZTV17daObjKm1_Kuruma_c[32];          /* 0x0211245c, id 136 RICKSHAW_PLATFORM_BDW */
+int _ZTV17daObjKm1_Dorifu_c[32];  /* 0x0211255c, id 134 STAIRS_BDW */
+int _ZTV21daObjKm1_Kurumajiku_c[32];        /* 0x0211238c, id 137 RICKSHAW_BDW */
+DSSTATE_END
+}
+
+/* id 134's InitResources/CleanupResources are real C++ methods (spelled
+   RickshawPlatformBdw::), so the Itanium _ZN19RickshawPlatformBdw* symbols the
+   fill wants do not exist -- faced here, the ov047 STAIRS_BS recipe. */
+#include "daObjKm1_Dorifu_c.h"
+extern "C" {
+int _ZN17daObjKm1_Dorifu_c13InitResourcesEv(void *self)
+{ return ((daObjKm1_Dorifu_c *)self)->daObjKm1_Dorifu_c::InitResources(); }
+int _ZN17daObjKm1_Dorifu_c16CleanupResourcesEv(void *self)
+{ return ((daObjKm1_Dorifu_c *)self)->daObjKm1_Dorifu_c::CleanupResources(); }
+}
+
+/* id 134's two //cpp method TUs declare `extern struct Arg data_ov043_02112518;`
+   at file scope OUTSIDE decl_common.h's extern "C" block, so MSVC mangles it
+   with the local struct type. The mount emits one C-named array; bind the
+   mangled spelling onto it -- the ov047 line, read off the linker's own LNK2019
+   hint. The LHS is defined nowhere, so alternatename_guard stays clean. */
+#pragma comment(linker, "/alternatename:?data_ov043_02112518@@3UArg@@A=_data_ov043_02112518")
+
+/* the shared half of a Platform table, exactly DIAMOND_LIFT's 25 non-own slots.
+   Each fill sets its own 0/3/6/9/16/17/31 afterward. */
+static void o43_fill_shared(void **vt)
+{
+    vt[1]  = (void *)o43_binit;
+    vt[2]  = (void *)o43_ainit;
+    vt[4]  = (void *)o43_bclean;
+    vt[5]  = (void *)o43_aclean;
+    vt[7]  = (void *)o43_bbeh;
+    vt[8]  = (void *)o43_abeh;
+    vt[10] = (void *)o43_bren;
+    vt[11] = (void *)o43_aren;
+    vt[12] = (void *)o43_pdes;
+    vt[13] = (void *)o43_trap13;
+    vt[14] = (void *)o43_trap14;
+    vt[15] = (void *)o43_heap;
+    vt[18] = (void *)o43_yoshi;
+    vt[19] = (void *)o43_turn_egg;
+    vt[20] = (void *)o43_v50;
+    vt[21] = (void *)o43_pounded;
+    vt[22] = (void *)o43_atk1;
+    vt[23] = (void *)o43_atk2;
+    vt[24] = (void *)o43_kicked;
+    vt[25] = (void *)o43_pushed;
+    vt[26] = (void *)o43_cannon;
+    vt[27] = (void *)o43_mega;
+    vt[28] = (void *)o43_under;
+    vt[29] = (void *)o43_egg;
+    vt[30] = (void *)port_actor_s30_base;
+}
+
+// ---- RICKSHAW_BDW (id 137) -- table 0x0211238c, matched --------------------
+//
+// SLOTS 6 AND 9 ARE INHERITED and already in the link: the reloc run puts
+// 0x020b6b38 (Behavior) at slot 6 and 0x020b6b10 (Render) at slot 9, both
+// module overlays(0,2) -- the shared ov002 generic-object pair, not this
+// class's. So 137 owns four slots, not six, which is why its dossier counts
+// five files and not nine.
+//
+// THE ONE FACE IN THIS GATE THAT IS NOT A STRAIGHT FORWARD, and it is exact
+// rather than a guess. The ROM's slot 0 is a TAIL JUMP, six words long:
+//   021114c4  ldr ip,[pc,#8]   -> 0x020b6c54
+//   021114c8  ldr r1,[pc,#8]   -> 0x02112344
+//   021114cc  mov r2,#0x88
+//   021114d0  bx  ip
+// so its return value IS func_ov002_020b6c54's, and src/func_ov002_020b6c54.c
+// ends `return 1;` unconditionally -- no load path, no "not ready yet" arm. The
+// src for 0x021114c4 is spelled `void`, which drops that, so the face restores
+// the ROM's own constant instead of riding a register MSVC does not promise.
+// (r2 = 0x88 = 136: the loader spawns FOUR RICKSHAW_PLATFORM_BDW children per
+// axle, which is the "runtime child" relation actor_classes.inc already
+// records, and 136 is seated.)
+static int __fastcall rbdw_init(void *s, void *)
+{ _ZN21daObjKm1_Kurumajiku_c13InitResourcesEv((unsigned char *)s); return 1; }
+static int __fastcall rbdw_clean(void *s, void *)
+{ return _ZN21daObjKm1_Kurumajiku_c16CleanupResourcesEv((unsigned char *)s); }
+static int __fastcall rbdw_behavior(void *s, void *)
+{ return _ZN17daObjKurumajiku_c8BehaviorEv(s); }
+static int __fastcall rbdw_render(void *s, void *)
+{ port_actor_render_probe("RICKSHAW_BDW", (char *)s + 0xd4);
+  return _ZN17daObjKurumajiku_c6RenderEv(s); }
+static int __fastcall rbdw_d1(void *s, void *)
+{ return (int)(size_t)_ZN21daObjKm1_Kurumajiku_cD1Ev((int *)s); }
+static int __fastcall rbdw_d0(void *s, void *)
+{ return (int)(size_t)_ZN21daObjKm1_Kurumajiku_cD0Ev((int *)s); }
+
+extern "C" void hal_fill_rickshaw_bdw_vtable(void)
+{
+    port_ov43_bringup();
+    void **vt = (void **)_ZTV21daObjKm1_Kurumajiku_c;
+    o43_fill_shared(vt);
+    vt[0]  = (void *)rbdw_init;
+    vt[3]  = (void *)rbdw_clean;
+    vt[6]  = (void *)rbdw_behavior;
+    vt[9]  = (void *)rbdw_render;
+    vt[16] = (void *)PORT_D16(rbdw_d1);
+    vt[17] = (void *)rbdw_d0;
+    vt[31] = (void *)o43_kill;
+}
+
+// ---- RICKSHAW_PLATFORM_BDW (id 136) -- table 0x0211245c, matched -----------
+static int __fastcall rpbdw_init(void *s, void *)
+{ return _ZN17daObjKm1_Kuruma_c13InitResourcesEv(s); }
+static int __fastcall rpbdw_clean(void *s, void *)
+{ return _ZN17daObjKm1_Kuruma_c16CleanupResourcesEv(s); }
+static int __fastcall rpbdw_behavior(void *s, void *)
+{ return _ZN13daObjKuruma_c8BehaviorEv(s); }
+static int __fastcall rpbdw_render(void *s, void *)
+{ port_actor_render_probe("RICKSHAW_PLATFORM_BDW", (char *)s + 0xd4);
+  return _ZN13daObjKuruma_c6RenderEv(s); }
+static int __fastcall rpbdw_d1(void *s, void *)
+{ return (int)(size_t)_ZN17daObjKm1_Kuruma_cD1Ev((int *)s); }
+static int __fastcall rpbdw_d0(void *s, void *)
+{ return (int)(size_t)_ZN17daObjKm1_Kuruma_cD0Ev((int *)s); }
+
+extern "C" void hal_fill_rickshaw_platform_bdw_vtable(void)
+{
+    port_ov43_bringup();
+    void **vt = (void **)_ZTV17daObjKm1_Kuruma_c;
+    o43_fill_shared(vt);
+    vt[0]  = (void *)rpbdw_init;
+    vt[3]  = (void *)rpbdw_clean;
+    vt[6]  = (void *)rpbdw_behavior;
+    vt[9]  = (void *)rpbdw_render;
+    vt[16] = (void *)PORT_D16(rpbdw_d1);
+    vt[17] = (void *)rpbdw_d0;
+    vt[31] = (void *)o43_kill;
+}
+
+// ---- STAIRS_BDW (id 134) -- table 0x0211255c, matched ----------------------
+static int __fastcall sbdw_init(void *s, void *)
+{ return _ZN17daObjKm1_Dorifu_c13InitResourcesEv(s); }
+static int __fastcall sbdw_clean(void *s, void *)
+{ return _ZN17daObjKm1_Dorifu_c16CleanupResourcesEv(s); }
+static int __fastcall sbdw_behavior(void *s, void *)
+{ return _ZN13daObjDorifu_c8BehaviorEv(s); }
+static int __fastcall sbdw_render(void *s, void *)
+{ port_actor_render_probe("STAIRS_BDW", (char *)s + 0xd4);
+  return _ZN13daObjDorifu_c6RenderEv(s); }
+static int __fastcall sbdw_d1(void *s, void *)
+{ return (int)(size_t)_ZN17daObjKm1_Dorifu_cD1Ev(s); }
+static int __fastcall sbdw_d0(void *s, void *)
+{ return (int)(size_t)_ZN17daObjKm1_Dorifu_cD0Ev(s); }
+
+extern "C" void hal_fill_stairs_bdw_vtable(void)
+{
+    port_ov43_bringup();
+    void **vt = (void **)_ZTV17daObjKm1_Dorifu_c;
+    o43_fill_shared(vt);
+    vt[0]  = (void *)sbdw_init;
+    vt[3]  = (void *)sbdw_clean;
+    vt[6]  = (void *)sbdw_behavior;
+    vt[9]  = (void *)sbdw_render;
+    vt[16] = (void *)PORT_D16(sbdw_d1);
+    vt[17] = (void *)sbdw_d0;
+    vt[31] = (void *)o43_kill;
+}

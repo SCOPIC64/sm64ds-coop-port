@@ -1,0 +1,174 @@
+# Gate 188: Jolly Roger Bay's six MOVER classes -- SHIP_DOWN (56), SHIP_UP (57),
+# ROCK_PILLAR (58), FLOAT_ON_WATER_PLATFORM_JRB (60), UNAGI (242), SLIDING_BOX
+# (313), the first per-symbol mount of ov016. The transitive matched closure of
+# all six, swept by the call graph over ov016's own relocs from each vtable-bound
+# method and the six factories. The fill is hal/actor_classes_jrb.cpp; the mount
+# adds port/ov016_syms.txt (ov016 was --whole in PORT_LEVEL_OVERLAYS already).
+#
+# FLOAT_ON_WATER_PLATFORM_JRB == daObjKi_Ita_c / daSlide_Box_c and SHARES its
+# 37-slot table with SLIDING_BOX; SHIP_DOWN shares SHIP_UP's body and _ZTV6ShipUp.
+#
+# LEFT OUT ON PURPOSE (host copies, port/unmatched/):
+#  - Jrb_Renders.cpp: _ZN6ShipUp6RenderEv, _ZN10SlidingBox6RenderEv
+#    and _ZN10RockPillar6RenderEv (RockPillar Render) are all the ROM-order model
+#    slot-5 shadow collision (six-virtual local Base, Model at +0xd4) -- the
+#    Whomp/Scuttlebug/Amilift seam. Unagi's Render (_ZN5Unagi6RenderEv) is NOT
+#    that shape (it calls _ZN5Model6RenderEPK7Vector3 directly), so it STAYS in.
+#  - Unagi_StateDispatch.cpp: _ZN5Unagi8BehaviorEv (inlines an mwcc PMF dispatch,
+#    the Scuttlebug __thiscall trap) and func_ov016_02111bf0 (the SetState+ENTER
+#    dispatcher, same trap) are host copies, plus the ten-source PMF state seat.
+#  - Unagi_BodyChain.cpp: func_ov016_02111c40 (Unagi's body-segment matrix chain)
+#    has no byte-match; the div=41 size-exact nearmiss draft (RMW-order-only
+#    divergence, all hosted deps) is the port body. See the file header.
+#  - The D1/D0 of ShipUp, FloatOnWaterPlatformJrb and RockPillar
+#    (_ZN10RockPillarD1Ev / 02112a44) each store the SHARED single-global
+#    placeholders (_ZTV10dBgActor_c, 196 spellers; VT0/VT1; G0) in the teardown
+#    chain -- one host definition would satisfy every speller with the wrong
+#    bytes and nothing would say so. So they are HOST THUNKS in the fill (the
+#    gate-177/178 bully treatment), NOT in this slice.
+#
+# KEPT: UNAGI's own D1/D0 (they spell _ZTV5Unagi, _ZN12dEnemyBase_cD2Ev and
+# data_020a0eac, all hosted); UNAGI's nine matched state bodies; every mover's
+# Init/Cleanup/Behavior that does not dispatch a PMF; the shared matrix builders.
+#
+# ---- the six factories ----
+src/d_a_obj_ki_fune_ki_fune_up.c
+src/d_a_obj_ki_fune_ki_fune.c
+src/d_a_obj_ki_hasira.c
+src/game/actors/d_a_obj_ki_ita.cpp
+src/d_a_moray.c
+src/d_a_slide_box.c
+# ---- SHIP_UP / SHIP_DOWN (daObjKi_Fune_c, _ZTV6ShipUp) ----
+# ShipUp D1/D0 ride from src (lane DTOR-PAIRS-C): the "_ZTV10dBgActor_c
+# placeholder" their second store spells is ov002 0x0210ae38 by relocation, the
+# one Platform base table the port hosts (hal/lk2_platform_dtor_seat.cpp), and
+# the first store is _ZTV6ShipUp by its RTTI name, aliased in the fill.
+src/_ZN6ShipUp13InitResourcesEv.cpp
+src/_ZN6ShipUpD1Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN6ShipUpD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN6ShipUpD0Ev.cpp
+src/_ZN6ShipUp16CleanupResourcesEv.cpp
+src/_ZN6ShipUp8BehaviorEv.cpp
+src/func_ov016_021126a8.c
+# ---- ROCK_PILLAR (daObjKi_Hasira_c, id 58, _ZTV10RockPillar) ----
+# Init/Cleanup/Behavior + matrix builder. Render (_ZN10RockPillar6RenderEv) is a host
+# copy (slot-5). D1/D0 (_ZN10RockPillarD1Ev/02112a44) write the _ZTV10dBgActor_c
+# placeholder -> host thunks in the fill, OUT of the slice.
+src/_ZN10RockPillar13InitResourcesEv.cpp
+src/_ZN10RockPillar16CleanupResourcesEv.cpp
+src/_ZN10RockPillar8BehaviorEv.cpp
+src/func_ov016_02112a9c.c
+# ---- FLOAT_ON_WATER_PLATFORM_JRB (id 60) == daObjKi_Ita_c BASE, _ZTV13daObjKi_Ita_c ----
+# The config name is a decoy (relocs: id 60 installs _ZTV13daObjKi_Ita_c). Its
+# only own overridden slot is Init (_ZN13daObjKi_Ita_c13InitResourcesEv); Behavior/Cleanup/Render
+# are the arm9 Platform (daObjKi_Ita_c base) defaults _ZN17daObjFloatBoard_c8BehaviorEv /
+# _ZN17daObjFloatBoard_c16CleanupResourcesEv / _ZN17daObjFloatBoard_c6RenderEv, and D1/D0 (_ZN13daObjKi_Ita_cD1Ev/
+# 02112f44) write the placeholder -> host thunks. So its Init + the two plain
+# Platform defaults (+ their two helpers) join the slice; the Platform Render
+# (020b5c24) is a slot-5 collision -> host copy in Jrb_Renders.cpp.
+src/actors/daObjFloatBoard_c.cpp
+# _ZN13daObjKi_Ita_c13InitResourcesEv (id 60 Init) calls the daObjKi_Ita_c full-init helper
+# func_ov002_020b5e58 (aliased from the bare func_020b5e58 name in Jrb_Aliases.cpp),
+# whose closure adds func_ov002_020b5fc4 -> func_ov002_020b5f9c.
+src/func_ov002_020b5e58.cpp
+src/func_ov002_020b5fc4.c
+src/func_ov002_020b5f9c.c
+# ---- SLIDING_BOX (id 313) == the DERIVED _ZN23FloatOnWaterPlatformJrb* class,
+# _ZTV23FloatOnWaterPlatformJrb -- carries the slot-5 Render (host copy) and the
+# COUPLED FindWithActorID(0x39=ShipUp) Behavior. Init/Cleanup/Behavior + matrix
+# builder join; Render is host. D1/D0 ride from src (lane DTOR-PAIRS-C, the
+# ShipUp reading above: the second store is the hosted Platform base table). ----
+src/_ZN10SlidingBox13InitResourcesEv.cpp
+src/_ZN10SlidingBoxD1Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN10SlidingBoxD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN10SlidingBoxD0Ev.cpp
+src/_ZN10SlidingBox16CleanupResourcesEv.cpp
+src/_ZN10SlidingBox8BehaviorEv.cpp
+src/_ZN10SlidingBox11UpdateModelEv.cpp
+# ---- UNAGI (eel, Enemy, _ZTV5Unagi) ----
+src/_ZN5Unagi13InitResourcesEv.cpp
+src/_ZN5Unagi16CleanupResourcesEv.cpp
+src/_ZN5Unagi16OnPendingDestroyEv.cpp
+src/_ZN5Unagi6RenderEv.cpp
+src/_ZN5UnagiD1Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN5UnagiD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN5UnagiD0Ev.cpp
+src/func_ov016_02111284.c
+# UNAGI's nine matched state bodies (dispatched by the host copies in
+# Unagi_StateDispatch.cpp via the seated source records):
+src/func_ov016_02111bac.cpp
+src/func_ov016_021119ec.c
+src/func_ov016_02111860.cpp
+src/func_ov016_02111758.cpp
+src/func_ov016_02111994.cpp
+src/func_ov016_021118b4.cpp
+src/func_ov016_02111718.cpp
+src/func_ov016_021115c0.c
+src/func_ov016_02111534.c
+# ---- the five sinits (RUNNABLE; they construct the movers' SharedFilePtrs and
+# UNAGI's PMF dispatch cells) ----
+src/__sinit_ov016_021136ec.c
+src/__sinit_ov016_021138bc.c
+src/__sinit_ov016_02113978.c
+src/__sinit_ov016_021139e4.c
+src/__sinit_ov016_02113a50.c
+#
+# ==== RESOLVED: SIG-RP heap stomp (was: RockPillar teardown crashes the
+# ExpandingHeap free list several actor-lifetimes later) ============
+# ROOT CAUSE: _ZN10RockPillar16CleanupResourcesEv.c (RockPillar CleanupResources) declared
+# `extern int G0[]; extern int G1[];` and called SharedFilePtr::Release on
+# both. Plain-C `G0`/`G1` are single global names binary-wide; cxx_aliases.cpp
+# separately aliases _G0=_data_020a0eac (gameHeapPtr) and
+# _G1=_data_ov002_0210e05c (SignPost's own SharedFilePtr slot) for OTHER TUs
+# that legitimately share those placeholder names. RockPillar's own extern
+# picked up those aliases by the same linker mechanism, so every RockPillar
+# teardown released the live heap pointer and SignPost's slot instead of its
+# own two files -- corrupting the ExpandingHeap free list. The later
+# UnlinkNode/walker-node crash (FAULT c0000005, node id 0x3a = ROCK_PILLAR)
+# was only the detector, not the fault site.
+# THE FIX (review-corrected in the fix round): src/_ZN10RockPillar16CleanupResourcesEv.cpp is
+# now CARRIED WHOLESALE from main, hash-verified (blob 05d287b40f) -- main
+# already landed the correct fix with friendly names, releasing
+# RockPillar_ModelFile (0x02114e24) FIRST, then RockPillar_ClsnFile
+# (0x02114e1c), matching the ROM's own literal-pool load order (reviewer
+# disassembled overlay_0016.bin: e24 loads first). This fix round's FIRST
+# revision released e1c before e24 -- runtime-equivalent (both Releases are
+# order-independent refcount drops) but wrong-bytes for the decomp gate and
+# a needless conflict with main; replaced. The friendly names resolve
+# through two new alternatename rows in cxx_aliases.cpp
+# (_RockPillar_ClsnFile=_data_ov016_02114e1c,
+# _RockPillar_ModelFile=_data_ov016_02114e24 -- mapping verified against
+# main's own config/arm9/overlays/ov016/symbols.txt); the raw address names
+# stay mounted (ov016_syms.txt line 93, built by __sinit_ov016_02113978).
+# The G0/G1 alternatename pragmas in cxx_aliases.cpp are UNTOUCHED (other
+# TUs still depend on them for their own legitimate G0/G1 uses).
+# PROOF: SM64DS_LEVEL=8 SM64DS_SPAWN=5250,-5100,2050 SM64DS_STAR_FILTER=1
+# SM64DS_WINDOW_SELFTEST=300 SM64DS_FAULTS_FATAL=1 -- pre-fix: segfault at
+# +0x0002fa93, walker node actor id 0x3a (ROCK_PILLAR), c0000005; post-fix:
+# exit 0, clean 22-class census, no crash artifacts. JRB 600f regression
+# (SM64DS_LEVEL=8 SM64DS_ACTOR_PROBE=1 SM64DS_WINDOW_SELFTEST=600) unchanged:
+# 193/35 + 22/7 boot, 200/35 + 22/7 end, exit 0.
+# EXTENDED PROOF (unifying three crash-signature families as the SAME G0/G1
+# stomp, per Brain A's sig5-ab lane -- SIG-RP/SIG-WARP/SIG-5, 96 of 118 JRB
+# dumps): two more repros from Brain A's jrb-matrix run dir, run against this
+# worktree's own build (own private run dir, read-only reference to A's
+# .rec/.cmd recipe files only):
+#   g2_EXIT_A  (SIG-WARP shape): SM64DS_FAULTS_FATAL=1 SM64DS_LEVEL=8
+#     SM64DS_WINDOW_SELFTEST=300 SM64DS_STAR_FILTER=2 SM64DS_SPAWN=5550,-4650,1625
+#     -- pre-fix: c0000005 at +0x0002fabc, walker node actor id 0x3a
+#     (ROCK_PILLAR), same detector as the minimal repro; post-fix: exit 0,
+#     300-frame selftest completes, no crash artifacts.
+#   g5_SHIP_DOWN_RIDE_A (SIG-5 shape): SM64DS_FAULTS_FATAL=1 SM64DS_LEVEL=8
+#     SM64DS_WINDOW_SELFTEST=300 SM64DS_STAR_FILTER=5 SM64DS_SPAWN=5250,-5400,2050
+#     -- pre-fix: c0000005 at +0x0002fabc, walker node actor id 0x3a
+#     (ROCK_PILLAR), same detector; post-fix: exit 0, 300-frame selftest
+#     completes, no crash artifacts.
+# All three reps (minimal ROCK_PILLAR repro + g2_EXIT_A + g5_SHIP_DOWN_RIDE_A)
+# crash pre-fix on the identical walker-node id 0x3a detector and run clean
+# post-fix with this same one rename fix -- confirms the single root cause
+# behind all three dump families.
+# NOT FIXED (flagged, out of scope for this pass): 30 src/ TUs repo-wide still
+# carry the raw `extern int G0[]`/`G1[]` shape (grep `extern int G[0-9]\b`).
+# None are hosted in gates 191-193's ov018/ov081/ov072 mounts. Screen any
+# newly-carried TU for this pattern before compiling it in -- the same
+# collision fires the moment such a TU links against the wrong alias target.

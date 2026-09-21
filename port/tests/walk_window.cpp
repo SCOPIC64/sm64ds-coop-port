@@ -22,10 +22,45 @@
 //   zooms. Both work in analog and in freecam and do nothing in DS-exact.
 //   The last left click is published in framebuffer pixels for the touch
 //   bridge; see g_mouse_click_x.
-//   F5  the debug menu: warp to any of the level's own entrances, the fake-
-//   snap A/B, the overlay, the camera mode, and the recorder's filename.
-//   Arrows or the d-pad move, enter or A acts. It PAUSES THE GAME TICK while
-//   it is open and keeps rendering, so the scene freezes and the view does not.
+//   MOUSE CAPTURE  settings.json's MouseCapture, off by default. On, an
+//   ordinary adventure window HOLDS the pointer -- hidden, parked in the
+//   middle of the picture, clipped to the window -- and bare movement turns
+//   the camera with no button held. ESCAPE HANDS THE POINTER BACK, because
+//   escape opens the debug menu and the capture is never on while the menu
+//   is open; closing the menu takes it again. Alt-tab hands it back too. It
+//   never engages where the mouse is really the DS's stylus: the whole scene
+//   path (the minigames), any stacked window, and DS-exact. The setting
+//   reloads live, so the launcher can flip it mid-play. See the MOUSE banner
+//   above mo_look for the derivation and for what it takes away.
+//   F5 or ESC  the debug menu: warp to any of the level's own entrances, the
+//   level select, the minigame picker, the fake-snap A/B, the overlay, the
+//   camera mode, how running works, and the recorder's filename.
+//   WASD, the arrows or the d-pad move, enter or A acts, F5 or ESC or BACK or
+//   B closes. ESCAPE DOES NOT CLOSE THE GAME. The window's close button and
+//   alt+F4 do, and they are the only things that do. It PAUSES THE GAME TICK while it is open and keeps rendering, so
+//   the scene freezes and the view does not. The walk keys are aliases of the
+//   arrows here and are taken off the game for as long as it is open, so
+//   nothing that reads the menu also walks.
+//   THE MINIGAME ROW lists all thirty ids the ROM's own IsMinigameActorID
+//   accepts, under the retail titles a player would recognise, and marks the
+//   ones the port can host. It is ordered WIRED FIRST: the scenes that start
+//   come before the ones that do not, each group in id order, and the "N of M"
+//   counter restarts at 1 where the wired set ends. Selecting a hosted one
+//   starts the program again on the scene path with SM64DS_SCENE and
+//   SM64DS_DUAL_SCREEN set and quits this process;
+//   a level cannot enter a minigame in place, because loading ov006 unloads
+//   the ov002 the level is running out of. Selecting an unhosted one says so
+//   and does nothing. See the MG_SCENE table for the derivation of both.
+//   RUN MODE is two of its rows. The DS had no run button -- it ran off how
+//   far the touch-screen stick was pushed -- so every way of running on a host
+//   is the port's own choice, and the menu is where that choice is made:
+//   BUTTON holds run on a key or a pad button (shift and X by default, and
+//   this is what the window has always done), ANALOG reads the run out of the
+//   left stick's deflection the way the hardware read it out of the touch
+//   stick, and AUTO holds it down for you. The rebind row captures the next
+//   key or pad button pressed. All three are settings.json keys, so a choice
+//   outlives the run; see the RUN_ block above the menu enum for the mapping
+//   and port/hal/host_settings.cpp for the file.
 //   F3  the stats overlay: frame rate, the per-phase millisecond budget,
 //   triangle and actor counts, where Mario is and what state he is in, and
 //   how many times the port has fallen through a state it does not host.
@@ -40,6 +75,13 @@
 // record spawns the Player and the Camera, and the ground and wall contact
 // come from WithMeshClsn's own tracking through the hosted sphere pass. No
 // harness stands in for anything in the physics loop.
+//
+// Interactive keyboard and mouse only act while this window is the FOREGROUND
+// one. Alt-tab away and the stick and the buttons go to neutral that frame;
+// come back and whatever was still held has to be released before it counts
+// again, so no press made in another window arrives here late. None of the
+// scripted input paths go through that gate: a selftest, SM64DS_PROBE_INPUT and
+// the SM64DS_SELFTEST_* probes drive a hidden, unfocused run exactly as before.
 //
 // Env: SM64DS_LEGACY_BOOT=1 the pre-gate-14 harness staging instead of the
 //                           level's own boot (hand-built spawn context, KCL
@@ -61,10 +103,19 @@
 //      SM64DS_ANALOG_CAMERA=1  put a selftest in the analog camera
 //      SM64DS_OVERLAY=1     boot with the F3 stats overlay already on
 //      SM64DS_MENU=1        boot with the F5 debug menu open
-//      SM64DS_TRACE_PACE=1  per-frame pacer trace: the work time, the sleep
-//                           that was asked for and the sleep that happened.
-//                           The third number is the one that matters -- see
-//                           the pacer block for what makes it lie.
+//      SM64DS_TRACE_PACE=1  the frame clock's report, once per 120 frames:
+//                           the rate, and the DISTRIBUTION of the frame
+//                           periods behind it (avg, p50, p95, max in ms) --
+//                           a mean cannot tell a steady 30 fps from one that
+//                           stalls every fourth frame. =2 adds the per-frame
+//                           pacer line (the sleep asked for and the sleep that
+//                           happened), which costs an unbuffered write every
+//                           frame and distorts what it measures.
+//      SM64DS_PACE_SELFTEST=1  keep the frame pace during a selftest, which
+//                           is normally unpaced. The one way to measure how an
+//                           online session FEELS: the input pipeline's budget
+//                           is N frames of wall time, so an unpaced arm gives
+//                           it a fraction of the cover a player's run does.
 //      SM64DS_TRACE_CAM=1   per-frame camera input trace: the pad words the
 //                           rotate logic reads, the camera's heading, its
 //                           two latches, the rig, and the published angle
@@ -72,16 +123,76 @@
 //                           (0 = ramp to the stop); it lets go, and
 //                           SM64DS_SELFTEST_FREECAM=1 toggles the mod on
 //                           and off, at the same two points
+//      SM64DS_SELFTEST_JUMPSPAM=<period>  a ground jump every <period>
+//                           frames from f20, and
+//      SM64DS_JUMP_PROBE=1  the per-frame cost line that goes with it: the
+//                           raw phase times, the file loads and their
+//                           milliseconds, and the Player's animation word
+//                           beside the ModelAnim's playback cursor.
+//
+//                           WHAT IT MEASURED (2026-08-05, 3x300 frames,
+//                           JUMPSPAM=40, seven jumps a run): the per-jump
+//                           animation load is NOT a frame hitch and never
+//                           was. The 20 frames that change animation average
+//                           6.73ms and the other 279 average 6.71ms; the
+//                           slowest animation-change frame (7.51ms) is
+//                           faster than the slowest ordinary one (9.45ms);
+//                           no frame in 300 comes within 3x of the 33.3ms
+//                           budget. Every load costs 0.001-0.014ms and the
+//                           whole run's file work totals 0.056ms.
+//                           SM64DS_FS_NOCACHE=1 does not change that: the
+//                           Player's animations are 1.2-2.0 KB NARC
+//                           interiors, so even a full re-read and LZ77
+//                           decode is ~10us. The jump itself is clean --
+//                           animation 83 advances exactly 1.000 per frame
+//                           for its 13 frames while y arcs 254->419->254,
+//                           then the clamp flag holds the last pose for the
+//                           three frames of descent that are left.
+//      SM64DS_SELFTEST_LONGJUMP=1  run, crouch, jump: the long jump, for
+//                           the leg-twist investigation. Pair with
+//      SM64DS_BONE_PROBE=1..3  the per-frame bone rotation dump; =3 checks
+//                           every bone against an independent shortest-path
+//                           reference. See the probe for what it measured.
+//      SM64DS_INPUT_NOFOCUSGATE=1  read the interactive keyboard AND PAD whether
+//                           this window has focus or not, the way it worked
+//                           before the gate. Nothing in the tree sets it. It is
+//                           here so a harness that genuinely wants background
+//                           input reads has a documented switch, not a patch.
+//      SM64DS_NO_FOCUS=1    (=0 turns it off; this one is read with atoi, not
+//                           as a presence test, because it is meant to be set
+//                           broadly and opted out of per run)
+//                           open the window WITHOUT taking the foreground, so
+//                           a scripted run does not yank the keyboard out of
+//                           whatever the owner of the desk is typing into. See
+//                           nofocus_mode() below for what it does and what it
+//                           refuses to do. NOT the same knob as
+//                           SM64DS_INPUT_NOFOCUSGATE above and close to its
+//                           opposite: that one reads keys with the window in
+//                           the background, this one PUTS the window in the
+//                           background. Setting both is a scripted run that
+//                           reads the owner's keystrokes, which is why they are
+//                           named apart here rather than only in the code.
+//      SM64DS_WINDOW_POS=x,y  put the window's top-left corner at that virtual
+//                           screen point instead of centring it, so a run under
+//                           SM64DS_NO_FOCUS can be parked in a corner. Independent
+//                           of that flag; either works without the other.
+//
+//   AND THE LAUNCHER'S OWN SHOW REQUEST, which is not an env var. `start /min`
+//   and PowerShell's -WindowStyle Minimized put a wShowWindow in STARTUPINFO,
+//   and until this lane the game window IGNORED it (it was created WS_VISIBLE,
+//   so CreateWindowExA showed it and nothing ever read the request). Only the
+//   console the OS makes for this exe was minimized, which looked like the whole
+//   thing working. host_show_mode() below now honours the minimize and
+//   no-activate spellings; SW_HIDE is deliberately still ignored, and every
+//   ordinary show is unchanged.
 #include <cmath>
-#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
-#include <string>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <process.h>   /* _execl: the debug menu's level row relaunches */
 
 /* user32/gdi32 are loaded DYNAMICALLY after io_init: a static import chain
    initializes the desktop heap before main, and on 32-bit that mapping can
@@ -92,6 +203,13 @@ struct WinApi {
     ATOM(WINAPI *RegisterClassA_)(const WNDCLASSA *);
     HWND(WINAPI *CreateWindowExA_)(DWORD, LPCSTR, LPCSTR, DWORD, int, int,
                                    int, int, HWND, HMENU, HINSTANCE, LPVOID);
+    /* SM64DS_NO_FOCUS's other half. The window is created without WS_VISIBLE
+       under that flag and shown with SW_SHOWNOACTIVATE here, because
+       WS_EX_NOACTIVATE alone is a claim about what a CLICK does to the window
+       and this is the call that decides whether the SHOW activates it. Loaded
+       in every build: a show is not an input driver (port/release_hardening.txt
+       gates the SendInput family, not this). */
+    BOOL(WINAPI *ShowWindow_)(HWND, int);
     LRESULT(WINAPI *DefWindowProcA_)(HWND, UINT, WPARAM, LPARAM);
     BOOL(WINAPI *PeekMessageA_)(MSG *, HWND, UINT, UINT, UINT);
     BOOL(WINAPI *TranslateMessage_)(const MSG *);
@@ -99,16 +217,66 @@ struct WinApi {
     void(WINAPI *PostQuitMessage_)(int);
     HDC(WINAPI *GetDC_)(HWND);
     HCURSOR(WINAPI *LoadCursorA_)(HINSTANCE, LPCSTR);
-    HICON(WINAPI *LoadIconA_)(HINSTANCE, LPCSTR);
     BOOL(WINAPI *AdjustWindowRect_)(RECT *, DWORD, BOOL);
     SHORT(WINAPI *GetAsyncKeyState_)(int);
     int(WINAPI *StretchDIBits_)(HDC, int, int, int, int, int, int, int, int,
                                 const void *, const BITMAPINFO *, UINT, DWORD);
+    /* the present path's own surface: the client rect the frame is fitted
+       into, the bars around it, and the two stretch modes (see present()) */
+    BOOL(WINAPI *GetClientRect_)(HWND, RECT *);
+    BOOL(WINAPI *ValidateRect_)(HWND, const RECT *);
+    BOOL(WINAPI *PatBlt_)(HDC, int, int, int, int, DWORD);
+    int(WINAPI *SetStretchBltMode_)(HDC, int);
+    BOOL(WINAPI *SetBrushOrgEx_)(HDC, int, int, POINT *);
+    /* F12's borderless fullscreen: style swap, monitor bounds, and the
+       placement the restore springs back to */
+    LONG(WINAPI *GetWindowLongA_)(HWND, int);
+    LONG(WINAPI *SetWindowLongA_)(HWND, int, LONG);
+    BOOL(WINAPI *SetWindowPos_)(HWND, HWND, int, int, int, int, UINT);
+    HMONITOR(WINAPI *MonitorFromWindow_)(HWND, DWORD);
+    /* and the monitor the POINTER is on, which is the one a new window
+       belongs on when there is more than one (host_window_open's centring) */
+    HMONITOR(WINAPI *MonitorFromPoint_)(POINT, DWORD);
+    BOOL(WINAPI *GetMonitorInfoA_)(HMONITOR, MONITORINFO *);
+    BOOL(WINAPI *GetWindowPlacement_)(HWND, WINDOWPLACEMENT *);
+    BOOL(WINAPI *SetWindowPlacement_)(HWND, const WINDOWPLACEMENT *);
     HWND(WINAPI *SetCapture_)(HWND);
     BOOL(WINAPI *ReleaseCapture_)(void);
     BOOL(WINAPI *GetCursorPos_)(POINT *);
     BOOL(WINAPI *SetCursorPos_)(int, int);
     int(WINAPI *ShowCursor_)(BOOL);
+    /* MouseCapture's fence. NOT one of the click-test drivers below and not
+       compiled out with them: this one is a PLAYER setting on the shipping
+       path, and a null here is simply a capture that hides and re-centres the
+       pointer without also penning it in. */
+    BOOL(WINAPI *ClipCursor_)(const RECT *);
+    /* ClientToScreen is a COORDINATE CONVERSION, not an input driver: it reads
+       a window's position and adds it to a point. It sat inside the
+       PORT_ROM_CLEAN fence below when that fence was written, correctly, because
+       SM64DS_CLICK_TEST was the only caller. Then the mouse capture landed
+       (b91d34ed7) and mo_client_center / mo_capture_clip / mo_capture_refresh
+       -- all three on the SHIPPING path, all three serving a PLAYER setting --
+       started calling it, and
+       the shipping build stopped compiling. Nothing builds PORT_ROM_CLEAN
+       routinely, so that went unnoticed from b91d34ed7 to here.
+       It belongs on this side of the fence: release_hardening.txt gates the OS
+       input DRIVERS (SendInput and the foreground/window-ownership calls that
+       aim one), and this is neither. */
+    BOOL(WINAPI *ClientToScreen_)(HWND, POINT *);
+#ifndef PORT_ROM_CLEAN
+    /* SM64DS_CLICK_TEST's: the pointer put at a screen point, and a REAL button
+       edge through the OS input queue rather than a message posted past it.
+       Compiled out of a PORT_ROM_CLEAN (shipping) build: these are the OS-input
+       DRIVERS a stranger's antivirus flags, and nothing outside SM64DS_CLICK_TEST
+       uses them. Real input reading (GetCursorPos_/GetAsyncKeyState_) stays. */
+    UINT(WINAPI *SendInput_)(UINT, void *, int);
+    BOOL(WINAPI *SetForegroundWindow_)(HWND);
+    /* and the two that make the synthetic click SAFE on a shared desktop:
+       whose window is actually under that screen point, and which process owns
+       it. A real button edge goes wherever the pointer is. */
+    HWND(WINAPI *WindowFromPoint_)(POINT);
+    DWORD(WINAPI *GetWindowThreadProcessId_)(HWND, DWORD *);
+#endif  /* !PORT_ROM_CLEAN: SM64DS_CLICK_TEST's synthetic-click Win32 seams */
     /* winmm: the frame pacer's Sleep granularity (see pacer_begin below) */
     unsigned(WINAPI *timeBeginPeriod_)(unsigned);
     unsigned(WINAPI *timeEndPeriod_)(unsigned);
@@ -117,10 +285,6 @@ struct WinApi {
     BOOL(WINAPI *SetProcessInformation_)(HANDLE, int, void *, DWORD);
     /* psapi: the overlay's working-set line */
     BOOL(WINAPI *GetProcessMemoryInfo_)(HANDLE, void *, DWORD);
-    /* user32 foreground window (mute-when-unfocused sound option) */
-    HWND(WINAPI *GetForegroundWindow_)(void);
-    /* dwmapi: compositor vsync (DwmFlush blocks until the next vblank) */
-    HRESULT(WINAPI *DwmFlush_)(void);
 };
 static WinApi W;
 
@@ -135,14 +299,14 @@ struct PortMemCounters {
     SIZE_T PagefileUsage, PeakPagefileUsage;
 };
 
-/* XInput, loaded dynamically like user32 (no static import chain) */
-struct XPad {
-    unsigned long packet;
-    unsigned short buttons;
-    unsigned char lt, rt;
-    short lx, ly, rx, ry;
-};
-static DWORD(WINAPI *XInputGetState_)(DWORD, XPad *);
+/* The pad. Since the controller backend landed this is hal/pad_backend.cpp's
+   normalized state, which is XInput's own shape (mask, sticks, triggers) and
+   what every reader below was written against; the backend fills it from
+   XInput slots 0..3 or, failing those, from a DirectInput pad (Switch Pro,
+   DualShock, DualSense, generic HID). Both DLLs are loaded dynamically there,
+   like user32 here. */
+#include "hal/pad_backend.h"
+typedef PortPadState XPad;
 
 static bool winapi_load(void)
 {
@@ -151,24 +315,58 @@ static bool winapi_load(void)
     if (!u || !g) return false;
     W.RegisterClassA_ = (decltype(W.RegisterClassA_))GetProcAddress(u, "RegisterClassA");
     W.CreateWindowExA_ = (decltype(W.CreateWindowExA_))GetProcAddress(u, "CreateWindowExA");
+    W.ShowWindow_ = (decltype(W.ShowWindow_))GetProcAddress(u, "ShowWindow");
     W.DefWindowProcA_ = (decltype(W.DefWindowProcA_))GetProcAddress(u, "DefWindowProcA");
     W.PeekMessageA_ = (decltype(W.PeekMessageA_))GetProcAddress(u, "PeekMessageA");
     W.TranslateMessage_ = (decltype(W.TranslateMessage_))GetProcAddress(u, "TranslateMessage");
     W.DispatchMessageA_ = (decltype(W.DispatchMessageA_))GetProcAddress(u, "DispatchMessageA");
     W.PostQuitMessage_ = (decltype(W.PostQuitMessage_))GetProcAddress(u, "PostQuitMessage");
-    W.GetForegroundWindow_ =
-        (decltype(W.GetForegroundWindow_))GetProcAddress(u, "GetForegroundWindow");
     W.GetDC_ = (decltype(W.GetDC_))GetProcAddress(u, "GetDC");
     W.LoadCursorA_ = (decltype(W.LoadCursorA_))GetProcAddress(u, "LoadCursorA");
-    W.LoadIconA_ = (decltype(W.LoadIconA_))GetProcAddress(u, "LoadIconA");
     W.AdjustWindowRect_ = (decltype(W.AdjustWindowRect_))GetProcAddress(u, "AdjustWindowRect");
     W.GetAsyncKeyState_ = (decltype(W.GetAsyncKeyState_))GetProcAddress(u, "GetAsyncKeyState");
     W.StretchDIBits_ = (decltype(W.StretchDIBits_))GetProcAddress(g, "StretchDIBits");
+    W.GetClientRect_ = (decltype(W.GetClientRect_))GetProcAddress(u, "GetClientRect");
+    W.ValidateRect_ = (decltype(W.ValidateRect_))GetProcAddress(u, "ValidateRect");
+    W.PatBlt_ = (decltype(W.PatBlt_))GetProcAddress(g, "PatBlt");
+    W.SetStretchBltMode_ =
+        (decltype(W.SetStretchBltMode_))GetProcAddress(g, "SetStretchBltMode");
+    W.SetBrushOrgEx_ =
+        (decltype(W.SetBrushOrgEx_))GetProcAddress(g, "SetBrushOrgEx");
+    W.GetWindowLongA_ = (decltype(W.GetWindowLongA_))GetProcAddress(u, "GetWindowLongA");
+    W.SetWindowLongA_ = (decltype(W.SetWindowLongA_))GetProcAddress(u, "SetWindowLongA");
+    W.SetWindowPos_ = (decltype(W.SetWindowPos_))GetProcAddress(u, "SetWindowPos");
+    W.MonitorFromWindow_ =
+        (decltype(W.MonitorFromWindow_))GetProcAddress(u, "MonitorFromWindow");
+    W.MonitorFromPoint_ =
+        (decltype(W.MonitorFromPoint_))GetProcAddress(u, "MonitorFromPoint");
+    W.GetMonitorInfoA_ =
+        (decltype(W.GetMonitorInfoA_))GetProcAddress(u, "GetMonitorInfoA");
+    W.GetWindowPlacement_ =
+        (decltype(W.GetWindowPlacement_))GetProcAddress(u, "GetWindowPlacement");
+    W.SetWindowPlacement_ =
+        (decltype(W.SetWindowPlacement_))GetProcAddress(u, "SetWindowPlacement");
     W.SetCapture_ = (decltype(W.SetCapture_))GetProcAddress(u, "SetCapture");
     W.ReleaseCapture_ = (decltype(W.ReleaseCapture_))GetProcAddress(u, "ReleaseCapture");
     W.GetCursorPos_ = (decltype(W.GetCursorPos_))GetProcAddress(u, "GetCursorPos");
     W.SetCursorPos_ = (decltype(W.SetCursorPos_))GetProcAddress(u, "SetCursorPos");
     W.ShowCursor_ = (decltype(W.ShowCursor_))GetProcAddress(u, "ShowCursor");
+    W.ClipCursor_ = (decltype(W.ClipCursor_))GetProcAddress(u, "ClipCursor");
+    /* the mouse capture's coordinate conversion; see the declaration's note on
+       why it is NOT behind the fence below */
+    W.ClientToScreen_ = (decltype(W.ClientToScreen_))GetProcAddress(u, "ClientToScreen");
+#ifndef PORT_ROM_CLEAN
+    /* SM64DS_CLICK_TEST's synthetic-click seams. Their GetProcAddress lookups
+       -- and the "SendInput"/"SetForegroundWindow"/... name strings with them
+       -- are absent from a PORT_ROM_CLEAN (shipping) build, so the shipped exe
+       carries no SendInput driver for a stranger's antivirus to flag. */
+    W.SendInput_ = (decltype(W.SendInput_))GetProcAddress(u, "SendInput");
+    W.SetForegroundWindow_ =
+        (decltype(W.SetForegroundWindow_))GetProcAddress(u, "SetForegroundWindow");
+    W.WindowFromPoint_ = (decltype(W.WindowFromPoint_))GetProcAddress(u, "WindowFromPoint");
+    W.GetWindowThreadProcessId_ = (decltype(W.GetWindowThreadProcessId_))
+        GetProcAddress(u, "GetWindowThreadProcessId");
+#endif  /* !PORT_ROM_CLEAN */
     if (HMODULE mm = LoadLibraryA("winmm.dll")) {
         W.timeBeginPeriod_ =
             (decltype(W.timeBeginPeriod_))GetProcAddress(mm, "timeBeginPeriod");
@@ -187,40 +385,183 @@ static bool winapi_load(void)
         W.SetProcessInformation_ = (decltype(W.SetProcessInformation_))
             GetProcAddress(k, "SetProcessInformation");
     }
-    /* dwmapi is absent on anything older than Vista; missing = vsync
-       silently unavailable, everything else keeps working */
-    if (HMODULE dw = LoadLibraryA("dwmapi.dll")) {
-        W.DwmFlush_ = (decltype(W.DwmFlush_))GetProcAddress(dw, "DwmFlush");
-    }
-    {
-        const char *dlls[] = {"xinput1_4.dll", "xinput1_3.dll",
-                              "xinput9_1_0.dll"};
-        for (int i = 0; i < 3 && !XInputGetState_; ++i)
-            if (HMODULE x = LoadLibraryA(dlls[i]))
-                XInputGetState_ = (decltype(XInputGetState_))GetProcAddress(
-                    x, "XInputGetState");
-    }
+    /* the controller backend: XInput slots 0..3, then DirectInput. Prints
+       its one "[pad] ..." line here, so a log says what was found at boot. */
+    port_pad_init();
     return W.RegisterClassA_ && W.CreateWindowExA_ && W.DefWindowProcA_ &&
            W.PeekMessageA_ && W.StretchDIBits_ && W.GetAsyncKeyState_;
 }
 
 #include "ntr/gx.h"
+#include "ntr/hdtex.h"
 #include "ntr/mmio.h"
 #include "ntr/ppu.h"
+#include "ntr/rt.h"
+#include "ntr/smooth.h"
 
+/* walk_window is the one TU that installs the crash probe, so it also emits the
+   external seams (port_rich_dump_ex, port_crash_dir_get) the quarantine walker
+   in port/unmatched/func_02043fdc_hostcopy.cpp weak-links against. */
+#define PORT_FAULT_PROBE_DEFINE_EXPORTS
+#include "hal/vs_width.h"   /* run vs16: the port's player width */
 #include "fault_probe.h"
 #include "overlay_font.h"
-#include "rom_locator.h"
-#include "mod_loader.h"
-#include "lobby.h"
-#include "logo.h"
+#include "hal/host_settings.h"   /* settings.json, the launcher's file */
+#include "hal/comms_seam.h"       /* run mg15 lane MP1: the radio seam */
+#include "hal/voice_chat.h"      /* lane VOICE: proximity voice chat */
+#include "hal/comms_loopback.h"   /* run mg16 lane MP2: the loopback carrier */
+/* run mg16 lane MP3: hal/comms_lockstep.h is RETIRED. Its transcription of
+   src/func_0203ea5c.c existed only because that TU was in no slice; the TU is
+   linked now and drives itself. Its lessons live in comms_seam.h's frozen
+   contract and in hal/comms_conductor.cpp. */
+#include "hal/instance_tag.h"     /* run mg16 lane MP2: per-instance filenames */
+#include "hal/editor_channel.h"   /* run lvled lane B: the editor control channel */
+
+/* run mg16 lane MP3: the raw DS pad bits for this frame, handed from where the
+   harness computes them to where hal/comms_conductor.cpp publishes them into
+   the DS key register. One value, one frame, no reader outside this file --
+   a stash rather than a hosted global precisely because it is harness
+   plumbing and not DS state, so it stays out of the .dsstate bracket. */
+static unsigned short g_raw_pad_bits;
+static void port_raw_pad_stash(unsigned short raw) { g_raw_pad_bits = raw; }
+static unsigned port_raw_pad_bits(void) { return g_raw_pad_bits; }
+
+/* run link100, lane INPUTRAW: the four direction bits, handed from the block
+   that computes them (still just above, unchanged) to the pad-mirror store,
+   which now lives further down the frame beside port_raw_btn_stash so it can
+   OR the direction bits together with the host's button word before either
+   one reaches data_020a0e58. A stash for the same reason g_raw_pad_bits is
+   one: the direction block's own `raw` local is out of scope long before the
+   mirror store runs. */
+static unsigned short g_raw_dir_bits;
+static void port_raw_dir_stash(unsigned short raw) { g_raw_dir_bits = raw; }
+static unsigned short port_raw_dir_bits(void) { return g_raw_dir_bits; }
+
+/* run link100, lane INPUTRAW: the level path's pad-mirror previous-word, for
+   the edge computation. File-scope for the same reason as g_raw_dir_bits --
+   the store itself moved out of the block that used to hold this as a local
+   static (`raw_prev`), so it needs to live somewhere that outlives that
+   block's closing brace. */
+static unsigned short g_pad_mirror_prev;
+
+/* run mg16 lane MPBTN: the BUTTON half of the same stash, and the reason it
+   was missing is the whole of "no buttons in multiplayer". The d-pad stash
+   above was the only thing comms_publish_pad ever received, so the published
+   key word carried the four direction bits and nothing else -- measured over
+   every playlog pair in runs/mg16/out/MP2/two_windows: the local key word and
+   every fanned pad{held} are drawn from {0000,0010..00a0}, the d-pad nibble,
+   in the 08-27 sessions where buttons "worked" (through the then-ungated
+   direct Ctrl stores) exactly as in the 08-29 session where they died.
+
+   THE CONVENTION CHANGES AT THIS LINE and that is what the translator is for.
+   host_ds_buttons speaks the game's REMAPPED Ctrl convention (jump=2,
+   punch=1, crouch=0x400, run=0x800), because it used to feed the Ctrl words
+   directly. The key register wants the DS's RAW pad convention, because
+   src/func_0203df40.c publishes it and src/_ZN5Stage10CheckInputEv.cpp reads
+   it back through the mode-0 remap map at data_02075650 (ROM bytes: A->1,
+   B->2, R->0x400, Y->0x800, L->0x4000, X->0x8000). So the translation below
+   is that map's exact inverse, row by row, and nothing else crosses:
+   the Ctrl-only camera-rotate bits 0x100/0x200 have NO raw source in mode 0
+   (on the DS they are the touch screen's arrows, Stage::CheckCameraInput),
+   and passing them through as raw bits would land on R and L -- a phantom
+   crouch on every camera turn. */
+static unsigned short g_raw_btn_bits;
+static void port_raw_btn_stash(unsigned short raw) { g_raw_btn_bits = raw; }
+static unsigned port_raw_btn_bits(void) { return g_raw_btn_bits; }
+static unsigned short host_btn_to_raw_keys(unsigned short btn)
+{
+    unsigned short raw = 0;
+    if (btn & 0x0001) raw |= 0x0001;   /* punch : Ctrl 0x0001 <- raw A */
+    if (btn & 0x0002) raw |= 0x0002;   /* jump  : Ctrl 0x0002 <- raw B */
+    if (btn & 0x0400) raw |= 0x0100;   /* crouch: Ctrl 0x0400 <- raw R */
+    if (btn & 0x0800) raw |= 0x0800;   /* run   : Ctrl 0x0800 <- raw Y */
+    if (btn & 0x4000) raw |= 0x0200;   /* snap  : Ctrl 0x4000 <- raw L */
+    return raw;
+}
+
+/* run mg15 lane MP1. The fan-out runs the ROM's own steps 0x16 and 0x17
+   (src/func_0203bb60.c, src/func_0203bc7c.c) after the comms tick, so
+   TouchInfo[4] and PadData[4] come out of the four comms records the way the
+   DS builds them instead of being written directly by the port. The default
+   is decided in ONE place now -- port::comms_fanout_active(), banner in
+   hal/comms_conductor.cpp -- and it is ON whenever a transport is installed,
+   because a session that skips the two steps is two solo sims sharing a wire
+   nobody reads. SM64DS_COMMS_FANOUT still overrides both ways ("0" off, "1"
+   on); with it unset a solo boot has no transport and keeps the direct
+   stores, which is what MP1's byte-identical solo proof depends on.
+   SM64DS_COMMS_REPORT=1 additionally prints the four slots each frame
+   (port::comms_report), which is the instrument the two-instance stylus proof
+   reads its verdict off. */
+static bool comms_fanout_on() { return port::comms_fanout_active(); }
+static bool comms_fanout_report() {
+    static int v = -1;
+    if (v < 0) v = getenv("SM64DS_COMMS_REPORT") ? 1 : 0;
+    return v != 0;
+}
+extern "C" void out_set_volume_pct(int);  /* hal/sdat/out_win.cpp */
+
+/* The run-mode half of settings.json (hal/host_settings.cpp). Declared here
+   rather than in hal/host_settings.h because the header belongs to another
+   stream in this campaign and this lane owns only the two files it edits;
+   the linkage is plain extern "C" either way, so folding these three lines
+   into the header later is a move, not a change. */
+extern "C" int host_setting_run_mode(void);
+extern "C" int host_setting_run_key(void);
+extern "C" int host_setting_run_pad(void);
+extern "C" int host_setting_save_run(int mode, int key, int pad);
 
 typedef unsigned int u32;
 
 extern "C" {
+/* The hosted-DS section sentinels (hal/dsstate_seg.cpp). Their addresses are
+   the .dsstate span, printed beside the selftest BMP as that run's layout. */
+extern char dsstate_lo, dsstate_hi;
 void *_ZN6PlayerC1Ev(void *self);
+/* Player::InitResources' own character-propagation helper: +0x6d9 forward
+   into the swap pair at +0x6dc/+0x6dd (src/actors/Player.cpp) */
+void func_ov002_020beabc(void *p);
 void *_ZN4Heap13SetupRootHeapEv(void);
-void *_ZN9ActorBasenwEj(unsigned size);
+/* the ROM's entry into the above: clears the OS globals word, tail-calls it.
+   Seated from src/_ZN4Heap18InitializeRootHeapEv.cpp; the C name reaches the
+   matched TU's static member through an /alternatename in hal/cxx_aliases.cpp,
+   which is ABI-legal here because a static member is __cdecl like this
+   declaration. See the call site for why the boot guard moved to
+   data_020a0ea0. */
+void _ZN4Heap18InitializeRootHeapEv(void);
+/* the ROM's own game-heap factory, off the main.c boot spine -- see the call
+   site below for the two arguments and where they come from */
+void _ZN4Heap18InitializeGameHeapEjPS_(unsigned size, void *root);
+/* run link100 lane BOOT: the rest of the ROM's boot chain around those two
+   heap lines. This main() is the port's stand-in for the ROM's Entry and
+   main(), and the two heap calls above were the only two steps of that chain
+   it actually ran -- which is why every matched TU reachable only through
+   Entry/main sat unlinked. hal/boot_os.cpp transcribes the runnable spans of
+   src/func_02019780.c, src/main.c and src/func_0201a054.c and calls the ROM's
+   own bodies where the ROM calls them; its header block names every step it
+   SKIPS and the hardware that is missing (the ARM7 PXI handshake, the Slot-2
+   magic word at 0x08000000). The four seams below are placed in the ROM's
+   order relative to the two heap lines, not wherever they happened to fit. */
+void port_boot_rom_pre_main(void);
+void port_boot_rom_main_head(void);
+void port_boot_rom_game_init_head(void);
+/* src/func_0201a4e4.c -- IRQ::SetIRQHandler(1, IRQ::VBlankHandler) and
+   the two sleep-queue words. main's own func_0201a054:46 makes this
+   call; this port defers it into port_boot_rom_game_init_head above,
+   which is the LEVEL bring-up. Rung G2 makes it on the scene path too;
+   see the block at the scene handover. */
+void func_0201a4e4(void);
+void port_boot_rom_game_init_tail(void);
+/* run link100, lanes BOOTSCOUT and BOOTR1. THE ROM'S OWN src/main.c runs the
+   boot now, in place of the transcription of its head, and the gate
+   SM64DS_ROM_MAIN DEFAULTS ON; SM64DS_ROM_MAIN=0 keeps the transcription.
+   hal/rom_main.cpp carries the whole derivation, the ROM disassembly its two
+   seams are read off, and the one known deviation. */
+int  port_rom_main_enabled(void);
+void port_rom_main_run(void);
+/* the game heap's allocator, read for the boot report only: how much of the
+   ROM's 0x3b000 the port's boot actually spends */
+unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *self);
+void *_ZN7fBase_cnwEj(unsigned size);
 extern int data_0209b3ec[12];
 extern unsigned short data_020a4b54;
 extern void **data_020a4bb8;
@@ -237,27 +578,94 @@ int hal_player_behavior(void *p);
 int hal_player_process(void *p);   /* gate 15: BeforeBehavior/Behavior/After */
 void sdat_host_tick(void);         /* hosted ARM7: hal/sdat/ */
 void hal_render_player_world(void *p);
-extern unsigned char data_ov002_0211019c[];
-extern unsigned char data_ov002_021101b4[];
-extern unsigned char data_ov002_0211013c[];
-extern unsigned char data_ov002_02110514[];
-extern unsigned char data_ov002_02110154[];
-extern unsigned char data_ov002_0210a504[];
-/* per-character sound (voice) group loader + id table (InitResources) */
-void func_02011f7c(int a);
-extern unsigned char data_ov002_020ff0f0[];
+/* ADVENTURE GHOSTS: the per-frame no-collision hold over remote slots
+   (hal/player_bridges.cpp). No-op unless adventure-ghost mode is on. */
+void port_adventure_ghost_hold(void);
+/* the headless M1 proof; no-op unless SM64DS_ADVENTURE_PROBE is set. */
+void port_adventure_probe(int frame);
+/* ADVENTURE GHOSTS: the per-render-frame pure-follower step (hal/comms_sync.cpp).
+   Eases each ghost toward its latest snapshot and suppresses its ROM drift.
+   No-op unless adventure-ghost mode is on. */
+void port_adventure_ghost_follow(void);
+/* ADVENTURE co-op (M2): is this remote slot a ghost to draw right now -- present
+   and in THIS console's level (hal/comms_sync.cpp). The render loop gates on it
+   so a peer in another level is not drawn. 0 outside adventure mode. */
+int port_adventure_peer_visible(int slot);
+/* the M2 presence proof; no-op unless SM64DS_ADVENTURE_PRESENCE is set. */
+void port_adventure_presence_probe(int frame);
+/* the party render-boundary proof; no-op unless SM64DS_PARTY_PROBE (or the
+   SM64DS_PARTY_DIAG stride) is set. */
+void port_party_probe(int frame);
+/* PARTY: per-slot party-member predicate (hal/comms_sync.cpp). */
+extern "C" int port_party_member(int slot);
 extern char data_0209f4a0[];
 extern int data_0209f4a6[];   /* pad stick WORLD angle -- auto_bss split
                                  symbol, NOT data_0209f4a0+6 on host */
-/* the real input processor (Stage::CheckInput) and its environment */
+
+/* the real input processor (Stage::CheckInput) and its environment.
+   Stage::Behavior calls it now (_ZTV5Stage slot 6, run link100 lane FRAME);
+   this file calls it only on the frames that never dispatch the Stage at all
+   -- see the fallback beside the Ctrl fan-out, past the tick chain. */
 void _ZN5Stage10CheckInputEv(void);
+/* how many times the slot-6 thunk has run the ROM's Stage::Behavior, counted
+   by the thunk itself (hal/stage_frame.cpp). The fallback above reads it to
+   tell "the Stage ticked this frame" from "it did not", which is the only
+   question a harness frame can ask that a DS frame cannot. */
+unsigned port_stage_behavior_calls(void);
+/* the same counter for _ZTV5Stage slot 9 (run link100, lane RENDER9), and it
+   answers the same question one phase later. THE RENDER TRANSCRIPTION BELOW IS
+   A FALLBACK NOW, not a statement of the frame: on every ordinary frame the
+   ROM's own Stage::Render draws the skybox, the level and the transparent pass
+   from inside the actor render bucket, and this file draws none of them. The
+   frames where it still has to are the ones the DS does not have -- a no-spawn
+   dev-rig arm and the debug menu, where there is no Stage on the render list
+   at all -- plus the deliberate SM64DS_STAGE_SLOT9_HOST=1 run the seat's BMP
+   A/B is captured with. The counter is the exact test for all three, for the
+   reason the slot-6 one is: the thunk increments it, so it cannot disagree
+   with what ran. */
+unsigned port_stage_render_calls(void);
+/* Stage::Behavior's per-frame cutscene-script advance (Stage::Behavior:112).
+   Matched src (src/ProcessKuppaScript.cpp), self-guarded: returns at once when
+   data_0209fc48 == 0. The ROM's own Stage::Behavior makes this call now; the
+   declaration stays for the SM64DS_COURSE_PROBE=kuppa repro below, which
+   launches and ends a script by hand. */
+void ProcessKuppaScript(void);
+void EndKuppaScript(void);     /* STAR1 proof: clears data_0209fc48 at cutscene end */
+void port_intro_bit_edge(void); /* hal/level_boot.cpp: flags2 bit 7, edge-triggered */
+/* the ROM's own atan2, the one CheckInput builds the stick record's angle
+   with. The analog run mode below fills that record from a host stick, so it
+   goes through the same function rather than a host atan2f: same table, same
+   quantization, same answer the touch path would have produced. */
+short _ZN4cstd5atan2E5Fix12IiES1_(int y, int x);
 unsigned int _ZNK6Player14GetBodyModelIDEjb(char *, unsigned int, char);
 extern int data_0209f498[];    /* CheckInput's own Ctrl[4] block */
 extern int data_0209f4a2[];    /* split: stick nx */
 extern int data_0209f4a4[];    /* split: stick ny */
 extern unsigned char data_0209f4ac[]; /* split: touching */
 extern int data_020a0e58[];    /* PadData[4]: u16 held, u16 pressed */
-extern int data_020a0de8[];    /* TouchData[4], zero = no touch */
+/* THE PRESSED HALFWORD'S SPLIT SYMBOL. On the DS this IS data_020a0e58 + 2 --
+   PadData strides 4, {u16 held, u16 pressed} -- and hal/auto_bss.cpp gives it
+   its own storage on the host. See the publish beside the pad store below. */
+extern int data_020a0e5a[];
+/* MY COMMS SLOT: 0 solo or parent, 1..3 a child seat. hal/comms_conductor.cpp
+   seats it from func_02040704 when a session joins; the flight recorder below
+   reads it.
+
+   unsigned char AND NOT int, which is not cosmetic. Every ROM-side
+   declaration of this symbol is u8 (src/func_0203da9c.c, func_0203db64.c,
+   func_0203df40.c, func_0203ea5c.c) and hal/comms_conductor.cpp declares and
+   WRITES it as unsigned char, so byte 0 is the whole value and bytes 1..3 are
+   nobody's. An int[] extern here reads all four and only agrees with the byte
+   writer while the high three happen to be zero -- which is exactly the shape
+   that produced the fc5c freeze, where an int[] extern wrote int strides past
+   a byte reader. The host definition (hal/actor_vtables.cpp) is oversized on
+   purpose; the DECLARATION is what has to match the ROM. */
+extern unsigned char data_020a0f10[];
+/* TouchData[4], zero = no touch. DECLARED AS BYTES, not ints: the definition
+   in hal/auto_bss.cpp is unsigned char[1] with de9/dea/deb packed at +1/+2/+3,
+   the DS layout. An `int[]` here would be a lie about the element type; it is
+   inert only because nothing in this file dereferences it. */
+extern unsigned char data_020a0de8[];
 extern unsigned char data_0209f21c;   /* controller count */
 extern int data_0209f350[];    /* per-pad status */
 extern int data_020a1164[];    /* camera per-player block; +0 = angle
@@ -266,15 +674,85 @@ extern int data_0209caa0[];
 extern unsigned char data_0209d660;
 extern int data_0209fc48;
 extern unsigned char data_0209f2d8;
+/* STAR1 repro/proof: the star-get camera kuppa script and its per-frame cursor.
+   func_0200ee8c launches the script (sets data_0209fc48); data_0209b274 is the
+   time cursor ProcessKuppaScript advances each frame until the script ends. */
+void func_0200ee8c(int arg0);
+extern unsigned short data_0209b274;
+extern signed char data_0209f224;
 extern int data_0209214c[];    /* button remap pointer table (ROM DS
                                   pointers -- repointed at staging) */
+/* CheckInput's three button remap maps, 16 u16 rows each, hosted as ROM bytes
+   by port/tools/romdata.py. The staging block points data_0209214c's first
+   three entries at them so the remap loop reads Nintendo's rows. */
+extern unsigned char data_02075650[];   /* mode 0: level play  */
+extern unsigned char data_02075670[];   /* mode 1 */
+extern unsigned char data_02075690[];   /* mode 2: touch mode  */
+/* the host key word the scene path's publisher reads (hal/scene_boot.cpp);
+   the scene loop below refreshes it every frame from the host input */
+void port_host_keys_set(unsigned short raw);
 extern char data_0209f49c[];   /* held buttons (bit 1 = A/jump held) */
 extern char data_0209f49e[];   /* pressed-this-frame (bit 1 = jump) */
 extern int data_0209b468[4];   /* actor list head (stomp tracker) */
 extern unsigned char data_020a0e40[];
 extern short data_02092144[];
 extern unsigned char data_ov002_0211049c[];  /* St_Wait state object */
+/* SM64DS_DECEL_PROBE reads the ground-move constants out of the game's own
+   helpers, so the log shows the numbers the physics actually used and not a
+   second guess at them. 020c031c is the slip class (Player+0x658, promoted
+   for one state); 020bf56c scales a brake rate by that class. */
+int func_ov002_020c031c(void *c);
+int func_ov002_020bf56c(void *c, int b);
+int Player_ScaleByCharFactor(void *c, int a);
+/* SM64DS_FORCE_STATE=walljump probe: the ST_WALL_JUMP State record and the
+   per-character airborne-gravity PMF table St_WallJump_Main dispatches
+   through. Both are BSS built by __sinit_ov002_021019d0, so they only read
+   back after the sinit run below. */
+extern unsigned char data_ov002_021103dc[];  /* _ZN6Player12ST_WALL_JUMPE */
+extern unsigned char data_ov002_021106dc[];  /* _ZN6Player8ST_CLIMBE */
+/* ST_LEDGE_HANG. Named off the sinit rather than a symbol map:
+   __sinit_ov002_021019d0 fills 0210ffec's lo/hi/tail from 0x0210a41c,
+   0x0210a06c and 0x02109eec, and ov002's reloc table takes those three to
+   St_LedgeHang_Init, _Main and _Cleanup exactly. */
+extern unsigned char data_ov002_0210ffec[];  /* _ZN6Player13ST_LEDGE_HANGE */
+/* ST_DEAD_PIT, the fell-out-of-the-world state. __sinit_ov002_021019d0 fills
+   0x02110124's lo/hi from 0x02109e04 and 0x0210a4dc, and ov002's reloc table
+   takes those two PMFs to St_DeadPit_Init and St_DeadPit_Main exactly. Its Init
+   case 1 is the ROM's own call to HitDeathPlane (out-of-bounds death), so a
+   ChangeState into it with mStateStep==1 drives the real OOB path. */
+extern unsigned char data_ov002_02110124[];  /* _ZN6Player11ST_DEAD_PITE */
+/* ST_SWINGPLAYER, the Wario carry-and-spin. __sinit_ov002_021019d0 fills
+   0x02110604's lo/hi/tail from 0x0210a4b4, 0x0210a494 and 0x0210a414, and
+   ov002's reloc table takes those three to St_SwingPlayer_Init, _Main and
+   _Cleanup exactly. */
+extern unsigned char data_ov002_02110604[];  /* _ZN6Player13ST_SWINGPLAYERE */
+extern int data_ov002_02110a48[5];           /* Tree's five cylinder lists */
+extern int data_ov002_0211073c[];            /* 4 rows of {fn-or-vtoff, v} */
+int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
+/* SM64DS_FORCE_STATE=squish. NOT a hand-written ChangeState: this is the ROM's
+   own crush entry point, Player::Unk_020c6a10 (ov002 0x020c6a10), the exact
+   function the crushers call -- ov073 0x02120284 with 1, ov074 0x02120d74 with
+   2, ov078 0x021240a0 with 1 (src/func_ov073_021200e0.c:73,
+   src/actors/Goomboss.cpp:73 and src/actors/daBombking_c.cpp:107). It runs the
+   ROM's own three gates (mClsnFlags & 1, i.e. on the ground; not already in
+   ST_SQUISH; func_ov002_020d82f0), then sets mScaleY = 0x100 and holds
+   ST_SQUISH for 30 frames. A refusal returns 0 and is logged, so "the probe
+   did nothing" cannot pass for "the state did nothing". C-linkage face is
+   hal/bob_enemy_header_faces.cpp:48. */
+extern "C" int _ZN6Player12Unk_020c6a10Ej(void *self, unsigned a);
+int func_ov002_020d82f0(void *c);   /* its second gate, logged on a refusal */
+#ifdef PORT_ROM_CLEAN
+/* ROM-CLEAN: fill the zeroed ROM tables from build/assets/romdata.bin before
+   anything reads them. Loud FATAL if the file is missing/corrupt. Runs ahead of
+   port_ov002_patch and every sinit -- see hal/romdata_loader.cpp. */
+extern "C" void port_romdata_load(void);
+#endif
 void port_ov002_patch(void);
+/* the pointers that leave their own mount, ovdata.py --cross. Order does not
+   matter against the per-mount passes: it writes host addresses into host
+   arrays, and a target is either inside its own mount or it is not, so the
+   sites are disjoint. */
+void port_cross_patch(void);
 void __sinit_ov002_02100560(void); void __sinit_ov002_02100938(void);
 void __sinit_ov002_02100adc(void); void __sinit_ov002_02100c50(void);
 void __sinit_ov002_02100d44(void); void __sinit_ov002_02100e50(void);
@@ -287,26 +765,28 @@ void __sinit_ov002_021019d0(void); void __sinit_ov002_02106e40(void);
 void __sinit_ov002_02107118(void); void __sinit_ov002_021071f4(void);
 void __sinit_ov002_02107298(void); void __sinit_ov002_02107304(void);
 void __sinit_ov002_02107370(void); void __sinit_ov002_02107f88(void);
+void port_cutscene_states_seat(void);  /* link100 PMFB6: the ten state tables */
+void port_kuppa_cmd_seat(void);        /* link100 SMALLS: the fourteen kuppa command records */
 void __sinit_ov002_0210804c(void); void __sinit_ov002_02108094(void);
 void *_ZN13SharedFilePtr9ConstructEj(void *, unsigned);
-void _ZN12MeshColliderC1Ev(void *);
-void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *);
-void _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(void *, void *, void *);
-int _ZN16MeshColliderBase6EnableEP5Actor(void *, void *);
+void _ZN7dBgW_KcC1Ev(void *);
+void *_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(void *);
+void _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(void *, void *, void *);
+int _ZN4dBgW6EnableEP8dActor_c(void *, void *);
 void *_ZN5ModelC1Ev(void *);
 void *_ZN5Model8LoadFileER13SharedFilePtr(void *);
 void _ZN9ModelBase7SetFileEP8BMD_Fileii(void *, void *, int, int);
 void hal_render_model(void *model, int scaleShift);
-void _ZN13RaycastGroundC1Ev(void *);
-void _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(void *, const void *,
+void _ZN9dBgCh_GndC1Ev(void *);
+void _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(void *, const void *,
                                                         void *);
-int _ZN13RaycastGround10DetectClsnEv(void *);
-void _ZN4BgCh19StartDetectingWaterEv(void *);
-void _ZN4BgCh21StopDetectingOrdinaryEv(void *);
+int _ZN9dBgCh_Gnd10DetectClsnEv(void *);
+void _ZN5dBgCh19StartDetectingWaterEv(void *);
+void _ZN5dBgCh21StopDetectingOrdinaryEv(void *);
 int SurfaceInfo_TestFlag0x20(const int *);
 int hal_ground_ray(void *mc, int x, int y, int z, int reach, int *out_y);
 int hal_line_ray(void *mc, const int *a, const int *b, int *out);
-void _ZN12WithMeshClsn13SetGroundFlagEv(void *);
+void _ZN10dBgCh_Actr13SetGroundFlagEv(void *);
 int func_02035354(void *, void *);
 int func_020393b4(void *);
 /* the real Camera actor (gate 13) */
@@ -316,7 +796,12 @@ void *hal_camera_new(void);
 int hal_camera_init_resources(void *cam);
 int hal_camera_behavior(void *cam);
 int hal_camera_render(void *cam);
+void hal_camera_widen_frustum(void);   /* 16:9 object-cull frustum widen */
 void func_0203e0ac(void);
+/* run mg16 lane MP3: the ROM's own comms dispatcher, linked through
+   port/slice_mp3.txt. It owns the switch that used to be hosted at the call
+   site below, and the only call site of the seam's close() face. */
+void func_0203df40(void);
 /* the ROM's own camera math, which the freecam rig builds its view with:
    the same eye construction func_02009e70 uses and the same two G3i entry
    points plus CopyToViewMat that Camera::Render ends in */
@@ -338,6 +823,14 @@ extern int data_0209f43c[];          /* the Clipper (hal/camera_bridges) */
 extern int data_020a4b78[];          /* the behaviour processing list */
 int _ZN7Clipper13Func_020150E8ER7Vector35Fix12IiEPh(void *clipper, void *pos,
                                                     int clip, unsigned char *h);
+/* the two matrix calls VirtualDoor::Behavior itself uses to put the Player in
+   an exit's local frame and to take a local point back out to the world */
+void MulVec3Mat4x3(const void *in, const void *m, void *out);
+void InvMat4x3(const void *in, void *out);
+/* three of the Camera's nineteen states, for the exit probe: the one
+   Camera::InitResources boots into, the one the ROM's own "follow him again"
+   (func_0200d5c0) picks, and the one Camera::LookAtExit parks in. */
+extern int data_0209b008[], data_0209b078[], data_0209b0f8[];
 extern void *data_0209f318;          /* the Camera singleton */
 extern signed char data_02092120;    /* currently shown area, -1 = none */
 extern unsigned char data_0209f250;  /* local player index */
@@ -346,6 +839,22 @@ extern unsigned char data_0209f1f8;  /* view-object count */
 extern signed char data_0209f2f8;    /* level/sublevel id (weather select) */
 extern int data_0209f32c[];          /* water level */
 extern int data_0209f20c[], data_0209f294[], data_0209f2c4[];
+/* THE PAUSE MENU'S OWN WORDS (run link100, lane EXITS1, the exit-course arm).
+   Stage::PS_Update (src/_ZN5Stage9PS_UpdateEv.cpp) runs a switch on
+   data_0209f248, copies data_0209f1ec into it at the top of every call, and
+   RETURNS OUT OF THE WHOLE FUNCTION while data_0209f22c is nonzero. A menu that
+   is up and will not answer a tap is one of those three, and this is how a log
+   says which. Flat names: all four are unsigned char[4] host arrays
+   (hal/auto_bss.cpp, hal/w8a_stage_storage.cpp). */
+extern "C" unsigned char data_0209f248[];  /* the pause sub-state that RAN */
+extern "C" unsigned char data_0209f1ec[];  /* the pause sub-state asked for */
+extern "C" unsigned char data_0209f22c[];  /* the whole-function cooldown */
+extern "C" unsigned char data_0209f2b4[];  /* how many menu buttons are up */
+/* the fader CURRENTLY IN MOTION (run link100, lane FRAME: read by the
+   SM64DS_PAUSE_WATCH line). hal/cxx_aliases.cpp defines it as an int[8];
+   its first word is the installed fader or 0, which is the term
+   Stage::Behavior's own pause gate tests. */
+extern int data_0209d4b0[];
 extern int data_0209b454[];
 extern int data_0209ee90[];
 extern int data_020a4b60[];
@@ -358,60 +867,1361 @@ extern unsigned g_port_unhosted_hits;
 int port_entrance_count(void);
 int port_entrance_record(int i, int *x, int *y, int *z, int *yaw);
 /* the real level boot (hal/level_boot.cpp) */
-void port_ov009_probe(void);
+void port_level_probe(void);
+/* the SCENE boot (hal/scene_boot.cpp): SM64DS_SCENE=<id> takes the whole run,
+   the way SM64DS_LEVEL picks which level this one is. -1 means "not a scene
+   run", which is every run that does not set it. */
+int port_scene_env_want(void);
+int port_scene_run(void);
+/* ...and the SAME run, split in three so a window can go round the middle of
+   it. hal/scene_boot.cpp composes these into port_scene_run for a headless
+   run; scene_window_run below drives them itself with a message pump, live
+   input, the debug menu and a present between the ticks, so the scene's
+   bring-up, capture and census exist once. port_scene_layout_propose is the
+   stacked proposal (the ROM's own IsMinigameActorID), asked once by whoever
+   gets there first because the mode latches on its first reader and a window
+   has to be sized before begin() runs. See port/scene_window.txt. */
+void port_scene_layout_propose(void);
+int port_scene_begin(void *hwnd, int zoom);
+void port_scene_tick(int frame, int tick_game);
+int port_scene_finish(int frames_run);
+int port_scene_frames_wanted(void);
+const void *port_scene_framebuffer(void);
+/* hal/level_change.cpp's star-select interlude asks for its frame through this
+   pointer; main fills it in with port_interlude_frame below. A pointer and not
+   a direct call because level_change.cpp is on the smoke targets and this file
+   is not. (run link100, lane STARSEL5.) */
+extern int (*port_interlude_frame_hook)(int frame);
+/* THE TITLE-TO-ADVENTURE BRIDGE (hal/title_entry.cpp), behind
+   SM64DS_TITLE_ENTRY=1 and only on SM64DS_SCENE=1. Picking a save file drives
+   the ROM's own StartFile, which stages a level and asks for scene 3 -- the
+   Stage, which lives on the LEVEL path and which the scene spawner therefore
+   declines honestly. These four let the scene run stop on that handoff and
+   this file fall through to its own level boot instead of returning. With the
+   flag unset every one of them answers 0 without reading anything else. */
+int port_title_entry_armed(void);
+int port_title_entry_should_stop(void);
+int port_title_entry_commit(void);
+int port_title_entry_taken(void);
+int port_title_entry_run(void);
+/* and the registry question that boot refuses on, asked ahead of time: the
+   debug menu's minigame row uses it to decide which of the ROM's thirty
+   minigame ids can be selected (hal/scene_boot.cpp). */
+int port_scene_is_hosted(int id);
+/* the level selector: SM64DS_LEVEL picks it, the debug menu's LEVEL row
+   walks the same table. port_level_nth enumerates it. */
+int port_level_id(void);
+const char *port_level_name(void);
+int port_level_count(void);
+int port_level_nth(int i, int *id, const char **name);
+/* the direct actor-spawn hook (hal/level_boot.cpp): one actor of a given
+   class, through the level's own Actor::Spawn, at the player or anywhere */
+void *port_debug_spawn(unsigned id, unsigned param);
+void *port_debug_spawn_at(unsigned id, unsigned param,
+                          int x, int y, int z, int yaw, int area);
+void port_debug_spawn_env(void);
 void *port_stage_a_boot(void *mc, int spawn_entrances);
 void port_stage_a_probe(void *mc);
 void *port_stage_create(void);   /* hal/stage_bridges.cpp: the real Stage actor */
 void port_stage_tree_probe(void *child, const char *what);
 void port_stage_render_model(void *self);  /* Stage::RenderModel, matched src */
 void port_stage_render_model_transparent(void *self);
+void port_stage_advance_anims(void *self); /* Stage::Render's first block: the
+                                              level's BTA texture animations */
+void port_stage_render_skybox(void *self); /* the +0x9bc Model, camera-glued */
 void _ZN5Stage9LoadModelEv(char *self);   /* matched src, slice_gate24 */
+void _ZN5Stage10LoadSkyboxEv(char *self); /* matched src, slice_gate26 */
+unsigned _ZN5Stage11GetSkyboxIDEv(void);  /* the LVL_Overlay's skybox bits */
 extern int data_0209f320;                 /* the Stage's ModelComponents */
 int port_stage_path_guard(void *player);
+/* the HOST-side description of the level (hal/level_boot.cpp's own statics,
+   none of which a save-state restore rolls back). The census below prints
+   them beside the world's own answers. */
+int port_level_host_boot_target(void);
+const void *port_level_host_entrances(int *count);
+int port_level_host_file_rows(void);
+void *port_level_host_file_row(int i, unsigned *handle, unsigned *refs,
+                               int *persistent);
+void port_level_host_paths(void **table, int *count);
 void port_stage_a2_seat(void);
+/* in-memory save state (hal/lk6_savestate.cpp): F8/F9 and the debug menu.
+   save/load return 1 when they acted, has() drives the menu label. */
+int lk6_savestate_save(void);
+int lk6_savestate_load(void);
+int lk6_savestate_has(void);
+/* the rollback feasibility probe (hal/rollback_probe.cpp). Inert unless
+   SM64DS_ROLLBACK_PROBE / SM64DS_ROLLBACK_DET is set; see its banner. */
+int rb_probe_mode(void);
+double rb_now_ms(void);
+void rb_note(int what, double ms);
+int rb_resim_skip_render(void);
+void rb_probe_frame_end(int *frame, int selftest);
+/* the rollback netcode's frame-boundary half (hal/rollback.cpp). Inert in
+   NetMode lockstep: rb_frame_end is one cached compare, the two gates read a
+   host int. In rollback mode a contradicted round rewinds the world at the
+   boundary and the loop body runs again up to the present with rb_replaying
+   set: host keys, the pad, the mouse, the camera rig, the frame pace and the
+   editor drain stand down, and rb_skip_render drops the level model, the
+   rasteriser and the present on every replayed frame but the last. */
+void rb_frame_end(int *frame, int selftest);
+void rb_frame_begin(void);          /* stamps the real frame's start, after the pace */
+int rb_presented_frame(void);       /* the spread presented this replayed frame: pace it */
+void rb_frame_body_end(void);       /* the loop body ended: the real-frame breakdown */
+void rb_frame_sound_ms(double ms);  /* the sound drain's cost, same breakdown */
+int rb_replaying(void);
+int rb_skip_render(void);
+int rb_skip_actor_render(void);
+// port/rollback: the player's texture-sequence tick (eye-blink material
+// flag, shared per character model) that must run every tick regardless
+// of rb_skip_render() -- see the comment on hal_player_texseq_tick in
+// hal/player_bridges.cpp for why (the map0 DET rung).
+void hal_player_texseq_tick(void *player);
+void rb_replay_phase(int idx, double ms);
+void port_actor_render_replay(void);
+enum { RB_ACTOR_TICK = 0, RB_ANIMS, RB_PARTICLE, RB_CYL, RB_SCENEPASS,
+       RB_PH_INPUT, RB_PH_CAMERA, RB_PH_SUBMIT, RB_PH_RASTER, RB_PH_BLIT,
+       RB_PH_FRAME };
+/* bit 0 the .dsstate section, bit 1 the arena, 0 = not captured at all */
+int lk6_savestate_covers(const void *p);
+/* how many captured words point at THIS process's heap or stack, and so are
+   dead in the next one (the data_020a5bb8 class). Returns the count. */
+int lk6_savestate_scan_host_pointers(const char *when, int list_max);
+/* and the other direction: host .data/.bss words pointing INTO the arena a
+   restore just replaced. Returns the count. */
+int lk6_savestate_scan_world_pointers(const char *when, int list_max);
+/* The packed-gap reproducer's one anchor (SM64DS_SS_WATCH_FLAG below).
+   data_ov009_02112bc4 is the BTA_File CastleWater::InitResources hands
+   TextureTransformer::Prepare and SetFile (see src/_ZN11CastleWater13Init
+   ResourcesEv.cpp), and the generated mount patches its +20 word to DS
+   0x02112238. What sits there is a 0x1c record whose leading halfword is
+   0xffff in the ROM and 0x0000 once ov009's sinits have run, with a pointer at
+   +4 into a block carrying the string "water_mat": the castle water's texture
+   animation, not FLAG's anything. Flag::InitResources loads through
+   data_ov009_02113eb8 and data_ov009_02113eb0, which are different symbols in
+   a different block. THE ENV IS STILL SPELLED _FLAG for continuity with the
+   review that found the case; the storage is not FLAG's and a debugger reading
+   this should not go looking for it there.
+
+   Following the +20 pointer rather than naming a host symbol is the point: it
+   lands on whichever host array currently hosts the DS address, a synthetic
+   gap block or a named mount symbol or whatever the generator decided next, so
+   the probe watches the DS storage the GAME uses and survives the fix under
+   test moving it. */
+extern unsigned char data_ov009_02112bc4[];
+/* The gap block itself, watched by name alongside the pointer above. The two
+   answer different questions and the reproducer needs both: the pointer says
+   whether the storage the GAME writes is captured, and this says whether the
+   gap copy is the copy that moved. They can disagree -- a named mount symbol
+   covering the same DS address would take the pointer and leave this one
+   untouched -- and that disagreement is a result, not noise. */
+extern unsigned char port_ov009_gap_0211222c[];
+/* disk-backed save state (hal/lk7_persist.cpp): makes the slot survive a
+   restart. write() mirrors a successful save to <exedir>\savestate.bin,
+   read() loads it at startup; available() is 1 only when the arena is at its
+   fixed base so disk states can relocate. */
+int lk7_persist_write(void);
+int lk7_persist_read(void);
+int lk7_persist_available(void);
+/* Why the last read turned a savestate.bin away, short enough for the on-screen
+   toast; "" when there was nothing to refuse. See the note at the bottom of
+   hal/lk7_persist.cpp. */
+const char *lk7_persist_refusal(void);
+
+/* Two seconds of on-screen text for the save-state actions. Every earlier
+   report of "F8 did nothing" was undiagnosable because the only evidence was a
+   line on stderr, which a player never sees: a press eaten by the focus gate,
+   a menu row left unconfirmed and a save that genuinely happened all looked
+   identical. The toast is drawn every frame after the menu (so neither the
+   menu nor the overlay hides it) and says which of the three it was. */
+static char ss_toast[64];
+static int  ss_toast_left;
+/* Set by any restore that happens where main's frame-loop locals are not in
+   scope -- the debug menu's load row runs inside the menu handler, several
+   frames' worth of call stack away from them. The loop re-seats on the next
+   frame it sees this set. Every other restore path re-seats at the call site.
+   See the ss_reseat comment in main(). */
+static int ss_reseat_pending;
+static void ss_note(const char *msg)
+{
+    snprintf(ss_toast, sizeof ss_toast, "%s", msg);
+    ss_toast_left = 120;
+}
+
+/* ShadowModel::CleanAll, seated at the point Stage::Behavior calls it. The
+   body is matched src/ and was being discarded by /OPT:REF because the port's
+   hand transcription of Stage::Behavior had skipped the call.
+
+   This is a method-shadow declaration, the same trick hal/heap_vtable.cpp uses:
+   MSVC mangles a static member off the class NAME and the signature only, so
+   `?CleanAll@ShadowModel@@SAXXZ` from here is the same symbol the real
+   definition (src/_ZN11ShadowModel8CleanAllEv.cpp, which includes the full
+   include/ShadowModel.h) exports. No layout is assumed and none is used.
+
+   Its sibling ShadowModel::RenderAll is declared here too (run linkw wave 5,
+   lane w5-d; wave 4's seat came back out because ntr drew the shadow volume
+   itself, and that wall is down -- see the call site in the render order
+   below). Same method-shadow trick, same reason it is exact: both are
+   statics, so the decorated name is the class name and the signature and
+   nothing else. */
+struct ShadowModel {
+    static void RenderAll();
+    static void CleanAll();
+};
+
+/* ntr/io.cpp: the hardware content stores the save state captures. The
+   reproducer below hashes them to PROVE a restore put the bytes back, because
+   "the run kept stepping" is satisfiable with the wrong textures on screen --
+   that is precisely how the 0.2.1 cross-area bug shipped. */
+extern "C" unsigned port_hw_regions_size(void);
+extern "C" void port_hw_regions_copy_out(void *dst);
+
+/* ---- THE SAVE-STATE CONSISTENCY CENSUS -------------------------------------
+
+   A restore rolls back the hosted arena, the .dsstate section and the hardware
+   content stores, and nothing else. But the world is described in more places
+   than those three: hal/level_boot.cpp stages the level's file-handle table,
+   its entrance cache and its boot target as plain host statics (gate 31's
+   comment there names that exact set as what a LEVEL CHANGE has to undo by
+   hand), and THIS file's frame loop holds `player`, `c` and `cam`, derived
+   from the world at boot and re-derived only on a level handoff -- where the
+   comment reads "EVERY POINTER main() HOLDS INTO THE LEVEL IS STALE
+   AFTERWARDS".
+
+   A restore is the same transition as a level handoff and re-derives none of
+   it. Two descriptions of one world with only one of them rolled back is the
+   half-rollback disease every bug in this arc has been. So: print both
+   descriptions side by side at the moment of the restore, and say which of
+   them disagree. A run that lands in an inconsistent world then NAMES the
+   inconsistency instead of faulting some frames later somewhere that mentions
+   none of it.
+
+   Called after every restore -- the boot-time disk read, F9, the debug menu's
+   load row and the scripted SM64DS_SS_LOAD -- and at the scripted save, so a
+   save's census and its load's census can be diffed. SM64DS_SS_CENSUS=0 turns
+   it off, =2 adds the two whole-section sweeps at the bottom. */
+static const char *ss_where(const void *p)
+{
+    if (!p) return "null";
+    switch (lk6_savestate_covers(p)) {
+    case 1:  return ".dsstate";
+    case 2:  return "arena";
+    case 3:  return "both?!";
+    default: return "NOT CAPTURED";
+    }
+}
+static void ss_census(const char *when, void *host_player, void *host_cam)
+{
+    /* 0 off, 1 (the default) the census, 2 the census plus the two section
+       sweeps below. */
+    static int on = -1;
+    if (on < 0) {
+        const char *e = getenv("SM64DS_SS_CENSUS");
+        on = e ? atoi(e) : 1;
+    }
+    if (!on) return;
+
+    void *world_player = data_0209f394[0];
+    void *world_cam    = data_0209f318;
+    void *ptbl = 0;
+    int pcount = 0;
+    port_level_host_paths(&ptbl, &pcount);
+    int ecount = 0;
+    const void *ents = port_level_host_entrances(&ecount);
+
+    fprintf(stderr, "[ss-census] %s\n", when);
+    fprintf(stderr, "[ss-census]   player: host %p  world %p  -- %s\n",
+            host_player, world_player,
+            host_player == world_player ? "agree" : "DIVERGED");
+    /* +0x13c is the camera MODE object and +0x138 the STATE object, the two
+       the boot prints at spawn. They are named here because they are what the
+       player's 2026-08-26 crash actually died on: func_0200ca50 (the camera
+       state machine's per-frame dispatch, called from Camera::Behavior) opens
+       with `mode = self->+0x13c; ApproachLinear2(self+0x17a, mode->+0x24)`, so
+       a null mode reads address 0x24 -- which is exactly the
+       `access 00000000 at 00000024` in his dump, at func_0200ca50 +0x12, with
+       Camera::Behavior +0x13d as the return address above it. */
+    fprintf(stderr, "[ss-census]   camera: host %p  world %p  -- %s"
+            "  (world mode %p state %p)\n", host_cam, world_cam,
+            host_cam == world_cam ? "agree" : "DIVERGED",
+            world_cam ? *(void **)((char *)world_cam + 0x13c) : 0,
+            world_cam ? *(void **)((char *)world_cam + 0x138) : 0);
+    if (host_cam && host_cam != world_cam)
+        fprintf(stderr, "[ss-census]   camera: HOST cam mode %p state %p -- "
+                "this is what Camera::Behavior would tick\n",
+                *(void **)((char *)host_cam + 0x13c),
+                *(void **)((char *)host_cam + 0x138));
+    fprintf(stderr, "[ss-census]   level:  host boot target %d  world "
+            "data_0209f2f8 %d  -- %s\n", port_level_host_boot_target(),
+            (int)data_0209f2f8,
+            port_level_host_boot_target() == (int)data_0209f2f8
+                ? "agree" : "DIVERGED");
+    fprintf(stderr, "[ss-census]   paths:  table %p (%s) count %d", ptbl,
+            ss_where(ptbl), pcount);
+    if (world_player)
+        fprintf(stderr, "  world player binding %u",
+                *(unsigned *)((char *)world_player + 0x670));
+    if (host_player && host_player != world_player)
+        fprintf(stderr, "  HOST player binding %u",
+                *(unsigned *)((char *)host_player + 0x670));
+    fprintf(stderr, "\n");
+    fprintf(stderr, "[ss-census]   entrances: %p (%s) count %d\n", ents,
+            ss_where(ents), ecount);
+    {
+        /* The rows themselves only at =2: a level's table runs to a couple of
+           dozen and a player can press F9 all afternoon. At =1 the line that
+           matters is how many rows there are and whether any of them points
+           somewhere a restore does not reach -- a count that changed across a
+           restore is the tell, and the rows are one env away when it does. */
+        const int rows = port_level_host_file_rows();
+        int outside = 0;
+        for (int i = 0; i < rows; ++i) {
+            unsigned h = 0, refs = 0;
+            int persistent = 0;
+            void *p = port_level_host_file_row(i, &h, &refs, &persistent);
+            if (!lk6_savestate_covers(p)) ++outside;
+            if (on == 2)
+                fprintf(stderr, "[ss-census]     [%d] handle %u refs %u ptr %p "
+                        "(%s)%s\n", i, h, refs, p, ss_where(p),
+                        persistent ? " persistent" : "");
+        }
+        fprintf(stderr, "[ss-census]   host file table: %d row(s), %d pointing "
+                "outside anything a restore rolls back\n", rows, outside);
+    }
+    /* THE TWO SWEEPS ARE OPT-IN (SM64DS_SS_CENSUS=2). They are whole-section
+       walks that print a couple of dozen lines each, which is the right amount
+       of detail for an investigation and the wrong amount for a playlog a
+       player fills up with F9 presses. The census above is the part worth
+       having in every log: seven lines that name what disagrees. */
+    if (on == 2) {
+        lk6_savestate_scan_host_pointers(when, 24);
+        lk6_savestate_scan_world_pointers(when, 24);
+    }
+    fflush(stderr);
+}
+
+/* FNV-1a over the hardware stores, through the same copy-out the save uses.
+   One lazily allocated buffer; ~9.5MB, three hashes an assert run. */
+static unsigned long long ss_hw_hash(void)
+{
+    static char *buf;
+    const unsigned n = port_hw_regions_size();
+    if (!n) return 0;
+    if (!buf) {
+        buf = (char *)malloc(n);
+        if (!buf) return 0;
+    }
+    port_hw_regions_copy_out(buf);
+    unsigned long long h = 1469598103934665603ull;
+    for (unsigned i = 0; i < n; ++i) {
+        h ^= (unsigned char)buf[i];
+        h *= 1099511628211ull;
+    }
+    return h;
+}
+/* SM64DS_SS_WATCH_FLAG's reader. Follows ov009's own pointer to the DS
+   halfword at 0x02112238 -- the leading id field of the castle water's texture
+   animation record, ffff in the ROM -- and reports the value together with
+   where the host storage behind it lives. 0xdead is returned for a null
+   pointer, which cannot be a real id here and means the mount's patch pass did
+   not run.
+
+   THE INDIRECTION IS THE MEASUREMENT. Reading a host symbol by name would
+   answer for that symbol; reading through the game's own pointer answers for
+   the bytes the game writes, which is the only thing a save state has to roll
+   back. It also survives the fix under test moving the DS address from one
+   host array to another. */
+static unsigned ss_flag_word(int *covers)
+{
+    const unsigned char *p =
+        *(const unsigned char *const *)(data_ov009_02112bc4 + 20);
+    if (covers) *covers = p ? lk6_savestate_covers(p) : 0;
+    return p ? *(const unsigned short *)p : 0xdeadu;
+}
+/* The record around the watched halfword, so a reader can tell a targeted
+   game write apart from something having zeroed the whole block. The ROM's
+   bytes here are ff ff 00 00 then a relocated pointer, twice over: two records
+   of the same 0x1c shape, the second at DS 0x02112254, each with its own
+   inbound pointers and its own fields behind it. */
+static void ss_flag_dump(const char *when)
+{
+    const unsigned char *p =
+        *(const unsigned char *const *)(data_ov009_02112bc4 + 20);
+    if (!p) {
+        fprintf(stderr, "[ss-flag] %s: pointer is NULL (the mount's patch "
+                        "pass did not run)\n", when);
+        return;
+    }
+    fprintf(stderr, "[ss-flag] %s: record at %p =", when, (const void *)p);
+    for (int i = 0; i < 32; ++i)
+        fprintf(stderr, " %02x", p[i]);
+    fprintf(stderr, "\n");
+}
 /* the actor registry and the ROM's own processing lists (hal/actor_registry) */
 void port_actor_tick(void);          /* phases 4/2/3: cleanup, init, behaviour */
+/* phase 6, the frame clock (hal/fader_wipes.cpp): data_020a0db0, the one counter
+   every blink in the game hangs off. func_020197b8 steps it once per frame and
+   this port does not run func_020197b8, so it sat at zero and THIRTEEN linked
+   readers were dead -- three of them `& 1` sites that test non-zero and so had
+   never executed at all. Read that file's banner before moving this call. */
+void port_frame_clock_tick(void);
+/* THE ROM'S FRAME STATE (hal/rom_frame.cpp), run link100 boot plan rung R3a.
+   The harness's frame number is no longer this file's own `frame` local: it is
+   the ROM game loop's phase-6 step count, kept beside the ROM's phase id
+   data_0209d50c, which that file hosts for the first time. port_rom_frame_phase6
+   runs the ROM's phase-6 body once per frame at each loop's frame boundary;
+   port_rom_frame_checked is the ONE accessor every converted reader goes
+   through, and it refuses to return a number the host counter disagrees with
+   (SM64DS_FRAME_CROSSCHECK, default ON). Read that file's banner before moving
+   any of these calls: their placement is the whole of what R3d inherits. */
+void port_rom_frame_begin(const char *loop);
+void port_rom_frame_phase6(void);
+int  port_rom_frame(void);
+int  port_rom_frame_checked(int host, const char *reader);
+void port_rom_frame_rewind(int to);
+void port_rom_frame_report(void);
+/* func_020197b8 PHASE 2's head (hal/scene_boot.cpp): the current scene's
+   graphics block, word 0, which is scene slot 23's only dispatch site in the
+   whole ROM. Answers 1 for a block this port has not seated. */
+int port_graph_block_word0(void);
+/* gate 31: the level handoff (hal/level_change.cpp). port_level_change_poll
+   sits where Scene::SpawnIfNecessary sits in func_020197b8 -- after input,
+   before the actor phases -- and returns 1 on the frame a new level came up,
+   which is the frame every pointer main() holds into the old one goes stale. */
+int port_level_change_poll(void);
+int port_level_change_pending(void);
+int port_level_is_mounted(int level);
+int port_level_overlay_id(int level);
+unsigned port_level_ds_overlay(int level);
+unsigned port_level_heap_free_bytes(void);
+int port_actor_live_count(void);
+int port_title_rows(void);
+int port_title_row(int i, int *level, int *entrance);
+int port_title_select(int i);
+void port_level_mounts_install(void);   /* register the mount table (idempotent) */
+void ExitLevel(void);
+void LoadLevelNoReturn(int level, unsigned entrance, unsigned star,
+                       unsigned reason);
+extern signed char data_0209f2f8;    /* the level currently up */
+/* gate 31 faders (hal/fader_wipes.cpp): port_fader_advance steps whatever fade
+   is in motion one frame and writes the 2D master-blend register the ROM's own
+   FaderColor::AdvanceFade writes; port_fader_blend_state reads it back so the
+   compositor can fade the framebuffer. */
+void port_fader_advance(void);
+int port_fader_blend_state(int *evy, int *toWhite);
+void port_fader_start_color(int frames, int toEnd, unsigned short color);
+/* dialogue pipeline (hal/message_pump.cpp, hal/message_compositor.cpp,
+   hal/message_probe.cpp): pump ticks the box state machine (Stage's own
+   UpdateMessage dialogue arm); the compositor rasters engine A's 2D box over
+   the 3D frame; the probe opens a box headlessly for a visual check. */
+void port_message_pump(void);
+/* the OTHER statement of Stage::Behavior the port hosts (hal/star_flow.cpp):
+   the VS 3-2-1, which ends by starting the arena's own music */
+void port_vs_countdown_tick(void);
+/* LUIGI INFECTION pre-round START COUNTDOWN (hal/star_flow.cpp). The drive owns
+   the VS countdown state + cadence + tagger pick when the mode is armed; the
+   render draws the ROM's READY? / red 3-2-1 / START. Both inert otherwise. */
+void port_luigi_countdown_drive(int frame);
+void port_luigi_countdown_render(void);
+/* and the tail of that same VS block: the match clock running out, the results
+   request the ROM makes when it does, and the end marker. Returns nonzero when
+   the run has asked to quit (SM64DS_VS_EXIT_ON_END). */
+int  port_vs_match_end_poll(int frame);
+/* and its play hold: once the match is over the four pad slots are held empty
+   so nothing can be played (and so nothing can be scored) while the marker's
+   grace window runs. Inert until the match ends. */
+void port_vs_match_end_hold(void);
+int  port_vs_match_end_frozen(void);
+/* the winner line, once the match is over: hal/ has no framebuffer, so it
+   builds the text and the loop below draws it */
+int  port_vs_match_end_banner(char *out, int n);
+void port_message_composite_engine_a(void *fb);
+int port_probe_message_id(void);
+int port_probe_message_fire(void *player, int id);
+/* frame-scripted headless pad press (hal/input_probe.cpp): apply ORs the
+   scripted DS pad bits into the raw pad mirror before Stage::CheckInput; bits
+   returns the same word so the harness can fold it into its own button word.
+   TEMPORARY -- delete with the probe. */
+void port_input_probe_apply(int frame);
+unsigned short port_input_probe_bits(int frame);
+void port_input_probe_trace_msg(int frame);
+void port_input_probe_trace_cannon(int frame);
+void port_input_probe_buddy_trigger(int frame);
+void port_input_probe_star_trigger(int frame);  /* TEMPORARY: SM64DS_STAR_TRIGGER */
+void port_input_probe_king_drop(int frame);     /* TEMPORARY: SM64DS_VS_KING_DROP */
+void port_input_probe_feather_trigger(int frame); /* TEMPORARY: SM64DS_FEATHER_TRIGGER */
+void port_vs_stars_probe(int frame);            /* TEMPORARY: SM64DS_VS_STARS */
+void port_stage0_vs_score(int frame);           /* STAGE 0: SM64DS_VS_SCORE */
+void port_stage0_vs_timer(int frame);           /* STAGE 0: SM64DS_VS_SCORE */
+void port_stage0_vs_breakall(int frame);        /* STAGE 0: SM64DS_VS_BREAKALL */
+void port_vs_hud_probe(int frame);              /* TEMPORARY: SM64DS_VS_HUD */
+void port_input_probe_sign_trigger(int frame);
+void port_probe_alcheck(void);
+void port_probe_sign_yaw(void);
+void port_probe_chomp(int frame);
+void port_probe_rabbit_key(int frame);   /* TEMPORARY: SM64DS_TRACE_RABBITKEY */
+void port_probe_rabbit_trigger(int frame); /* TEMPORARY: SM64DS_RABBIT_TRIGGER */
+void port_probe_yoshi_swallow(int frame);  /* TEMPORARY: SM64DS_YOSHI_SWALLOW */
+void port_probe_key_spawn(int frame);      /* TEMPORARY: SM64DS_KEY_SPAWN_AT */
+void port_probe_klepto_spawn(int frame);   /* test fixture: SM64DS_KLEPTO_SPAWN_AT */
+void port_probe_vs_overlap(int frame);     /* test fixture: SM64DS_VS_OVERLAP_AT */
+void port_probe_vs_mercy(int frame);       /* TEMPORARY: SM64DS_VS_MERCY */
+void port_probe_mercy_hit(int frame);      /* TEMPORARY: SM64DS_MERCY_HIT */
+/* the scene-fade request the title-select hands off with. Recorded by the port
+   in hal/level_change.cpp and acted on by this frame loop. */
+int port_scene_fade_pending(int *sceneId);
+void port_scene_fade_clear(void);
 void port_actor_render(void);        /* phase 5: the render bucket */
+/* gate 29: the pair Stage::Render and Stage::GraphCallback1 make on the ROM,
+   and they are called from the two places those two run -- the simulation in
+   the actor bucket, the submission after the level pass.
+   port_particle_frame is Stage::Render's SysTracker::Update statement, so the
+   slot-9 seat retires it: the ROM's own body makes that call now, and this one
+   survives under SM64DS_STAGE_SLOT9_HOST=1 only. port_particle_render is
+   GraphCallback1's, which no seated slot runs, so it stays unconditional. */
+void port_particle_frame(void);      /* Stage::Render: SysTracker::Update */
+void port_particle_render(void);     /* GraphCallback1: Particle::RenderAll */
+void port_particle_counts(int *systems, int *particles);
 void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
 void port_actor_census(void);
 void port_actor_lists_probe(void);
+/* the [lvl-perf] level-entry spans (hal/level_boot.cpp). The harness owns the
+   census and boot-dump brackets and the emit on the direct boot; the warp
+   path's brackets and emit live in hal/level_change.cpp. */
+double port_lvlperf_now(void);
+void port_lvlperf_note(int span, double ms);
+void port_lvlperf_emit(void);
+/* gate 35, the course loop (hal/star_flow.cpp): the boot seat plus one probe
+   per thing the gate has to be able to show moving. */
+void port_course_seat(void);
+int  port_course_health(void);
+int  port_course_coins(void);
+int  port_course_hurt(void *player, int kind);
+int  port_course_can_hurt(void *player);
+int  port_course_next_sublevel(void);
+int  port_course_hud_health(void);
+int  port_course_in_dead_state(void *player);
+void port_course_arm_watch(void);
+int  port_course_handoff_fired(void);
+int  port_course_drown_tick(void *player, int amount);
+void port_course_kill(void);
+void port_course_respawn(void *player);
+int  port_star_collect(int starId);
+void port_give_player_coins(void *actor, void *player, int count, int kind);
+int  port_course_sound_probe(const char *when);
+/* gate 31 loose end: the looping-sound reap. port_course_loop_start drives the
+   game's Sound::PlayLong at the player to put a live handle in data_0209b53c;
+   port_course_loop_live counts the live handles the reaper is meant to drain. */
+unsigned int port_course_loop_start(unsigned int prev, unsigned int soundId);
+int  port_course_loop_live(void);
+/* the file-seam load meter (hal/fs.cpp), sampled by SM64DS_JUMP_PROBE */
+extern unsigned long port_fs_loads, port_fs_load_miss, port_fs_bytes;
+extern double port_fs_ms;
+/* the body-model selector Player::SetAnim itself uses to pick which of the
+   ten models at Player+0xdc the animation is installed on */
+unsigned _ZNK6Player14GetBodyModelIDEjb(char *self, unsigned a, char b);
+/* gate 32: what SM64DS_SPAWN_ACTOR spawned, read back off the behaviour list
+   once the run is over (hal/actor_spawn_probe_bob.cpp). No env, no output. */
+void port_bob_spawn_report(void);
 /* the bottom screen (hal/sub_screen.cpp): the OAM lifecycle, the engine-B
    scan-out and the corner panel it lands in. TAB toggles the panel. */
 void hal_sub_screen_init(void *hwnd, int zoom);
+/* THE PRESENT RECTANGLE, published so the touch bridge can undo it
+   (hal/sub_screen.cpp holds it because poll_touch lives there and links into
+   binaries this file is not part of). Set once per present with the client
+   pixels the framebuffer was scaled into; the mapper turns a client point
+   back into a framebuffer point and returns 0 for a point in the letterbox
+   bars, which is outside the picture and therefore not a touch. */
+void hal_present_set_rect(int x, int y, int w, int h, int src_w, int src_h);
+/* THE FIT: the largest sw:sh rectangle centred inside cw x ch. present()
+   below and the layout selftest (hal/sub_screen.cpp) share this one copy. */
+void hal_present_fit(int cw, int ch, int sw, int sh, int *x, int *y, int *w, int *h);
+int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
+/* THE OTHER BAND OF THE SAME RECTANGLE. client_to_fb means the TOP screen in
+   both layouts, so in the stacked layout it answers "outside" for every point
+   on the bottom half -- correctly, and unhelpfully if the caller then reports
+   that as a letterbox bar. This is the lower band, in DS pixels. */
+int hal_present_client_to_sub(int cx, int cy, int *dsx, int *dsy);
+/* THE STACKED LAYOUT (hal/sub_screen.cpp). Both DS screens full size, top above
+   bottom, for minigames -- a touchscreen game cannot be played against a
+   128x96 corner preview. hal_sub_screen_stacked answers whether this run is in
+   it, and hal_sub_screen_stacked_image builds the ntr::STACK_W x STACK_H
+   image out of the FINISHED framebuffer plus the bottom screen. It is called
+   last, after this file's fade composite and debug overlay, so the framebuffer
+   it reads is the same framebuffer every ppu_write_bmp site here writes, and
+   hal/sub_screen.cpp owns the buffer so an inset build carries none of it.
+
+   THE IMAGE IS NOT A FIXED SIZE ANY MORE. A minigame that simulates the DS's
+   hinge composes a band between the two screens, so the image is
+   512 x (768 + 2G) at this tier and G is not known until the scene's
+   InitResources has run. hal_sub_screen_stacked_size is the live size and
+   hal_sub_screen_stacked_generation steps whenever it changes; see
+   port/hal/screen_gap.h. Everything in this file that used to spell
+   ntr::STACK_H reads one of those instead. */
+int hal_sub_screen_stacked(void);
+unsigned int *hal_sub_screen_stacked_image(const unsigned int *top);
+void hal_sub_screen_stacked_size(int *w, int *h);
+/* THE UPPER PHYSICAL SCREEN'S first row inside that image. The host overlays
+   below paint there rather than into the framebuffer, because ppu_compose_
+   stacked picks which ENGINE feeds which screen off POWCNT1 bit 15 and an
+   overlay painted into engine A's buffer moves with the engine. */
+int hal_sub_screen_stacked_top_y(void);
+unsigned hal_sub_screen_stacked_generation(void);
+/* THE SCENE-BOUNDARY RE-LATCH (hal/sub_screen.cpp). The mode latches on its
+   first reader, which is right for a process that shows one kind of scene, and
+   this process no longer always does: the title carries into the adventure in
+   place. Called by host_layout_follow_scene below and by nothing else; returns
+   1 when the answer moved and the window has to be re-shaped to it. */
+int hal_sub_screen_relatch(int on);
+/* the focus gate (hal/sub_screen.cpp): 1 when this window is the foreground
+   one, so an interactive key read can be trusted to be meant for this program */
+int hal_window_focused(void);
 void hal_sub_screen_frame_begin(void);
 void hal_sub_screen_present(unsigned int *dst, int w, int h);
 void hal_sub_screen_probe(void);
-void hal_sub_screen_set_scale(int div);
-int hal_sub_screen_get_scale(void);
-void hal_sub_screen_set_on(int on);
-int hal_sub_screen_on(void);
-/* character select: the ROM's own full switch (file load, hat, models, heal).
-   Reached through the __thiscall bridge in hal/player_bridges.cpp -- calling
-   the method through a plain extern "C" prototype misdelivers the id. */
-void hal_player_set_real_character(void *self, unsigned chr);
-/* talk entry (free function, slice_gate10) for the TEST_TALK probe */
-int _ZN6Player9StartTalkER9ActorBaseb(char *p, void *a, int b);
-/* last message id shown (port/unmatched/Message_Show.cpp) */
-extern int g_last_msg_id;
-extern unsigned char data_02092128[];  /* per-player character */
-extern unsigned char data_0209cad2[];  /* save block cont.: byte 0x41 = character */
 /* the camera buttons drawn on the bottom screen, hit-tested against the touch
    record the panel fills (hal/sub_screen.cpp wraps Stage::CheckCameraInput
    with the split-symbol bridge the host Ctrl block needs) */
 void hal_sub_camera_input(void);
 }
 
+/* The frame's cylinder-overlap pass. The host copy in port/unmatched/ rather
+   than the matched TU: MSVC's one-slot destructor shifts GetPos onto D0 and
+   the first pass frees a cylinder. See that file's header. */
+extern "C" void port_cylinder_clsn_process(void);
+/* THE ROM'S OWN END-OF-FRAME SWAP (run link100, boot plan rung R3b, step
+   BSWAP). src/func_020190b8.c is two statements -- SWAP_BUFFERS and the
+   "geometry engine armed" latch data_0209d464 -- and func_020197b8.c:52
+   calls it once a frame, after phase 6 and before the phase-7 wait. It has
+   been LINKED and CALLED BY NOTHING since the port existed. The call at
+   this file's frame foot is where the ROM makes it; under R3d it becomes
+   func_020197b8's own line and this one goes.
+   ntr::gx_swap_apply is the boundary that consumes what it asked for; read
+   THE PENDING SWAP in ntr/gx.cpp before moving either. */
+extern "C" void func_020190b8(void);
+/* THE ROM'S "THE LOOP IS WAITING" FLAG (rung R3b, step B1). 0x0209d4f0,
+   hosted at four bytes in hal/boot_globals.cpp:311. func_020197b8.c:53-56
+   raises it after the swap, under IRQ::DisableIRQs(1), and drops it the
+   instant the phase-7 wait returns; src/_ZN3IRQ13VBlankHandlerEv.cpp:15 is
+   the only reader, and its whole wake is gated on it:
+       if (data_0209d514 >= data_0208ee44 && data_0209d4f0 != 0)
+           OS_WakeupThread(&data_0209d500);
+   THIS PORT HAS NEVER WRITTEN IT. Nothing here raised the flag, so the
+   gate was permanently shut and the ROM's own frame wake could not have
+   fired even if the handler ran. Writing it costs nothing today and it is
+   the half of R3d that has to be true before the ROM's loop can sleep on
+   its own VBlank -- so it goes in first, alone, and the [thr] line at the
+   run's end is what says whether anything downstream moved.
+   HALF OF WHAT MADE IT INERT IS NOW CLOSED (rung D1, lane R3D).
+   ntr/runtime.cpp's _ZN3IRQ13SetIRQHandlerEjPFvvE used to store mask
+   0x200000 (GXFIFO) and mask 2 (HBlank) and DROP every other mask, so
+   _ZN3IRQ13GetIRQHandlerEj(1) answered null and IRQ::VBlankHandler -- which
+   IS linked, walk_window.map 0001:00280570 -- was dispatched by nothing.
+   That mask is stored now, so hal/boot2_thread.cpp's CP15::WaitForInterrupt
+   step 2 finds the ROM's own handler and this flag has a reader again.
+   THE OTHER HALF IS STILL OPEN AND IT IS RUNG D5's: the wait is not on this
+   path. Its only callers are the ROM's idle loops func_02057e34 and
+   func_0201a028, and this loop drives the frame instead of sleeping, so a
+   plain run still reports halts=0 and the edge fires for nobody.
+   SM64DS_R3D_WAIT_PROBE at this loop's phase-7 point is what enters the
+   wait deliberately and makes the edge observable before the handover. */
+extern "C" unsigned char data_0209d4f0[4];
+/* THE ROM'S PHASE-7 WAIT (rungs D1/D2, lane R3D). hal/boot2_thread.cpp models
+   the whole hardware halt sequence: the host frame pump, the VBlank edge
+   through the port's own handler registry, the wake that handler performs, and
+   a bound. func_020197b8.c:57 reaches it through phase 7's func_0201a4bc ->
+   OS_SleepThread -> the idle thread; under rung D5 that is how every frame
+   ends. SM64DS_R3D_WAIT_PROBE enters it from here, on the first N frames, so
+   the two halves the handover needs can be measured before the handover. */
+extern "C" void _ZN4CP1516WaitForInterruptEv(void);
+/* AND THE ROM'S OWN WAY IN TO IT, which is what rung D5 actually uses.
+   func_020197b8.c:57 is `data_0209d50c = 7; func_0201a4bc();` and
+   src/func_0201a4bc.c is one statement: OS_SleepThread(data_0209d500). That
+   sleep is not a spin -- it reschedules onto the ROM's IDLE THREAD, whose
+   entry src/func_02057e34.c is `IRQ::Enable(); for(;;) CP15::WaitForInterrupt();`
+   -- so the frame's wait is reached the way the cartridge reaches it, and the
+   frame ends when IRQ::VBlankHandler wakes the sleeper back up.
+
+   SM64DS_R3D_SLEEP_PROBE=N takes phase 7 THAT way on the first N frames. It is
+   the option rung D1's brief named first (the ROM's own idle path) and it
+   measures the whole circuit rather than one link of it: sleep, reschedule,
+   idle, wait, VBlank edge, the handler's OS_WakeupThread, reschedule back. It
+   is bounded by construction -- step 4 of the wait is a starvation wake that
+   marks every thread runnable -- so it cannot hang.
+
+   WHAT IT MEASURED, and both results are rung D5's to fix rather than this
+   rung's (lane R3D). Default off, so neither touches the gate.
+
+   (1) THE ROM'S OWN FRAME WAKE CANNOT FIRE, AND THE BOUND IS WHY. One sleep
+   reports halts=1 framepump=1 vbl_dispatch=1 VBL_WAKES=0 STARVED=1: the sleep
+   rescheduled, the idle thread was entered for the first time on this path
+   (entered 1 -> 2), the wait ran and the VBlank edge dispatched -- and what
+   brought the main thread back was hal/boot2_thread.cpp's STARVATION WAKE, not
+   src/_ZN3IRQ13VBlankHandlerEv.cpp's. The handler's wake is gated on
+   data_0209d514 >= data_0208ee44, which Stage::InitResources sets to 2 for a
+   3D level, so it needs TWO edges; and step 4 of the wait bounds the idle loop
+   at `port::thread_pump() ? port::thread_pump_limit() : 1` turns, which is ONE
+   when no wireless pump is installed. One turn can never reach two edges. So
+   before rung D5 that bound has to become the ROM's own divider, or the host's
+   starvation wake will pace the game instead of the VBlank.
+
+   (2) THE HANDLER IS NOT A NO-OP ON THIS PORT, and repeated sleeps prove it.
+   Ten sleeps in a 300-frame level run end somewhere else -- pos=(-4915200,
+   1040384, 27852800) against the clean (-4915200, 2929633, 11141348) -- and
+   one run of ten faulted c0000005 outright, so it is state-dependent as well.
+   The reason is upstream of the thread system: func_02019144 behind the
+   handler's wake branch is the ROM's own VBLANK DISPLAY COMMIT (OAM::Flush,
+   OAM::Load and the engine register writes) and func_02019100 dispatches the
+   graphics block's slot 3 and clears data_0209d464 -- and this host loop owns
+   OAM and those registers itself. Running the ROM's commit in the middle of a
+   host frame writes over what the host frame is about to use. Under rung D5
+   that call is at the ROM's own point and the host loop is not doing it, so
+   this is a RECONCILIATION the handover has to make, not a defect in the
+   handler. It is named here so the next lane does not have to find it twice.
+
+   One and two sleeps are clean and end byte-identical, which is what makes the
+   circuit itself proven rather than the whole thing merely suspect. */
+extern "C" void OS_SleepThread(unsigned short *q);
+extern "C" unsigned char data_0209d500[4];
+/* hal/boot2_thread.cpp. Raised around the sleep below while a frame is being
+   re-simulated, so the halt inside it takes no radio turn: run link100, lane
+   DET, and the whole reason is at the call site. */
+extern "C" void port_thread_pump_suspend(int on);
+/* hal/boot2_thread.cpp. The frame's own wait begins with a fresh halt bound, so
+   a radio wait earlier in the same frame cannot cut the sleep off before the
+   ROM's own wake fires: run link100, lane DET. */
+extern "C" void port_thread_frame_wait_begin(void);
+static int r3d_sleep_probe_left;
+static int r3d_sleep_probe_taken;
+/* ---- RUNG E1, THE KNOB (run link100, boot plan rung D5, lane R3E) ---------
+
+   SM64DS_ROM_LOOP makes phase 7 the ROM'S OWN SLEEP on EVERY frame instead of
+   on the first N of a probe: the frame ends the way the cartridge ends it --
+   func_0201a4bc's OS_SleepThread(data_0209d500), the idle thread, the wait, the
+   VBlank edge, IRQ::VBlankHandler's own wake -- and the handler's wake branch
+   is therefore what runs func_02019144, the ROM's VBlank DISPLAY COMMIT.
+
+   DEFAULT OFF, and it stays off until the last rung of this lane is green on
+   the full battery. The spelling is the BOOTR1 pattern (any value but "0" is
+   on), so flipping the default later needs no reader change and
+   SM64DS_ROM_LOOP=0 is the escape hatch.
+
+   WHY EVERY FRAME AND NOT TEN OF THEM. Lane R3D's probe took the sleep on the
+   first N frames only, and that is not the handover's program: the ROM's wake
+   switches fibers from inside IRQ::VBlankHandler's own OS_WakeupThread, so the
+   handler is left SUSPENDED one statement above func_02019144 and its tail
+   runs at the START OF THE NEXT SLEEP. With ten sleeps out of three hundred
+   the tail therefore runs nine times and then the idle fiber is parked
+   mid-handler for two hundred and ninety frames; with every frame sleeping the
+   circuit is uniform and each frame's commit lands on the frame it belongs to.
+   Both are measured here rather than argued: the probe stays, and the knob is
+   the other arm.
+
+   WHAT THE CENSUS BELOW IS FOR. R3D named func_02019144 and func_02019100 --
+   the two dispatches of the current graphics block this port has never made on
+   a level -- as the reason the ten-sleep run diverged and once faulted.
+   Whether that block pointer is even non-null on a level, and whether the
+   vtable behind it carries HOST addresses or the DS addresses a mounted ROM
+   table carries, is the difference between a reconciliation and an access
+   violation, and neither had been read out of a running level. These four
+   reads say which, and they print from the frame foot rather than at exit
+   because a faulting run leaves no end-of-run line at all. */
+extern "C" unsigned char data_0209d4a8[4];
+extern "C" unsigned char data_0209d514[4];
+extern "C" int data_0208ee44;
+static int r3e_rom_loop_sleeps;
+static int r3e_sound_moved;      /* rung E2 duty 1: sound frames run at phase 9 */
+static int r3e_census_done;
+static int det2_boundary_done;    /* run link100, lane DET2: the frame-boundary words, once */
+static int g_pace_div_override;   /* see frame_pace, rung E1 */
+/* THE KNOB ITSELF MOVED TO hal/rom_frame.cpp (rung G1, lane R3G), and the move
+   is a LINK fact rather than a tidy-up: rung G1 puts the same phase 7 into
+   hal/scene_boot.cpp's port_scene_run, that file is compiled into smoke_player,
+   and smoke_player does not compile THIS file -- so a reader over there would
+   have answered with an unresolved external. rom_frame.cpp is the file all
+   three targets already carry, for exactly the reason rung R3b step B0 enrolled
+   it. The spelling, the banner and every one of this file's readers below are
+   unchanged; that file's block carries the derivation. */
+extern "C" int port_rom_loop_enabled(void);
+/* RUNG G2's SECOND HALF, AND ITS OWN GATE (lane R3G). SM64DS_R3G_ROM_WAKE=1
+   makes a scene run register the ROM's VBlank handler, which is what turns the
+   scene loop's phase-7 sleep from "sleeps the ROM's way, woken the host's way"
+   into the whole circuit. It is OFF BY DEFAULT so the two halves are separable
+   on ONE binary, which is what let this lane say which half scene 6's fault
+   belongs to -- and the answer was NEITHER: scene 6 goes down on the SLEEP,
+   with this gate unset and no VBlank handler registered at all. The block at
+   the scene handover carries the whole measurement. Read only where
+   SM64DS_ROM_LOOP is already on, so with the main knob off this rung has no
+   reader either.
+
+   RUNG H2 FLIPS IT WITH THE MAIN KNOB (lane R3H), and the two belong together:
+   the ROM's own sleep and the ROM's own wake are one circuit, and a default
+   that sleeps the cartridge's way but is woken by the port's starvation timer
+   is half a handover, not a safer one. SM64DS_R3G_ROM_WAKE=0 turns it off on
+   its own, so the two halves stay separable on one binary the way rung G2
+   wanted them.
+
+   WHAT CHANGED SINCE "scene 6 goes down on the SLEEP". That sentence is now
+   history: rung H1 seated the member-pointer site that was smashing
+   func_ov075_0211b418's frame, registered scene 6's and scene 360's graphics
+   blocks, and faced the one virtual slot the registered block then reached
+   (0x0211c94c slot 1, from src/func_ov075_021160dc.cpp). Measured with this
+   gate ARMED, 300 frames each: scene 6 rc=0, scene 360 rc=0, scene 1 rc=0 with
+   the counted 0/1/2/3 = 300/0/450/150 and the wrong block 0 times, scene 8
+   rc=0. The [thr] line on a scene under the flipped default reads
+   vbl_enter/vbl_dispatch nonzero and starved=0 where it used to read
+   vbl_enter=0 and starved=300: the wakes are the ROM's own. */
+static int port_r3g_rom_wake(void)
+{
+    static int v = -1;
+    if (v < 0) {
+        const char *e = getenv("SM64DS_R3G_ROM_WAKE");
+        v = (e && e[0] == '0' && e[1] == '\0') ? 0 : 1;
+    }
+    return v;
+}
+/* RUNG E2, DUTY 1's escape hatch. On unless SM64DS_R3E_SOUND_PHASE9=0, and
+   read only where the knob above is already on, so with SM64DS_ROM_LOOP unset
+   neither rung has a reader. */
+static int r3e_sound_at_phase9(void)
+{
+    static int v = -1;
+    if (v < 0) {
+        const char *e = getenv("SM64DS_R3E_SOUND_PHASE9");
+        v = (e && e[0] == '0' && e[1] == '\0') ? 0 : 1;
+    }
+    return v;
+}
+/* WHAT THE WATCHER BELOW MEASURED, AND RUNG E1 IS GREEN (lane R3F).
+   R3E left this rung red: under SM64DS_ROM_LOOP=1 the watcher bracketed
+   Memory::defaultHeapPtr going 30000000 -> 00000000 inside the ROM's own
+   VBlank handler on frame 2, and the next free faulted at Heap::Deallocate+0x3
+   on frame 31. The write was func_02019144's else arm calling
+   func_02055454(BG0 scroll), and src/func_02055454.c spelled its register as
+   `G`, the decomp's generic placeholder, which hal/lk4_solidheap_seat.cpp's
+   /alternatename bound to that very word. R3F spelled the register in src
+   (0x04000010, and 0x04000204 for func_02057128 and func_02057140),
+   byte-verified all three against the ROM, and routed the three TUs through
+   hostgen. Read the comment above that alternatename for the derivation.
+
+   MEASURED AFTER THE FIX, 300 frames per arm, this binary:
+     level  1  rc=0   pos=(-4915200, 2929633, 11141348)   -- the shipped path's
+                      own end position, to the unit
+     level  5  rc=0   pos=(-4721373, 2969618, -11217790)
+     level  9  rc=0   pos=(3686400, 1179648, -5734400)
+     level 13  rc=0   pos=(-24206229, 8192012, 24214420)
+   On every one of the four the watcher prints ONE transition, 00000000 ->
+   30000000 at the frame foot of frame 1, and never prints another; E1 reports
+   phase 7 was the ROM's own sleep on 299 of 300 frames. The shipped path (knob
+   unset) is unchanged: [thr] halts=0 pump=0 framepump=0 vbl_enter=0
+   vbl_dispatch=0 vbl_wakes=0, the frame cross-check 300 frames / 2402 reads /
+   0 disagreements, the same end position.
+
+   A WHOLE BATTERY RAN WITH SM64DS_ROM_LOOP=1 EXPORTED AND CAME BACK ALL GREEN,
+   and the next lane needs to know exactly how much of that is a measurement.
+   battery.py's selftest_env and scene_env both start from os.environ and pop
+   only the knobs they name, so the knob IS inherited by all 51 level rows and
+   all 37 scene rows -- but the ONLY readers of port_rom_loop_enabled() are in
+   this file, on the LEVEL loop. hal/scene_boot.cpp's port_scene_run has none,
+   so the 37 scene rows ran the same program they run with the knob off and
+   their green says nothing about the handover. The default-boot and the
+   shipping-configuration rows build their environment from an allowlist that
+   drops every SM64DS_ name, so they are knob-off by construction, and the smoke
+   executables do not compile this file at all. THE MEASUREMENT IS THE 51 LEVEL
+   ROWS. R3E's two live hazards for the SCENE path -- the graphics block that
+   _ZN9dScDSMT_c13InitResourcesEv actually seats, and the __fastcall/cdecl mismatch at
+   func_02019144's dispatch -- are therefore still unmeasured, and putting a
+   reader on the scene loop is the next rung's first job.
+
+   RUNG G1 PUT THAT READER ON (lane R3G), and the paragraph above is now
+   history rather than the state of the tree: hal/scene_boot.cpp's
+   port_scene_run takes the ROM's own phase 7, the knob itself moved to
+   hal/rom_frame.cpp so smoke_player could link it, and 36 of the 37 scene rows
+   now report "phase 7 was the ROM's own sleep on 300 of 300 scene frames" with
+   the frame cross-check at 300 reads and 0 disagreements. Both of R3E's
+   hazards were measured: the mismatch was real and worked only by a register
+   ride-through (see the block above hal/scene_boot.cpp's ti_gc0), and the
+   graphics block is dispatched 450 times a run on the title with the wrong
+   receiver 0 times. The 37th row is scene 6, which faults on the ROM's sleep
+   alone; the block at the scene handover below carries that bisect. */
+/* RUNG E1's WATCHER (lane R3E). Memory::defaultHeapPtr is data_020a0ea0
+   (hal/heap_vtable.cpp:80). Memory::Deallocate(void*) falls back to it, so a
+   null there is the fault gate 1 measured. This reports every TRANSITION of
+   that word, with the place it was noticed, and it is read only while the knob
+   or a probe is on -- with SM64DS_ROM_LOOP unset it never runs. */
+extern "C" void *data_020a0ea0;
+static void *r3e_heap_last = (void *)(size_t)-1;
+static void r3e_heap_watch(const char *where)
+{
+    if (!port_rom_loop_enabled() && r3d_sleep_probe_left <= 0)
+        return;
+    if (data_020a0ea0 == r3e_heap_last) return;
+    fprintf(stderr, "[r3e] Memory::defaultHeapPtr %p -> %p at %s, frame %d\n",
+            r3e_heap_last == (void *)(size_t)-1 ? 0 : r3e_heap_last,
+            data_020a0ea0, where, port_rom_frame());
+    fflush(stderr);
+    r3e_heap_last = data_020a0ea0;
+}
+static void r3e_census(const char *when)
+{
+    if (r3e_census_done) return;
+    r3e_census_done = 1;
+    const unsigned char *blk = *(const unsigned char *const *)data_0209d4a8;
+    const void *vt = 0;
+    unsigned w[4] = {0, 0, 0, 0};
+    if ((size_t)blk > 0x1000u) {
+        vt = *(const void *const *)blk;
+        if ((size_t)vt > 0x1000u)
+            for (int i = 0; i < 4; ++i)
+                w[i] = ((const unsigned *)vt)[i];
+    }
+    fprintf(stderr, "[r3e] census at %s, frame %d: data_0209d4a8=%p vptr=%p "
+            "vt[0..3]=%08x %08x %08x %08x  data_0209d514=%d "
+            "data_0208ee44=%d\n",
+            when, port_rom_frame(), (const void *)blk, vt,
+            w[0], w[1], w[2], w[3],
+            *(const int *)data_0209d514, data_0208ee44);
+    fflush(stderr);
+}
+/* THE INSTALL (rung D2, lane R3D). hal/boot2_thread.cpp:874 has held this seam
+   open since rung R3b step B2 with nothing calling it: step 1b of the wait runs
+   whatever is installed here, and until this rung nothing was. It is ZERO
+   CHANGE on today's binary and the reason is measurable rather than argued --
+   the wait is entered zero times on the level path, so an installed pump takes
+   no turns and every plain run still reports framepump=0 -- and it is what
+   makes rung D5's handover a knob rather than a rewrite: once func_020197b8
+   owns the frame, phase 7 is the only place the frame's own duties can run.
+
+   SM64DS_R3D_NO_PUMP_INSTALL=1 IS THE ESCAPE HATCH, and it is also what makes
+   rungs D1 and D2 separable on ONE binary rather than two. Two binaries can
+   only be compared to each other; one binary with the install refused is the
+   D1 program exactly -- the VBlank edge real, the pump seam empty -- so the
+   probe run under it must read vbl_dispatch=N framepump=0, and the same probe
+   with the install must read vbl_dispatch=N framepump=N. That pair is the
+   whole of both rungs' evidence and it cannot be a build difference. */
+extern "C" void port_install_host_frame_pump(int (*pump)(unsigned));
+static int r3d_wait_probe_left;    /* frames of phase 7 still owed to the wait */
+static int r3d_wait_probe_taken;   /* frames of phase 7 the wait actually took */
+namespace port { void thread_sched_report(const char *tag); }
+/* run link100, lane DET4: the census for the two OTHER ROM IRQ handler
+   dispatches in the linked set (hal/os_thread.cpp's pump_vblank, ntr/rt.cpp's
+   HBlank line) -- DET3 bracketed only IRQ::VBlankHandler's, through this
+   loop's own hal/boot2_thread.cpp halt. Each site's own atexit report (in its
+   own file) carries these counts on the scene and captured-pair paths; the
+   line below ties them to this loop's frame count. */
+namespace port {
+void pump_vblank_counts(unsigned long long *dispatches,
+                        unsigned long long *modeask);
+}
+namespace ntr {
+void gx_swap_apply();
+void gx_swap_counts(unsigned &requested, unsigned &applied,
+                    unsigned &retired, unsigned &pending, unsigned &param);
+// run link100, lane DET4. rt_hblank_counters (this loop's frame foot already
+// reaches it through ntr/rt.h) carries the dispatch count; this is the
+// mode-ask half, declared here because it is new and rt.h is not this lane's.
+void rt_hblank_modeask(unsigned long long *modeask);
+}
+/* ov001, slice_cap.txt: Stage::Render's cap-visibility manager. */
+extern "C" void func_ov001_020aaf40(void);
+
+/* ---- DID THE ROM'S Stage::Render RUN THIS FRAME? (run link100, lane RENDER9)
+   The mark is taken immediately before the actor render bucket and every
+   retired site below tests it. Two functions rather than one variable because
+   the bucket and the level pass are in different blocks of the frame body, and
+   a file-scope pair is honest about that where a smuggled local would not be.
+
+   The answer is NO on exactly three kinds of frame and they are all frames the
+   DS does not have: the debug menu (no tick at all), the two no-spawn dev-rig
+   arms (no Stage on any list), and a run started with
+   SM64DS_STAGE_SLOT9_HOST=1, which makes hal/stage_bridges.cpp's slot-9 thunk
+   decline so this file's transcription is what draws the frame. That last one
+   is the seat's own A/B control and it exists for one reason: a render change
+   proved across two BINARIES proves nothing, because the selftest BMP tracks
+   the hosted-global layout (port/tools/battery.py's header measures 1354
+   pixels of it for 64 unrelated bytes). Two runs of one binary hold the layout
+   exactly. */
+static unsigned g_stage9_ren_mark;
+static void stage9_mark(void) { g_stage9_ren_mark = port_stage_render_calls(); }
+static int  stage9_rendered(void)
+{ return port_stage_render_calls() != g_stage9_ren_mark; }
+extern "C" void *_ZTV7dCcAc_c[];
+extern "C" void *data_0209ee74;   /* the particle SysTracker (hal/auto_bss) */
+extern "C" void *data_0209f5bc;   /* the installed fader (hal/fader_wipes) */
+extern "C" void *data_0209f324;   /* WIPES, the seven-wipe array */
+extern "C" signed char data_02092110;    /* the staged next level */
+extern "C" unsigned char data_0209f268;  /* the staged next entrance */
+extern "C" unsigned char data_0209f26c;  /* why we are leaving (2 = death) */
+extern "C" unsigned char data_0209f2fc[]; /* the LATCHED entry reason, the copy
+                                             Stage::InitResources:201 makes and
+                                             the boot now seats */
+extern "C" signed char data_0209f2f4[];  /* remaining lives */
+extern "C" unsigned char NumStars(void); /* the save's star total */
+
+/* ---- THE EXIT PROBE: the painting warp, reproducible without a keyboard ----
+   Two players walked into the Snowman's Land painting on castle_2f and the
+   build does not host Snowman's Land, so the level change was declined and
+   they were left with no control inside the wall. Reproducing that by hand
+   means holding W at the right painting for the right number of frames; this
+   makes it one env var and one frame number.
+
+   SM64DS_EXIT_PROBE=1 dumps the level's EXIT actors (349, class VirtualDoor)
+   once the level is up: index, world position, which level the record sends
+   you to, and whether the record is a WALL painting (rotX 0, the exit that
+   seeds the pull-in counter) or a tilted FLOOR hole (rotX != 0, the exit that
+   fires the load and the wipe immediately). The index is what ENTER takes.
+
+   SM64DS_EXIT_ENTER=<index>[,<frame>] walks the Player into that exit. The
+   ROM's trigger is a SIGN CHANGE of the Player's Z in the exit's own local
+   frame while he is inside the box, so the probe puts him in the box on the
+   near side for one frame and just past the plane on the next -- the two
+   frames a walk produces, through the same VirtualDoor::Behavior test. It
+   writes nothing but the Player's position, and never touches the exit. */
+static char *port_exit_nth(int idx)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(unsigned short *)(o + 0xc) != 349)
+            continue;
+        if (n++ == idx)
+            return o;
+    }
+    return 0;
+}
+
+static void port_exit_dump(void)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(unsigned short *)(o + 0xc) != 349)
+            continue;
+        const unsigned p1 = *(unsigned *)(o + 8);
+        const int rotX = *(short *)(o + 0x8c);
+        fprintf(stderr, "[exit] %2d at (%d,%d,%d) -> level %d entrance %d  "
+                "rotX %d rotY %d  box x+-%d y0..%d  %s\n",
+                n, *(int *)(o + 0x5c) >> 12, *(int *)(o + 0x60) >> 12,
+                *(int *)(o + 0x64) >> 12,
+                (int)(signed char)(p1 >> 24), (int)((p1 >> 16) & 0xff),
+                rotX, *(short *)(o + 0x8e),
+                *(int *)(o + 0x80) >> 12, *(int *)(o + 0x84) >> 12,
+                rotX ? "FLOOR HOLE (tilted: loads at once)"
+                     : "WALL PAINTING (pull-in)");
+        ++n;
+    }
+    fprintf(stderr, "[exit] %d exits on this level\n", n);
+}
+
+/* Put `player` at local (0, y, z) in exit `ex`'s frame, or -- with `beside` --
+   one box-width to the side of it, where the exit's own x test turns him away
+   but its Behavior still records where he is. */
+static void port_exit_place(char *ex, char *player, int z, int beside)
+{
+    int local[3], inv[12];
+    MulVec3Mat4x3(player + 0x5c, ex + 0xd4, local);
+    local[0] = beside ? *(int *)(ex + 0x80) * 2 : 0;
+    /* local y 0 is the bottom of the trigger box, which for a painting is
+       where it meets the floor -- a walking player's own height. Snapping to
+       the middle of the box instead drops him in from mid-air and every
+       reading afterwards has a fall in it that a walk does not. */
+    if (local[1] < 0 || local[1] > *(int *)(ex + 0x84))
+        local[1] = 0;
+    local[2] = z;
+    InvMat4x3(ex + 0xd4, inv);
+    MulVec3Mat4x3(local, inv, player + 0x5c);
+}
+
+/* ---- THE DOOR ARM (run link100, lane DOOR1) -----------------------------
+
+   SM64DS_DOOR_PROBE=1 dumps the level's plain DOOR actors once the level is
+   up, then prints one line per door per frame carrying the cartridge's own
+   entry test, term by term, and one [door-open] line the frame a door's
+   callback node moves.
+
+   SM64DS_DOOR_DROP=#<n>[,<frame>[,<dist>]] stands the Player in front of the
+   n-th door of that dump, facing it, and holds him there until the door
+   takes him.  SM64DS_DOOR_DROP=<x>,<y>,<z>,<yaw>[,<frame>] is the same arm
+   with the placement spelled out (world units, yaw in binangs), for a door
+   whose index is not known ahead of the run.
+
+   NOTHING HERE OPENS A DOOR, and that is the point of the shape. The
+   cartridge's own test is func_ov100_021452e4 (ov100 0x021452e4), reached
+   every frame from Door::Behavior (0x02145550, vtable slot 6 of _ZTV4Door at
+   0x02148188):
+
+     Door::Behavior            func_ov100_02145370 (0x02145370) writes THE
+                               PLAYER'S POSITION IN DOOR-LOCAL SPACE into the
+                               door's own +0x80/+0x84/+0x88 -- Vec3_Sub then
+                               Vec3_RotateYAndTranslate by -mAngleY -- and
+                               then dispatches the door's callback node's
+                               +8 half on the Door with the Player.
+
+     func_ov100_02144cf8       the idle half of node data_ov100_021488b4.
+     (0x02144cf8)              Its whole gate is func_ov100_021452e4:
+
+                                 |local x| <= 0x4b000   ( 75.0 units)
+                                 |local y| <= 0x32000   ( 50.0 units)
+                                 |local z| <= 0x6e000   (110.0 units)
+                                 AngleDiff(door->mAngleY
+                                           + (local z >= 0 ? 0x8000 : 0),
+                                           player->mAngleY) < 0x2000 (45 deg)
+
+                               Past it, an unlocked door falls to L240 and
+                               calls func_ov100_021451c4 (0x021451c4) with
+                               node data_ov100_021488f4 (or data_ov100_02148904
+                               when the door carries a key model), and that
+                               call is the player half:
+
+     Player::CanEnterDoor      ov002 0x020ca5cc. Refuses unless the Player is
+                               in one of ST_WAIT (0x02110154), 0x0211013c,
+                               0x0211022c or 0x0211043c; then sets mStateStep
+                               to the side and runs
+                               Player::SetNoControlState(7, -1, 1), which is
+                               the door-opening state. The door's node then
+                               carries func_ov100_02144950 / func_ov100_02144730
+                               -- the open animation, which ends in ChangeArea.
+
+   So the cartridge asks for proximity, facing and an ordinary player state,
+   and for NO BUTTON AND NO STICK: the selftest's held-forward stick was
+   never the missing piece, the placement was. This arm therefore writes the
+   Player's position, his mAngleY and his three speed words and nothing else.
+   It never calls into the door, never calls CanEnterDoor, and never writes a
+   State: the door opens because the ROM's own test passes. Inert with the
+   two variables unset. */
+extern "C" void *_ZTV4Door[31];   /* hal/actor_classes.cpp, ov100 0x02148188 */
+extern "C" int func_ov100_021452e4(char *door, char *player);
+extern "C" void Vec3_RotateYAndTranslate(int *out, int *in, short angle,
+                                         int *src);
+
+static char *port_door_nth(int idx)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(void ***)o != _ZTV4Door)
+            continue;
+        if (n++ == idx)
+            return o;
+    }
+    return 0;
+}
+
+/* The nine callback nodes __sinit_ov100_02147698 builds, so the log names the
+   door's state instead of printing a bare address. */
+extern "C" {
+extern int data_ov100_021488a4[], data_ov100_021488b4[],
+    data_ov100_021488c4[], data_ov100_021488d4[], data_ov100_021488e4[],
+    data_ov100_021488f4[], data_ov100_02148904[], data_ov100_02148914[],
+    data_ov100_02148924[];
+}
+
+static const char *port_door_node_name(const void *n)
+{
+    if (!n) return "none";
+    if (n == (const void *)data_ov100_021488a4) return "88a4";
+    if (n == (const void *)data_ov100_021488b4) return "88b4 idle";
+    if (n == (const void *)data_ov100_021488c4) return "88c4 message";
+    if (n == (const void *)data_ov100_021488d4) return "88d4 talk";
+    if (n == (const void *)data_ov100_021488e4) return "88e4 keydoor";
+    if (n == (const void *)data_ov100_021488f4) return "88f4 OPENING";
+    if (n == (const void *)data_ov100_02148904) return "8904 OPENING(key)";
+    if (n == (const void *)data_ov100_02148914) return "8914 boot";
+    if (n == (const void *)data_ov100_02148924) return "8924";
+    return "?";
+}
+
+/* The DOOR half of the proof: the first door whose callback node has reached
+   one of the two opening nodes, whose +8 half is func_ov100_02144730 -- the
+   open animation, which advances the door's own Animation and ends in
+   ChangeArea. Returns 0 while every door is still idle. */
+static char *port_door_opening(void)
+{
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(void ***)o != _ZTV4Door)
+            continue;
+        void *cb = *(void **)(o + 0x140);
+        if (cb == (void *)data_ov100_021488f4 ||
+            cb == (void *)data_ov100_02148904)
+            return o;
+    }
+    return 0;
+}
+
+/* One line per door. The local columns are the door's own +0x80/+0x84/+0x88,
+   written by func_ov100_02145370 inside the Door::Behavior that ran earlier
+   in THIS frame's port_actor_tick, and `cond` is the cartridge's own
+   func_ov100_021452e4 asked again on the same words. */
+static void port_door_watch(int frame, char *c)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(void ***)o != _ZTV4Door)
+            continue;
+        void *cb = *(void **)(o + 0x140);
+        fprintf(stderr, "[door] f%d #%d p1=%u pos(%d,%d,%d) yaw %04x "
+                "local(%d,%d,%d) cond %d node %s | player(%d,%d,%d) yaw %04x "
+                "state %p step %u nocontrol %u\n",
+                frame, n, *(unsigned *)(o + 8),
+                *(int *)(o + 0x5c) >> 12, *(int *)(o + 0x60) >> 12,
+                *(int *)(o + 0x64) >> 12,
+                (unsigned short)*(short *)(o + 0x8e),
+                *(int *)(o + 0x80) >> 12, *(int *)(o + 0x84) >> 12,
+                *(int *)(o + 0x88) >> 12,
+                c ? func_ov100_021452e4(o, c) : -1,
+                port_door_node_name(cb),
+                c ? *(int *)(c + 0x5c) >> 12 : 0,
+                c ? *(int *)(c + 0x60) >> 12 : 0,
+                c ? *(int *)(c + 0x64) >> 12 : 0,
+                c ? (unsigned short)*(short *)(c + 0x8e) : 0,
+                c ? *(void **)(c + 0x370) : 0,
+                c ? *(unsigned char *)(c + 0x6e3) : 0,
+                c ? *(unsigned char *)(c + 0x709) : 0);
+        ++n;
+    }
+}
+
+static void port_door_dump(void)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(void ***)o != _ZTV4Door)
+            continue;
+        fprintf(stderr, "[door] %2d actorID %u param1 %u at (%d,%d,%d) "
+                "yaw %04x  key model %d  node %s\n", n,
+                *(unsigned short *)(o + 0xc), *(unsigned *)(o + 8),
+                *(int *)(o + 0x5c) >> 12, *(int *)(o + 0x60) >> 12,
+                *(int *)(o + 0x64) >> 12,
+                (unsigned short)*(short *)(o + 0x8e),
+                (int)*(signed char *)(o + 0x144),
+                port_door_node_name(*(void **)(o + 0x140)));
+        ++n;
+    }
+    fprintf(stderr, "[door] %d door(s) on this level\n", n);
+}
+
+/* Stand the Player at door-local (0, 0, side*dist) facing the door, the way
+   the cartridge's own test wants him: the placement is the INVERSE of
+   func_ov100_02145370's transform, taken with the ROM's own
+   Vec3_RotateYAndTranslate rather than a hand-rolled rotation, and the yaw is
+   the exact value func_ov100_021452e4's AngleDiff term is measured against,
+   so the term reads 0. */
+static void port_door_place(char *door, char *c, int side, int dist)
+{
+    const short dyaw = *(short *)(door + 0x8e);
+    int local[3];
+    local[0] = 0;
+    local[1] = 0;
+    local[2] = (side < 0 ? -dist : dist) << 12;
+    Vec3_RotateYAndTranslate((int *)(c + 0x5c), (int *)(door + 0x5c), dyaw,
+                             local);
+    *(short *)(c + 0x8e) = (short)(dyaw + (side < 0 ? 0 : 0x8000));
+    *(int *)(c + 0xa4) = 0;
+    *(int *)(c + 0xa8) = 0;
+    *(int *)(c + 0xac) = 0;
+    *(int *)(c + 0x98) = 0;   /* mHorzSpeed: stop him walking off the mark */
+}
+
+/* Set while the arm holds the Player on his mark, read by the selftest's own
+   stick so the hold is not fighting a held-forward walk. */
+static int g_door_hold;
+
+static int port_door_watch_on(void)
+{
+    static int on = -1;
+    if (on < 0) on = getenv("SM64DS_DOOR_PROBE") != 0;
+    return on;
+}
+
 #ifdef NTR_HIRES
 static const int ZOOM = 1;
-#elif defined(NTR_HIRES2)
+#elif defined(NTR_HIRES2) || defined(NTR_WIDE_RT)
+/* NTR_WIDE_RT shares the 2x window: with the toggle off the active image is the
+   512x384 of the 2x tier and 512*2 opens the exact same 1024x768 client the
+   shipped walk_window has always opened; with it on the active image is
+   1024x576 and 1024*2 opens a 2048x1152 client, which the create clamps to the
+   monitor like any other. The window is resizable and present() refits, so this
+   is only the initial size. */
 static const int ZOOM = 2;
 #else
 static const int ZOOM = 3;
 #endif
+
+/* ---- THE WINDOW'S SIZE IS THE DEFAULT EXTENT'S, WHATEVER THE RenderScale ---
+ *
+ * ZOOM above is client pixels per FRAMEBUFFER pixel, which was one number
+ * because the framebuffer had one size. With the RenderScale key it does not:
+ * the same run can draw 256x192 or 1024x768 and the player is asking for a
+ * sharper picture in the SAME window, not for a window four times the size.
+ * So the window is sized off ntr::default_active_* -- the extent this run
+ * would have had with the key absent -- and present() scales the finished
+ * picture into it, which is what it already does on every resize.
+ *
+ * The ratio is a ratio and not an integer, and it has to be: at scale 3 the
+ * picture is 768x576 inside a 1024x768 client, which is four client pixels to
+ * three source pixels and no integer ZOOM can say that.
+ *
+ * THE DEFAULT RUN TAKES THE FIRST BRANCH AND IS THE OLD EXPRESSION TOKEN FOR
+ * TOKEN. That is the whole point of writing the equal case out rather than
+ * letting the multiply and divide cancel: `src * ZOOM` is what the three call
+ * sites did before this existed, and with the key absent it is still literally
+ * what they do.
+ */
+static int win_px(int src)
+{
+    const int a = ntr::active_h > 0 ? ntr::active_h : 1;
+    const int d = ntr::default_active_h();
+    if (d == a) return src * ZOOM;
+    return (int)((long long)src * d * ZOOM / a);
+}
+
+/* The same ratio WITHOUT the tier's ZOOM, for an image the window already
+ * shows one client pixel to one source pixel: the stacked (both-screens)
+ * presentation, which is built at the active extent and sized 1:1. With the
+ * key absent this returns its argument, so those lines do not move either. */
+static int win_px_1(int src)
+{
+    const int a = ntr::active_h > 0 ? ntr::active_h : 1;
+    const int d = ntr::default_active_h();
+    if (d == a) return src;
+    return (int)((long long)src * d / a);
+}
+
+/* The integer zoom the STYLUS FALLBACK takes before the first present has
+ * published a real rectangle (hal/sub_screen.cpp's client_to_src). Once a
+ * frame has presented, that rectangle is the mapping and this is not read at
+ * all. At the default extent it is ZOOM, exactly as it was. */
+static int stylus_fallback_zoom(void)
+{
+    const int a = ntr::active_h > 0 ? ntr::active_h : 1;
+    const int d = ntr::default_active_h();
+    if (d == a) return ZOOM;
+    const int z = d * ZOOM / a;
+    return z > 0 ? z : 1;
+}
+/* The level MeshCollider every ray in this file is cast against: the STAGE'S
+   own, at Stage+0x91c, on the Stage-backed boot. RELOADRV's reverse scan named
+   it as a host mirror of a world pointer; the restore re-seat re-derives it
+   from the Stage rather than capturing it (see the note at the re-seat). */
 static void *g_mc;
+extern "C" void *port_stage_object(void);   /* hal/stage_bridges.cpp */
+/* the two halves of the rollback-coupled guards' A/B; see the registration */
+extern "C" void port_ss_rollguard_hook(void (*)(void), void (*)(void));
+extern "C" void port_rollguard_stash(void);
+extern "C" void port_rollguard_unstash(void);
 
 /* ---- THE FRAME PACER'S CLOCK ------------------------------------------
-   The loop below sleeps out the remainder of a 33.3ms budget. Sleep's
+   frame_pace below sleeps out the remainder of a frame budget that is 16.65ms
+   or 33.3ms depending on what the running scene put in the ROM's own divider
+   (see frame_pace's banner). Sleep's
    resolution is the SYSTEM TIMER TICK, which defaults to 15.6ms: a request for
    4ms returns after 15.6, so a frame with 4ms of slack overshot the budget by
    a whole tick and the next one came early making it up. That is the judder in
@@ -467,6 +2277,493 @@ static void pacer_begin(void)
     atexit(pacer_end);
 }
 
+/* ---- THE FRAME BUDGET, OFF THE ROM'S OWN DIVIDER ----------------------
+   HOW FAST A FRAME LOOP MAY RUN IS THE GAME'S DECISION, NOT THE HOST'S, and
+   the game writes it down. IRQ::VBlankHandler (src/_ZN3IRQ13VBlankHandlerEv.cpp)
+   counts vblanks into data_0209d514 and only wakes the main thread once that
+   count reaches data_0208ee44, so data_0208ee44 is literally vblanks-per-tick:
+
+       1 -> 60 fps      2 -> 30 fps      3 -> 20 fps
+
+   and every scene sets it for itself during its own InitResources:
+
+       src/_ZN5Stage13InitResourcesEv.cpp:362        = 2   the 3D levels
+       src/_ZN16dScMgSmartball_c13InitResourcesEv.cpp  = 1   a minigame
+       src/_ZN11dScMgCoin_c13InitResourcesEv.cpp and its dozen peers = 1   the other minigames
+       src/func_ov002_020f7780.c:23                  = 3
+       src/_ZN10dScEntry_c13InitResourcesEv.cpp:140               = 2
+
+   BOTH HOST LOOPS USED TO HARDCODE 33.3ms, which is the divider-2 answer. The
+   3D level path was right by accident and every minigame ran at EXACTLY HALF
+   SPEED, which is the "way slower than normal gameplay" report. Nothing was
+   wrong with the sleep, the timer resolution or the present: the loop was
+   pacing to a number the scene had already overruled.
+
+   THE GAME LOGIC IS UNTOUCHED BY THIS. Both loops run exactly ONE game tick per
+   host frame either way, and the ROM's own per-frame increments already scale
+   themselves by this same word (func_02019ac4's `delta`, func_02020768's `acc`,
+   HUD::UpdateHealthMeter, Message::Update). Ticking at 60 with the divider at 1
+   is the DS, and it is the only thing that is. */
+extern "C" int data_0208ee44;
+
+/* One DS vblank in milliseconds. This is the 33.3 the level loop shipped with,
+   divided by the 2 that path's divider holds, so the 3D level path's budget
+   comes out at the identical number it always used and this change cannot move
+   a rate that was already correct. */
+static const double PORT_VBLANK_MS = 33.3 / 2.0;
+
+static int port_frame_divider(void)
+{
+    /* SM64DS_PACE_DIVIDER=<n> overrides the game's word, for A/B measurement
+       only -- "what does this scene sound like if I pace it the way the port
+       used to" is a question worth being able to ask without a second build.
+       Unset (the normal case) and the ROM decides. */
+    static int forced = -1;
+    if (forced < 0) {
+        const char *e = getenv("SM64DS_PACE_DIVIDER");
+        forced = e ? atoi(e) : 0;
+        if (forced < 0 || forced > 4) forced = 0;
+    }
+    if (forced) return forced;
+    const int d = data_0208ee44;
+    /* The ROM writes 1, 2 or 3 and nothing else. Anything outside that is a
+       global nothing has written yet (or one something has stomped), and the
+       safe reading of a garbage divider is the 30fps the port already shipped
+       -- not an uncapped loop and not one frame a second. */
+    return (d >= 1 && d <= 4) ? d : 2;
+}
+
+/* THE PACER ITSELF, one copy for both frame loops.
+
+   A DEADLINE, NOT AN ELAPSED-TIME SUBTRACTION. The old block measured the
+   frame's work and slept `budget - work`, which throws away whatever the Sleep
+   overshot and whatever the (DWORD) cast truncated -- up to a millisecond a
+   frame, which is 3% of a 33.3ms budget and 6% of a 16.65ms one. Carrying an
+   absolute deadline instead makes those errors cancel: a sleep that ran long
+   shortens the next one and the average period is the budget exactly.
+
+   A HITCH IS NOT A DEBT. If a frame blows through its deadline -- a level load,
+   a window drag, the OS taking the core away -- the deadline is pulled up to
+   now rather than left behind, so the loop returns to pace on the next frame
+   instead of sprinting through several to "catch up". Catching up would mean
+   running game ticks faster than the DS runs them, which is the one thing a
+   pacer here must never do. */
+/* ---- THE PRESENTATION CLOCK (run link100, lane FPS1; the FrameRate key) --
+
+   WITH THE KEY ABSENT NOTHING HERE RUNS. frame_pace reaches it only when
+   host_setting_frame_rate() answered non-zero, which costs an unset run one
+   cached int compare per pacer turn -- the same shape as frame_stat's
+   `if (!trace)` and port_pace_selftest's cached read. The battery, the BMP
+   comparators, every proof run and every player who has not asked for this
+   take the identical long Sleep the pacer has always taken.
+
+   WHAT IT DOES. The pacer's whole job is to hand the rest of the budget back,
+   and today it hands all of it back in one Sleep. This spends that same slack
+   PRESENTING THE FINISHED FRAMEBUFFER AGAIN at even intervals, and then sleeps
+   whatever is left. The tick is untouched: the simulation, the input sample,
+   the geometry, the raster, the fader, the sound frame and the netplay round
+   accounting all ran once, before this call, and every extra present is the
+   same StretchDIBits over the same DIB. NOTHING IS INTERPOLATED at this rung,
+   so the extra pictures are the SAME picture. What they buy is an even HOLD
+   TIME: the port presents with no vsync anywhere, so 30 pictures a second into
+   a 144 Hz display is held 5, 5, 5, 5, 4 refreshes, and the eye reads that
+   unevenness as judder on top of the 30.
+
+   THE CLOCK IS CONTINUOUS, NOT PER TICK, and that is what makes the rate come
+   out at the key's value. A clock re-anchored to each tick would deliver
+   ceil(budget / interval) pictures every tick -- 5 per 33.3 ms at 144, which
+   is 150 a second and not 144. Advancing ONE absolute deadline by exactly one
+   interval per picture lets a tick take 4 or 5 and average 4.8.
+
+   AND THE TICK'S OWN PICTURE IS ONE OF THEM. Both loops present at the end of
+   the frame body, immediately before this call, so a slot that is already due
+   was served by that present and is consumed here rather than drawn twice.
+   Without that the key would deliver rate + tick_rate pictures a second.
+   port_rom_frame() is the ROM game loop's phase-6 step count and advances
+   exactly once per game tick, so ONE slot is consumed per tick however many
+   pacer turns a tick has -- and it has data_0208ee44 of them under
+   SM64DS_ROM_LOOP, where the pump paces one vblank per turn.
+
+   A HITCH IS NOT A DEBT, the pacer's own rule (see frame_pace's banner),
+   applied to the picture clock as well. A clock more than one interval behind
+   is pulled up to now instead of firing repeatedly to catch up. And a pacer
+   turn that is ALREADY PAST its deadline -- the tick ran over budget -- never
+   reaches this function at all, because frame_pace's overrun branch resets the
+   deadline and sleeps nothing: that tick presents once, its own picture, and
+   no catch-up burst follows it.
+
+   NEVER MORE THAN THE LAST MILLISECOND IS SPUN. port_sleep_until sleeps whole
+   milliseconds down to one millisecond out and yields the remainder, which is
+   the granularity pacer_begin's 1 ms timer resolution leaves. */
+
+static void present(void);   /* the blit, defined with the window code below */
+
+/* The key's answer, latched once. host_setting_frame_rate is itself
+   boot-latched; this caches it so the pacer's hot path never re-reads it. */
+static int port_frame_rate_target(void)
+{
+    static int rate = -1;
+    if (rate < 0) {
+        rate = host_setting_frame_rate();
+        if (rate)
+            fprintf(stderr, "[frame-pace] FrameRate %d: the finished picture "
+                    "is handed to the display %d times a second. The game tick "
+                    "is untouched and nothing is interpolated at this rung, so "
+                    "the same picture repeats.\n", rate, rate);
+    }
+    return rate;
+}
+
+/* Sleep to an absolute QPC target. Whole milliseconds through Sleep down to
+   one millisecond out, then Sleep(0) -- a yield, not a tight spin, so the core
+   is handed back on every turn -- for the last one. */
+static void port_sleep_until(long long target, long long qpf)
+{
+    for (;;) {
+        LARGE_INTEGER now;
+        QueryPerformanceCounter(&now);
+        const double ms = (target - now.QuadPart) * 1000.0 / (double)qpf;
+        if (ms <= 0.0) return;
+        if (ms > 2.0) { Sleep((DWORD)(ms - 1.0)); continue; }
+        if (ms > 1.0) { Sleep(1); continue; }
+        Sleep(0);
+    }
+}
+
+/* THE PICTURE CENSUS, and it reports PICTURES rather than frames because that
+   is the number the key is about. One [frame-pace] line per window under
+   SM64DS_TRACE_PACE=1, beside frame_stat's [fps] line, with the distribution
+   behind the rate: a mean cannot tell an even 144 from one that holds a
+   picture for three intervals every so often, and an uneven hold is the whole
+   thing this rung exists to fix. Absent the key none of this is reached, so
+   the [fps] lines of an ordinary trace run are unchanged. */
+enum { PORT_PIC_WIN = 120 };
+
+static long long g_pic_due;        /* when the next picture is due (QPC) */
+static long long g_pic_prev;       /* the previous picture's stamp */
+static long long g_pic_t0;         /* the window's first picture */
+static double    g_pic_win[PORT_PIC_WIN];
+static int       g_pic_n;
+static int       g_pic_tick;       /* pictures the loops presented */
+static int       g_pic_extra;      /* pictures this clock presented */
+static int       g_pic_late;       /* slots the clock had to be pulled up */
+static int       g_pic_frame = -1; /* the tick whose picture was counted */
+
+static int port_pic_cmp(const void *a, const void *b)
+{
+    const double x = *(const double *)a, y = *(const double *)b;
+    return x < y ? -1 : (x > y ? 1 : 0);
+}
+
+static void port_pic_note(long long at, long long qpf, int trace, int rate)
+{
+    if (!g_pic_t0) { g_pic_t0 = at; g_pic_prev = at; return; }
+    g_pic_win[g_pic_n] = (at - g_pic_prev) * 1000.0 / (double)qpf;
+    g_pic_prev = at;
+    if (++g_pic_n < PORT_PIC_WIN) return;
+    if (trace) {
+        double sorted[PORT_PIC_WIN], sum = 0.0;
+        for (int i = 0; i < PORT_PIC_WIN; ++i) {
+            sorted[i] = g_pic_win[i];
+            sum += g_pic_win[i];
+        }
+        qsort(sorted, PORT_PIC_WIN, sizeof sorted[0], port_pic_cmp);
+        const double sec = (at - g_pic_t0) / (double)qpf;
+        fprintf(stderr, "[frame-pace] target %d Hz: %d picture(s) in %.3fs = "
+                "%.2f/s (%d tick + %d extra) interval ms avg %.2f p50 %.2f "
+                "p95 %.2f max %.2f, %d pulled-up slot(s)\n",
+                rate, PORT_PIC_WIN, sec,
+                sec > 0.0 ? PORT_PIC_WIN / sec : 0.0, g_pic_tick, g_pic_extra,
+                sum / PORT_PIC_WIN, sorted[PORT_PIC_WIN / 2],
+                sorted[(PORT_PIC_WIN * 95) / 100], sorted[PORT_PIC_WIN - 1],
+                g_pic_late);
+    }
+    g_pic_t0 = at;
+    g_pic_n = 0;
+    g_pic_tick = 0;
+    g_pic_extra = 0;
+    g_pic_late = 0;
+}
+
+/* NOT static, so the linker map carries it and mapdiff shows this lane's whole
+   footprint in walk_window as one added name. Returns the milliseconds from
+   `now` to the moment it stopped waiting, which is exactly what frame_pace's
+   own [pace] line reports as `slept`. */
+extern "C" double port_present_clock(long long now, long long deadline,
+                                     long long qpf, int rate, int trace)
+{
+    const long long step = qpf / rate;
+    LARGE_INTEGER end;
+
+    if (step <= 0) {   /* a counter this coarse cannot pace anything */
+        port_sleep_until(deadline, qpf);
+        QueryPerformanceCounter(&end);
+        return (end.QuadPart - now) * 1000.0 / (double)qpf;
+    }
+
+    /* A hitch is not a debt. */
+    if (!g_pic_due || g_pic_due + step < now) {
+        if (g_pic_due) ++g_pic_late;
+        g_pic_due = now;
+    }
+
+    /* THE TICK'S OWN PICTURE, AND THE SLOT IT CONSUMES, and the advance is
+       UNCONDITIONAL. Measured 2026-09-17: making it conditional on the
+       clock already being due (`if (g_pic_due <= now)`) reads the rate
+       wrong, because the clock interval and the pacer slot are not the
+       same length -- 16.667 ms against 16.65 -- so the comparison flips
+       after a few seconds and the clock stops crediting the tick at all.
+       A key of 60 then delivered 90 pictures a second (60 from the clock
+       plus the tick's own 30) and a key of 90 delivered 120. Advancing
+       once per tick unconditionally is the accounting that holds: the
+       clock tracks wall time, so it takes `rate` steps a second, and a
+       step is either a picture this function presented or the picture the
+       loop presented. Total pictures a second is the key, exactly. */
+    const int f = port_rom_frame();
+    if (f != g_pic_frame) {
+        g_pic_frame = f;
+        ++g_pic_tick;
+        port_pic_note(now, qpf, trace, rate);
+        g_pic_due += step;
+    }
+
+    while (g_pic_due < deadline) {
+        LARGE_INTEGER at;
+        port_sleep_until(g_pic_due, qpf);
+        present();
+        ++g_pic_extra;
+        QueryPerformanceCounter(&at);
+        port_pic_note(at.QuadPart, qpf, trace, rate);
+        g_pic_due += step;
+    }
+
+    port_sleep_until(deadline, qpf);
+    QueryPerformanceCounter(&end);
+    return (end.QuadPart - now) * 1000.0 / (double)qpf;
+}
+
+static void frame_pace(void)
+{
+    static LARGE_INTEGER qpf, next;
+    static int trace = -1;
+    LARGE_INTEGER now;
+
+    if (trace < 0) {
+        const char *e = getenv("SM64DS_TRACE_PACE");
+        trace = e ? atoi(e) : 0;
+    }
+    if (!qpf.QuadPart) QueryPerformanceFrequency(&qpf);
+    QueryPerformanceCounter(&now);
+
+    /* RUNG E1 (lane R3E). port_frame_divider() is VBLANKS PER GAME TICK, so
+       this budget is a whole game frame -- right while this loop calls the pump
+       once per frame, and wrong the moment phase 7 becomes the ROM's sleep:
+       step 1b of hal/boot2_thread.cpp's wait runs the pump ONCE PER IDLE TURN
+       and the ROM's wake needs data_0208ee44 turns, so a live run under
+       SM64DS_ROM_LOOP would pace a whole frame per VBlank and play at half
+       speed. Under the knob the pump paces ONE VBLANK per turn, which
+       multiplies out to the same frame period. A selftest is unpaced either
+       way, so nothing in the battery reads this. */
+    const int div = g_pace_div_override ? g_pace_div_override
+                                        : port_frame_divider();
+    const double budget = PORT_VBLANK_MS * div;
+    const LONGLONG step =
+        (LONGLONG)(budget * (double)qpf.QuadPart / 1000.0 + 0.5);
+
+    double slept = 0.0;
+    if (!next.QuadPart) {
+        next.QuadPart = now.QuadPart;   /* the first frame sets the deadline */
+    } else {
+        next.QuadPart += step;
+        if (next.QuadPart <= now.QuadPart) {
+            next.QuadPart = now.QuadPart;   /* overran: reset, do not sprint */
+        } else {
+            const double ms =
+                (next.QuadPart - now.QuadPart) * 1000.0 / (double)qpf.QuadPart;
+            if (ms >= 1.0) {
+                /* THE PRESENTATION CLOCK (lane FPS1, the FrameRate key). With
+                   the key absent -- the default, and the only thing the
+                   battery, the BMP comparators and every proof run ever see --
+                   rate is 0 and the else arm below is the one long Sleep this
+                   pacer has always done, statement for statement. With the key
+                   on, the same slack is spent presenting the finished
+                   framebuffer again at even intervals and then sleeping the
+                   rest. See port_present_clock's banner. */
+                const int rate = port_frame_rate_target();
+                if (rate > 0) {
+                    slept = port_present_clock(now.QuadPart, next.QuadPart,
+                                               qpf.QuadPart, rate, trace);
+                } else {
+                    LARGE_INTEGER a2;
+                    Sleep((DWORD)ms);
+                    QueryPerformanceCounter(&a2);
+                    slept = (a2.QuadPart - now.QuadPart) * 1000.0 /
+                            (double)qpf.QuadPart;
+                }
+            }
+        }
+    }
+
+    if (!trace) return;
+    /* SM64DS_TRACE_PACE=2 is the per-frame line, which costs an unbuffered
+       write every frame and therefore distorts the very thing it measures.
+       SM64DS_TRACE_PACE=1 is the cheap one: a rate over the last 120 frames,
+       which is the number to quote. */
+    if (trace >= 2)
+        fprintf(stderr, "[pace] div=%d budget=%.2f slept=%.2f\n",
+                div, budget, slept);
+}
+
+/* THE FRAME CLOCK'S OWN REPORT, and it is deliberately NOT part of frame_pace
+   any more.
+
+   frame_pace is the SLEEPER, and the level loop skips it entirely on a
+   selftest -- "a selftest stays UNPACED", see that call site. That is exactly
+   the arm a latency measurement wants, because an unpaced frame period IS the
+   frame's cost with no sleep padding it out, and a report that lived inside
+   the sleeper could never see it. So the report is its own call, made once per
+   frame by BOTH loops whether or not the pace is being kept, and frame_pace
+   went back to doing one thing.
+
+   WHAT IT PRINTS under SM64DS_TRACE_PACE=1, once per 120 frames: the rate, and
+   then the DISTRIBUTION behind it. A mean cannot tell a steady 30 fps from one
+   that stalls every fourth frame, and the online lockstep this was written for
+   is entirely a question about the tail: a frame that waits out a round trip
+   costs a whole round trip, and the average hides how many did. p95 over a
+   120-frame window is the sixth-slowest frame in it.
+
+   READ THE PERIODS AGAINST THE BUDGET ON THE SAME LINE. Under the pacer a
+   healthy run reads avg ~= budget; unpaced, a healthy run reads well UNDER it,
+   and the frame rate a player would then see is min(1000/budget, 1000/period).
+
+   Costs an unset run one cached int compare per frame. */
+enum { PORT_FRAME_WIN = 120 };
+
+static int frame_stat_cmp(const void *a, const void *b)
+{
+    const double x = *(const double *)a, y = *(const double *)b;
+    return x < y ? -1 : (x > y ? 1 : 0);
+}
+
+static void frame_stat(void)
+{
+    static LARGE_INTEGER qpf, prev, t0;
+    static double win[PORT_FRAME_WIN];
+    static int n;
+    static int trace = -1;
+    LARGE_INTEGER now;
+
+    if (trace < 0) {
+        const char *e = getenv("SM64DS_TRACE_PACE");
+        trace = e ? atoi(e) : 0;
+    }
+    if (!trace) return;
+    if (!qpf.QuadPart) QueryPerformanceFrequency(&qpf);
+    QueryPerformanceCounter(&now);
+    /* The first call has no predecessor, so it starts the window rather than
+       contributing a period measured from zero. */
+    if (!t0.QuadPart) { t0 = now; prev = now; n = 0; return; }
+
+    win[n] = (now.QuadPart - prev.QuadPart) * 1000.0 / (double)qpf.QuadPart;
+    prev = now;
+    if (++n < PORT_FRAME_WIN) return;
+
+    double sorted[PORT_FRAME_WIN], sum = 0.0;
+    for (int i = 0; i < PORT_FRAME_WIN; ++i) {
+        sorted[i] = win[i];
+        sum += win[i];
+    }
+    qsort(sorted, PORT_FRAME_WIN, sizeof sorted[0], frame_stat_cmp);
+    const double s = (now.QuadPart - t0.QuadPart) / (double)qpf.QuadPart;
+    const int div = port_frame_divider();
+    fprintf(stderr, "[fps] %d frames in %.3fs = %.2f fps (divider %d, budget "
+            "%.2fms) frame ms avg %.2f p50 %.2f p95 %.2f max %.2f\n",
+            n, s, s > 0.0 ? n / s : 0.0, div, PORT_VBLANK_MS * div,
+            sum / n, sorted[n / 2], sorted[(n * 95) / 100], sorted[n - 1]);
+    t0 = now;
+    n = 0;
+}
+
+/* SM64DS_PACE_SELFTEST=1 -- KEEP THE PACE ON A SELFTEST TOO.
+
+   The level loop drops frame_pace on a selftest because a selftest is the
+   deterministic comparator run and a sleep in it only makes the battery
+   slower. That is right for every question the battery asks and WRONG for the
+   one question a comparator run cannot answer: HOW A SESSION FEELS.
+
+   The reason is specific and it bit this lane. The online input pipeline's
+   budget is N frames of WALL TIME, not N frames of work -- frame R waits for
+   round R-N, so the wire has N frame periods to deliver it. Paced, N=4 is
+   4 * 33.3 = 133 ms of cover. Unpaced, the same N=4 over frames that cost 6 ms
+   each is 24 ms of cover, so the pipeline starves and the measurement reports
+   a mitigation doing a fraction of what it does in a player's hands. An
+   unpaced arm cannot measure pacing. This knob is how the two arms are made
+   comparable.
+
+   Default off, so every existing selftest -- the battery, the BMP comparators,
+   the whole gauntlet -- runs exactly as it did. */
+static int port_pace_selftest(void)
+{
+    static int on = -1;
+    if (on < 0) {
+        const char *e = getenv("SM64DS_PACE_SELFTEST");
+        on = e ? atoi(e) : 0;
+    }
+    return on;
+}
+
+/* THE HOST FRAME PUMP (run link100, boot plan rung R3b, step B2), and the
+   CORRECTION the measurement forced on the R3b plan.
+
+   THE PLAN SAID: move each host duty into step 1 of
+   hal/boot2_thread.cpp's CP1516WaitForInterrupt, which is the port's model of
+   the hardware halt the ROM's loop sleeps in at phase 7. THE MEASUREMENT SAYS
+   THAT WAIT IS NOT ON THIS PATH. A 300-frame level run reports
+
+       [thr] r3b-b1 ... halts=0 pump=0 vbl_dispatch=0 vbl_wakes=0
+
+   -- CP1516WaitForInterrupt is entered ZERO times, because its only callers
+   are the ROM's idle loops (src/func_02057e34.c, src/func_0201a028.c) and this
+   host loop drives the frame itself instead of sleeping. A duty moved literally
+   into step 1 today would simply stop running.
+
+   SO THE DUTY MOVES INTO A NAMED FUNCTION THAT BOTH SIDES CAN CALL, which is
+   what the plan actually needs. This loop calls it at the exact point the duty
+   ran before, so the frame is unchanged to the statement; step 1 of the wait
+   calls the same function through a pointer that NOTHING INSTALLS YET. Under
+   rung R3d the install is one line and the duty carries on running once per
+   frame without moving again.
+
+   WHAT IS IN IT TODAY IS THE PACER AND NOTHING ELSE. frame_stat and frame_pace
+   were already the last two statements of the loop body, so this step is a pure
+   extraction with no reordering, which is why it can be gated on its own. The
+   message pump, the present and the sound frame (steps B4, B5, B3) sit EARLIER
+   in the body and moving them here reorders the frame -- a real change whose
+   only automatic check is a size-only BMP liveness test, so they are not taken
+   here. See this lane's report.
+
+   `spin` is the wait's own starvation counter, kept in the signature so the
+   R3d install needs no adapter; the host loop passes 0. */
+static int g_selftest_frames;   /* main's `selftest`, at file scope so the pump
+                                   reads the same number from either caller */
+
+static unsigned long long g_frame_pump_turns;   /* what the [r3b] line reports */
+
+extern "C" int port_host_frame_pump(unsigned spin)
+{
+    (void)spin;
+    ++g_frame_pump_turns;
+    frame_stat();
+    /* RUNG E1: see frame_pace. One VBlank per turn while the ROM's sleep is
+       what ends the frame, one whole game frame per call while this loop is. */
+    r3e_heap_watch("inside the frame pump (an idle turn)");
+    g_pace_div_override = port_rom_loop_enabled() ? 1 : 0;
+    if ((!rb_replaying() || rb_presented_frame()) &&
+        (!g_selftest_frames || port_pace_selftest())) frame_pace();
+    g_pace_div_override = 0;
+    return 1;
+}
+
 /* ---- THE DEBUG OVERLAY (port mod) -------------------------------------
    F3. Text drawn INTO THE FRAMEBUFFER, after gx_render and before the blit,
    with the 8x8 font in overlay_font.h. Three consequences worth stating,
@@ -481,25 +2778,97 @@ static void pacer_begin(void)
      pixels, outside gx entirely.
 
    Default OFF, so a plain selftest dump is unchanged. SM64DS_OVERLAY=1 boots
-   with it on. */
+   with it on.
+
+   ---- AND WHICH SURFACE IT PAINTS ON, which is not always the framebuffer ----
+
+   THE OVERLAYS ARE HOST UI AND THEY BELONG TO A SCREEN, NOT TO AN ENGINE. The
+   framebuffer is engine A's, and since ntr::ppu_compose_stacked started reading
+   POWCNT1 bit 15 the stacked layout puts engine A in whichever half the DS's
+   display-swap bit names -- so "paint into fb" stopped meaning "paint on the
+   top screen". Three of the game's scenes make that visible:
+
+     372, 373, 384, 385   dScMgD3DBase_c's slot 24 TOGGLES bit 15 EVERY FRAME,
+                          so an overlay in fb ping-pongs between the halves at
+                          60 Hz. Tango's report: "when f5 debug is opened it
+                          rapidly flashes between both top and bottom screen".
+     377                  Snowball Slalom CLEARS the bit once and leaves it
+                          clear, so an overlay in fb sits on the bottom screen
+                          for the whole minigame. Tango's report: "f5 debug
+                          being on bottom screen".
+
+   So the painters below take an OvlSurface -- a pointer and a stride -- instead
+   of the framebuffer, and the frame loops hand them the UPPER PHYSICAL SCREEN's
+   rows of the composed stacked image (hal_sub_screen_stacked_top_y) when there
+   is one, and the framebuffer when there is not. The arithmetic inside them is
+   unchanged: an overlay covers ONE DS screen at the host tier in either layout,
+   so ntr::SCREEN_W/H are still the clip bounds and every coordinate in every
+   caller still means what it meant.
+
+   THE INSET LAYOUT IS UNTOUCHED, and deliberately. There the window IS engine
+   A's framebuffer at full size with the other screen as a corner panel inside
+   it; there is no "upper half" to prefer, and the overlay goes where it always
+   went. Nothing about a level changes. */
+#ifdef NTR_WIDE_RT
+/* The host debug overlay (F3 stats, F5 menu, save toast) is diagnostic UI, not
+   game content, and it is off in normal play. Pin it to the 2x tier's 1x text
+   so a 4:3 (toggle-off) run's overlay is byte-for-byte the shipped one; the wide
+   toggle keeps the same 1x text rather than growing it, which is fine for a
+   diagnostic layer. */
+static const int OVL_SCALE = 1;
+#else
 static const int OVL_SCALE = ntr::SCREEN_W >= 1024 ? 2 : 1;
+#endif
 static const int OVL_LINE = (OVL_GLYPH_H + 2) * OVL_SCALE;
 
-static void ovl_shade(ntr::Framebuffer &fb, int x0, int y0, int w, int h)
+/* WHERE AN OVERLAY PAINTS: one DS screen's worth of 0xAARRGGBB pixels, at
+   `stride` words per row. `px` is that screen's top-left. Deliberately not a
+   width and a height as well -- an overlay is always exactly one DS screen at
+   this binary's tier, in both layouts, and carrying the size would invite a
+   caller to pass a different one and quietly re-scale the font. */
+struct OvlSurface {
+    uint32_t *px;
+    int stride;
+};
+
+static OvlSurface ovl_surface(ntr::Framebuffer &fb)
+{
+    OvlSurface s;
+    s.px = &fb.px[0][0];
+    s.stride = ntr::SCREEN_W;
+    return s;
+}
+
+/* The composed stacked image's UPPER half. Null image -> the framebuffer, which
+   is the same fallback present() takes: with no stacked image there is nothing
+   else on screen to be wrong about. */
+static OvlSurface ovl_surface_stacked(uint32_t *img, ntr::Framebuffer &fb)
+{
+    if (!img) return ovl_surface(fb);
+    int iw = 0, ih = 0;
+    hal_sub_screen_stacked_size(&iw, &ih);
+    OvlSurface s;
+    s.px = img + (size_t)hal_sub_screen_stacked_top_y() * (size_t)iw;
+    s.stride = iw;
+    return s;
+}
+
+static void ovl_shade(const OvlSurface &fb, int x0, int y0, int w, int h)
 {
     /* half-strength darken of what is already there, so the text reads over
        sky and over stone without hiding the frame behind it */
     for (int y = y0; y < y0 + h; ++y) {
-        if (y < 0 || y >= ntr::SCREEN_H) continue;
+        if (y < 0 || y >= ntr::active_h) continue;
+        uint32_t *row = fb.px + (size_t)y * (size_t)fb.stride;
         for (int x = x0; x < x0 + w; ++x) {
-            if (x < 0 || x >= ntr::SCREEN_W) continue;
-            const uint32_t p = fb.px[y][x];
-            fb.px[y][x] = 0xFF000000u | ((p >> 1) & 0x007F7F7Fu);
+            if (x < 0 || x >= ntr::active_w) continue;
+            const uint32_t p = row[x];
+            row[x] = 0xFF000000u | ((p >> 1) & 0x007F7F7Fu);
         }
     }
 }
 
-static int ovl_text(ntr::Framebuffer &fb, int x0, int y0, const char *s,
+static int ovl_text(const OvlSurface &fb, int x0, int y0, const char *s,
                     uint32_t rgb)
 {
     int x = x0;
@@ -516,10 +2885,10 @@ static int ovl_text(ntr::Framebuffer &fb, int x0, int y0, const char *s,
                 for (int sy = 0; sy < OVL_SCALE; ++sy)
                     for (int sx = 0; sx < OVL_SCALE; ++sx) {
                         const int fx = px + sx, fy = py + sy;
-                        if (fx < 0 || fx >= ntr::SCREEN_W || fy < 0 ||
-                            fy >= ntr::SCREEN_H)
+                        if (fx < 0 || fx >= ntr::active_w || fy < 0 ||
+                            fy >= ntr::active_h)
                             continue;
-                        fb.px[fy][fx] = rgb;
+                        fb.px[(size_t)fy * (size_t)fb.stride + fx] = rgb;
                     }
             }
         }
@@ -528,62 +2897,10 @@ static int ovl_text(ntr::Framebuffer &fb, int x0, int y0, const char *s,
     return x - x0;
 }
 
-/* ---- UI THEME -----------------------------------------------------------
-   One palette for the whole frontend so menus, overlay, toasts and chat
-   read as one design instead of five eras: translucent dark panels
-   (ovl_shade keeps the game visible behind them), azure accent for titles
-   and selection, green/amber/red kept for status. Selection is a solid
-   accent bar plus bright text -- no `>` glyphs, no indent jumping. */
-static const uint32_t UI_ACCENT = 0xFF45C8FFu;
-static const uint32_t UI_TEXT = 0xFFF2F2F2u;
-static const uint32_t UI_DIM = 0xFF9099A6u;
-static const uint32_t UI_FAINT = 0xFF5A5E66u;
-static void ovl_fill(ntr::Framebuffer &fb, int x0, int y0, int w, int h,
-                     uint32_t rgb)
-{
-    for (int y = y0; y < y0 + h; ++y) {
-        if (y < 0 || y >= ntr::SCREEN_H) continue;
-        for (int x = x0; x < x0 + w; ++x) {
-            if (x < 0 || x >= ntr::SCREEN_W) continue;
-            fb.px[y][x] = rgb;
-        }
-    }
-}
-/* selection marker: accent bar at (x, y), one text line tall */
-static void ovl_selbar(ntr::Framebuffer &fb, int x, int y)
-{
-    ovl_fill(fb, x, y - 2 * OVL_SCALE, 3 * OVL_SCALE, OVL_LINE, UI_ACCENT);
-}
-
-/* word-wrapped paragraph for side panels. Greedy pack by spaces. */
-static void ovl_wrapped(ntr::Framebuffer &fb, int x, int y, int maxw,
-                        const char *s, uint32_t rgb)
-{
-    char out[96];
-    int oi = 0;
-    const int maxch = maxw / (OVL_ADVANCE * OVL_SCALE);
-    while (1) {
-        while (*s == ' ') ++s;
-        if (!*s) break;
-        const char *w = s;
-        int wl = 0;
-        while (w[wl] && w[wl] != ' ') ++wl;
-        if (oi > 0 && oi + 1 + wl > maxch) {
-            out[oi] = 0;
-            ovl_text(fb, x, y, out, rgb);
-            y += OVL_LINE;
-            oi = 0;
-        }
-        if (oi > 0) out[oi++] = ' ';
-        for (int k = 0; k < wl && oi < (int)sizeof out - 1; ++k)
-            out[oi++] = w[k];
-        s = w + wl;
-    }
-    if (oi > 0) {
-        out[oi] = 0;
-        ovl_text(fb, x, y, out, rgb);
-    }
-}
+/* THE VS NAME TAGS. Included here rather than earlier because it draws through
+   OvlSurface and sizes itself off OVL_SCALE, both of which are above; its own
+   banner carries the font decode, the projection and the slot rules. */
+#include "nametag.h"
 
 /* the per-phase clock. One QueryPerformanceCounter pair per phase and a
    1-second exponential average, so the numbers are readable instead of
@@ -631,7 +2948,11 @@ struct OvlStats {
     int menu_paused;
 };
 
-static void ovl_draw(ntr::Framebuffer &fb, const OvlStats &s)
+/* KING OF THE STAR live points line, filled by hal/star_flow.cpp; returns 0
+   (draws nothing) outside a king match. */
+extern "C" int port_vs_king_hud(char *out, int cap);
+
+static void ovl_draw(const OvlSurface &fb, const OvlStats &s)
 {
     char ln[10][96];
     int n = 0;
@@ -669,22 +2990,25 @@ static void ovl_draw(ntr::Framebuffer &fb, const OvlStats &s)
     snprintf(ln[n], sizeof ln[0], "ram %6u KB", s.mem_kb);
     col[n++] = WHITE;
 
+    /* KING OF THE STAR live points, only during a king match (returns 0 and
+       draws nothing otherwise). Holder is tagged with '*'. */
+    {
+        char kb[96];
+        if (n < 10 && port_vs_king_hud(kb, (int)sizeof kb)) {
+            snprintf(ln[n], sizeof ln[0], "%s", kb);
+            col[n++] = AMBER;
+        }
+    }
+
     {
         int w = 0;
         for (int i = 0; i < n; ++i) {
             const int lw = (int)strlen(ln[i]) * OVL_ADVANCE * OVL_SCALE;
             if (lw > w) w = lw;
         }
-        const int title_w = 12 * OVL_ADVANCE * OVL_SCALE;
-        if (title_w > w) w = title_w;
-        const int pw = w + 6 * OVL_SCALE, ph = (n + 1) * OVL_LINE + 6;
-        ovl_shade(fb, 2, 2, pw, ph);
-        ovl_text(fb, 4 + OVL_SCALE, 4, "SM64DS COOP", UI_ACCENT);
-        ovl_fill(fb, 4 + OVL_SCALE, 4 + OVL_LINE - 1, w, OVL_SCALE,
-                 UI_ACCENT);
+        ovl_shade(fb, 2, 2, w + 6 * OVL_SCALE, n * OVL_LINE + 4 * OVL_SCALE);
         for (int i = 0; i < n; ++i)
-            ovl_text(fb, 4 + OVL_SCALE, 4 + (i + 1) * OVL_LINE, ln[i],
-                     col[i]);
+            ovl_text(fb, 4 + OVL_SCALE, 4 + i * OVL_LINE, ln[i], col[i]);
     }
 }
 
@@ -742,39 +3066,8 @@ static int g_amb_n;
    own frustum, so an actor the rig can see but the game camera cannot stays
    dormant. That is the price of leaving the Camera actor alone. */
 static const int CAM_STEP = 0x400;       /* the ROM's quantum, 0x0200a6a8 */
-static const int SM64_CSTEP = 0x1000;    /* one C-button chunk, 22.5 deg */
-/* framerate-independent camera easing. denom/cap are tuned at 30 presents
-   a second; k (= real dt / 1 Tick) stretches them so the lens moves the
-   same distance per second at any present rate. snap=1 also finishes the
-   last binang instead of stalling short of the target. */
-static float cam_k_live = 1.0f;          /* set fresh in the rig frame */
-static float sm64_glide;                 /* seconds of entry glide left */
-static int sm64_want_dist;               /* glide target for the distance */
-/* sm64 zoom modes: 0 normal, 1 C-up (close), 2 C-down (far). C buttons
-   are modal toggles, not a continuous zoom: from normal, C-up goes close
-   and C-down goes far; from either zoomed mode the OPPOSITE button goes
-   back to normal (same button again does nothing). Leaving normal saves
-   the distance so normal restores exactly. All transitions glide. */
-static int sm64_zoom_mode;
-static int sm64_normal_dist;
-static int cam_ease_step(int d, int denom, int cap, float k, int snap)
-{
-    float s;
-    if (d == 0 || denom <= 0) return 0;
-    s = (float)d * k / (float)denom;
-    if (cap > 0) {
-        const float c = (float)cap * k;
-        if (s > c) s = c;
-        else if (s < -c) s = -c;
-    }
-    if ((d > 0 && s > (float)d) || (d < 0 && s < (float)d))
-        s = (float)d;                    /* never overshoot */
-    if (snap && s > -1.0f && s < 1.0f)
-        s = d > 0 ? 1.0f : -1.0f;        /* finish, don't hover */
-    return (int)s;
-}
 
-/* ---- FOUR CAMERA MODES, AND ONE RIG -----------------------------------
+/* ---- THREE CAMERA MODES, AND ONE RIG -----------------------------------
    The freecam proved the shape: a harness rig that draws through the ROM's own
    PerspectiveW_ / LookAt_ / CopyToViewMat and publishes its own heading, with
    the Camera actor left running untouched underneath it. The only thing that
@@ -787,31 +3080,19 @@ static int cam_ease_step(int d, int denom, int cap, float k, int snap)
                  the DS's 5.625-degree steps, and when the stick is idle and he
                  is moving it drifts back behind him -- gently, the way the
                  analog cams in the PC SM64 ports do it, not a snap.
-      CAM_SM64    the N64 camera. Same rig pinned to the same eased pivot,
-                  but everything about it is Lakitu's: the follow law has no
-                  deadzone and closes a tenth of the error a frame (capped),
-                  so the lens swings behind his direction of travel instead
-                  of trailing it lazily; Q/E step in C-button chunks with
-                  hold-to-repeat; R/F tap C-Up/C-Down and the right stick's
-                  Y pushes them too (stick up zooms in, down zooms out);
-                  zoom is modal -- normal, close, far -- where the opposite
-                  button comes back to normal and the same one does nothing;
-                  bumpers don't zoom here at all. C snaps the heading and
-                  glides the pitch home; entering the mode glides pitch and
-                  distance to the default framing over half a second rather
-                  than cutting. Height lags an extra frame for the swoop
-                  after jumps. All rates scale with the real present
-                  interval, so it feels the same at 30 and at 144 presents
-                  a second.
-      CAM_FREE    the freecam: the rig orbiting the Camera actor's own look-at,
-                  which is what "the harness takes the view" meant before.
-      CAM_DS      the hardware's own stepped rotate, byte for byte what this
-                  program did before analog existed. Nothing in the analog path
-                  runs, the harness writes the rotate bits, and the frame is
-                  whatever func_02009e70 makes of them.
+     CAM_FREE    the freecam: the rig orbiting the Camera actor's own look-at,
+                 which is what "the harness takes the view" meant before.
+     CAM_DS      the hardware's own stepped rotate, byte for byte what this
+                 program did before analog existed. Nothing in the analog path
+                 runs, the harness writes the rotate bits, and the frame is
+                 whatever func_02009e70 makes of them.
 
-    F1 cycles analog -> sm64 -> freecam -> DS. SM64DS_DS_CAMERA=1 boots DS-exact and
-    SM64DS_FREECAM=1 boots the freecam.
+   F1 cycles analog -> freecam -> DS. settings.json's CameraMode ("analog",
+   "freecam" or "ds"; hal/host_settings.h) picks the mode an interactive run
+   boots into, analog when the key is absent, and the F5 menu's camera row
+   writes it back. SM64DS_DS_CAMERA=1 boots DS-exact and SM64DS_FREECAM=1
+   boots the freecam, and both win over the file: an environment knob is a
+   per-run request, the file is a standing one.
 
    THE SELFTEST DEFAULTS TO CAM_DS, deliberately. It is the regression harness:
    its BMP is a byte-comparison against the hardware's framing and its camera
@@ -819,26 +3100,79 @@ static int cam_ease_step(int d, int denom, int cap, float k, int snap)
    of which the analog path writes. SM64DS_ANALOG_CAMERA=1 puts a selftest in
    analog when that is what is being probed.
 
-    WHAT IS TRUE IN ALL FOUR: the Camera actor runs its whole frame, is never
+   WHAT IS TRUE IN ALL THREE: the Camera actor runs its whole frame, is never
    written to, and Camera::Render still seeds the Clipper. The cull is the
    game's, which is the invariant the block above is about -- an actor the rig
    can see but the game camera cannot stays dormant, and that is the price of
    leaving the actor alone rather than a bug to chase. */
-enum { CAM_ANALOG = 0, CAM_SM64 = 1, CAM_FREE = 2, CAM_DS = 3 };
+enum { CAM_ANALOG = 0, CAM_FREE = 1, CAM_DS = 2 };
 static int cam_mode = CAM_DS;    /* main promotes it once the Camera is up */
 
 static const char *cam_mode_name(int m)
 {
-    return m == CAM_ANALOG ? "analog" :
-           (m == CAM_SM64 ? "sm64" : (m == CAM_FREE ? "freecam" : "DS"));
+    return m == CAM_ANALOG ? "analog" : (m == CAM_FREE ? "freecam" : "DS");
 }
 
 static short fc_yaw;             /* heading from the pivot to the eye */
 static short fc_pitch;           /* elevation of the eye above the pivot */
 static int fc_dist;              /* fixed-point world units */
-/* Lakitu's default framing: a gentle look-down, stepped back from the
-   inherited shot on entry (C snaps back to it too) */
-static const short SM64_PITCH = 0x500;
+
+/* ---- WHOSE NUMBER THE DISTANCE IS -------------------------------------
+   The ROM's. func_02009e70 does not store a camera distance, it CONVERGES
+   one. Every frame the gameplay state does
+
+       Math_Function_0203b14c(&dist, sl, 0x400, r7 + 0x20000, 0x100);
+
+   where sl is the target the camera's own mode block carries -- the block
+   at +0x13c, its +0x20 field, scaled through func_020093f4 by the camera's
+   +0x104. So LenVec3(eye - at) off the actor is a MOVING number, and one
+   sample of it only means anything after the approach has settled.
+
+   The rig used to take exactly one sample, in fc_seed, and hold it for the
+   rest of the session. That is right for the F1 toggle it was written for
+   -- the camera has long since settled, so the sample is the settled value
+   and the toggle does not move the picture. It is wrong at a LEVEL ENTRY,
+   which is the other place the seed fires (boot, and the level handoff):
+   the entrance parks the camera at the far end of its approach, so the
+   sample IS the transient. Measured at the entry frame against what the
+   same camera reads ninety frames on, with the approach long done:
+
+       level 1  castle grounds   805 sampled, 840 settled   (-4%)
+       level 2                  1025 sampled, 763 settled  (+34%)
+       level 6  Bob-omb Bfield  2040 sampled, 806 settled  (+153%)
+       level 7                  1501 sampled, 561 settled  (+168%)
+
+   The castle grounds is where the rig was built and it lands within 4%,
+   which is why this went unnoticed; Bob-omb Battlefield's entrance swoops
+   in from two and a half times the gameplay distance, and the rig froze the
+   first frame of the swoop. Warping in from the castle it is plainer still:
+   the rig sat at 805 all through the castle, jumped to 2040 on the handoff
+   frame, and stayed there while the game's own camera came down to 840.
+
+   So the rig stops treating the distance as its own. It reads the actor
+   every frame, which is the number func_02009e70 spent that frame
+   converging, and the entrance swoop plays through the rig the way it plays
+   on hardware. The zoom control still wins when the player uses it: that
+   sets fc_dist_owned and the tracking stands down until the next seed hands
+   the distance back.
+
+   One rule for both rig modes, freecam included. The freecam orbits the
+   Camera actor's own look-at rather than Mario, so it is pinned to the same
+   camera and the same distance reads right there too; a player who wants to
+   hold a distance while inspecting something takes it with one press of the
+   zoom, which is the control that already meant that. */
+static int fc_dist_owned;        /* the player has zoomed; stop tracking */
+
+/* the Camera actor's own eye-to-look-at length */
+static int fc_cam_dist(void *cam)
+{
+    const char *k = (const char *)cam;
+    const int *at = (const int *)(k + 0x80);
+    const int *eye = (const int *)(k + 0x8c);
+    int d[3] = {eye[0] - at[0], eye[1] - at[1], eye[2] - at[2]};
+    int n = LenVec3(d);
+    return n < 0x40000 ? 0x40000 : n;
+}
 
 /* the analog rig's own pivot: Mario's position lifted to about chest height
    and eased, so the picture does not carry the per-frame jitter of a walk
@@ -846,41 +3180,6 @@ static const short SM64_PITCH = 0x500;
 static int an_pivot[3];
 static int an_pivot_live;
 static const int AN_LIFT = 140 << 12;     /* world fx above his feet */
-
-/* one C-button press in sm64 mode. dir +1 = C-up (zoom in), -1 = C-down
-   (zoom out). From normal it goes to that zoom; from the opposite zoom it
-   comes back to normal; pressing the same one twice does nothing. Lives
-   down here so fc_dist and the glide state are declared above it. */
-static void sm64_zoom_press(int dir)
-{
-    if (dir > 0) {
-        if (sm64_zoom_mode == 0) {
-            sm64_normal_dist = fc_dist;
-            sm64_zoom_mode = 1;
-            sm64_want_dist = sm64_normal_dist / 4;
-            if (sm64_want_dist < 0x30000) sm64_want_dist = 0x30000;
-            sm64_glide = 0.4f;
-        } else if (sm64_zoom_mode == 2) {
-            sm64_zoom_mode = 0;
-            sm64_want_dist = sm64_normal_dist;
-            sm64_glide = 0.4f;
-        }
-    } else if (dir < 0) {
-        if (sm64_zoom_mode == 0) {
-            sm64_normal_dist = fc_dist;
-            sm64_zoom_mode = 2;
-            sm64_want_dist = sm64_normal_dist +
-                             ((sm64_normal_dist >> 2) +
-                              sm64_normal_dist) / 2;
-            if (sm64_want_dist > 0x2000000) sm64_want_dist = 0x2000000;
-            sm64_glide = 0.4f;
-        } else if (sm64_zoom_mode == 1) {
-            sm64_zoom_mode = 0;
-            sm64_want_dist = sm64_normal_dist;
-            sm64_glide = 0.4f;
-        }
-    }
-}
 
 /* stick deflection -> binangs (or units) per frame, signed. Half linear,
    half squared: fine control near the centre, `top` at the stop. */
@@ -913,29 +3212,18 @@ static void fc_eye(const int *pivot, int *eye)
 }
 
 /* seed the rig from wherever the Camera actor is, so the toggle does not
-   move the picture */
+   move the picture. The distance goes back to being the game's (the block
+   above): a seed is the point at which the rig has no framing of its own to
+   defend, which is exactly when the ROM's number should be in charge. */
 static void fc_seed(void *cam)
 {
     char *k = (char *)cam;
     int *at = (int *)(k + 0x80);
     int *eye = (int *)(k + 0x8c);
-    int d[3] = {eye[0] - at[0], eye[1] - at[1], eye[2] - at[2]};
     fc_yaw = *(short *)(k + 0x17c);
     fc_pitch = Vec3_VertAngle(eye, at);
-    fc_dist = LenVec3(d);
-    if (fc_dist < 0x40000) fc_dist = 0x40000;
-    /* sm64 enters on Lakitu's default framing instead of the inherited
-       shot: a gentle look-down and a quarter step back, eased in over
-       ~0.6s by the entry glide (steering cancels it). The yaw stays where
-       it was, so the cut reads as a reframe, not a swing. Zoom starts in
-       C-normal at the new framing. */
-    if (cam_mode == CAM_SM64) {
-        sm64_want_dist = fc_dist + fc_dist / 4;
-        if (sm64_want_dist > 0x2000000) sm64_want_dist = 0x2000000;
-        sm64_normal_dist = sm64_want_dist;
-        sm64_zoom_mode = 0;
-        sm64_glide = 0.6f;
-    }
+    fc_dist = fc_cam_dist(cam);
+    fc_dist_owned = 0;
 }
 
 /* the analog rig's pivot, stepped once a frame. Eased toward Mario's chest at
@@ -956,24 +3244,9 @@ static void an_step_pivot(char *player)
     }
     for (k = 0; k < 3; ++k) {
         const int d = tgt[k] - an_pivot[k];
-        if (d > (4000 << 12) || d < -(4000 << 12)) {
-            an_pivot[k] += d;
-            continue;
-        }
-        /* sm64 lets height lag an extra frame -- the swoop after a jump.
-           Rates hold at any present rate through cam_k_live. */
-        if (k == 1 && cam_mode == CAM_SM64)
-            an_pivot[k] += cam_ease_step(d, 8, 0, cam_k_live, 1);
-        else
-            an_pivot[k] += cam_ease_step(d, 4, 0, cam_k_live, 1);
+        an_pivot[k] += (d > (4000 << 12) || d < -(4000 << 12)) ? d : d / 4;
     }
 }
-
-/* Widescreen is TRUE hor+: a 16:9 projection squeezed into the 4:3
-   framebuffer, which the 16:9 window then unsqueezes. Geometry stays
-   correct and the sides gain picture instead of stretch. (16 << 12) / 9
-   is the aspect in the ROM's own Fix12i. Defined after the mod globals. */
-static int port_view_aspect(void *cam);
 
 /* the view the mod draws with: the ROM's own two entry points, fed the rig's
    eye and pivot in scene units (the (v + 4) >> 3 Camera::Render applies to
@@ -989,17 +3262,18 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
     }
     _ZN3G3i13PerspectiveW_E5Fix12IiES1_S1_S1_S1_S1_bP9Matrix4x3(
         data_02082214[i], data_02082214[i + 1],
-        port_view_aspect(cam), *(int *)((char *)cam + 0xfc),
+        *(int *)((char *)cam + 0xf8), *(int *)((char *)cam + 0xfc),
         *(int *)((char *)cam + 0x100), data_0209ee90[0x44 / 4], 1, 0);
     _ZN3G3i7LookAt_EPK7Vector3S2_S2_bP9Matrix4x3(e, data_02086efc, a, 1, mat);
     _Z13CopyToViewMatPK9Matrix4x3(mat);
 }
 
 /* ---- THE DEBUG MENU (port mod) ----------------------------------------
-   F5. Deliberately small: the four things worth reaching mid-session without
+   F5. Deliberately small: the things worth reaching mid-session without
    restarting the program under a different environment, plus one status line.
    Up/down or the d-pad move, left/right change a value, and enter (or A) does
-   what right does, so the whole thing works one-handed on a pad.
+   what right does, so the whole thing works one-handed on a pad. BACK opens
+   and closes it and so does B, so a pad never needs the keyboard to get out.
 
    IT PAUSES THE GAME TICK while it is open -- port_actor_tick is skipped and
    the input the harness writes is zeroed, so nothing moves, nothing spawns and
@@ -1009,888 +3283,795 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
    are next to each other for. */
 enum {
     MENU_WARP = 0,
+    MENU_LEVEL,
+    MENU_MINIGAME,      /* left/right pick one of the ROM's thirty, enter goes */
+    /* ---- VS wiring lane: the section the owner asked for -- choose a VS map
+       and game mode, then boot the ROM's own VS mode. Enter on either row
+       starts VS on the showing map (a relaunch, the minigame row's shape: the
+       child boots the ROM's own start through SM64DS_VS_MAP; see the boot
+       hook past the game-heap init). The ROM's VS has exactly ONE game mode
+       -- the star battle; no mode selector exists in ov075
+       (port/slice_vs.txt section 4) -- so the mode row states it rather than
+       inventing choices. */
+    MENU_VS_MAP,        /* left/right walk the ROM's four VS maps, enter goes */
+    MENU_VS_MODE,       /* the ROM's single mode, stated; enter goes too      */
+    MENU_EXIT,
+    MENU_CHARACTER,
     MENU_SNAP,
     MENU_OVERLAY,
     MENU_CAMERA,
+    MENU_RUNMODE,       /* left/right: how running works (the block below) */
+    MENU_RUNBIND,       /* enter: capture the next press as the run button */
+    MENU_PADLAYOUT,     /* enter: teach the game a DirectInput pad, one press each */
     MENU_RECORDER,
-    MENU_ANALOG,
-    MENU_CHARACTER,
-    MENU_COLOR,
-    MENU_SPEED,
-    MENU_JUMP,
-    MENU_SUB,
-    MENU_WIDE,
-    MENU_ARENA,
-    MENU_CAMDIST,
-    MENU_FPS,
-    MENU_VSYNC,
-    MENU_DISCONNECT,
+    MENU_SAVESTATE,     /* enter: snapshot the game into the in-memory slot */
+    MENU_LOADSTATE,     /* enter: restore the in-memory slot (F9's twin) */
     MENU_COUNT
 };
 
-static const char *fps_mode_name(int m)
-{
-    return m == 1 ? "uncapped" : (m == 2 ? "smooth" : "30");
-}
-static int menu_on;
-static int menu_sel;
-static int front_on = 1;
-static int front_page;
-static int front_sel;
-static int front_file;
-static int front_invert_x;
-static int front_invert_y;            /* pitch inversion, rig + pad */
-static int g_sound_on = 1;            /* sdat tick gate (Sound page) */
-static int g_mute_unfocused;          /* skip tick when not foreground */
-static int g_toasts_on = 1;           /* toast_draw gate (Misc page) */
-static int menu_entrance;             /* the entrance the warp row is showing */
-static int g_overlay_on;              /* F3, and the menu's overlay row */
-static char g_playlog[160] = "off";   /* the flight recorder's current file */
-/* Coop-style mod state: persisted to mod_state.cfg, settable from the front
-   menu, the F5 menu, and Lua mods (sm64ds.set_* at startup). */
-static int g_analog_controls = 1;
-static int g_character;               /* 0 Mario, 1 Luigi, 2 Wario, 3 Yoshi */
-static int g_speed_pct = 100;         /* 25..300, 100 = ROM speed */
-static int g_jump_pct = 100;          /* 25..300, 100 = ROM jump */
-static int g_sub_scale = 3;           /* bottom-screen divisor 1..4, 3 = small */
-static int g_widescreen;              /* 0 = 4:3 window, 1 = 16:9 stretch */
-static int g_arena;                   /* 0 = full grounds, 1 = small arena clamp */
-static int g_cam_dist_pct = 100;      /* rig distance preset */
-static int g_fps_mode;                /* 0 = 30 present, 1 = 60, 2 = uncapped present */
-static int g_vsync = 1;               /* DwmFlush after present (tear-free) */
-static float g_dt_scale = 1.f;        /* display dt / 30Hz tick, for look rates */
-static float g_interp_t = 1.f;        /* 0 = previous tick, 1 = current tick */
-static int g_do_tick = 1;             /* this display frame runs a 30Hz game tick */
-static int g_jump_edge;               /* jump button edge this frame (post-tick boost) */
-/* gamepad button bindings: 0..15 = XInput button bit, 100 = LT, 101 = RT */
-static int g_pad_jump = 12;           /* A */
-static int g_pad_run = 14;            /* X */
-static int g_pad_punch = 13;          /* B */
-static int g_pad_crouch = 101;        /* RT */
-/* identity + remappable controls (OPTIONS page, persisted) */
-static char g_username[16] = "Player";
-static int g_key_jump = VK_SPACE;
-static int g_key_run = VK_SHIFT;
-static int g_key_crouch = VK_CONTROL;
-static int g_key_punch = 'X';
-static int g_color;                   /* outfit tint preset 0..7 (MODS/F5) */
+/* ---- HOW RUNNING WORKS (port mod, pure input shaping) -------------------
+   THE DS HAD NO RUN BUTTON. Its stick was the touch screen, and the game
+   decides between walking and running from HOW FAR that stick is pushed:
+   func_ov002_020d4748, func_ov002_020d1f78 and their siblings all read the
+   same pair of fields out of the input record and branch on
 
-/* ---- toasts: one-line CoopDX-style notifications, bottom-center ---- */
-static char g_toast[3][96];
-static unsigned long long g_toast_until[3];
-static unsigned long long g_frame_no;
-static void toast(const char *fmt, ...)
-{
-    char buf[96];
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(buf, sizeof buf, fmt, ap);
-    va_end(ap);
-    for (int i = 2; i > 0; --i) {
-        strcpy(g_toast[i], g_toast[i - 1]);
-        g_toast_until[i] = g_toast_until[i - 1];
-    }
-    strcpy(g_toast[0], buf);
-    g_toast_until[0] = (unsigned long long)(ovl_now_ms() + 8000.0);
-    fprintf(stderr, "[toast] %s\n", buf);
-}
+       touching == 0  ->  running iff the held word has 0x800
+       touching != 0  ->  running iff the magnitude is past ~0xdc7 of 0x1000
+                          (0x80 of hysteresis on top, so the flip does not
+                          chatter around the threshold)
 
-/* ---- chat: local echo box (T to talk), ready for the lobby plugin ---- */
-static char g_chat[4][128];
-static char g_chat_input[112];
-static int g_chat_open;
-static char g_lobby_ip[64];      /* join target, blank by default */
-static void chat_add_local(const char *user, const char *msg)
-{
-    for (int i = 3; i > 0; --i) strcpy(g_chat[i], g_chat[i - 1]);
-    snprintf(g_chat[0], sizeof g_chat[0], "<%s> %s", user, msg);
-    fprintf(stderr, "[chat] <%s> %s\n", user, msg);
-}
-static void chat_add(const char *user, const char *msg)
-{
-    chat_add_local(user, msg);
-    sm64ds::lobby::send_chat(user, msg);
-}
+   and the SPEED TARGET is scaled by that same magnitude -- func_ov002_020bf224
+   is literally `base * mag >> 12`, floored. So the game already has an analog
+   run and always did; the port simply never fed it one. This window has fed
+   the D-pad branch since it existed: magnitude pinned at 0x1000, touching
+   zero, running on a held 0x800 that the hardware never had a button for.
 
-/* lobby transport callbacks: relayed lines display without rebroadcast
-   (chat_add would send them back -- the echo storm), joins leave a toast */
-static void lobby_on_text(const char *user, const char *msg)
-{
-    chat_add_local(user, msg);
-}
-static void lobby_on_peer(const char *name, int joined)
-{
-    toast("%s %s", name, joined ? "joined" : "left");
-}
-static sm64ds::lobby::NetEvents lobby_ev;   /* registered once at boot */
+   These three modes pick which of those branches the player's controls
+   reach. Nothing here is game logic. The record the game reads is the record
+   the game has always read, filled in by the host the way the hardware would
+   have filled it in, and src/ neither knows nor could tell.
 
-/* ---- line editor shared by chat input, username edit, rebind capture -- */
-    enum { EDIT_NONE = 0, EDIT_CHAT, EDIT_NAME, EDIT_IP, EDIT_KEY };
-static int g_edit_mode;
-static int *g_edit_key_target;   /* EDIT_KEY: keyboard binding being captured */
-static int *g_edit_pad_target;   /* EDIT_KEY: gamepad binding being captured */
-static int g_edit_pad;           /* listen for a controller button too */
-static int g_edit_wait_release;  /* ignore the key/button that opened capture */
-static int g_edit_just_done;     /* wndproc commit/cancel: eat one input edge */
+     RUN_BUTTON  what this program has always done. The bound key or pad
+                 button sets 0x800 while it is held, the record stays on the
+                 D-pad branch, and letting go walks.
+     RUN_ANALOG  when a pad stick is actually pushed, the record is filled
+                 from it instead -- touching set, magnitude and direction
+                 from the deflection -- and the GAME's own thresholds do the
+                 rest. Partial push walks, past ~87 percent runs, and the
+                 speed in between is the ROM's own multiply. THE DEFAULT, on
+                 Tango's order. With no pad, or with the stick inside its
+                 dead zone, this is button mode: there is no deflection to
+                 read off a keyboard, so a keyboard player still walks with
+                 the movement keys and still runs on the bound run key
+                 (shift), exactly as RUN_BUTTON always did. A selftest is
+                 pinned to RUN_BUTTON whatever the file says, which is why
+                 the sweeps do not move.
+     RUN_AUTO    0x800 is held for you, always. No button, always running.
 
-/* ---- lobby stub state (real lobbies land with the net plugin) ---- */
-    static int g_lobby_state;   /* 0 offline, 1 hosting, 2 joined (mirrors role) */
-static int g_lobby_code;
-
-/* mods live beside the exe; toggling renames their folders */
-static std::string g_mods_dir;
-static void front_save_state(void);
-static void apply_character_live(void);
-static const char *kModRowIds[] = {
-    "analog_controls", "character_select", "outfit",     "speed_boost",
-    "high_jump",       "bottom_compact",   "widescreen", "small_arena",
-    "sm64_movement",
+   The run BINDING is per device on purpose. Rebinding to a key leaves the
+   pad alone and rebinding to a pad button leaves the keyboard alone, because
+   a player who moves run off shift on the keyboard has said nothing about
+   what X should do on a controller. */
+enum { RUN_BUTTON = 0, RUN_ANALOG, RUN_AUTO, RUN_MODE_COUNT };
+static const char *const RUN_MODE_NAME[RUN_MODE_COUNT] = {
+    "button   (hold it to run)",
+    "analog   (how far the stick is pushed)",
+    "auto     (always running, no button)"
 };
-static int f5_mod_index(int menu_row)
+static int g_run_mode;                /* settings.json RunMode */
+static int g_run_key = 0x10;          /* settings.json RunButtonKey, VK_SHIFT */
+static int g_run_pad = 0x4000;        /* settings.json RunButtonPad, pad X */
+
+/* ---- THE CONTROL BINDINGS (settings.json Key* / Pad*) --------------------
+   Every gameplay key and pad button this window reads, one slot per action,
+   indexed by hal/host_settings.h's HOST_KEY_ / HOST_PAD_ enums. The header
+   carries the key list, the defaults and why they are the defaults; this
+   file only READS the bound codes where it used to read literals, so a
+   settings.json with none of the keys is byte for byte the program before
+   they existed.
+
+   Loaded lazily on first use rather than at one place in main, because there
+   are two frame loops (main's level loop and scene_window_run's) and the
+   scene branch leaves main before the level loop's boot block runs. One
+   idempotent load serves both and the menu's reserved-key test as well.
+
+   The run action is NOT read out of this table by host_ds_buttons; it keeps
+   reading g_run_key / g_run_pad, which the rebind row writes live. The
+   loader guarantees the two agree at boot (KeyRun and RunButtonKey are one
+   value there), and the rebind row's save writes both spellings. */
+static int g_key[HOST_KEY_COUNT];
+static int g_pad[HOST_PAD_COUNT];
+static int g_bindings_loaded;
+static void bindings_load(void)
 {
-    switch (menu_row) {
-    case MENU_ANALOG: return 0;
-    case MENU_CHARACTER: return 1;
-    case MENU_COLOR: return 2;
-    case MENU_SPEED: return 3;
-    case MENU_JUMP: return 4;
-    case MENU_SUB: return 5;
-    case MENU_WIDE: return 6;
-    case MENU_ARENA: return 7;
-    default: break;
-    }
-    return -1;
-}
-/* Enter on a mod row flips it (rename on disk). Disabling applies vanilla
-   live at once; enabling arms the mod's script for the next boot. */
-static void mod_row_toggle(int mod_index)
-{
-    if (mod_index < 0 || mod_index > 8) return;
-    const char *id = kModRowIds[mod_index];
-    const bool on = !sm64ds::mods::mod_enabled(id);
-    if (!sm64ds::mods::mod_set_enabled(g_mods_dir, id, on)) {
-        toast("mod folder missing: %s", id);
-        return;
-    }
-    if (!on) {
-        switch (mod_index) {
-        case 0: g_analog_controls = 0; break;
-        case 1:
-            g_character = 0;
-            apply_character_live();
-            break;
-        case 2: g_color = 0; break;
-        case 3: g_speed_pct = 100; break;
-        case 4: g_jump_pct = 100; break;
-        case 5:
-            g_sub_scale = 3;
-            hal_sub_screen_set_scale(g_sub_scale);
-            break;
-        case 6: g_widescreen = 0; break;
-        case 7: g_arena = 0; break;
-        case 8:
-            g_speed_pct = 100;
-            g_jump_pct = 100;
-            break;
-        default: break;
-        }
-    }
-    front_save_state();
-    toast("%s %s%s", id, on ? "ON" : "OFF",
-          on ? " (restart applies it)" : "");
-}
-/* Turning a knob re-arms its mod (helper so call sites stay braceless) */
-static void mod_row_arm(int mi)
-{
-    if (mi >= 0 && !sm64ds::mods::mod_enabled(kModRowIds[mi])) {
-        sm64ds::mods::mod_set_enabled(g_mods_dir, kModRowIds[mi], true);
-        front_save_state();
-    }
+    if (g_bindings_loaded) return;
+    g_bindings_loaded = 1;
+    for (int i = 0; i < HOST_KEY_COUNT; ++i) g_key[i] = host_setting_key(i);
+    for (int i = 0; i < HOST_PAD_COUNT; ++i) g_pad[i] = host_setting_pad(i);
 }
 
-static const char *key_name(int vk)
+/* THE REBIND CAPTURE, armed from the menu's rebind row and read by the window
+   procedure. A capture has to swallow the press it is capturing, or binding
+   run to F3 would also toggle the overlay on the way past. So the capture
+   lives where the presses arrive: while it is armed, WM_KEYDOWN never reaches
+   the window at all, and the key it saw is handed to the frame loop through
+   g_rebind_key.
+
+   THE ESCAPE HALF OF THAT ARGUMENT IS GONE (run mg10, lane ESC). It used to
+   read "and binding it to escape would close the game -- and escape is the one
+   key the window procedure, not the frame loop, acts on", which was the whole
+   reason the swallow had to be up there rather than in key_live. Escape is an
+   ordinary frame-loop key now, gated by key_live like every other, so the
+   capture no longer needs to protect it from anything. The swallow stays for
+   the F3 reason above, which was always the load-bearing one.
+
+   Level key reads are gated too, one line inside key_live, so nothing that
+   was already held keeps steering while a person is picking a button. */
+static int g_rebind_capture;          /* armed: swallow presses, report them */
+static int g_rebind_key;              /* the virtual-key the proc last saw */
+
+/* THE PAD LAYOUT LEARN FLOW (port/hal/pad_backend.h), the rebind capture's
+   bigger sibling: while it runs the window is deaf the same way (key_live,
+   the window procedure and the mouse capture all test this flag beside
+   g_rebind_capture), the frame sees no pad, and padlearn_frame below walks
+   the player through one press per control. 0 idle, else 1 + the step. */
+static int g_padlearn;
+
+/* ---- LIVE KEYBOARD, GATED (port mod) --------------------------------------
+   File scope, and a function rather than main's lambda, because there are TWO
+   frame loops now -- the level loop in main and scene_window_run's -- and
+   three separate gates live in here. A second copy would be three gates to
+   keep in step, and the one that matters most is invisible when it is right:
+   GetAsyncKeyState reports machine-global key state, focus or no focus, so an
+   automated run picks up anyone typing anywhere on the box unless something
+   stops it.
+
+   GATE 1, THE SELFTEST. Under SM64DS_WINDOW_SELFTEST every live keyboard read
+   here returns released, and the scripted probes are the only input a
+   comparator run has. g_selftest is set by main from its own local before the
+   frame loop starts. It is never set on the scene path, which cannot be a
+   selftest -- port_scene_want_window refuses a window to one before anything
+   else is asked.
+
+   GATE 2, THE REBIND CAPTURE. While the rebind row is capturing, the whole
+   window is deaf: the press being captured must not also be a camera toggle or
+   a save state, and whatever was already held must not keep steering while a
+   person is choosing a button. One line here covers every caller, which is why
+   there is not a gate at each of them.
+
+   GATE 3, FOCUS. The same machine-global read meant that a player who
+   alt-tabbed and typed somewhere else kept walking Mario around, and that a
+   direction held at the moment they left stayed held forever.
+   hal_window_focused() is false whenever this window is not the foreground
+   one, and then every interactive key here reads RELEASED. That is also the
+   release: the pad words are rebuilt from these reads every frame, so the
+   frame focus goes away is the frame the stick and the buttons go to neutral,
+   with no separate teardown to keep in step.
+
+   Nothing a player pressed while away arrives late either. There is no queue
+   to replay -- these are level reads, not messages -- but a key still
+   physically down on the way back would otherwise read as a fresh press and
+   fire the edge latches (F1, F3, F4, the menu). So on the focus-regained edge
+   every key is marked STALE, and a stale key keeps reading released until it
+   is seen physically up. Pressing it again after that works normally. Both
+   loops set that mark, which is why key_stale lives here with the function.
+
+   key_stale is indexed by virtual-key code, which is what every caller passes
+   and is 0..255 by definition; the bounds test is there because this function
+   is the one place that would turn a typo into a stray write. */
+static unsigned char key_stale[256];
+static int g_selftest;
+
+static int key_live(int vk)
 {
-    static char buf[16];
-    if (vk >= 'A' && vk <= 'Z' || vk >= '0' && vk <= '9') {
-        snprintf(buf, sizeof buf, "%c", vk);
-        return buf;
+    if (g_selftest) return 0;
+    if (g_rebind_capture) return 0;
+    if (g_padlearn) return 0;           /* a pad is being taught */
+    if (rb_replaying()) return 0;       /* a rewound window is being re-run */
+    if (!hal_window_focused()) return 0;
+    const int down = W.GetAsyncKeyState_(vk) < 0;
+    if ((unsigned)vk < 256) {
+        if (!down) { key_stale[vk] = 0; return 0; }
+        if (key_stale[vk]) return 0;
     }
-    switch (vk) {
-    case VK_SPACE: return "Space";
-    case VK_SHIFT: return "Shift";
-    case VK_CONTROL: return "Ctrl";
-    case VK_MENU: return "Alt";
-    case VK_UP: return "Up";
-    case VK_DOWN: return "Down";
-    case VK_LEFT: return "Left";
-    case VK_RIGHT: return "Right";
-    case VK_RETURN: return "Enter";
-    case VK_TAB: return "Tab";
-    case VK_CAPITAL: return "Caps";
-    default: break;
-    }
-    snprintf(buf, sizeof buf, "key%d", vk & 0xff);
-    return buf;
+    return down;
 }
 
-/* gamepad bindings: XInput button bit, or 100 = LT, 101 = RT */
-static const char *pad_name(int code)
+/* The bound key for an action, through key_live and so behind all three
+   gates; 0 (unbound) never reads down. pad_act is the pad half: the bound
+   mask against the buttons word, and 0 never matches. Both load the tables
+   on first use, see bindings_load. */
+static int key_act(int action)
 {
-    static const char *bits[] = {"DUp", "DDown", "DLeft", "DRight",
-                                 "Start", "Back", "LStick", "RStick", "LB",
-                                 "RB", "?", "?", "A", "B", "X", "Y"};
-    if (code >= 0 && code <= 15) return bits[code];
-    if (code == 100) return "LT";
-    if (code == 101) return "RT";
-    return "?";
+    bindings_load();
+    const int vk = g_key[action];
+    return vk && key_live(vk);
 }
-
-static int pad_btn_down(const XPad *pad, int code)
+/* A binding mask against the pad: the XInput word for the sixteen real
+   buttons, and the two trigger pseudo-bits (HOST_PAD_LT / HOST_PAD_RT,
+   hal/host_settings.h) read off the axes past the same 100-of-255 pull the
+   crouch trigger has always used. */
+static int pad_mask_down(const XPad *pad, int m)
 {
-    if (!pad) return 0;
-    if (code >= 0 && code <= 15) return (pad->buttons & (1u << code)) != 0;
-    if (code == 100) return pad->lt > 100;
-    if (code == 101) return pad->rt > 100;
+    if (!m) return 0;
+    if (pad->buttons & (unsigned)(m & 0xffff)) return 1;
+    if ((m & HOST_PAD_LT) && pad->lt > 100) return 1;
+    if ((m & HOST_PAD_RT) && pad->rt > 100) return 1;
     return 0;
 }
 
-static short ang_lerp(short a, short b, float t)
+/* The pad word with the triggers folded in as their pseudo-bits, for the
+   rebind capture: a trigger pull is then one fresh bit like any button. */
+static unsigned pad_word_with_triggers(const XPad *pad)
 {
-    int d = (short)(b - a);
-    return (short)(a + (int)((float)d * t));
+    unsigned w = pad->buttons;
+    if (pad->lt > 100) w |= HOST_PAD_LT;
+    if (pad->rt > 100) w |= HOST_PAD_RT;
+    return w;
 }
 
-/* CoopDX-style: physics stays 30Hz; extra presents lerp actors from the
-   previous tick (Actor+0x68 / mPrevAngle*) toward the current one. */
-struct InterpSave {
-    char *o;
-    int x, y, z;
-    short ax, ay, az;
-};
-static InterpSave g_interp_save[512];
-static int g_interp_n;
-
-static void interp_apply(float t)
+static int pad_act(const XPad *pad, int action)
 {
-    g_interp_n = 0;
-    if (t >= 0.999f) return;
-    if (t < 0.f) t = 0.f;
-    for (int *node = (int *)(size_t)data_020a4b78[0]; node && g_interp_n < 512;
-         node = (int *)(size_t)node[1]) {
-        char *o = (char *)(size_t)node[2];
-        if (!o) continue;
-        InterpSave &s = g_interp_save[g_interp_n++];
-        s.o = o;
-        s.x = *(int *)(o + 0x5c);
-        s.y = *(int *)(o + 0x60);
-        s.z = *(int *)(o + 0x64);
-        s.ax = *(short *)(o + 0x8c);
-        s.ay = *(short *)(o + 0x8e);
-        s.az = *(short *)(o + 0x90);
-        const int px = *(int *)(o + 0x68);
-        const int py = *(int *)(o + 0x6c);
-        const int pz = *(int *)(o + 0x70);
-        *(int *)(o + 0x5c) = px + (int)((float)(s.x - px) * t);
-        *(int *)(o + 0x60) = py + (int)((float)(s.y - py) * t);
-        *(int *)(o + 0x64) = pz + (int)((float)(s.z - pz) * t);
-        *(short *)(o + 0x8c) = ang_lerp(*(short *)(o + 0x92), s.ax, t);
-        *(short *)(o + 0x8e) = ang_lerp(*(short *)(o + 0x94), s.ay, t);
-        *(short *)(o + 0x90) = ang_lerp(*(short *)(o + 0x96), s.az, t);
-    }
+    bindings_load();
+    return pad_mask_down(pad, g_pad[action]);
 }
 
-static void interp_restore(void)
-{
-    for (int i = 0; i < g_interp_n; ++i) {
-        const InterpSave &s = g_interp_save[i];
-        *(int *)(s.o + 0x5c) = s.x;
-        *(int *)(s.o + 0x60) = s.y;
-        *(int *)(s.o + 0x64) = s.z;
-        *(short *)(s.o + 0x8c) = s.ax;
-        *(short *)(s.o + 0x8e) = s.ay;
-        *(short *)(s.o + 0x90) = s.az;
-    }
-    g_interp_n = 0;
-}
+/* THE PAD'S HALF OF THE SAME GATE, and it was missing for as long as the
+   keyboard's half has existed.
 
-static void bind_begin(int *key, int *pad, const char *action)
-{
-    g_edit_key_target = key;
-    g_edit_pad_target = pad;
-    g_edit_mode = EDIT_KEY;
-    g_edit_pad = 1;
-    g_edit_wait_release = 1;
-    toast("Press a key or button for %s...", action);
-}
+   XInputGetState is machine-global exactly the way GetAsyncKeyState is: it
+   answers about the physical controller, not about who is in front. One
+   window was the whole world when GATE 3 was written, so the keyboard half
+   was the whole fix. Two windows is a different machine. A single pad drove
+   BOTH of them at once -- every stick push walked two Marios, every A press
+   jumped two -- and neither window was wrong to think the input was for it,
+   because nothing had ever told either one otherwise.
 
-static const char *character_name(int c)
-{
-    return c == 0 ? "Mario" : c == 1 ? "Luigi" : c == 2 ? "Wario" : "Yoshi";
-}
+   So the pad reads through hal_window_focused() with everything else, which
+   also buys the two behaviours that predicate already carries: the
+   SM64DS_INPUT_NOFOCUSGATE escape hatch for a harness that genuinely wants
+   background reads, and the fail-open on a window-less binary.
 
-static int port_view_aspect(void *cam)
-{
-    if (g_widescreen) return (16 << 12) / 9;
-    return *(int *)((char *)cam + 0xf8);
-}
+   NEUTRAL, NOT FROZEN, on the way out: the struct is zeroed rather than left
+   holding the last frame's stick, so the frame focus goes away is the frame
+   the pad goes to centre, matching the keyboard's release semantics instead
+   of leaving a direction leaning.
 
-/* forward: the live player actor, set once the entrance spawns him */
-static void *g_live_player;
-static void apply_character_live(void)
+   AND THE HELD-OVER PRESS, which is the pad's version of key_stale. A button
+   still physically down when the window comes back would otherwise read as a
+   FRESH press on the return frame and fire an edge latch -- open the debug
+   menu, confirm a row, toggle the freecam -- so every button is marked stale
+   on the way out and a stale bit keeps reading released until that button is
+   seen up. Same policy as memset(key_stale, 1, ...), one word instead of 256
+   bytes because the pad's whole state is a mask.
+
+   Called BEFORE pad_test_apply at both read sites, so SM64DS_PAD_TEST's
+   scripted mask re-arms the pad after the gate and an automated run is
+   unaffected by any of this. */
+static void pad_focus_gate(int *pad_live, XPad *pad)
 {
-    if (!g_live_player) return;
-    char *c = (char *)g_live_player;
-    /* param1 low byte + mCharacter both carry the id; SetRealCharacter
-       owns the full switch (files, hat, models, heal). Skip when already
-       there so a menu re-open never reloads. */
-    if (((*(int *)(c + 8)) & 0xff) == g_character &&
-        *(unsigned char *)(c + 0x6d9) == (unsigned char)g_character)
+    static unsigned stale = 0;
+    static int said_gated = 0;      /* one line per transition, not per frame */
+    if (!hal_window_focused()) {
+        stale = ~0u;
+        if (*pad_live) {
+            memset(pad, 0, sizeof *pad);
+            *pad_live = 0;
+            /* SAID OUT LOUD, because a pad that silently stops working is
+               indistinguishable from a pad that broke. Only when there WAS a
+               live pad to refuse, so a run with no controller plugged in says
+               nothing at all. */
+            if (!said_gated) {
+                said_gated = 1;
+                fprintf(stderr, "[pad] gated: this window is not the "
+                                "foreground one, so the controller drives the "
+                                "window that is\n");
+            }
+        }
         return;
-    hal_player_set_real_character(g_live_player, (unsigned)g_character);
-    /* voices follow the character: the boot loads the boot character's
-       sound group (InitResources), but a live switch never did -- the new
-       character kept the old voice bank (or silence). Same call the ROM
-       makes per character (func_ov002_020e6330); safe to repeat (it
-       early-outs when already loaded). */
-    func_02011f7c(data_ov002_020ff0f0[g_character & 3]);
+    }
+    if (!*pad_live) {
+        /* no pad to observe a release on, so whatever is down when one
+           appears is held-over by the same rule */
+        stale = ~0u;
+        return;
+    }
+    if (said_gated) {
+        said_gated = 0;
+        fprintf(stderr, "[pad] ungated: this window has the foreground again; "
+                        "anything still held reads released until it is let "
+                        "go\n");
+    }
+    stale &= (unsigned)pad->buttons;                 /* released, so no longer stale */
+    pad->buttons = (unsigned short)((unsigned)pad->buttons & ~stale);
 }
 
+/* Keys and pad buttons this program has already spoken for. Binding run to
+   one of them would not produce a conflict a player could see and undo; it
+   would produce a menu that cannot be closed, or one that opens every time you
+   start running. So the capture refuses them and says so, which is the one
+   case where refusing is friendlier than obeying. */
+static int run_key_reserved(int vk)
+{
+    if (vk == VK_ESCAPE || vk == VK_RETURN) return 1;   /* menu open, menu act */
+    /* the port's own row. F10 is in it because Windows itself takes F10 as
+       the menu-bar activator, so a run bound to it would open the system
+       menu on every step; F11 and F12 are the fullscreen toggle. */
+    if (vk >= VK_F1 && vk <= VK_F12) return 1;
+    if (vk >= VK_LEFT && vk <= VK_DOWN) return 1;       /* menu navigation */
+    /* and every key bound to another action -- the walk keys (which are also
+       menu navigation), jump, attack, crouch, start, select. A run that is
+       also a jump is not a conflict a player could see and undo from here,
+       and the same key doing two things is settings.json's to say, not the
+       capture's. The run slot itself is skipped: rebinding run to the key it
+       already is must not be refused. */
+    bindings_load();
+    for (int i = 0; i < HOST_KEY_COUNT; ++i)
+        if (i != HOST_KEY_RUN && g_key[i] && g_key[i] == vk) return 1;
+    /* the bottom-screen panel, and it is read in hal/sub_screen.cpp rather
+       than through this file's key_live -- so a binding on it would fire the
+       panel from outside every gate here */
+    if (vk == VK_TAB) return 1;
+    return 0;
+}
+static int run_pad_reserved(unsigned mask)
+{
+    /* the d-pad (0x000f) and A (0x1000) drive the menu, BACK (0x0020) opens
+       it and B (0x2000) closes it, and the right stick's click (0x0080) is
+       the freecam toggle */
+    if (mask & 0x30afu) return 1;
+    /* and, like the keyboard half, any button bound to another action */
+    bindings_load();
+    for (int i = 0; i < HOST_PAD_COUNT; ++i)
+        if (i != HOST_PAD_RUN && g_pad[i] && (mask & (unsigned)g_pad[i]))
+            return 1;
+    return 0;
+}
+
+/* A printable name for a binding. The letters and digits are their own ASCII
+   so they need no table, and everything a player is likely to reach for is
+   in the short one; anything else prints as its code, which is at least the
+   number they would put in settings.json by hand. */
+static const char *run_key_name(int vk, char *buf, size_t cap)
+{
+    static const struct { int vk; const char *name; } NAMED[] = {
+        { 0,           "unbound"   }, { VK_SHIFT,   "shift"     },
+        { VK_CONTROL,  "ctrl"      }, { VK_MENU,    "alt"       },
+        { VK_SPACE,    "space"     }, { VK_TAB,     "tab"       },
+        { VK_LSHIFT,   "left shift"}, { VK_RSHIFT,  "right shift" },
+        { VK_LCONTROL, "left ctrl" }, { VK_RCONTROL,"right ctrl"},
+        { VK_CAPITAL,  "caps lock" }, { VK_BACK,    "backspace" },
+        { VK_OEM_3,    "backtick"  }, { VK_OEM_COMMA, "comma"   },
+        { VK_OEM_PERIOD, "period"  }, { VK_OEM_2,   "slash"     },
+        { VK_OEM_1,    "semicolon" }, { VK_OEM_7,   "quote"     },
+        { VK_OEM_4,    "["         }, { VK_OEM_6,   "]"         },
+        { VK_OEM_MINUS,"-"         }, { VK_OEM_PLUS,"="         },
+        /* everything a binding can now be, so the boot line and the menu
+           read as words: the arrows and the rest of the navigation cluster,
+           enter and escape, the numpad, the function row */
+        { VK_UP,       "up"        }, { VK_DOWN,    "down"      },
+        { VK_LEFT,     "left"      }, { VK_RIGHT,   "right"     },
+        { VK_RETURN,   "enter"     }, { VK_ESCAPE,  "escape"    },
+        { VK_INSERT,   "insert"    }, { VK_DELETE,  "delete"    },
+        { VK_HOME,     "home"      }, { VK_END,     "end"       },
+        { VK_PRIOR,    "page up"   }, { VK_NEXT,    "page down" },
+        { VK_LMENU,    "left alt"  }, { VK_RMENU,   "right alt" },
+        { VK_NUMPAD0,  "numpad 0"  }, { VK_NUMPAD1, "numpad 1"  },
+        { VK_NUMPAD2,  "numpad 2"  }, { VK_NUMPAD3, "numpad 3"  },
+        { VK_NUMPAD4,  "numpad 4"  }, { VK_NUMPAD5, "numpad 5"  },
+        { VK_NUMPAD6,  "numpad 6"  }, { VK_NUMPAD7, "numpad 7"  },
+        { VK_NUMPAD8,  "numpad 8"  }, { VK_NUMPAD9, "numpad 9"  },
+        { VK_MULTIPLY, "numpad *"  }, { VK_ADD,     "numpad +"  },
+        { VK_SUBTRACT, "numpad -"  }, { VK_DECIMAL, "numpad ."  },
+        { VK_DIVIDE,   "numpad /"  },
+        { VK_OEM_5,    "backslash" },
+    };
+    for (unsigned i = 0; i < sizeof NAMED / sizeof NAMED[0]; ++i)
+        if (NAMED[i].vk == vk) return NAMED[i].name;
+    if ((vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9')) {
+        snprintf(buf, cap, "%c", (char)vk);
+        return buf;
+    }
+    if (vk >= VK_F1 && vk <= VK_F24) {
+        snprintf(buf, cap, "F%d", vk - VK_F1 + 1);
+        return buf;
+    }
+    snprintf(buf, cap, "key 0x%02x", (unsigned)vk);
+    return buf;
+}
+static const char *run_pad_name(int mask, char *buf, size_t cap)
+{
+    switch (mask) {
+    case 0:      return "unbound";
+    case 0x1000: return "pad A";
+    case 0x2000: return "pad B";
+    case 0x4000: return "pad X";
+    case 0x8000: return "pad Y";
+    case 0x0100: return "pad LB";
+    case 0x0200: return "pad RB";
+    case HOST_PAD_LT: return "pad LT";
+    case HOST_PAD_RT: return "pad RT";
+    case 0x0010: return "pad start";
+    case 0x0020: return "pad back";
+    case 0x0040: return "left stick click";
+    case 0x0080: return "right stick click";
+    case 0x0001: return "d-pad up";
+    case 0x0002: return "d-pad down";
+    case 0x0004: return "d-pad left";
+    case 0x0008: return "d-pad right";
+    default: break;
+    }
+    snprintf(buf, cap, "pad 0x%04x", (unsigned)mask);
+    return buf;
+}
+
+/* ---- THE PAD LAYOUT LEARN FLOW (port mod, input shaping only) --------------
+   A player with a controller XInput does not see reported that only the
+   d-pad worked and the face buttons came out rotated ("x is a, b is x and a
+   is b ... would have preferred if you had to press a button to choose").
+   Their pad hit hal/pad_backend.cpp's generic guess, which assumes buttons
+   0..3 are A B X Y and the left stick is on X/Y, and the pad disagreed. So
+   this is that: the game asks for each control by name, reads the FIRST
+   fresh DirectInput button index (or, for a stick, the axis that moved the
+   most and which way), and builds a PadLayout row the backend applies at
+   once and settings.json's PadLayouts array keeps (hal/host_settings.h).
+
+   FOURTEEN STEPS, in the order below. Face buttons are asked by POSITION
+   (bottom, right, left, top), which is what the mask means everywhere else
+   in the port. The stick clicks are not asked for: they keep the generic
+   guess unless a learned button took their index. The d-pad is not asked
+   for either; it stays the hat, which every pad seen so far reports it on.
+
+   A trigger step takes a button, or, if none comes and an axis that rested
+   at its minimum swings up, that axis (a DualShock's L2/R2 are both).
+   Backspace skips a step (the pad has no such control; it reads unbound);
+   escape cancels the whole thing and nothing is saved. A press that repeats
+   an earlier answer is refused in words, because a layout with one index on
+   two buttons is the bug this exists to fix.
+
+   STICK STEPS WAIT FOR QUIET. The baseline the deflection is measured from
+   is taken only after the axes have held still for a few frames, so a stick
+   still being released from the previous step cannot answer this one with
+   its return travel, and a trigger that rests at its minimum is not read as
+   a push. Only a swing past half travel counts.
+
+   Only offered when port_pad_raw says a DirectInput pad is the live one: an
+   XInput pad's layout is XInput's own and there is nothing to teach. */
 enum {
-    FRONT_HOME = 0,
-    FRONT_OPTIONS,
-    FRONT_FILES,
-    FRONT_MODS,
-    FRONT_LOBBY,
-    FRONT_CHARACTER,
-    FRONT_PLAYER,
-    FRONT_CONTROLS,
-    FRONT_CAMERA,
-    FRONT_DISPLAY,
-    FRONT_SOUND,
-    FRONT_MISC,
-    FRONT_INFO
+    PADLEARN_STEPS = 14,
+    PADLEARN_STILL = 3000,      /* an axis moved less than this: still */
+    PADLEARN_STILL_FRAMES = 6,  /* this many still frames before arming */
+    PADLEARN_REST_BAND = 8000,  /* and every axis this close to its rest */
+    PADLEARN_PUSH = 16000,      /* a swing past this is a push */
+    PADLEARN_TRIGGER_REST = -20000, /* an axis resting below this is a trigger */
+    PADLEARN_TOAST_HOLD = 90    /* frames a refusal stays on the toast */
 };
-
-static int front_row_count(void)
-{
-    switch (front_page) {
-    case FRONT_HOME: return 5;
-    case FRONT_OPTIONS: return 7;
-    case FRONT_PLAYER: return 4;
-    case FRONT_CONTROLS: return 11;
-    case FRONT_CAMERA: return 5;
-    case FRONT_DISPLAY: return 5;
-    case FRONT_SOUND: return 3;
-    case FRONT_MISC: return 4;
-    case FRONT_INFO: return 1;
-    case FRONT_FILES: return 6;
-    case FRONT_LOBBY: return 5;
-    case FRONT_CHARACTER: return 5;
-    default: return 12;   /* MODS: 9 mods + Refresh + Open folder + Back */
-    }
-}
-
-/* outfit tints (multipliers over the body's DIF_AMB channels) */
-static const float g_color_tints[8][3] = {
-    {1.0f, 1.0f, 1.0f}, {1.5f, 0.55f, 0.55f}, {1.5f, 0.9f, 0.45f},
-    {1.4f, 1.25f, 0.5f}, {0.6f, 1.4f, 0.6f}, {0.55f, 0.75f, 1.5f},
-    {1.25f, 0.6f, 1.4f}, {0.32f, 0.32f, 0.45f},
+struct PadLearnStep {
+    const char *prompt;
+    int HostPadLayout::*btn;        /* the button field, or 0 */
+    int HostPadLayout::*axis;       /* the axis field (sticks; trigger fallback) */
+    int HostPadLayout::*sign;       /* the stick's sign field, or 0 */
 };
-static const char *color_name(int c)
+static const PadLearnStep PADLEARN[PADLEARN_STEPS] = {
+    { "press the BOTTOM face button",  &HostPadLayout::a,      0, 0 },
+    { "press the RIGHT face button",   &HostPadLayout::b,      0, 0 },
+    { "press the LEFT face button",    &HostPadLayout::x,      0, 0 },
+    { "press the TOP face button",     &HostPadLayout::y,      0, 0 },
+    { "press LB (left bumper)",        &HostPadLayout::lb,     0, 0 },
+    { "press RB (right bumper)",       &HostPadLayout::rb,     0, 0 },
+    { "press LT (left trigger)",       &HostPadLayout::lt_btn, &HostPadLayout::lt_axis, 0 },
+    { "press RT (right trigger)",      &HostPadLayout::rt_btn, &HostPadLayout::rt_axis, 0 },
+    { "press Back / Select / Minus",   &HostPadLayout::back,   0, 0 },
+    { "press Start / Options / Plus",  &HostPadLayout::start,  0, 0 },
+    { "push the LEFT stick RIGHT",  0, &HostPadLayout::lx_axis, &HostPadLayout::lx_sign },
+    { "push the LEFT stick UP",     0, &HostPadLayout::ly_axis, &HostPadLayout::ly_sign },
+    { "push the RIGHT stick RIGHT", 0, &HostPadLayout::rx_axis, &HostPadLayout::rx_sign },
+    { "push the RIGHT stick UP",    0, &HostPadLayout::ry_axis, &HostPadLayout::ry_sign },
+};
+static HostPadLayout padlearn_out;
+static unsigned padlearn_prev_btn;      /* last frame's raw button mask */
+static short padlearn_last[6];          /* last frame's axes, for the quiet test */
+static short padlearn_rest[6];          /* the axes as the flow began: rest */
+static short padlearn_base[6];          /* the baseline a swing is measured from */
+static int padlearn_quiet, padlearn_armed;
+static int padlearn_hold;               /* frames a refusal toast stays up */
+
+static void padlearn_prompt(void)
 {
-    static const char *names[] = {"Default", "Red",   "Orange", "Yellow",
-                                  "Green",   "Blue",  "Purple", "Shadow"};
-    return names[c < 0 ? 0 : (c > 7 ? 7 : c)];
+    char msg[64];
+    snprintf(msg, sizeof msg, "%d/%d %s (esc quits, bksp skips)",
+             g_padlearn, PADLEARN_STEPS, PADLEARN[g_padlearn - 1].prompt);
+    ss_note(msg);
 }
 
-static PortLogo g_logo;
-static int g_logo_tried;
-
-/* outfit tint for hal/player_bridges.cpp: null = Default (no tint) */
-extern "C" const float *port_outfit_tint(void)
+static void padlearn_step_begin(void)
 {
-    if (g_color <= 0 || g_color > 7) return 0;
-    return g_color_tints[g_color];
+    padlearn_quiet = 0;
+    padlearn_armed = 0;
+    padlearn_hold = 0;
+    padlearn_prompt();
 }
 
-static std::string front_state_path(void)
+static void padlearn_start(const PortPadRaw *r)
 {
-    const char *local = std::getenv("LOCALAPPDATA");
-    if (!local) return "";
-    return (std::filesystem::path(local) / "SM64DS" / "mod_state.cfg").string();
-}
-
-static void front_load_state(void)
-{
-    const std::string path = front_state_path();
-    if (path.empty()) return;
-    FILE *f = std::fopen(path.c_str(), "rb");
-    if (!f) return;
-    int analog = 1, invert = 0, ch = 0, spd = 100, jmp = 100, sub = 3,
-        wide = 0, arena = 0, camd = 100, fps = 0, kj = VK_SPACE,
-        kr = VK_SHIFT, kc = VK_CONTROL, kp = 'X', col = 0, vs = 1,
-        pj = 12, pr = 14, pp = 13, pc = 101, ivy = 0, snd = 1, mut = 0,
-        tst = 1;
-    /* old files still load: missing fields keep their defaults */
-    if (std::fscanf(f, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
-                    &analog, &invert, &ch, &spd, &jmp, &sub, &wide, &arena,
-                    &camd, &fps, &kj, &kr, &kc, &kp, &col, &vs, &pj, &pr,
-                    &pp, &pc, &ivy, &snd, &mut, &tst) >= 2) {
-        g_analog_controls = analog != 0;
-        front_invert_x = invert != 0;
-        if (ch >= 0 && ch <= 3) g_character = ch;
-        if (spd >= 25 && spd <= 300) g_speed_pct = spd;
-        if (jmp >= 25 && jmp <= 300) g_jump_pct = jmp;
-        if (sub >= 1 && sub <= 4) g_sub_scale = sub;
-        g_widescreen = wide != 0;
-        g_arena = arena != 0;
-        if (camd >= 50 && camd <= 200) g_cam_dist_pct = camd;
-        if (fps >= 0 && fps <= 2) g_fps_mode = fps;
-        if (kj > 0 && kj < 256) g_key_jump = kj;
-        if (kr > 0 && kr < 256) g_key_run = kr;
-        if (kc > 0 && kc < 256) g_key_crouch = kc;
-        if (kp > 0 && kp < 256) g_key_punch = kp;
-        if (col >= 0 && col <= 7) g_color = col;
-        g_vsync = vs != 0;
-        if ((pj >= 0 && pj <= 15) || pj == 100 || pj == 101) g_pad_jump = pj;
-        if ((pr >= 0 && pr <= 15) || pr == 100 || pr == 101) g_pad_run = pr;
-        if ((pp >= 0 && pp <= 15) || pp == 100 || pp == 101) g_pad_punch = pp;
-        if ((pc >= 0 && pc <= 15) || pc == 100 || pc == 101) g_pad_crouch = pc;
-        front_invert_y = ivy != 0;
-        g_sound_on = snd != 0;
-        g_mute_unfocused = mut != 0;
-        g_toasts_on = tst != 0;
+    host_pad_layout_default(&padlearn_out);
+    padlearn_out.vid = (int)r->vid;
+    padlearn_out.pid = (int)r->pid;
+    snprintf(padlearn_out.name, sizeof padlearn_out.name, "%s", r->name);
+    /* everything the flow asks for starts UNBOUND, so a skipped step reads
+       as "no such control" rather than as the guess that was wrong */
+    for (int i = 0; i < PADLEARN_STEPS; ++i) {
+        if (PADLEARN[i].btn) padlearn_out.*PADLEARN[i].btn = -1;
+        if (PADLEARN[i].axis) padlearn_out.*PADLEARN[i].axis = -1;
     }
-    /* username rides on line 2 (absent in old files -> default stays),
-       join-target IP on line 3 (blank = must type one to join) */
+    padlearn_prev_btn = r->buttons;
+    memcpy(padlearn_last, r->axis, sizeof padlearn_last);
+    /* THE REST POSITION IS TAKEN ONCE, HERE, with nothing held: a step
+       arms only when the axes are still AND near this, so a stick still
+       held from the previous step cannot become the baseline and answer
+       the next step with its release (review of lane PADCAL) */
+    memcpy(padlearn_rest, r->axis, sizeof padlearn_rest);
+    g_padlearn = 1;
+    g_rebind_key = 0;
+    /* enter is still physically down, the rebind row's trick */
+    memset(key_stale, 1, sizeof key_stale);
+    padlearn_step_begin();
+    fprintf(stderr, "[pad] learning a layout for %s (%04x:%04x)\n", r->name,
+            r->vid, r->pid);
+}
+
+static int padlearn_button_used(int idx)
+{
+    for (int i = 0; i < PADLEARN_STEPS; ++i)
+        if (PADLEARN[i].btn && padlearn_out.*PADLEARN[i].btn == idx) return 1;
+    return 0;
+}
+
+static int padlearn_axis_used(int a)
+{
+    for (int i = 0; i < PADLEARN_STEPS; ++i)
+        if (PADLEARN[i].axis && padlearn_out.*PADLEARN[i].axis == a) return 1;
+    return 0;
+}
+
+static void padlearn_refuse(const char *msg)
+{
+    ss_note(msg);
+    padlearn_hold = PADLEARN_TOAST_HOLD;
+}
+
+static void padlearn_finish(void)
+{
+    HostPadLayout *o = &padlearn_out;
+    /* the stick clicks keep the guess unless a learned button took it */
+    if (padlearn_button_used(o->lthumb)) o->lthumb = -1;
+    if (padlearn_button_used(o->rthumb)) o->rthumb = -1;
+    const int live = port_pad_set_layout(o);
+    const int saved = host_setting_save_pad_layout(o);
+    ss_note(!live   ? "layout NOT applied (too many learned pads)"
+            : saved ? "pad layout learned and saved"
+                    : "pad layout learned for THIS RUN (save failed, see log)");
+    fprintf(stderr, "[pad] learned layout %04x:%04x: a %d b %d x %d y %d lb %d "
+            "rb %d lt %d/%d rt %d/%d back %d start %d ls %d rs %d "
+            "lstick %d%c %d%c rstick %d%c %d%c%s\n",
+            (unsigned)o->vid, (unsigned)o->pid, o->a, o->b, o->x, o->y, o->lb,
+            o->rb, o->lt_btn, o->lt_axis, o->rt_btn, o->rt_axis, o->back,
+            o->start, o->lthumb, o->rthumb,
+            o->lx_axis, o->lx_sign < 0 ? '-' : '+',
+            o->ly_axis, o->ly_sign < 0 ? '-' : '+',
+            o->rx_axis, o->rx_sign < 0 ? '-' : '+',
+            o->ry_axis, o->ry_sign < 0 ? '-' : '+',
+            saved ? " (saved to settings.json)" : " (NOT saved)");
+    g_padlearn = 0;
+    memset(key_stale, 1, sizeof key_stale);
+}
+
+static void padlearn_advance(void)
+{
+    if (g_padlearn >= PADLEARN_STEPS) { padlearn_finish(); return; }
+    ++g_padlearn;
+    padlearn_step_begin();
+}
+
+/* Once a frame from both loops, ahead of the menu: the whole of the flow.
+   Leaves *pad_live cleared so nothing downstream reads the press. */
+static void padlearn_frame(int *pad_live)
+{
+    if (!g_padlearn) return;
+    *pad_live = 0;
+    /* the keyboard half arrived through the window procedure */
+    if (g_rebind_key) {
+        const int vk = g_rebind_key;
+        g_rebind_key = 0;
+        if (vk == VK_ESCAPE) {
+            ss_note("pad layout learning cancelled, nothing saved");
+            fprintf(stderr, "[pad] layout learning cancelled\n");
+            g_padlearn = 0;
+            memset(key_stale, 1, sizeof key_stale);
+            return;
+        }
+        if (vk == VK_BACK) {
+            padlearn_advance();
+            return;
+        }
+    }
+    PortPadRaw r;
+    if (!port_pad_raw(&r)) {
+        ss_note("the pad went away; layout learning cancelled");
+        fprintf(stderr, "[pad] layout learning cancelled: pad not live\n");
+        g_padlearn = 0;
+        return;
+    }
+    const PadLearnStep &st = PADLEARN[g_padlearn - 1];
+    const unsigned fresh = r.buttons & ~padlearn_prev_btn;
+    padlearn_prev_btn = r.buttons;
+    /* the quiet test: arm the axis baseline after enough still frames,
+       and only with every present axis back near its rest */
     {
-        char name[32] = {0};
-        if (std::fscanf(f, "%31s", name) == 1 && name[0]) {
-            name[sizeof g_username - 1] = 0;
-            strcpy(g_username, name);
+        int moved = 0, away = 0;
+        for (int a = 0; a < 6; ++a) {
+            const int d = (int)r.axis[a] - (int)padlearn_last[a];
+            if (d > PADLEARN_STILL || d < -PADLEARN_STILL) moved = 1;
+            padlearn_last[a] = r.axis[a];
+            const int e = (int)r.axis[a] - (int)padlearn_rest[a];
+            if (r.present[a] && (e > PADLEARN_REST_BAND || e < -PADLEARN_REST_BAND))
+                away = 1;
         }
-        char ip[64] = {0};
-        if (std::fscanf(f, "%63s", ip) == 1) {
-            ip[sizeof g_lobby_ip - 1] = 0;
-            strcpy(g_lobby_ip, ip);
+        padlearn_quiet = moved ? 0 : padlearn_quiet + 1;
+        if (!padlearn_armed && !away && padlearn_quiet >= PADLEARN_STILL_FRAMES) {
+            padlearn_armed = 1;
+            memcpy(padlearn_base, r.axis, sizeof padlearn_base);
         }
     }
-    std::fclose(f);
-}
-
-static void front_save_state(void)
-{
-    const std::string path = front_state_path();
-    if (path.empty()) return;
-    std::error_code ec;
-    std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
-    FILE *f = std::fopen(path.c_str(), "wb");
-    if (!f) return;
-    std::fprintf(f, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
-                 g_analog_controls ? 1 : 0, front_invert_x ? 1 : 0,
-                 g_character, g_speed_pct, g_jump_pct, g_sub_scale,
-                 g_widescreen ? 1 : 0, g_arena ? 1 : 0, g_cam_dist_pct,
-                 g_fps_mode, g_key_jump, g_key_run, g_key_crouch,
-                 g_key_punch, g_color, g_vsync ? 1 : 0, g_pad_jump,
-                 g_pad_run, g_pad_punch, g_pad_crouch,
-                 front_invert_y ? 1 : 0, g_sound_on ? 1 : 0,
-                 g_mute_unfocused ? 1 : 0, g_toasts_on ? 1 : 0);
-    std::fprintf(f, "%s\n", g_username);
-    std::fprintf(f, "%s\n", g_lobby_ip);
-    std::fclose(f);
-}
-
-static const char *front_page_name(void)
-{
-    return front_page == FRONT_OPTIONS ? "OPTIONS" :
-           front_page == FRONT_FILES ? "SAVE FILE" :
-           front_page == FRONT_MODS ? "MODS" :
-           front_page == FRONT_LOBBY ? "LOBBY" :
-           front_page == FRONT_CHARACTER ? "CHARACTER" :
-           front_page == FRONT_PLAYER ? "PLAYER" :
-           front_page == FRONT_CONTROLS ? "CONTROLS" :
-           front_page == FRONT_CAMERA ? "CAMERA" :
-           front_page == FRONT_DISPLAY ? "DISPLAY" :
-           front_page == FRONT_SOUND ? "SOUND" :
-           front_page == FRONT_MISC ? "MISC" :
-           front_page == FRONT_INFO ? "INFO" : "";
-}
-
-static const char *character_blurb(int c)
-{
-    return c == 0 ? "all-round" : c == 1 ? "jumps highest" :
-           c == 2 ? "strongest" : "flutters, eats";
-}
-
-static unsigned character_color(int c)
-{
-    return c == 0 ? 0xFFFF5B4Du : c == 1 ? 0xFF7CFF78u :
-           c == 2 ? 0xFFFFD12Eu : 0xFF4CC9FFu;
-}
-
-/* full-height navigation rail, CoopDX composition: the game stays alive
-   behind it, logo on top, buttons below, version at the foot */
-static void front_rail(ntr::Framebuffer &fb)
-{
-    /* solid near-black panel like the reference: readable over any scene */
-    ovl_fill(fb, 0, 0, 156, ntr::SCREEN_H, 0xFF121418u);
-}
-
-/* Mario-letter title: each glyph in the next Mario color. */
-static void mario_text(ntr::Framebuffer &fb, int x, int y, const char *s)
-{
-    static const uint32_t cols[] = {0xFFE52521u, 0xFFFFD12Eu, 0xFF3BB143u,
-                                    0xFF2E7DE9u};
-    char b[2] = {0, 0};
-    int i = 0;
-    for (; *s; ++s) {
-        if (*s == ' ') {
-            x += OVL_ADVANCE * OVL_SCALE;
-            continue;
+    /* the largest swing from the baseline, once armed */
+    int best = -1, best_d = 0;
+    if (padlearn_armed)
+        for (int a = 0; a < 6; ++a) {
+            if (!r.present[a]) continue;
+            const int d = (int)r.axis[a] - (int)padlearn_base[a];
+            const int m = d < 0 ? -d : d;
+            if (m > PADLEARN_PUSH && m > (best_d < 0 ? -best_d : best_d)) {
+                best = a;
+                best_d = d;
+            }
         }
-        b[0] = *s;
-        ovl_text(fb, x, y, b, cols[i & 3]);
-        x += OVL_ADVANCE * OVL_SCALE;
-        ++i;
-    }
-}
+    if (padlearn_hold > 0) --padlearn_hold;
+    else padlearn_prompt();
 
-/* centered rail title */
-static void front_title(ntr::Framebuffer &fb, const char *s)
-{
-    const int w = (int)strlen(s) * OVL_ADVANCE * OVL_SCALE;
-    mario_text(fb, (156 - w) / 2, 84, s);
-}
-
-static void front_button(ntr::Framebuffer &fb, int y, const char *label,
-                         int selected)
-{
-    const int x = 8, w = 140, h = 22;
-    const int bx = x, bw = w;
-    /* bordered button: dark fill, gray edge; selected gets the blue edge
-       and a lighter fill, label centered like the reference. */
-    ovl_fill(fb, bx, y, bw, h, selected ? 0xFF2A2E35u : 0xFF1B1E24u);
-    uint32_t edge = selected ? 0xFF2E7DE9u : 0xFF3A3F47u;
-    ovl_fill(fb, bx, y, bw, OVL_SCALE, edge);
-    ovl_fill(fb, bx, y + h - OVL_SCALE, bw, OVL_SCALE, edge);
-    ovl_fill(fb, bx, y, OVL_SCALE, h, edge);
-    ovl_fill(fb, bx + bw - OVL_SCALE, y, OVL_SCALE, h, edge);
-    const int lw = (int)strlen(label) * OVL_ADVANCE * OVL_SCALE;
-    ovl_text(fb, bx + (bw - lw) / 2, y + 7, label,
-             selected ? UI_TEXT : UI_DIM);
-}
-
-static void front_row(ntr::Framebuffer &fb, int y, const char *label,
-                      int selected, int enabled = 1, int check = -1)
-{
-    uint32_t col = UI_DIM;
-    if (selected)
-        col = UI_TEXT;
-    else if (!enabled)
-        col = UI_FAINT;
-    if (selected) ovl_selbar(fb, 8, y);
-    ovl_text(fb, 26, y, label, col);
-    /* checkbox at the rail's right edge for toggle rows */
-    if (check >= 0) {
-        char box[4] = {'[', check ? 'x' : ' ', ']', 0};
-        ovl_text(fb, 132, y, box,
-                 check ? UI_TEXT : (selected ? UI_DIM : UI_FAINT));
-    }
-}
-
-static void front_draw(ntr::Framebuffer &fb)
-{
-    char line[96];
-    front_rail(fb);
-    /* wordmark: the logo asset when present, the text mark otherwise */
-    extern PortLogo g_logo;
-    if (g_logo.px)
-        port_logo_blit(&fb.px[0][0], ntr::SCREEN_W, ntr::SCREEN_H, g_logo, 8,
-                       6, 140, 70);
-    else {
-        ovl_text(fb, 14, 12, "SUPER", 0xFF4CC9FFu);
-        ovl_text(fb, 14, 26, "MARIO", 0xFFFFD12Eu);
-        ovl_text(fb, 14, 40, "64", 0xFFFF5B4Du);
-        ovl_text(fb, 38, 40, "DS", 0xFF7CFF78u);
-        ovl_text(fb, 14, 56, "COOP", 0xFFFFFFFFu);
-    }
-    if (front_page == FRONT_HOME) {
-        static const char *home[] = {"Host", "Join", "Mods", "Options",
-                                     "Quit"};
-        for (int i = 0; i < 5; ++i)
-            front_button(fb, 96 + i * 30, home[i], i == front_sel);
-    } else {
-        front_title(fb, front_page_name());
-        if (front_page == FRONT_OPTIONS) {
-            /* hub, coopdx-style: categories below own their rows */
-            front_row(fb, 104, "Character", front_sel == 0);
-            front_row(fb, 118, "Controls", front_sel == 1);
-            front_row(fb, 132, "Camera", front_sel == 2);
-            front_row(fb, 146, "Display", front_sel == 3);
-            front_row(fb, 160, "Sound", front_sel == 4);
-            front_row(fb, 174, "Misc", front_sel == 5);
-            front_row(fb, 188, "Back", front_sel == 6);
-        } else if (front_page == FRONT_PLAYER) {
-            snprintf(line, sizeof line, "Character: %s",
-                     character_name(g_character));
-            front_row(fb, 104, line, front_sel == 0);
-            snprintf(line, sizeof line, "Color: %s", color_name(g_color));
-            front_row(fb, 118, line, front_sel == 1);
-            snprintf(line, sizeof line, "Name: %s", g_username);
-            front_row(fb, 132, line, front_sel == 2);
-            front_row(fb, 146, "Back", front_sel == 3);
-        } else if (front_page == FRONT_CONTROLS) {
-            snprintf(line, sizeof line, "Jump: %s", key_name(g_key_jump));
-            front_row(fb, 104, line, front_sel == 0);
-            snprintf(line, sizeof line, "Run: %s", key_name(g_key_run));
-            front_row(fb, 114, line, front_sel == 1);
-            snprintf(line, sizeof line, "Crouch: %s", key_name(g_key_crouch));
-            front_row(fb, 124, line, front_sel == 2);
-            snprintf(line, sizeof line, "Punch: %s", key_name(g_key_punch));
-            front_row(fb, 134, line, front_sel == 3);
-            snprintf(line, sizeof line, "Pad Jump: %s",
-                     pad_name(g_pad_jump));
-            front_row(fb, 144, line, front_sel == 4);
-            snprintf(line, sizeof line, "Pad Run: %s", pad_name(g_pad_run));
-            front_row(fb, 154, line, front_sel == 5);
-            snprintf(line, sizeof line, "Pad Punch: %s",
-                     pad_name(g_pad_punch));
-            front_row(fb, 164, line, front_sel == 6);
-            snprintf(line, sizeof line, "Pad Crouch: %s",
-                     pad_name(g_pad_crouch));
-            front_row(fb, 174, line, front_sel == 7);
-            front_row(fb, 184, "Analog", front_sel == 8, 1,
-                      g_analog_controls ? 1 : 0);
-            front_row(fb, 194, "Invert X", front_sel == 9, 1,
-                      front_invert_x ? 1 : 0);
-            front_row(fb, 204, "Back", front_sel == 10);
-        } else if (front_page == FRONT_CAMERA) {
-            snprintf(line, sizeof line, "Mode: %s",
-                     cam_mode_name(cam_mode));
-            front_row(fb, 104, line, front_sel == 0);
-            front_row(fb, 118, "Invert X", front_sel == 1, 1,
-                      front_invert_x ? 1 : 0);
-            front_row(fb, 132, "Invert Y", front_sel == 2, 1,
-                      front_invert_y ? 1 : 0);
-            snprintf(line, sizeof line, "Distance: %d%%", g_cam_dist_pct);
-            front_row(fb, 146, line, front_sel == 3);
-            front_row(fb, 160, "Back", front_sel == 4);
-        } else if (front_page == FRONT_DISPLAY) {
-            snprintf(line, sizeof line, "FPS: %s",
-                     fps_mode_name(g_fps_mode));
-            front_row(fb, 104, line, front_sel == 0);
-            front_row(fb, 118, "VSync", front_sel == 1, 1,
-                      g_vsync ? 1 : 0);
-            front_row(fb, 132, "Widescreen", front_sel == 2, 1,
-                      g_widescreen ? 1 : 0);
-            snprintf(line, sizeof line, "Bottom: 1/%d", g_sub_scale);
-            front_row(fb, 146, line, front_sel == 3);
-            front_row(fb, 160, "Back", front_sel == 4);
-        } else if (front_page == FRONT_SOUND) {
-            front_row(fb, 104, "Sound", front_sel == 0, 1,
-                      g_sound_on ? 1 : 0);
-            front_row(fb, 118, "Mute unfocused", front_sel == 1, 1,
-                      g_mute_unfocused ? 1 : 0);
-            front_row(fb, 132, "Back", front_sel == 2);
-        } else if (front_page == FRONT_MISC) {
-            front_row(fb, 104, "Stats overlay", front_sel == 0, 1,
-                      g_overlay_on ? 1 : 0);
-            front_row(fb, 118, "Toasts", front_sel == 1, 1,
-                      g_toasts_on ? 1 : 0);
-            front_row(fb, 132, "Info...", front_sel == 2);
-            front_row(fb, 146, "Back", front_sel == 3);
-        } else if (front_page == FRONT_INFO) {
-            ovl_text(fb, 14, 104, "SM64DS COOP PC port", UI_TEXT);
-            ovl_text(fb, 14, 118, "F5 menu pauses, F1 camera,", UI_DIM);
-            ovl_text(fb, 14, 130, "F3 stats, TAB bottom scr.", UI_DIM);
-            front_row(fb, 152, "Back", front_sel == 0);
-        } else if (front_page == FRONT_FILES) {
-            for (int i = 0; i < 4; ++i) {
-                snprintf(line, sizeof line, "File %d   %s", i + 1,
-                         i == front_file ? "SELECTED" : "empty");
-                front_row(fb, 104 + i * 14, line, i == front_sel);
+    if (st.btn) {
+        if (fresh) {
+            /* one button per press: the lowest set bit, the rebind row's
+               rule, so a thumb on two at once binds one */
+            int idx = 0;
+            while (!(fresh & (1u << idx))) ++idx;
+            if (padlearn_button_used(idx)) {
+                padlearn_refuse("that button is already taken, press another");
+            } else {
+                padlearn_out.*st.btn = idx;
+                fprintf(stderr, "[pad] learn %d: button %d\n", g_padlearn, idx);
+                padlearn_advance();
             }
-            front_row(fb, 162, "Rename", front_sel == 4);
-            front_row(fb, 176, "Back", front_sel == 5);
-        } else if (front_page == FRONT_LOBBY) {
-            char st[64], code[16] = {0};
-            const int hosting = sm64ds::lobby::role() == 1;
-            if (hosting) sm64ds::lobby::host_code(code, sizeof code);
-            sm64ds::lobby::status_text(st, sizeof st);
-            int ly = 104;
-            snprintf(line, sizeof line, "Status: %s", st);
-            front_row(fb, ly, line, false);
-            if (code[0]) {
-                ly += 16;
-                snprintf(line, sizeof line, "Code: %s", code);
-                front_row(fb, ly, line, false);
+        } else if (st.axis && best >= 0 && best_d > 0 &&
+                   padlearn_base[best] < PADLEARN_TRIGGER_REST) {
+            /* an analog trigger: rested at its minimum and swung up */
+            if (padlearn_axis_used(best)) {
+                padlearn_refuse("that axis is already taken, try another");
+                padlearn_armed = 0;     /* re-arm once it is let go */
+            } else {
+                padlearn_out.*st.axis = best;
+                fprintf(stderr, "[pad] learn %d: trigger axis %d\n", g_padlearn, best);
+                padlearn_advance();
             }
-            ly += 16;
-            if (hosting)
-                front_row(fb, ly, "Stop hosting", front_sel == 0);
-            else
-                front_row(fb, ly, "Host co-op (local)", front_sel == 0);
-            ly += 14;
-            if (sm64ds::lobby::role() == 2)
-                front_row(fb, ly, "Disconnect", front_sel == 1);
-            else
-                front_row(fb, ly, "Join a lobby", front_sel == 1);
-            ly += 14;
-            snprintf(line, sizeof line, "Host IP: %s",
-                     g_lobby_ip[0] ? g_lobby_ip : "(blank)");
-            front_row(fb, ly, line, front_sel == 2);
-            ly += 14;
-            snprintf(line, sizeof line, "Name: %s", g_username);
-            front_row(fb, ly, line, front_sel == 3);
-            ly += 14;
-            front_row(fb, ly, "Back", front_sel == 4);
-            /* roster: you first, then whoever the transport knows about --
-               plain info lines, not selectable */
-            ly += 16;
-            snprintf(line, sizeof line, "* %s (you)", g_username);
-            ovl_text(fb, 26, ly, line, UI_DIM);
-            for (int i = 0, n = sm64ds::lobby::peer_count();
-                 i < n && i < (code[0] ? 3 : 4); ++i) {
-                ly += 14;
-                snprintf(line, sizeof line, "  %s",
-                         sm64ds::lobby::peer_name(i));
-                ovl_text(fb, 26, ly, line, UI_DIM);
-            }
-        } else if (front_page == FRONT_CHARACTER) {
-            /* CoopDX-style select: every character, what it does best,
-               the current one ticked. ENTER picks and goes back. */
-            for (int i = 0; i < 4; ++i) {
-                const int sel = i == front_sel;
-                const int ry = 104 + i * 20;
-                if (sel) ovl_selbar(fb, 8, ry);
-                ovl_text(fb, 26, ry, character_name(i),
-                         sel ? UI_TEXT : character_color(i));
-                if (i == g_character)
-                    ovl_text(fb, 118, ry, "*", UI_ACCENT);
-                ovl_text(fb, 26, ry + 9, character_blurb(i), UI_DIM);
-            }
-            front_row(fb, 188, "Back", front_sel == 4);
+        }
+    } else if (best >= 0) {
+        if (padlearn_axis_used(best)) {
+            padlearn_refuse("that axis is already taken, push the other stick");
+            /* disarm, so the step re-baselines after the release rather
+               than reading the same swing every frame */
+            padlearn_armed = 0;
+            padlearn_quiet = 0;
         } else {
-            /* a dim row = its mod folder is off_/missing: ENTER enables it.
-               Toggle rows show a checkbox; value rows show their value. */
-            front_row(fb, 104, "Analog", front_sel == 0,
-                      sm64ds::mods::mod_enabled(kModRowIds[0]),
-                      g_analog_controls ? 1 : 0);
-            snprintf(line, sizeof line, "Character: %s",
-                     character_name(g_character));
-            front_row(fb, 118, line, front_sel == 1,
-                      sm64ds::mods::mod_enabled(kModRowIds[1]));
-            snprintf(line, sizeof line, "Color: %s", color_name(g_color));
-            front_row(fb, 132, line, front_sel == 2,
-                      sm64ds::mods::mod_enabled(kModRowIds[2]));
-            snprintf(line, sizeof line, "Speed: %d%%", g_speed_pct);
-            front_row(fb, 146, line, front_sel == 3,
-                      sm64ds::mods::mod_enabled(kModRowIds[3]));
-            snprintf(line, sizeof line, "Jump: %d%%", g_jump_pct);
-            front_row(fb, 160, line, front_sel == 4,
-                      sm64ds::mods::mod_enabled(kModRowIds[4]));
-            snprintf(line, sizeof line, "Bottom: 1/%d", g_sub_scale);
-            front_row(fb, 174, line, front_sel == 5,
-                      sm64ds::mods::mod_enabled(kModRowIds[5]));
-            snprintf(line, sizeof line, "Widescreen: %s",
-                     g_widescreen ? "ON" : "OFF");
-            front_row(fb, 188, "Widescreen", front_sel == 6,
-                      sm64ds::mods::mod_enabled(kModRowIds[6]),
-                      g_widescreen ? 1 : 0);
-            front_row(fb, 202, "Arena", front_sel == 7,
-                      sm64ds::mods::mod_enabled(kModRowIds[7]),
-                      g_arena ? 1 : 0);
-            front_row(fb, 216, "SM64 move", front_sel == 8,
-                      sm64ds::mods::mod_enabled(kModRowIds[8]),
-                      sm64ds::mods::mod_enabled(kModRowIds[8]) ? 1 : 0);
-            front_row(fb, 230, "Refresh", front_sel == 9);
-            front_row(fb, 244, "Open mods folder", front_sel == 10);
-            front_row(fb, 258, "Back", front_sel == 11);
-            /* description panel, coopdx-style: what the selected row is */
-            {
-                static const char *blurb[] = {
-                    "Stick walks, tilt sets run speed. Off means D-pad steps.",
-                    "ENTER opens the character select screen.",
-                    "Body tint. The head keeps its own colors.",
-                    "Stick magnitude percent. Full speed needs dash.",
-                    "Rise velocity percent.",
-                    "DS bottom-screen size divisor. TAB hides it.",
-                    "True 16:9 hor+. Takes effect on reboot.",
-                    "A 1200-unit fence around the spawn point.",
-                    "N64 movement preset. Run plus punch dives.",
-                    "Rescan the mods folder for added folders.",
-                    "Open the mods folder in Explorer.",
-                    "Back to Options.",
-                };
-                const int px = 170, py = 100, pw = ntr::SCREEN_W - px - 8;
-                const int sel = front_sel < 0 ? 0
-                                  : (front_sel > 11 ? 11 : front_sel);
-                ovl_shade(fb, px, py, pw, 4 * OVL_LINE + 16);
-                ovl_fill(fb, px, py + 2 * OVL_SCALE, 2 * OVL_SCALE,
-                         4 * OVL_LINE + 12, UI_ACCENT);
-                ovl_wrapped(fb, px + 8 * OVL_SCALE, py + 8, pw - 40,
-                            blurb[sel], UI_TEXT);
-            }
+            padlearn_out.*st.axis = best;
+            padlearn_out.*st.sign = best_d > 0 ? 1 : -1;
+            fprintf(stderr, "[pad] learn %d: axis %d sign %c\n", g_padlearn, best,
+                    best_d > 0 ? '+' : '-');
+            padlearn_advance();
         }
     }
-    ovl_text(fb, 12, ntr::SCREEN_H - 26, "UP/DN move  ENTER select",
-             UI_FAINT);
-    ovl_text(fb, 12, ntr::SCREEN_H - 12, "v0.4", UI_FAINT);
 }
 
-/* toasts + chat + always-on FPS, drawn over the world in and out of menus */
-static void toast_draw(ntr::Framebuffer &fb)
+/* ---- CHARACTER SWITCH (port mod, driven through the game's own save byte) --
+   THE CHARACTER IS SAVE DATA, not a Player field, and that is the whole reason
+   this is a boot setting rather than a live toggle. LoadEntranceObjects builds
+   the Player's spawn param as
+
+       f2 = data_0209caa0[0x41];  flags = f2 | (f1 << 3) | (i << 6) | (sl << 8)
+
+   and Player::InitResources unpacks bits 0-2 of that into +0x6d9. So the byte
+   is read once, at spawn, and everything downstream follows from it: the body
+   model slots at +0xdc are indexed by GetBodyModelID(character), +8 is the live
+   index Player_ScaleByCharFactor and the port's own render read,
+   func_ov002_020e4bb8 mirrors +8 into +0x6db for Player::Render, and
+   Sound::PlayCharVoice picks the voice bank off +0x6d9.
+
+   WHY NOT POKE IT LIVE, which was the first thing tried: InitResources loads
+   ONLY THE SPAWNED CHARACTER'S models. The other slots at +0xdc stay null, so
+   moving the index alone points Player_AdvanceAnims at a null model and
+   Animation::Advance divides by zero on the first frame. The ROM's own
+   character door (func_ov002_020be3b0) does the in-place swap properly, and it
+   loads the incoming character's files first through the SharedFilePtr table
+   at data_ov002_020ff480 before it moves anything. Hosting that is the job
+   that would make this row live; until then the row sets the save byte and the
+   next boot spawns whoever it names.
+
+   Yoshi is a separate caveat: St_YoshiPower and St_InYoshiMouth are matched in
+   src but are not wired into player_states.inc, so his tongue is a loud no-op.
+   Walking, running, jumping and the dust are character-agnostic code. */
+static const char *const CHAR_NAME[4] = { "Mario", "Luigi", "Wario", "Yoshi" };
+static int g_character;                     /* what the boot actually spawned */
+static int g_character_pending;             /* what the next boot will spawn */
+
+/* data_0209caa0 is declared int[] above (word 2 carries flag bits the boot
+   sets); LoadEntranceObjects reads the character as a BYTE at 0x41, which is
+   why this casts rather than indexing the int view. */
+static void character_set_pending(int ch)
 {
-    if (!g_toasts_on) return;
-    int shown = 0;
-    for (int i = 2; i >= 0; --i) {
-        if (!g_toast[i][0] || ovl_now_ms() > (double)g_toast_until[i]) continue;
-        char line[128];
-        snprintf(line, sizeof line, "%s", g_toast[i]);
-        const int w =
-            (int)strlen(line) * OVL_ADVANCE * OVL_SCALE + 12 * OVL_SCALE;
-        const int x0 = (ntr::SCREEN_W - w) / 2;
-        const int y0 = ntr::SCREEN_H - 60 - shown * (OVL_LINE + 4);
-        ovl_shade(fb, x0, y0, w, OVL_LINE + 4);
-        ovl_fill(fb, x0, y0 + 2 * OVL_SCALE, 2 * OVL_SCALE, OVL_LINE,
-                 UI_ACCENT);
-        ovl_text(fb, x0 + 6 * OVL_SCALE, y0 + 2 * OVL_SCALE, line, UI_TEXT);
-        ++shown;
-    }
+    g_character_pending = ch & 3;
+    ((unsigned char *)data_0209caa0)[0x41] =
+        (unsigned char)g_character_pending;
 }
 
-static void chat_draw(ntr::Framebuffer &fb)
-{
-    char line[160];
-    for (int i = 2; i >= 0; --i) {
-        if (!g_chat[i][0]) continue;
-        const int cy = ntr::SCREEN_H - 96 - (2 - i) * OVL_LINE;
-        const int cw = (int)strlen(g_chat[i]) * OVL_ADVANCE * OVL_SCALE +
-                       4 * OVL_SCALE;
-        ovl_shade(fb, 6, cy - 2, cw, OVL_LINE + 2);
-        ovl_text(fb, 8, cy, g_chat[i], UI_TEXT);
-    }
-    if (g_chat_open) {
-        snprintf(line, sizeof line, "say: %s_", g_chat_input);
-        const int w =
-            (int)strlen(line) * OVL_ADVANCE * OVL_SCALE + 12 * OVL_SCALE;
-        ovl_shade(fb, 4, ntr::SCREEN_H - 96 + OVL_LINE + 2, w, OVL_LINE + 4);
-        ovl_text(fb, 8, ntr::SCREEN_H - 96 + OVL_LINE + 4, line,
-                 0xFFFFFFFFu);
-    }
-}
-
-static void fps_draw(ntr::Framebuffer &fb, double fps)
-{
-    char line[32];
-    snprintf(line, sizeof line, "FPS: %d", (int)(fps + 0.5));
-    /* top-right of the world view: never under the rail, menu or panel.
-       Shaded behind so it reads over bright sky and stone alike. */
-    ovl_shade(fb, ntr::SCREEN_W - 68, 2, 64, OVL_LINE + 4);
-    ovl_text(fb, ntr::SCREEN_W - 64, 4, line,
-             fps >= 28.0 ? 0xFF80FF80u
-                         : (fps >= 20.0 ? 0xFFFFC040u : 0xFFFF6060u));
-}
+/* Changes character on the spot by re-running Player::InitResources with a
+   rewritten spawn param, carrying position and speed across. Port code, not
+   the game's: the game's own in-place change is the CAP path, and there is no
+   Yoshi cap for it to run. The reasoning is in hal/player_bridges.cpp, where
+   it lives because it wants Player.h. SM64DS_SWITCH=<0..3> drives it headless. */
+extern "C" void port_player_set_character(void *player, unsigned ch);
+/* SM64DS_VS_CHARS: the game side of VS character selection. Reads a per-slot
+   character pick (mirrors SM64DS_VS_NAMES/SM64DS_VS_COLORS) and applies it once,
+   post-boot, through the proven door path. VS-scoped and one-shot inside; inert
+   with no SM64DS_VS_CHARS. Defined in hal/player_bridges.cpp beside the swap. */
+extern "C" void port_vs_apply_chars(int frame);
+/* SM64DS_VS_LUIGI_INFECTION: seed the starting Luigi. Defined in
+   hal/luigi_infection.cpp; VS-scoped, one-shot, inert with the mode off. */
+extern "C" void port_luigi_seed(int frame);
+/* SM64DS_VS_LUIGI_HITTEST: stage tag/immunity/survivor hits through the host
+   hit resolver at frame 130. Defined in hal/luigi_infection.cpp; off by default. */
+extern "C" void port_luigi_hittest(int frame);
+static int menu_on;
+static int menu_at = -1;   /* SM64DS_MENU_AT, see where it is read */
+/* B closed the menu and is still physically down: swallow it until it comes
+   back up. See the block below the menu's input, where it is spent. */
+static int menu_b_swallow;
+static int menu_sel;
+static int menu_entrance;             /* the entrance the warp row is showing */
+/* THE LEVEL ROW IS THE DEBUG LEVEL SELECT'S OWN LIST. dScTitle_c (ov003,
+   scene 2) picks a row out of data_ov003_020b1180 -- 0x36 eight-byte rows,
+   byte 0 the level and byte 1 the entrance -- and calls LoadLevelNoReturn
+   with the pair. The port mounts that table (port/ov003_syms.txt) and runs
+   the same call; what it does not run is the scene actor around it, so the
+   grid, its cursor and its music are not here. The row list and the handoff
+   are Nintendo's, the presentation is this menu's.
+   Rows the port cannot mount yet are still SHOWN, marked, because the point
+   of the list is that it is the game's own and the gap is visible. */
+static int menu_level_row = 1;
+/* the VS row's map cursor, 0..3 into the ROM's own list at
+   data_ov075_0211c6ec (hal/scene_vs_menu.cpp reads it back by index) */
+static int menu_vs_map;
+extern "C" int port_vs_map_level(int mapIdx);   /* hal/scene_vs_menu.cpp */
+/* the VS boot hook's seams (see THE VS BOOT block in main): the ROM's own
+   start, the port's one level latch, and the request release -- all extern
+   "C", declared here because a block-scope extern in C++ mangles */
+extern "C" void port_vs_stage_and_start(int mapIdx);   /* hal/scene_vs_menu.cpp */
+extern "C" int  port_level_entry_latch(void);          /* hal/level_change.cpp  */
+extern "C" int  port_scene_request_release(const char *why);
+extern "C" void port_level_set_target(int level);      /* hal/level_boot.cpp    */
+static int g_overlay_on;              /* F3, and the menu's overlay row */
+static char g_playlog[160] = "off";   /* the flight recorder's current file */
+/* fault_probe.h's rich dump tails this after a crash; a stable pointer at the
+   buffer so the header does not need to name g_playlog's storage. "off" until
+   the recorder opens a real file below. */
+extern "C" const char *port_playlog_path = g_playlog;
 
 /* The harness ground snap and wall clamp, a boot-time const off
    SM64DS_FAKE_SNAP until now, so the A/B was a restart. It is a switch.
@@ -1901,13 +4082,634 @@ static void fps_draw(ntr::Framebuffer &fb, double fps)
    the toggle is the whole switch. */
 static int g_fake_snap;
 
-static void menu_draw(ntr::Framebuffer &fb)
+/* ---- THE MINIGAME PICKER (port mod) -------------------------------------
+
+   THE SET IS THE ROM'S. src/IsMinigameActorID.c is `id >= 0x169 && id <=
+   0x186`: thirty contiguous actor ids, 361..390, and it is the same predicate
+   hal/scene_boot.cpp gates the stacked layout on and hal/scene_mg.cpp gates
+   the ov006 bring-up on. This table makes no membership decision of its own.
+   It holds NAMES, and nothing else.
+
+   THE NAMES ARE THE PLAYER'S, AND THAT IS A CORRECTION. This table used to
+   carry the ROM's own class names, read out of the ov006 typeinfo with the
+   dScMg prefix and _c suffix stripped, so 368 read "pachinko" and 374 read
+   "curling". Those are the right names for CODE, and they are still what the
+   registry rows in hal/scene_boot.cpp are keyed on: SCENE_MG_PACHINKO is 368
+   there and stays that way. They are the wrong names for a MENU, and the
+   failure was not theoretical. A play session read "pachinko" on this row
+   against the Bob-omb slingshot game on screen and concluded the port had
+   wired the scene to the wrong class. It had not. Pachinko is the Japanese
+   name for a slingshot game, that is what Nintendo's developers called
+   dScMgPachinko_c, and the menu was the only thing in the chain that was
+   wrong. A debug menu that makes a correct port look broken is worse than no
+   menu, so the strings below are the retail titles, and the class short name
+   the row used to show now sits in the comment beside it.
+
+   THE TITLES ARE DERIVED AND NOT REMEMBERED, and the derivation is one step.
+   Actor id maps to scene id by identity -- 0x169 IS 361 -- so the rows below
+   are the ov006 ids in order with no arithmetic between the two columns.
+   Twenty-three of the thirty carry an Mg*_SpawnInfo symbol in
+   config/arm9/overlays/ov006/symbols.txt, and that symbol IS the retail title
+   with its spaces taken out: MgBobOmbSquad is Bob-omb Squad,
+   MgCoincentration is Coincentration, MgShuffleShell is Shuffle Shell. All
+   twenty-three are expanded below with nothing added. Twenty-two of them are
+   confirmed a second time by port/mg_fanout_costs.txt section 3, which
+   reaches the same symbol through the factory's own vtable load; the
+   twenty-third is 0x179 and is discussed below. The six seated ids are
+   confirmed a third time by the registry rows in hal/scene_boot.cpp, which
+   name the SpawnInfo symbol they spawn.
+
+   SEVEN IDS HAVE NO SYMBOL AND ARE NOT GUESSED. 0x169, 0x16c, 0x16d, 0x173,
+   0x177, 0x17d and 0x186 reach a bare data_ov006_* address instead of an Mg*
+   name. Six of the seven keep the old class short name with a question mark
+   welded on -- "cup?", "slot1?" -- because a wrong confident title is worse
+   than an honest dev name, and the mark is the whole point: it says the row
+   is not a claim. The seventh is 0x186, and it is not a guess either.
+   hal/scene_boot.cpp pinned it to dScMgFlower_c off the flower asset strings
+   and seated it, so it reads "Loves Me...?" with no mark.
+
+   377 KEEPS ITS QUESTION MARK FOR THE OLDER REASON. It is the one id whose
+   factory reaches no signature table at all. ov006's thirty-second dScMg*_c
+   typeinfo, dScMgSnowball_c at 0x0213ffdc, is 0x24 from 0x179's own
+   g_profile_MG_SNOWBALL at 0x0213ffb8, which is the locality the other
+   twenty-nine rows show, and the peer screening independently called 0x179
+   MgSnowballSlalom. That is an inference and not a read, and the menu should
+   not present the two as the same claim.
+
+   THE STRINGS ARE DISPLAY ONLY. The menu row, the on-screen toast and three
+   stderr lines are their whole readership; nothing outside this file reads
+   them. Renaming a row cannot change which scene the row starts.
+
+   THEY ALSO HAVE A WIDTH BUDGET, and it is measurable rather than a feeling.
+   The overlay font advances 6 pixels a character, walk_window links ntr_2x so
+   ntr::SCREEN_W is 512 and OVL_SCALE is 1, and ovl_text clips at the
+   framebuffer edge, so a row goes silently missing past about 83 characters.
+   The minigame row costs 57 characters before the title, which makes 21 the
+   ceiling, and two titles were shortened to reach it. Both are classes that
+   really do serve two menu games, which is why both halves survive at all:
+   MgBingoBallSlotsShot lost the spaces around its slash ("Slots Shot/Bingo
+   Ball", 21) and MgPuzzlePanelPuzzlePanic lost the repeated word ("Puzzle
+   Panel/Panic", 18). Nothing else was cut.
+
+   WHAT IS SELECTABLE IS NOT DECIDED HERE EITHER. port_scene_is_hosted asks
+   the registry that hal/scene_boot.cpp refuses unhosted ids out of, so as
+   minigames get seated their rows light up with no edit to this file -- and
+   the wired-first display order below re-sorts itself for the same reason. */
+static const struct { short id; const char *name; } MG_SCENE[] = {
+    /*  id      menu title              actor  ov006 class  derivation       */
+    { 361, "cup?"                  }, /* 0x169  cup          no Mg* symbol   */
+    { 362, "Memory Match"          }, /* 0x16a  memory       MgMemoryMatch   */
+    { 363, "Memory Master"         }, /* 0x16b  memory2      MgMemoryMaster  */
+    { 364, "slot1?"                }, /* 0x16c  slot1        no Mg* symbol   */
+    { 365, "slot3?"                }, /* 0x16d  slot3        no Mg* symbol   */
+    { 366, "Wanted!"               }, /* 0x16e  luigi        MgWanted        */
+    { 367, "Boom Box"              }, /* 0x16f  sound        MgBoomBox       */
+    { 368, "Bob-omb Squad"         }, /* 0x170  pachinko     MgBobOmbSquad   */
+    { 369, "Lakitu Launch"         }, /* 0x171  pachinko2    MgLakituLaunch  */
+    { 370, "Sort or 'Splode"       }, /* 0x172  bomroom      MgSortOrSplode  */
+    { 371, "amida?"                }, /* 0x173  amida        no Mg* symbol   */
+    { 372, "Bounce and Pounce"     }, /* 0x174  jump         MgBounceAndPounce  */
+    { 373, "Bounce and Trounce"    }, /* 0x175  jump2        MgBounceAndTrounce */
+    { 374, "Shuffle Shell"         }, /* 0x176  curling      MgShuffleShell  */
+    { 375, "Shell Smash"           }, /* 0x177  curling2     see below       */
+    { 376, "Slots Shot/Bingo Ball" }, /* 0x178  smartball    MgBingoBallSlotsShot, trimmed */
+    { 377, "Snowball Slalom?"      }, /* 0x179  snowball     MgSnowballSlalom, INFERRED */
+    { 378, "Coincentration"        }, /* 0x17a  coin         MgCoincentration   */
+    { 379, "Picture Poker"         }, /* 0x17b  card         MgPicturePoker  */
+    { 380, "Puzzle Panel/Panic"    }, /* 0x17c  panel        MgPuzzlePanelPuzzlePanic, trimmed */
+    { 381, "mcarlo?"               }, /* 0x17d  mcarlo       no Mg* symbol   */
+    { 382, "Pair-a-Gone and On"    }, /* 0x17e  mcarlo2      MgPairAGoneAndOn   */
+    { 383, "Mushroom Roulette"     }, /* 0x17f  roulette     MgMushroomRoulette */
+    { 384, "Trampoline Time"       }, /* 0x180  trampoline   MgTrampolineTime   */
+    { 385, "Trampoline Terror"     }, /* 0x181  trampoline2  MgTrampolineTerror */
+    { 386, "Which Wiggler?"        }, /* 0x182  hanachan     MgWhichWiggler  */
+    { 387, "Hide and Boo Seek"     }, /* 0x183  teresa       MgHideAndBooSeek   */
+    { 388, "Lucky Stars"           }, /* 0x184  bsc          MgLuckyStars    */
+    { 389, "Psyche Out!"           }, /* 0x185  3desp        MgPsycheOut     */
+    { 390, "Loves Me...?"          }, /* 0x186  flower       pinned dScMgFlower_c */
+};
+enum { MG_COUNT = (int)(sizeof MG_SCENE / sizeof MG_SCENE[0]) };
+
+/* 375's ROW LOST ITS QUESTION MARK AND THE OTHER FIVE KEPT THEIRS, run mg6
+   lane S75. The row read "curling2?" because 0x177 has no Mg* spawn symbol IN
+   ov006. The CLASS name is a ROM read -- the typeinfo record at
+   data_ov006_0213c510[-1] points at "15dScMgCurling2_c" -- and the TITLE is
+   named by the tree, at an address the ROM verifies:
+
+     the arm9 spawn table ACTOR_SPAWN_TABLE, entry 0x177 at 0x02090e40, holds
+     0x0213c434, and config/arm9/overlays/ov098/symbols.txt:113 names that
+     record MgShellSmash_SpawnInfo.
+
+   IT IS FILED UNDER ov098 BECAUSE ov006 AND ov098 OVERLAP THAT ADDRESS -- the
+   row is marked `ambiguous` -- which is why a sweep of ov006's own symbol file
+   does not find it. It predates this lane: it came in with the 2026-07-10
+   spawn-table naming import (#211). THE ADDRESSING IS CHECKED RATHER THAN
+   ASSUMED, by its two neighbours in the same table: entry 0x176 holds
+   0x0213c214 and entry 0x178 holds 0x0213ebd0, which are MgShuffleShell_
+   SpawnInfo and g_profile_MG_SMARTBALL at exactly the addresses
+   port/mg_fanout_costs.txt sections 4 and 11 give them.
+
+   WHAT STAYS TRUE IS THAT THE ROM ITSELF STORES NO TITLE TEXT, and that is a
+   finding rather than a caveat about this row: searching the whole 16 MB image
+   for the ASCII and UTF-16LE spellings of five known titles returns zero hits
+   each, the five EUR language archives hold battle-mode art, and the one
+   per-language MG sheet decodes to "RULES", "TIME" and "HIGH SCORE". So no
+   lane can read a title off the ROM; a title comes from the config, and this
+   one has one. port/slice_s75.txt carries the corroborating asset evidence
+   (the class opens ".../jokyu_curling..." and jokyu marks the harder half of a
+   pair) as support for the name rather than as a substitute for it. */
+
+/* ---- THE LEVEL-SELECT ROW'S NAMES (port mod) ----------------------------
+
+   THE LEVEL ROW USED TO READ AS NUMBERS ONLY -- "level 6 entrance 13 ov014"
+   -- which is unreadable for the one thing a level select is for: knowing
+   which level a row boots. This table gives each ROM level id (byte 0 of a
+   data_ov003_020b1180 row) a short player-facing name; the numeric id stays
+   as the prefix because this is a debug menu and the id is what a bug report
+   quotes.
+
+   THE NAMES ARE NOT INVENTED. The authority is port_level_table[] in
+   hal/level_boot.cpp: forty-six ids, each derived from the ROM's own overlay
+   data (data_020758c8 -> overlay, data_02092208 -> LVL_Overlay, the four
+   asset handles) with the derivation written out per wave in that file. Its
+   leading name is the retail course name; the short forms below are that name
+   trimmed to fit the row, and every id here agrees with that table's id and
+   internal (romanised) name -- which cross-checks against the ROM's own debug
+   stage-name pool in ov003 (base 0x020b1060: "BombHei Map", "Snow Mt",
+   "Habatake", "Suisou" ...). port/debug_stage_names.txt records the source and
+   a confidence flag per id.
+
+   IDS NOT HERE FALL BACK TO THE NUMBER, never to a guess. The six ids
+   port_level_table[] does not mount are 29/41/42/43/51 (the wave-C block
+   proves these are not stages: their name handles point past the ROM's handle
+   space, so they have no course behind them) and 31 (habatake, the Wing Cap
+   tower -- derived, deliberately not mounted). Only 31 gets a name here, at
+   lower confidence, because it is a real stage the ROM names; the other five
+   have no stage to name and the row shows "(level N)" for them. An honest
+   number beats a wrong name in a debug menu.
+
+   ADDING OR RENAMING IS ONE EDIT: one row here, keyed by id, searched not
+   indexed, so gaps are fine and order does not matter. */
+static const struct { short id; const char *name; } LEVEL_NAME[] = {
+    {  0, "Dev Test Map"        },  /* test_map, cut content, no course      */
+    {  1, "Castle Grounds"      },  /* main_castle                           */
+    {  2, "Castle 1F"           },  /* castle interior, first floor          */
+    {  3, "Castle Garden"       },  /* main_garden                           */
+    {  4, "Castle Basement"     },  /* castle_b1                             */
+    {  5, "Castle 2F"           },  /* castle_2f                             */
+    {  6, "Bob-omb Battlefield" },  /* bombhei_map                           */
+    {  7, "Whomp's Fortress"    },  /* battan_king_map                       */
+    {  8, "Jolly Roger Bay"     },  /* kaizoku_irie                          */
+    {  9, "JRB Sunken Ship"     },  /* kaizoku_ship, inside the JRB ship     */
+    { 10, "Cool Cool Mountain"  },  /* snow_mt                               */
+    { 11, "Cool Cool Mtn Slide" },  /* snow_slider                           */
+    { 12, "Big Boo's Haunt"     },  /* teresa_house                          */
+    { 13, "Hazy Maze Cave"      },  /* cave                                  */
+    { 14, "Lethal Lava Land"    },  /* fire_land                             */
+    { 15, "LLL Volcano"         },  /* fire_mt, the volcano interior         */
+    { 16, "Shifting Sand Land"  },  /* desert_land                           */
+    { 17, "SSL Pyramid"         },  /* desert_py                             */
+    { 18, "Dire Dire Docks"     },  /* water_land                            */
+    { 19, "Snowman's Land"      },  /* snow_land                             */
+    { 20, "Snowman's Igloo"     },  /* snow_kama                             */
+    { 21, "Dire Docks (City)"   },  /* water_city, DDD second area           */
+    { 22, "Tall Tall Mountain"  },  /* high_mt                               */
+    { 23, "Tall Tall Mtn Slide" },  /* high_slider                           */
+    { 24, "Tiny-Huge Isle (Big)"},  /* tibi_deka_d, huge side                */
+    { 25, "Tiny-Huge Isle (Sm)" },  /* tibi_deka_t, tiny side                */
+    { 26, "Tiny-Huge Isle Cave" },  /* tibi_deka_in                          */
+    { 27, "Tick Tock Clock"     },  /* clock_tower                           */
+    { 28, "Rainbow Cruise"      },  /* rainbow_cruise                        */
+    { 30, "Secret Aquarium"     },  /* suisou                                */
+    { 31, "Wing Cap Tower"      },  /* habatake -- NOT mounted; see .txt     */
+    { 32, "Vanish Cap (Moat)"   },  /* horisoko                              */
+    { 33, "Metal Cap Switch"    },  /* metal_switch                          */
+    { 34, "Wing Mario Rainbow"  },  /* rainbow_mario                         */
+    { 35, "Bowser: Dark World"  },  /* koopa1_map                            */
+    { 36, "Bowser: Dark (boss)" },  /* koopa1_boss                           */
+    { 37, "Bowser: Fire Sea"    },  /* koopa2_map                            */
+    { 38, "Bowser: Fire (boss)" },  /* koopa2_boss                           */
+    { 39, "Bowser in the Sky"   },  /* koopa3_map                            */
+    { 40, "Bowser: Sky (boss)"  },  /* koopa3_boss                           */
+    { 44, "Mario's Key Course"  },  /* ex_m_map                              */
+    { 45, "Mario's Key Arena"   },  /* ex_mario                              */
+    { 46, "Luigi's Key Course"  },  /* ex_l_map                              */
+    { 47, "Luigi's Key Arena"   },  /* ex_luigi                              */
+    { 48, "Wario's Key Course"  },  /* ex_w_map                              */
+    { 49, "Wario's Key Arena"   },  /* ex_wario                              */
+    { 50, "Rec Room"            },  /* playroom                              */
+};
+enum { LEVEL_NAME_COUNT = (int)(sizeof LEVEL_NAME / sizeof LEVEL_NAME[0]) };
+
+/* The short name for a ROM level id, or null when the port has no name for it
+   (the five non-stage ids). Null is a real answer: the row shows the number. */
+static const char *level_short_name(int id)
 {
-    char ln[MENU_COUNT][72];
+    for (int i = 0; i < LEVEL_NAME_COUNT; ++i)
+        if (LEVEL_NAME[i].id == id)
+            return LEVEL_NAME[i].name;
+    return 0;
+}
+
+/* THE ROW ORDER IS WIRED FIRST, AND IT IS COMPUTED RATHER THAN WRITTEN DOWN.
+   MG_SCENE is in the ROM's id order, which scatters the handful of scenes the
+   port can actually start across rows 6, 8, 14, 16, 18 and 30 of thirty, so
+   walking the list from the front was two dozen refusals before the first
+   thing that boots. mg_order below is every hosted id in id order followed by
+   every unhosted id in id order. It is built out of port_scene_is_hosted and
+   not out of a second hand-written table, so a scene seated next month sorts
+   itself to the front with no edit here -- the same property that lights its
+   row up in the first place.
+   BUILT ONCE, LAZILY, for the reason the cursor below was already seated
+   lazily: the registry is installed during the boot this file's statics are
+   initialised before. Hosting does not change during a run, so once is enough
+   and the order cannot shift under a cursor that is already pointing into it.
+   EVERY USE GOES THROUGH mg_index(). menu_mg is a DISPLAY row from here on
+   and never an MG_SCENE subscript -- the draw, the launch and the left/right
+   step all resolve it the same way, so the id that starts is always the id
+   the row was showing. An off-by-one between the two would recreate exactly
+   the wrong-game confusion the titles above were fixed to end. */
+static short mg_order[MG_COUNT];
+static int mg_wired;             /* leading rows of mg_order that will boot */
+static int mg_order_built;
+static void mg_order_build(void)
+{
+    int i, n = 0;
+    if (mg_order_built) return;
+    for (i = 0; i < MG_COUNT; ++i)
+        if (port_scene_is_hosted(MG_SCENE[i].id)) mg_order[n++] = (short)i;
+    mg_wired = n;
+    for (i = 0; i < MG_COUNT; ++i)
+        if (!port_scene_is_hosted(MG_SCENE[i].id)) mg_order[n++] = (short)i;
+    mg_order_built = 1;
+}
+/* the MG_SCENE subscript a display row is showing */
+static int mg_index(int row) { mg_order_build(); return mg_order[row]; }
+/* How far into its OWN group a display row sits, and how big that group is.
+   These are the two numbers the row prints, and they are the whole separator
+   the list needs: the count falls back to 1 of 24 on the same step the suffix
+   turns into "not wired yet", so the end of the working set is unmissable
+   without spending a character on a divider the row has no room for. */
+static void mg_group(int row, int *pos, int *of)
+{
+    mg_order_build();
+    if (row < mg_wired) { *pos = row + 1;            *of = mg_wired; }
+    else                { *pos = row - mg_wired + 1; *of = MG_COUNT - mg_wired; }
+}
+/* The cursor starts at display row 0, which is the first thing that will
+   actually boot because the order above put it there. Seated lazily and once,
+   so stepping through the list survives closing the menu. */
+static int menu_mg = -1;
+static int mg_row(void)
+{
+    if (menu_mg < 0) { mg_order_build(); menu_mg = 0; }
+    return menu_mg;
+}
+
+/* ---- WHAT SELECTING ONE DOES, AND WHY IT IS A RELAUNCH ------------------
+
+   A LEVEL CANNOT REACH A MINIGAME IN PROCESS, and that is the ROM's rule
+   rather than a gap in the port. port/ov006_minigame_scout.txt section 2
+   derives it from the game's own loader: func_0201a694 unloads the current
+   scene overlay before loading the new one and func_0201a754 unloads ov004
+   along with ov006, and a level is executing out of ov002. Spawning a
+   minigame id from inside a level would unload the overlay the caller is
+   running in. The port has the same shape for the same reason: main hands
+   over to hal/scene_boot.cpp's port_scene_run BEFORE the level bring-up (at
+   the SM64DS_SCENE handover) and port_scene_run owns the rest of the process.
+
+   So the picker does the one thing that is correct at both ends. It starts
+   the program again on the scene path -- same exe, same working directory,
+   same environment plus the two variables that path reads -- and this process
+   leaves through its own window-close path, so the recorder and settings.json
+   close the way they do on any other exit.
+
+   THE CHILD IS NOT HEADLESS ANY MORE. What stood here said it was, and that
+   it would stop being so when somebody gave the scene path a window: that
+   happened (scene_window_run below, "port: a real window for the scene path,
+   so a minigame can be played"), so the child now opens a real window and is
+   played rather than captured, and this row is the warp it was written to
+   become. The prediction is left visible rather than deleted because the
+   shape it describes is still the shape: this row asks for a scene and the
+   scene path decides what a scene run looks like, so it needed no edit when
+   that answer changed and needs none when it changes again.
+
+   SM64DS_DUAL_SCREEN=1 is stated explicitly even though port_scene_run
+   already defaults a minigame to stacked off the same IsMinigameActorID: the
+   ruling is that minigames always run stacked, and putting it in the child's
+   environment makes that true whatever an inherited variable would otherwise
+   have said. */
+/* ---- THE ONE CLEAR LIST, FOR EVERY RELAUNCH (run link60, lane TCH2) --------
+ *
+ * The child of a menu row is a SESSION -- somebody pressed enter -- and
+ * inheritance would let this process's own settings decide what it is instead.
+ * That is the identical hole port/tools/battery.py's scene_env pops the same
+ * list for, in its words: the caller's environment must not decide what the
+ * code under test does.
+ *
+ * IT IS A TABLE BECAUSE THERE ARE TWO LAUNCH PATHS NOW. The minigame row
+ * relaunches into a scene and the level row relaunches into a level, and two
+ * hand-maintained copies of a list like this diverge on the first variable
+ * somebody adds to one of them -- which is precisely how the four names at the
+ * bottom of this table came to be missing from the copy that existed.
+ *
+ * WHAT EACH ONE COSTS IF IT IS INHERITED, because a list with no reasons is a
+ * list nobody dares to prune:
+ *   SCENE_FRAMES     hands the child a frame budget, and port_scene_want_window
+ *                    then makes it headless, so the row looks broken
+ *   SCENE_WINDOW     forces the opposite of whatever the child should be
+ *   SCENE_NO_RENDER  a session that draws nothing
+ *   SCENE_BMP/_STACKED  two processes writing one file is not a capture
+ *   PAD_TEST         the WORST of them: the child replays the parent's script
+ *                    from ITS frame 0, walks the same menu to the same row and
+ *                    starts a grandchild, forever
+ *   CLICK_TEST       the same trap with a mouse (lane TCH2's scripted stylus):
+ *                    a click script that opens the menu and picks a row would
+ *                    fork endlessly too
+ *   WINDOW_SELFTEST  turns the child into a headless BMP run with no window,
+ *                    which is not what pressing enter asked for
+ *   SCENE_TRACE      measured by lane SWR1: a parent's SCENE_TRACE=1 put 875
+ *                    trace lines in the child's playlog
+ *   SCENE_SLOT9      lets an inherited skip decide what the child boots
+ *   SCENE_SUBLEVEL   an input for the scenes that read it; inheriting one is
+ *                    the harness fabricating an input
+ * SM64DS_SCENE, SM64DS_LEVEL and SM64DS_DUAL_SCREEN are NOT in the table: they
+ * are the destination, cleared and then set by the launcher below. */
+static const char *const PORT_RELAUNCH_CLEAR[] = {
+    "SM64DS_SCENE_FRAMES", "SM64DS_SCENE_WINDOW",  "SM64DS_SCENE_NO_RENDER",
+    "SM64DS_SCENE_BMP",    "SM64DS_SCENE_BMP_STACKED", "SM64DS_PAD_TEST",
+    /* SM64DS_HOST_PAD is SM64DS_PAD_TEST with the selftest gate removed (run
+       link100, lane STARSEL5), so it is the same trap and worse: it survives
+       into a child that is under a selftest too. Same entry, same reason. */
+    "SM64DS_HOST_PAD",     "SM64DS_HOST_CLICK",
+    /* the presented-image capture, for SCENE_BMP's reason exactly: two
+       processes writing one file is not a capture; and the scripted menu,
+       for SM64DS_PAD_TEST's reason -- an inherited one opens a menu in a
+       child nobody asked to have one */
+    "SM64DS_STACK_BMP",    "SM64DS_SCENE_MENU",
+    /* AND THE RESULTS PROBE, which belongs here more than either of them and
+       was missed on the round that added the other two. SM64DS_MG_RESULTS_PROBE
+       does not print: it DISPATCHES the ROM's slot 27 on the live scene object,
+       which raises the results panel, stops slot 24's display swap and halts the
+       scene's behavior and render. An inherited one would do all of that to a
+       child the picker started, and the child is the process a player is about
+       to play. Same class as SM64DS_PAD_TEST and strictly more state-mutating.
+       Unset -- which is every run but a lane's own -- the entry costs one
+       string in a table the relaunch path walks and nothing else: the clear
+       loop only ever removes names, so a variable that was never set is
+       removed from an environment that never had it. */
+    "SM64DS_MG_RESULTS_PROBE",
+    "SM64DS_CLICK_TEST",   "SM64DS_WINDOW_SELFTEST", "SM64DS_SCENE_TRACE",
+    "SM64DS_SCENE_SLOT9",  "SM64DS_SCENE_SUBLEVEL",
+    /* the third injected-input knob; unlike the two above it has no selftest
+       gate of its own, so an inherited one drives synthetic stylus presses
+       into the child (review TCR1 measured it moving a selftest BMP). */
+    "SM64DS_TOUCH_PROBE",
+    /* run mg15 lane MP1. SM64DS_COMMS_FANOUT hands TouchInfo[4] and
+       PadData[4] to the ROM's four-slot route instead of the port's direct
+       writes -- the whole input path, in a child nobody asked to experiment
+       on. SM64DS_COMMS_REPORT prints four lines a frame into the child's
+       playlog. Same class as the two above. */
+    "SM64DS_COMMS_FANOUT",  "SM64DS_COMMS_REPORT",
+    /* run mg16 lane MP2. SM64DS_COMMS_ROLE is the strongest member of this
+       whole list: an inherited one makes the child OPEN A SOCKET and try to
+       join a session, and if it inherits the PARENT role from a parent that is
+       still running it also fails a bind and prints a refusal nobody asked
+       for. The other three are its arguments and travel with it -- an
+       inherited PORT would aim the child at the wrong session and an inherited
+       INJECT would put scripted stylus values on a wire the player is using.
+
+       ONE DESTINATION OVERRIDES THIS, and only one: port_menu_relaunch_vs
+       carries ROLE, PORT, SLOT and FANOUT back across the clear, because VS
+       *is* the multiplayer mode and a VS child is the one child that is
+       supposed to be in the session its parent was in. Its own banner has the
+       argument, including why FANOUT belongs with the other three rather than
+       with REPORT. The reasoning above is unchanged for the level and minigame
+       destinations, which are the ones it was written about. */
+    "SM64DS_COMMS_ROLE",    "SM64DS_COMMS_PORT",
+    "SM64DS_COMMS_SLOT",    "SM64DS_COMMS_INJECT",
+};
+
+/* ONE RELAUNCH, TWO DESTINATIONS. `scene_id >= 0` starts the child on the
+ * scene path (stacked, because the ruling is that minigames always run
+ * stacked); otherwise `level_id` starts it on the level path, where the layout
+ * is left to its own default -- a level is inset unless somebody says
+ * otherwise, and a forced SM64DS_DUAL_SCREEN carried over from the minigame
+ * that launched this process would be exactly that somebody. */
+static int port_menu_relaunch(int scene_id, int level_id)
+{
+    char exe[MAX_PATH];
+    char sid[16];
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    if (!GetModuleFileNameA(0, exe, (DWORD)sizeof exe))
+        return 0;
+    /* the child inherits this process's block, so setting them here is how
+       they reach it. This process is about to quit, so the mutation has no
+       second reader. */
+    for (unsigned i = 0; i < sizeof PORT_RELAUNCH_CLEAR /
+                             sizeof *PORT_RELAUNCH_CLEAR; ++i)
+        SetEnvironmentVariableA(PORT_RELAUNCH_CLEAR[i], 0);
+    SetEnvironmentVariableA("SM64DS_SCENE", 0);
+    SetEnvironmentVariableA("SM64DS_LEVEL", 0);
+    SetEnvironmentVariableA("SM64DS_DUAL_SCREEN", 0);
+    /* the VS destination pair travels with the destination class: cleared on
+       every relaunch so a level or minigame child of a VS run does not boot
+       back into VS, set only by the VS rows' own launcher below */
+    SetEnvironmentVariableA("SM64DS_VS_MAP", 0);
+    SetEnvironmentVariableA("SM64DS_VS_MODE", 0);
+    if (scene_id >= 0) {
+        snprintf(sid, sizeof sid, "%d", scene_id);
+        SetEnvironmentVariableA("SM64DS_SCENE", sid);
+        SetEnvironmentVariableA("SM64DS_DUAL_SCREEN", "1");
+    } else {
+        snprintf(sid, sizeof sid, "%d", level_id);
+        SetEnvironmentVariableA("SM64DS_LEVEL", sid);
+    }
+    memset(&si, 0, sizeof si);
+    si.cb = sizeof si;
+    memset(&pi, 0, sizeof pi);
+    /* bInheritHandles FALSE because there is nothing to hand down and a
+       child should not hold duplicates of handles it never asked for. It is
+       NOT what keeps the two playlogs apart, and saying it was would send the
+       next reader looking in the wrong place: the child separates itself, by
+       freopen'ing its own stderr onto its own timestamped playlog file within
+       a few statements of entering main. Measured -- run both under
+       SM64DS_NO_PLAYLOG=1, which is the switch that skips that freopen, and
+       the two do interleave on the shared console whatever this flag says. */
+    if (!CreateProcessA(exe, 0, 0, 0, FALSE, 0, 0, 0, &si, &pi))
+        return 0;
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return 1;
+}
+
+/* THE THIRD DESTINATION: a VS boot. Same launcher discipline as the two
+   above -- the shared clear table, the destination class cleared and then
+   set, no forced layout -- and the child does the rest: its boot hook (past
+   the game-heap init) runs the ROM's own VS start off SM64DS_VS_MAP. The
+   mode is NOT an input today because the ROM's VS has exactly one
+   (port/slice_vs.txt section 4); when a second one ever exists this is where
+   its env would be set.
+
+   THE SESSION RIDES ALONG, AND THIS ONE IS THE EXCEPTION TO THE CLEAR TABLE.
+   Run rel0215, lane vsnet. PORT_RELAUNCH_CLEAR strips SM64DS_COMMS_ROLE and
+   _PORT because a MINIGAME or LEVEL child of a multiplayer run has no business
+   inheriting a session it was not launched into -- read its own banner. A VS
+   child is the opposite case and the only one: VS *is* the multiplayer mode,
+   so a player who started the game with a role and a session code and then
+   picks a VS map from the debug menu is asking for that session, and dropping
+   it here is how the menu route into VS came to be the one route that could
+   never pair. Carried by hand, after the shared clear, so the table itself
+   keeps saying what it says for the other two destinations.
+
+   FOUR ARE CARRIED AND TWO ARE NOT, deliberately.
+   SM64DS_COMMS_RELAY / _CODE / _HOST / _BIND_ANY were never in the clear table
+   and already survive. ROLE, PORT and SLOT are carried here because they name
+   WHO THIS CONSOLE IS in the session.
+
+   SM64DS_VS_PLAYERS IS NOT CARRIED HERE AND MUST NOT NEED TO BE, which is
+   worth a sentence because run vs4p checked and got it wrong the first time.
+   It names HOW MANY OF US THERE ARE and it is now load-bearing -- since this
+   lane, hal/comms_conductor.cpp's comms_wait_for_session holds the world seat
+   until the roster reaches it, so a relaunched VS child that lost the count
+   would stop waiting for the others, seat early and spend the match on a
+   different round from everybody else. It survives anyway, for the same reason
+   RELAY and CODE do: IT IS NOT IN PORT_RELAUNCH_CLEAR, so the clear loop never
+   removes it and the child inherits it with the rest of the block. Adding it
+   to this table would be a no-op that reads like a fix.
+
+   SO THE RULE IS ON THE OTHER TABLE: whoever adds SM64DS_VS_PLAYERS to
+   PORT_RELAUNCH_CLEAR must add it here in the same edit, or the debug-menu
+   route into VS becomes the one route that seats a short world. No proof in
+   this tree can catch that: every harness sets the count itself on every
+   instance, so no rung has ever run the relaunch path without it. Exactly the
+   shape of the FANOUT omission below, and found the same way, by reading.
+
+   AND SM64DS_COMMS_FANOUT WITH THEM, which is the one that turns a paired
+   session into a played one. It is not a diagnostic: walk_window.cpp:456 and
+   hal/scene_boot.cpp:4460 make it the switch that hands TouchInfo[4] and
+   PadData[4] to the ROM's four-slot route (func_0203bc7c) instead of the
+   port's direct single-player writes.
+
+   MEASURED, because "it would probably break" is not a reason to change a
+   launcher. Two instances through the live relay with ROLE, RELAY and CODE set
+   and FANOUT deliberately absent -- the exact environment a menu-relaunched VS
+   child used to get:
+
+       [comms:relay] paired as parent ... on both ends
+       [comms:conductor] session up after 148 turns: ... players=2
+       [vs] f599 count=2 me=0        the arena is a two-player arena
+       [vs] f599 slot0 pad=0040      my own key, off the port's direct write
+       [vs] f599 slot1 pad=0000      THE REMOTE PLAYER'S PAD IS EMPTY
+
+   Every health indicator green and the remote player inert. That is the worst
+   shape a defect can take, and it is why FANOUT belongs with the three names
+   above rather than with the diagnostics below.
+
+   WHY NO TEST CAUGHT IT, which is the part worth writing down: port/tools/
+   vs_online_proof.py sets SM64DS_COMMS_FANOUT itself on both instances, so
+   every proof this lane ran had it whatever this function did. The env-boot
+   path a proof drives and the menu path a player drives differ exactly here.
+   Found in review.
+
+   TWO STAY CLEARED. SM64DS_COMMS_INJECT is test scaffolding that pins a held
+   key, and the clear table's own note says an inherited one would put scripted
+   values on a wire a player is using. SM64DS_COMMS_REPORT is pure logging --
+   four lines a frame into the child's playlog -- so a player who never asked
+   for it should not inherit it, and nothing about the session depends on it. */
+static int port_menu_relaunch_vs(int vs_map)
+{
+    char exe[MAX_PATH];
+    char sid[16];
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    if (!GetModuleFileNameA(0, exe, (DWORD)sizeof exe))
+        return 0;
+    /* read BEFORE the shared clear runs over them, written back after. One
+       table rather than four named locals so a fifth name is one row, and so
+       the log line below cannot drift out of step with what was carried. */
+    static const char *const VS_CARRY[] = {
+        "SM64DS_COMMS_ROLE", "SM64DS_COMMS_PORT",
+        "SM64DS_COMMS_SLOT", "SM64DS_COMMS_FANOUT",
+    };
+    enum { VS_CARRY_N = sizeof VS_CARRY / sizeof *VS_CARRY };
+    char carry[VS_CARRY_N][64];
+    for (unsigned i = 0; i < VS_CARRY_N; ++i) {
+        carry[i][0] = 0;
+        GetEnvironmentVariableA(VS_CARRY[i], carry[i], sizeof carry[i]);
+    }
+    for (unsigned i = 0; i < sizeof PORT_RELAUNCH_CLEAR /
+                             sizeof *PORT_RELAUNCH_CLEAR; ++i)
+        SetEnvironmentVariableA(PORT_RELAUNCH_CLEAR[i], 0);
+    for (unsigned i = 0; i < VS_CARRY_N; ++i)
+        if (carry[i][0])
+            SetEnvironmentVariableA(VS_CARRY[i], carry[i]);
+    /* Says what was carried AND what was not, because "the session rode
+       along" is the claim, and a role that arrived without a fan-out is the
+       failure this line has to be able to show. */
+    if (carry[0][0]) {
+        fprintf(stderr, "[menu] VS relaunch carries the session:");
+        for (unsigned i = 0; i < VS_CARRY_N; ++i)
+            fprintf(stderr, " %s=%s", VS_CARRY[i],
+                    carry[i][0] ? carry[i] : "(unset)");
+        fprintf(stderr, "\n");
+    }
+    SetEnvironmentVariableA("SM64DS_SCENE", 0);
+    SetEnvironmentVariableA("SM64DS_LEVEL", 0);
+    SetEnvironmentVariableA("SM64DS_DUAL_SCREEN", 0);
+    SetEnvironmentVariableA("SM64DS_VS_MODE", 0);
+    snprintf(sid, sizeof sid, "%d", vs_map & 3);
+    SetEnvironmentVariableA("SM64DS_VS_MAP", sid);
+    memset(&si, 0, sizeof si);
+    si.cb = sizeof si;
+    memset(&pi, 0, sizeof pi);
+    if (!CreateProcessA(exe, 0, 0, 0, FALSE, 0, 0, 0, &si, &pi))
+        return 0;
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return 1;
+}
+
+/* ---- WHAT LOOP IS THE MENU RUNNING INSIDE? (port mod, run link60 SW1) -----
+
+   The debug menu is one block of code with two callers now: main's level loop
+   and scene_window_run's. Four of its rows act on a Player the level spawned
+   and a scene has not got, so rather than two menus there is one menu and this
+   record of what is underneath it.
+
+   A LEVEL FILLS ALL THREE FIELDS AND A SCENE FILLS NONE. The rows that need a
+   Player then say "(level only)" while the menu is drawn and refuse in words
+   when they are pressed, with the menu still open and the game still running.
+   That is the shape DBG1 gave an unhosted minigame id, for the same reason: a
+   debug menu that silently does nothing is worse than one that says why. */
+struct MenuHost {
+    char *player;       /* the Player actor, or null in a scene */
+    void *cam;          /* the Camera actor, or null */
+    int   real_camera;  /* is there a game camera at all */
+};
+static MenuHost g_menu_host;
+
+static void menu_draw(const OvlSurface &fb)
+{
+    /* 96, not 72: the level-select row now carries a name as well as the row,
+       id, entrance, overlay and mount state, and at 72 the unmounted form of
+       the longest-named row truncated silently (the 86-into-71 defect the row
+       code below used to carry a note about). 96 holds the widest row whole --
+       measured worst case is 77, the minigame row under its longest title --
+       and the panel still auto-sizes to the longest string, so widening the
+       buffer does not widen the panel unless a row actually needs it. */
+    char ln[MENU_COUNT][96];
     int i, w = 0, x0, y0;
     int ex = 0, ey = 0, ez = 0, eyaw = 0;
     const int n_ent = port_entrance_count();
     const int have = port_entrance_record(menu_entrance, &ex, &ey, &ez, &eyaw);
+    /* Esc named FIRST of the four closers, because it is the one a player
+       arrives with: it is now what opened this menu in most sessions, and the
+       row has to say so or the key that got them here looks like it has no way
+       back. */
+    const char *title = "DEBUG MENU   Esc/F5/BACK/B close   "
+                        "WASD or arrows or d-pad move   enter/right/A act";
 
     if (have)
         snprintf(ln[MENU_WARP], sizeof ln[0],
@@ -1916,76 +4718,1765 @@ static void menu_draw(ntr::Framebuffer &fb)
     else
         snprintf(ln[MENU_WARP], sizeof ln[0],
                  "warp to entrance  none loaded");
+    {
+        int lv = 0, en = 0;
+        const int real = port_title_row(menu_level_row, &lv, &en);
+        if (!real) {
+            /* the two scene sentinels the ROM's own table carries: -1 is the
+               file select, -2 the minigame menu (hal/level_change.cpp). Name
+               them rather than print "a scene, not a level". */
+            const char *sc = lv == -1 ? "back to file select"
+                           : lv == -2 ? "minigame menu"
+                                      : 0;
+            if (sc)
+                snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                         "level select  row %2d/%d  %s",
+                         menu_level_row, port_title_rows(), sc);
+            else
+                snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                         "level select  row %2d/%d  scene sentinel %d",
+                         menu_level_row, port_title_rows(), lv);
+        } else {
+            const char *nm = level_short_name(lv);
+            char idn[24];
+            if (!nm) { snprintf(idn, sizeof idn, "(level %d)", lv); nm = idn; }
+            snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                     "level select  row %2d/%d  %2d %s  ent %d ov%03d %s",
+                     menu_level_row, port_title_rows(), lv, nm, en,
+                     port_level_overlay_id(lv),
+                     port_level_is_mounted(lv) ? "MOUNTED" : "not mounted");
+        }
+    }
+    {
+        /* This row's suffix ("enter restarts, stacked" = 23, "not wired yet"
+           = 13) used to have only 26 characters to live in, because ln was
+           [72] and the fixed part of this row costs 45. The first draft asked
+           for 28 and drew as "...here, stack" -- snprintf truncated it and
+           said nothing, which is the whole failure mode. ln is now [96] (lane
+           DBGNAME widened it for the level-select name; see the buffer decl),
+           so this row has ample room and the panel still auto-sizes to the
+           longest string.
+           THE TITLE FIELD IS PADDED TO 21 AND THE TITLES ARE CAPPED AT 21, so
+           this row is 77 characters for every one of the thirty and the panel
+           does not breathe in and out as the list is walked. 77 characters is
+           462 pixels of the 512 the framebuffer has; see the width paragraph
+           over MG_SCENE for where the ceiling comes from.
+           THE TWO COUNTERS ARE GROUP-RELATIVE, not 1..30. With the list sorted
+           wired-first they read "N of 6" through the scenes that start and
+           then fall back to "1 of 24" on the first one that does not, which is
+           the only end-of-working-set marker a single-line row has room for
+           and it lands on the same step as the suffix change. */
+        const int r = mg_row();
+        const int mi = mg_index(r);
+        int pos, of;
+        mg_group(r, &pos, &of);
+        snprintf(ln[MENU_MINIGAME], sizeof ln[0],
+                 "minigame          %d %-21s %2d of %-2d  %s",
+                 MG_SCENE[mi].id, MG_SCENE[mi].name, pos, of,
+                 port_scene_is_hosted(MG_SCENE[mi].id)
+                     ? "enter restarts, stacked"
+                     : "not wired yet");
+    }
+    {
+        /* the VS rows. The map line carries the ROM facts (list position,
+           level id, overlay, mount state) the way the level row does; the
+           mode line states the ROM's one mode. Both act on enter. */
+        const int vlv = port_vs_map_level(menu_vs_map);
+        snprintf(ln[MENU_VS_MAP], sizeof ln[0],
+                 "vs map            %d of 4   level %2d ov%03d %s",
+                 menu_vs_map + 1, vlv, port_level_overlay_id(vlv),
+                 port_level_is_mounted(vlv) ? "enter starts VS"
+                                            : "NOT MOUNTED");
+        snprintf(ln[MENU_VS_MODE], sizeof ln[0],
+                 "vs mode           star battle (the ROM's only mode)   "
+                 "enter starts VS");
+    }
+    snprintf(ln[MENU_EXIT], sizeof ln[0],
+             "exit course       ExitLevel() -> level 1 entrance 13   "
+             "(here: level %d)", (int)data_0209f2f8);
+    snprintf(ln[MENU_CHARACTER], sizeof ln[0], "character         %s%s",
+             CHAR_NAME[g_character_pending & 3],
+             g_character_pending == g_character ? "" : "   enter to switch");
     snprintf(ln[MENU_SNAP], sizeof ln[0], "fake snap         %s",
              g_fake_snap ? "ON (collider owner set at boot)" : "off");
     snprintf(ln[MENU_OVERLAY], sizeof ln[0], "stats overlay     %s",
              g_overlay_on ? "on" : "off");
     snprintf(ln[MENU_CAMERA], sizeof ln[0], "camera            %s",
              cam_mode_name(cam_mode));
+    snprintf(ln[MENU_RUNMODE], sizeof ln[0], "run mode          %s",
+             RUN_MODE_NAME[g_run_mode]);
+    /* the binding row shows BOTH devices, because it can set either one and a
+       player who has only ever rebound the keyboard should still be able to
+       see what the pad is doing */
+    {
+        char kb[16], pb[16];
+        if (g_rebind_capture)
+            snprintf(ln[MENU_RUNBIND], sizeof ln[0],
+                     "rebind run        press the new key or pad button "
+                     "(esc cancels)");
+        else
+            snprintf(ln[MENU_RUNBIND], sizeof ln[0],
+                     "rebind run        %s / %s   enter to rebind",
+                     run_key_name(g_run_key, kb, sizeof kb),
+                     run_pad_name(g_run_pad, pb, sizeof pb));
+    }
+    /* the learn row: what the live pad is and whether its layout is the
+       table's guess or a learned one; refused in words on an XInput pad */
+    {
+        PortPadRaw r;
+        if (g_padlearn)
+            snprintf(ln[MENU_PADLAYOUT], sizeof ln[0],
+                     "pad layout        learning, step %d of %d   (esc cancels, "
+                     "backspace skips)", g_padlearn, PADLEARN_STEPS);
+        else if (port_pad_raw(&r))
+            snprintf(ln[MENU_PADLAYOUT], sizeof ln[0],
+                     "pad layout        %.24s %04x:%04x %s   enter to learn",
+                     r.name[0] ? r.name : "controller", r.vid, r.pid,
+                     r.learned ? "(learned)" : "(built-in guess)");
+        else
+            snprintf(ln[MENU_PADLAYOUT], sizeof ln[0],
+                     "pad layout        needs a DirectInput pad (XInput pads "
+                     "are already right)");
+    }
     snprintf(ln[MENU_RECORDER], sizeof ln[0], "recorder          %s", g_playlog);
-    snprintf(ln[MENU_ANALOG], sizeof ln[0], "mod: analog input  %s",
-             g_analog_controls ? "ON" : "off");
-    snprintf(ln[MENU_CHARACTER], sizeof ln[0], "character         %s",
-             character_name(g_character));
-    snprintf(ln[MENU_COLOR], sizeof ln[0], "outfit color      %s",
-             color_name(g_color));
-    snprintf(ln[MENU_SPEED], sizeof ln[0], "mod: speed        %d%%",
-             g_speed_pct);
-    snprintf(ln[MENU_JUMP], sizeof ln[0], "mod: jump         %d%%",
-             g_jump_pct);
-    snprintf(ln[MENU_SUB], sizeof ln[0], "bottom screen     1/%d%s",
-             g_sub_scale, hal_sub_screen_on() ? "" : " (hidden, TAB)");
-    snprintf(ln[MENU_WIDE], sizeof ln[0], "widescreen        %s (next boot)",
-             g_widescreen ? "ON" : "off");
-    snprintf(ln[MENU_ARENA], sizeof ln[0], "small arena       %s",
-             g_arena ? "ON" : "off");
-    snprintf(ln[MENU_CAMDIST], sizeof ln[0], "camera dist       %d%%",
-             g_cam_dist_pct);
-    snprintf(ln[MENU_FPS], sizeof ln[0], "fps               %s",
-             fps_mode_name(g_fps_mode));
-    snprintf(ln[MENU_VSYNC], sizeof ln[0], "vsync             %s",
-             g_vsync ? "ON" : "off");
-    snprintf(ln[MENU_DISCONNECT], sizeof ln[0], "disconnect        %s",
-             front_on ? "ON" : "OFF");
+    /* the disk suffix tells the player whether a save will outlive the run: it
+       does only when the arena is at its fixed base, which is what lets a disk
+       state's pointers relocate on the next launch (hal/lk7_persist.cpp). */
+    snprintf(ln[MENU_SAVESTATE], sizeof ln[0], "save state        F8   %s%s",
+             lk6_savestate_has() ? "(slot in use, overwrite)" : "(slot empty)",
+             lk7_persist_available() ? " to disk" : " this run only");
+    snprintf(ln[MENU_LOADSTATE], sizeof ln[0], "load state        F9   %s",
+             lk6_savestate_has() ? "(restore slot)" : "(no state saved)");
+
+    /* THE FOUR ROWS A SCENE HAS NOTHING TO ACT ON, said before they are
+       pressed. Everything above is written for a level and reads level state;
+       in a scene those readings are true and useless (no entrances, a level id
+       nothing is standing in), so the rows are replaced rather than annotated
+       -- the lines above are already close to the 72-column buffer and a
+       suffix would truncate the sentence instead of adding to it. The minigame
+       row is deliberately NOT in this set: it works from a scene. */
+    if (!g_menu_host.player) {
+        snprintf(ln[MENU_WARP], sizeof ln[0],
+                 "warp to entrance  (level only)");
+        snprintf(ln[MENU_EXIT], sizeof ln[0],
+                 "exit course       (level only)");
+        snprintf(ln[MENU_CHARACTER], sizeof ln[0],
+                 "character         (level only)");
+        /* THE LEVEL ROW IS NOT "(level only)" ANY MORE (lane TCH2): from a
+           scene it relaunches, which is the way out of a minigame. It still
+           cannot show the level-path detail the version above shows, so it
+           says the level id, its name and whether it will boot, and no more.
+           THE 86-INTO-71 TRUNCATION THE OLD NOTE HERE FLAGGED IS FIXED (lane
+           DBGNAME): the mounted-level row above overflowed [72] on an
+           unmounted, long-named level, and ln is now [96], so every form of
+           both rows -- name included -- fits whole. The name lookup is
+           level_short_name(); an id with no name falls back to "(level N)". */
+        int lv = 0, en = 0;
+        if (!port_title_row(menu_level_row, &lv, &en)) {
+            const char *sc = lv == -1 ? "back to file select"
+                           : lv == -2 ? "minigame menu"
+                                      : 0;
+            if (sc)
+                snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                         "level select  row %2d/%d  %s",
+                         menu_level_row, port_title_rows(), sc);
+            else
+                snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                         "level select  row %2d/%d  scene sentinel %d",
+                         menu_level_row, port_title_rows(), lv);
+        } else {
+            const char *nm = level_short_name(lv);
+            char idn[24];
+            if (!nm) { snprintf(idn, sizeof idn, "(level %d)", lv); nm = idn; }
+            snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                     "level select  row %2d/%d  %2d %s  %s",
+                     menu_level_row, port_title_rows(), lv, nm,
+                     port_level_is_mounted(lv) ? "enter restarts"
+                                               : "NOT MOUNTED");
+        }
+    }
 
     for (i = 0; i < MENU_COUNT; ++i) {
         const int lw = (int)strlen(ln[i]) * OVL_ADVANCE * OVL_SCALE;
         if (lw > w) w = lw;
     }
     {
-        const int tw =
-            (int)strlen("DEBUG   F5 close   arrows move   ENTER flips mod") *
-            OVL_ADVANCE * OVL_SCALE;
+        const int tw = (int)strlen(title) * OVL_ADVANCE * OVL_SCALE;
         if (tw > w) w = tw;
     }
     w += 3 * OVL_ADVANCE * OVL_SCALE;
-    x0 = (ntr::SCREEN_W - w) / 2;
+    x0 = (ntr::active_w - w) / 2;
     if (x0 < 2) x0 = 2;
-    y0 = (ntr::SCREEN_H - (MENU_COUNT + 2) * OVL_LINE) / 2;
-    {
-        const int ph = (MENU_COUNT + 2) * OVL_LINE + 8;
-        ovl_fill(fb, x0 - 4, y0 - 4, w + 8, ph, 0xFF121418u);
-        uint32_t edge = 0xFF3A3F47u;
-        ovl_fill(fb, x0 - 4, y0 - 4, w + 8, OVL_SCALE, edge);
-        ovl_fill(fb, x0 - 4, y0 + ph - 4 - OVL_SCALE, w + 8, OVL_SCALE,
-                 edge);
-        ovl_fill(fb, x0 - 4, y0 - 4, OVL_SCALE, ph, edge);
-        ovl_fill(fb, x0 + w + 4 - OVL_SCALE, y0 - 4, OVL_SCALE, ph, edge);
-    }
-    mario_text(fb, x0, y0, "DEBUG");
-    ovl_text(fb, x0 + 6 * OVL_ADVANCE * OVL_SCALE, y0,
-             "F5 close   arrows move   ENTER flips mod", UI_DIM);
-    ovl_fill(fb, x0, y0 + OVL_LINE - 1, w, OVL_SCALE, UI_ACCENT);
+    y0 = (ntr::active_h - (MENU_COUNT + 2) * OVL_LINE) / 2;
+    ovl_shade(fb, x0 - 4, y0 - 4, w + 8, (MENU_COUNT + 2) * OVL_LINE + 8);
+    ovl_shade(fb, x0 - 4, y0 - 4, w + 8, (MENU_COUNT + 2) * OVL_LINE + 8);
+    ovl_text(fb, x0, y0, title, 0xFF80C0FFu);
     for (i = 0; i < MENU_COUNT; ++i) {
         const int y = y0 + (i + 2) * OVL_LINE;
         const int sel = i == menu_sel;
-        const int mi = f5_mod_index(i);
-        const int dim =
-            mi >= 0 && !sm64ds::mods::mod_enabled(kModRowIds[mi]);
-        if (sel) ovl_selbar(fb, x0, y);
+        if (sel) ovl_text(fb, x0, y, ">", 0xFFFFE060u);
         ovl_text(fb, x0 + 2 * OVL_ADVANCE * OVL_SCALE, y, ln[i],
-                 sel ? UI_TEXT : (dim ? UI_FAINT : UI_DIM));
+                 sel ? 0xFFFFE060u : 0xFFB0B0B0u);
     }
+}
+
+/* ---- THE DEBUG MENU'S OWN INPUT. It runs before anything else reads
+   the keyboard, and while it is open it swallows the keys it uses and
+   the tick is skipped below, so nothing it does can also be a walk.
+   Every key here is edge-detected off one held-mask, which is the
+   cheapest way to get "one step per press" out of GetAsyncKeyState.
+
+   MOVED TO FILE SCOPE (run link60 lane SW1) so the windowed scene loop runs
+   the SAME menu rather than a second one. What it used to read off main's
+   stack -- the Player, the Camera, whether there is a game camera at all --
+   is g_menu_host above, filled by whichever loop is running, and every row
+   that needs one of those refuses in words when a scene is underneath it.
+   Nothing else about the block changed. */
+static void menu_input(int pad_live, const XPad *pad)
+{
+    if (g_selftest) return;
+    static unsigned menu_prev;
+    unsigned held = 0;
+    unsigned edge;
+    /* through key_live, not the raw read, so the menu is behind the
+       focus gate and the stale-key latch with everything else. Under a
+       selftest this block never runs at all, so routing it here changes
+       nothing an automated run sees. */
+    /* ESCAPE IS AN ALIAS OF F5 (Tango's ask, run mg10 lane ESC), and this line
+       is the whole of it. Escape used to close the game outright, from the
+       window procedure -- the one key in this program that acted without
+       passing the three gates key_live carries. Quitting by accident is the
+       cheapest bug a play session has: the F-row keys sit next to each other
+       and the one a person reaches for to back out of anything took the
+       session with it.
+
+       AN ALIAS AND NOT A SECOND ENTRY POINT, on purpose. Sharing bit 0 with F5
+       and pad BACK means escape inherits, with no code of its own, every rule
+       the toggle already follows: the selftest gate (a comparator run reads
+       every key released, so nothing an automated run does can press this), the
+       rebind-capture gate, the focus gate, the stale-key latch across an
+       alt-tab, and the one-step-per-press edge. It also means escape CLOSES the
+       menu as well as opening it, which is the half of the ask that matters --
+       the key that opens the picker is the key that puts it away.
+
+       QUITTING IS THE WINDOW'S CLOSE BUTTON now, and alt+F4, both of which
+       arrive as WM_DESTROY and leave through the same PostQuitMessage escape
+       always did. Nothing else in this file quits: the only other
+       PostQuitMessage calls are that one and the two relaunch rows, which quit
+       because they have just started a replacement process. */
+    if (key_live(VK_F5) || key_live(VK_ESCAPE)) held |= 1u << 0;
+    /* WASD NAVIGATES TOO, as plain aliases of the arrows (Tango's ask). Same
+       key_live call, so they arrive behind the focus gate, the stale-key latch
+       and the rebind-capture gate with everything else; same held-mask bit, so
+       they inherit the one-step-per-press edge and the held-across-an-open
+       discipline the pad buttons were fixed to follow. A player already
+       steering Mario with the left hand should not have to move it to read
+       this menu.
+
+       AND THEY NEED NO SWALLOW, which is worth stating because the B close did
+       need one. These four keys feed exactly one thing in the game -- dx/dz,
+       built out of `key_live('W') || key_live(VK_UP)` and its three siblings
+       -- and that pair is already emptied while the menu is open: the level
+       loop does it outright (`if (menu_on) { dx = 0; dz = 0; }`) and the
+       windowed scene loop wraps its whole button build in `if (!menu_on)`.
+       The zeroing is on the VARIABLE, not on the key, so it has always
+       covered both halves of each of these four lines. The arrows were never
+       leaking and WASD does not start. */
+    /* THE ARROWS ARE FIXED and the aliases are whatever the walk keys are
+       BOUND to (settings.json KeyUp..KeyRight; W/A/S/D unless moved), so a
+       player who walks on IJKL reads the menu with the same hand. */
+    if (key_live(VK_UP)    || key_act(HOST_KEY_UP))    held |= 1u << 1;
+    if (key_live(VK_DOWN)  || key_act(HOST_KEY_DOWN))  held |= 1u << 2;
+    if (key_live(VK_LEFT)  || key_act(HOST_KEY_LEFT))  held |= 1u << 3;
+    if (key_live(VK_RIGHT) || key_act(HOST_KEY_RIGHT)) held |= 1u << 4;
+    if (key_live(VK_RETURN)) held |= 1u << 5;
+    if (pad_live) {
+        if (pad->buttons & 0x0001) held |= 1u << 1;   /* d-pad up    */
+        if (pad->buttons & 0x0002) held |= 1u << 2;   /* d-pad down  */
+        if (pad->buttons & 0x0004) held |= 1u << 3;   /* d-pad left  */
+        if (pad->buttons & 0x0008) held |= 1u << 4;   /* d-pad right */
+        if (pad->buttons & 0x0020) held |= 1u << 0;   /* BACK        */
+        /* A acts and B closes, and BOTH ARE RECORDED WHETHER THE MENU
+           IS OPEN OR NOT. That is the fix for a real bug and not
+           tidying: held is only ever a record of what is physically
+           down, and menu_on decides what is DONE about it, below.
+           Gating the record on menu_on instead meant a button held
+           across an open read as a fresh press the instant the menu
+           appeared -- hold B, tap BACK, and the menu opened and shut
+           in the same breath, so it could not be opened from the pad
+           at all with B down. A had the same trap the other way:
+           opening with A held instantly confirmed whatever row the
+           cursor was on. Recording the state unconditionally means
+           menu_prev already carries the bit when the menu opens, so
+           there is no edge until the button is genuinely released and
+           pressed again. Neither bit is read anywhere except inside
+           the `if (menu_on)` below, so recording them always costs
+           nothing and does nothing on its own. */
+        if (pad->buttons & 0x1000) held |= 1u << 5;   /* A  act      */
+        if (pad->buttons & 0x2000) held |= 1u << 6;   /* B  close    */
+    }
+    edge = held & ~menu_prev;
+    menu_prev = held;
+    /* ---- AND IT DOES NOT OPEN IN MULTIPLAYER (Tango's ask, lane VSEND) ------
+     *
+     * "make sure f5 doesnt work in multiplayer." Every row behind this key is a
+     * single-console action -- warp to a level, relaunch into a scene or a VS
+     * map, load a save state, quit and start a replacement process -- and every
+     * one of them is a divergence the instant a second console is in the
+     * session, because the other console did none of it. The two worlds are
+     * lockstep on the frame; one of them warping is the end of that.
+     *
+     * THE TEST IS THE TRANSPORT, not a pairing handshake. comms_loopback_stats
+     * reports installed=false whenever no role was set, which is every solo run
+     * and is the whole of the "solo stays byte-identical" promise on this path;
+     * with a role set the process is in a session or trying to be, and either
+     * way it is not a console that should be warping alone. Reading a struct
+     * field costs nothing and it is read only on the press edge.
+     *
+     * THE OPEN IS REFUSED AND THE CLOSE IS NOT. A menu that somehow got open
+     * must always be closable, whatever the mode; refusing both would be a way
+     * to trap a player behind it. In practice the open is the only reachable
+     * half in a session, so the close arm is a safety property and not a
+     * feature.
+     *
+     * SM64DS_MP_DEBUG_MENU=1 for a developer who wants it anyway, off by
+     * default, named so it cannot be reached by accident. */
+    if ((edge & (1u << 0)) && !menu_on) {
+        static int allow = -1;
+        if (allow < 0) allow = getenv("SM64DS_MP_DEBUG_MENU") != 0;
+        if (!allow && port::comms_loopback_stats().installed) {
+            fprintf(stderr, "[menu] REFUSED: this process is in a multiplayer "
+                            "session, and every row behind this key is a "
+                            "single-console action the other console would not "
+                            "take. SM64DS_MP_DEBUG_MENU=1 overrides.\n");
+            edge &= ~(1u << 0);
+        }
+    }
+    if (edge & (1u << 0)) {
+        menu_on = !menu_on;
+        fprintf(stderr, "[menu] %s\n", menu_on ? "open" : "closed");
+        /* Park the level row somewhere USEFUL on open: the row
+           resets to 1 each boot, and 1 is the castle grounds, so
+           "open the menu, press enter" re-entered the level being
+           stood in -- which reads as a warp that did nothing (the
+           2026-08-05 session). Seat it on the first mounted row
+           whose level is not the current one; navigation from
+           there is unchanged. */
+        if (menu_on) {
+            int lv = 0, en = 0;
+            if (port_title_row(menu_level_row, &lv, &en) &&
+                lv == (int)data_0209f2f8) {
+                const int rows = port_title_rows();
+                for (int k = 1; k < rows; ++k) {
+                    const int r = (menu_level_row + k) % rows;
+                    if (port_title_row(r, &lv, &en) &&
+                        port_level_is_mounted(lv) &&
+                        lv != (int)data_0209f2f8) {
+                        menu_level_row = r;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    /* B closes it. Read after the toggle above and before the rows
+       below, so a close is a close whatever else the frame carried
+       and no row sees the press that shut the menu. */
+    if (menu_on && (edge & (1u << 6))) {
+        menu_on = 0;
+        menu_b_swallow = 1;
+        fprintf(stderr, "[menu] closed\n");
+    }
+    if (menu_on) {
+        const int n_ent = port_entrance_count();
+        if (edge & (1u << 1))
+            menu_sel = (menu_sel + MENU_COUNT - 1) % MENU_COUNT;
+        if (edge & (1u << 2))
+            menu_sel = (menu_sel + 1) % MENU_COUNT;
+        {
+            /* enter is a synonym for right, so a pad can do it all */
+            const int dec = (edge & (1u << 3)) != 0;
+            const int inc = (edge & ((1u << 4) | (1u << 5))) != 0;
+            /* THE THREE ROWS THAT NEED A LEVEL, refused in one place rather
+               than three. Warp writes the Player's position, exit calls
+               ExitLevel, and character swaps the Player's model -- so from a
+               scene each of them is a write through a null. The menu stays
+               open and the scene keeps running, which is the shape DBG1 gave
+               an unhosted minigame id. The MINIGAME row is deliberately not in
+               the set: it relaunches, and a relaunch works from a scene
+               exactly as well as from a level. */
+            /* MENU_LEVEL LEFT THIS SET (run link60, lane TCH2). It was in it
+               for a reason that stopped being true when the minigame row got a
+               relaunch: "level select stages a change only main's loop polls",
+               so from a scene it was a request nobody would read. But there is
+               nothing about CHOOSING A LEVEL that needs a Player in this
+               process -- the other three genuinely do, they write through
+               g_menu_host.player or call ExitLevel -- and a relaunch works from
+               a scene exactly as well as it works from a level. Leaving it here
+               meant that once you were inside a minigame the ONLY way back to
+               the game was closing the window, which is what the owner hit.
+               The refusal below still covers the three that need a live
+               Player, and the enter branch for this row splits on the same
+               g_menu_host.player: stage the handoff in a level, relaunch from
+               a scene. */
+            if ((dec || inc) && !g_menu_host.player &&
+                (menu_sel == MENU_WARP ||
+                 menu_sel == MENU_EXIT || menu_sel == MENU_CHARACTER)) {
+                ss_note("that row needs a level (this is a scene)");
+                fprintf(stderr, "[menu] row %d needs a level and this run is a "
+                        "scene -- refused, menu stays open\n", menu_sel);
+            } else if (dec || inc) switch (menu_sel) {
+            case MENU_WARP:
+                if (n_ent > 0) {
+                    /* left and right pick the entrance; enter warps */
+                    if (edge & (1u << 5)) {
+                        int ex, ey, ez, eyaw;
+                        if (port_entrance_record(menu_entrance, &ex,
+                                                 &ey, &ez, &eyaw)) {
+                            /* the level's own record, in the units it
+                               stores: world units, so <<12 into the
+                               actor's fixed point. This MOVES him; it
+                               is not a re-entry, nothing about the
+                               level or the area is reloaded. */
+                            *(int *)(g_menu_host.player + 0x5c) = ex << 12;
+                            *(int *)(g_menu_host.player + 0x60) = ey << 12;
+                            *(int *)(g_menu_host.player + 0x64) = ez << 12;
+                            *(short *)(g_menu_host.player + 0x8e) = (short)eyaw;
+                            *(int *)(g_menu_host.player + 0x98) = 0;   /* mHorzSpeed */
+                            *(int *)(g_menu_host.player + 0xa4) = 0;
+                            *(int *)(g_menu_host.player + 0xa8) = 0;   /* mVertSpeed */
+                            *(int *)(g_menu_host.player + 0xac) = 0;
+                            an_pivot_live = 0;        /* do not ease
+                                                         across a warp */
+                            fprintf(stderr,
+                                    "[menu] warp to entrance %d "
+                                    "(%d, %d, %d)\n", menu_entrance,
+                                    ex, ey, ez);
+                        }
+                    } else if (dec) {
+                        menu_entrance =
+                            (menu_entrance + n_ent - 1) % n_ent;
+                    } else {
+                        menu_entrance = (menu_entrance + 1) % n_ent;
+                    }
+                }
+                break;
+            case MENU_LEVEL:
+                /* left/right move the cursor exactly as
+                   _ZN10dScTitle_c8BehaviorEv does (+/-1, modulo the row
+                   count); enter runs its else-branch. */
+                if ((edge & (1u << 5)) && !g_menu_host.player) {
+                    /* FROM A SCENE: RELAUNCH (run link60, lane TCH2). There is
+                       no level loop in this process to hand a staged change
+                       to, and port_title_select's ROM branch writes level
+                       globals a scene has no use for, so the honest move is
+                       the one the minigame row already makes -- start the
+                       program again on the level path and leave through this
+                       process's ordinary close. Same exe, same directory, the
+                       shared clear table, no forced layout.
+                       The row's own sentinel check comes first: rows -1 and -2
+                       are scenes, not levels, and relaunching into one would
+                       boot the castle grounds instead of saying why. */
+                    int lv = 0, en = 0;
+                    if (!port_title_row(menu_level_row, &lv, &en)) {
+                        ss_note("that row is a scene, not a level");
+                        fprintf(stderr, "[menu] level row %d is a scene "
+                                "sentinel (%d), not a level -- refused, menu "
+                                "stays open\n", menu_level_row, lv);
+                    } else if (!port_level_is_mounted(lv)) {
+                        /* REFUSED BEFORE THE PARENT COMMITS, and this is the
+                           one refusal that has to happen HERE rather than in
+                           the child. The relaunch is a one-way door: this
+                           process quits the moment the child is started, so an
+                           unmounted level would abort in the child and leave
+                           the player with no game at all -- worse than the
+                           dead end this row exists to open. The level path's
+                           own select refuses an unmounted row too
+                           (port_title_select, after the ROM branch); it can
+                           afford to do it late because nothing has quit. */
+                        char msg[64];
+                        snprintf(msg, sizeof msg,
+                                 "level %d is not mounted in this build", lv);
+                        ss_note(msg);
+                        fprintf(stderr, "[menu] level %d (row %d) is NOT "
+                                "mounted -- refused, menu stays open (a "
+                                "relaunch would quit this run and the child "
+                                "would abort)\n", lv, menu_level_row);
+                    } else if (port_menu_relaunch(-1, lv)) {
+                        fprintf(stderr, "[menu] level %d (row %d): started "
+                                "SM64DS_LEVEL=%d, this process is quitting\n",
+                                lv, menu_level_row, lv);
+                        W.PostQuitMessage_(0);
+                    } else {
+                        char msg[64];
+                        snprintf(msg, sizeof msg,
+                                 "could not start level %d", lv);
+                        ss_note(msg);
+                        fprintf(stderr, "[menu] level %d: could not start the "
+                                "level run (win32 %lu)\n", lv,
+                                (unsigned long)GetLastError());
+                    }
+                } else if (edge & (1u << 5)) {
+                    /* a successful select CLOSES THE MENU: the level
+                       handoff poll below is gated on !menu_on (every
+                       pointer the menu holds goes stale across it),
+                       so staying open would park the warp forever --
+                       which is exactly what it did. */
+                    if (port_title_select(menu_level_row)) {
+                        menu_on = 0;
+                        /* the staged request, read straight back, so
+                           the playlog shows what the poll is about
+                           to see -- the 18:56 session ended at the
+                           castle grounds with no way to tell whether
+                           the request died staged or mid-handoff */
+                        fprintf(stderr, "[menu] closed for the level "
+                                "handoff (staged: level %d entrance "
+                                "%d)\n", (int)data_02092110,
+                                (int)data_0209f268);
+                    }
+                } else if (dec) {
+                    menu_level_row = (menu_level_row +
+                                      port_title_rows() - 1) %
+                                     port_title_rows();
+                } else {
+                    menu_level_row =
+                        (menu_level_row + 1) % port_title_rows();
+                }
+                break;
+            case MENU_MINIGAME:
+                /* left/right walk the ROM's thirty; enter starts the
+                   one that is showing, or says why it cannot and
+                   leaves the menu exactly where it was. */
+                if (edge & (1u << 5)) {
+                    const int r = mg_row();
+                    const int mi = mg_index(r);
+                    const int id = MG_SCENE[mi].id;
+                    if (!port_scene_is_hosted(id)) {
+                        char msg[64];
+                        snprintf(msg, sizeof msg,
+                                 "%s (%d) is not wired yet",
+                                 MG_SCENE[mi].name, id);
+                        ss_note(msg);
+                        fprintf(stderr, "[menu] minigame %d (%s) is "
+                                "not a hosted scene yet -- refused, "
+                                "menu stays open\n", id,
+                                MG_SCENE[mi].name);
+                    } else if (port_menu_relaunch(id, -1)) {
+                        fprintf(stderr, "[menu] minigame %d (%s): "
+                                "started SM64DS_SCENE=%d "
+                                "SM64DS_DUAL_SCREEN=1, this process "
+                                "is quitting\n", id, MG_SCENE[mi].name,
+                                id);
+                        /* the same exit a window close takes: the
+                           next PeekMessage returns WM_QUIT */
+                        W.PostQuitMessage_(0);
+                    } else {
+                        char msg[64];
+                        snprintf(msg, sizeof msg,
+                                 "could not start scene %d", id);
+                        ss_note(msg);
+                        fprintf(stderr, "[menu] minigame %d: could "
+                                "not start the scene run (win32 %lu)"
+                                "\n", id,
+                                (unsigned long)GetLastError());
+                    }
+                } else if (dec) {
+                    menu_mg = (mg_row() + MG_COUNT - 1) % MG_COUNT;
+                } else {
+                    menu_mg = (mg_row() + 1) % MG_COUNT;
+                }
+                break;
+            case MENU_VS_MAP:
+            case MENU_VS_MODE:
+                /* left/right walk the ROM's four maps (the map row only);
+                   enter on either row starts VS on the showing map -- the
+                   minigame row's relaunch shape, and the same refusal
+                   discipline: an unmounted map is refused in words BEFORE
+                   the parent commits, because the relaunch is a one-way
+                   door. The mode row moves nothing: the ROM's VS has ONE
+                   mode (port/slice_vs.txt section 4) and a selector with
+                   one entry would be an invented choice. */
+                if (edge & (1u << 5)) {
+                    const int vlv = port_vs_map_level(menu_vs_map);
+                    if (!port_level_is_mounted(vlv)) {
+                        char msg[64];
+                        snprintf(msg, sizeof msg,
+                                 "VS map %d (level %d) is not mounted",
+                                 menu_vs_map + 1, vlv);
+                        ss_note(msg);
+                        fprintf(stderr, "[menu] VS map %d is level %d "
+                                "(overlay %d), NOT mounted -- refused, menu "
+                                "stays open\n", menu_vs_map + 1, vlv,
+                                port_level_overlay_id(vlv));
+                    } else if (port_menu_relaunch_vs(menu_vs_map)) {
+                        fprintf(stderr, "[menu] VS map %d (level %d): "
+                                "started SM64DS_VS_MAP=%d, this process is "
+                                "quitting\n", menu_vs_map + 1, vlv,
+                                menu_vs_map);
+                        W.PostQuitMessage_(0);
+                    } else {
+                        char msg[64];
+                        snprintf(msg, sizeof msg,
+                                 "could not start VS map %d", menu_vs_map + 1);
+                        ss_note(msg);
+                        fprintf(stderr, "[menu] VS map %d: could not start "
+                                "the VS run (win32 %lu)\n", menu_vs_map + 1,
+                                (unsigned long)GetLastError());
+                    }
+                } else if (menu_sel == MENU_VS_MAP) {
+                    if (dec)
+                        menu_vs_map = (menu_vs_map + 3) & 3;
+                    else
+                        menu_vs_map = (menu_vs_map + 1) & 3;
+                }
+                break;
+            case MENU_EXIT:
+                if (edge & (1u << 5)) {
+                    fprintf(stderr, "[menu] ExitLevel()\n");
+                    ExitLevel();
+                }
+                break;
+            case MENU_CHARACTER:
+                /* left and right pick, enter changes -- the same shape
+                   as the warp row above */
+                if (edge & (1u << 5)) {
+                    fprintf(stderr, "[menu] becoming %s\n",
+                            CHAR_NAME[g_character_pending & 3]);
+                    port_player_set_character(g_menu_host.player,
+                                              g_character_pending);
+                    g_character = g_character_pending;
+                    an_pivot_live = 0;   /* do not ease across it */
+                } else {
+                    g_character_pending =
+                        (dec ? g_character_pending + 3
+                             : g_character_pending + 1) & 3;
+                }
+                break;
+            case MENU_SNAP:
+                g_fake_snap = !g_fake_snap;
+                fprintf(stderr, "[menu] fake snap %s\n",
+                        g_fake_snap ? "ON" : "off");
+                break;
+            case MENU_OVERLAY:
+                g_overlay_on = !g_overlay_on;
+                break;
+            case MENU_CAMERA:
+                if (g_menu_host.real_camera) {
+                    cam_mode = dec ? (cam_mode + 2) % 3
+                                   : (cam_mode + 1) % 3;
+                    if (cam_mode != CAM_DS) fc_seed(g_menu_host.cam);
+                    if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
+                    /* persisted on the spot like the run row, and for the
+                       same reason: settings.json's CameraMode is what a
+                       lobby match boots with, and this row is the one place
+                       in the game a player can set it. F1 does not write it;
+                       F1 is a look, this is a choice. */
+                    host_setting_save_camera_mode(cam_mode);
+                    fprintf(stderr, "[menu] camera %s\n",
+                            cam_mode_name(cam_mode));
+                }
+                break;
+            case MENU_RUNMODE:
+                /* left and right cycle it and enter acts as right, the
+                   same shape as the camera row. Persisted on the spot
+                   rather than at exit: this program is one a player
+                   does sometimes crash, and a preference that only
+                   survives a clean shutdown is a preference that gets
+                   lost exactly when they were experimenting. */
+                g_run_mode = dec ? (g_run_mode + RUN_MODE_COUNT - 1) %
+                                       RUN_MODE_COUNT
+                                 : (g_run_mode + 1) % RUN_MODE_COUNT;
+                host_setting_save_run(g_run_mode, g_run_key, g_run_pad);
+                fprintf(stderr, "[run] mode %s\n",
+                        RUN_MODE_NAME[g_run_mode]);
+                break;
+            case MENU_RUNBIND:
+                /* enter/right only: arm the capture. Left does nothing
+                   on purpose -- there is no "previous binding" to walk
+                   back to, and a row that changed a binding by being
+                   scrolled past would be a trap. */
+                if (edge & (1u << 5)) {
+                    g_rebind_capture = 1;
+                    g_rebind_key = 0;
+                    /* enter is still physically down. Marking every
+                       key stale here is what stops it being read as
+                       the binding on the very next frame; the window
+                       procedure ignores its auto-repeat for the same
+                       reason. */
+                    memset(key_stale, 1, sizeof key_stale);
+                    ss_note("press the new run button (esc cancels)");
+                }
+                break;
+            case MENU_PADLAYOUT:
+                /* enter/right only, and only with a DirectInput pad live:
+                   arm the learn flow (padlearn_frame runs it) */
+                if (edge & (1u << 5)) {
+                    PortPadRaw r;
+                    if (port_pad_raw(&r)) padlearn_start(&r);
+                    else ss_note("no DirectInput pad live (XInput pads need "
+                                 "no learning)");
+                }
+                break;
+            case MENU_SAVESTATE:
+                /* enter/right only: snapshot into the slot. Same call
+                   F8 makes; the menu pauses the tick, which is as safe
+                   a between-frames point as the top-of-loop latch.
+                   The toast fires here too: highlighting the row and
+                   closing the menu does NOT save, and the only way a
+                   player can learn that is being shown the difference. */
+                if (edge & (1u << 5)) {
+                    if (lk6_savestate_save())
+                        ss_note(lk7_persist_write()
+                                    ? "state saved to disk (F9 loads it)"
+                                    : "state saved for THIS RUN (F9 loads it)");
+                    else
+                        ss_note("state NOT saved (see log)");
+                }
+                break;
+            case MENU_LOADSTATE:
+                /* enter/right only: restore the slot. A no-op with no
+                   saved state. */
+                if (edge & (1u << 5)) {
+                    if (lk6_savestate_load()) {
+                        an_pivot_live = 0;
+                        ss_reseat_pending = 1;
+                        ss_note("state loaded");
+                    } else {
+                        ss_note(lk6_savestate_has()
+                                    ? "state NOT loaded (see log)"
+                                    : "no state saved yet (F8 saves)");
+                    }
+                }
+                break;
+            default:
+                break;
+            }
+        }
+    }
+}
+
+/* THE CLOSE MUST NOT ALSO BE A PUNCH. B shuts the menu while it is
+   open and punches while it is not, so the frame the close lands on
+   has the button still down with the menu already shut -- and a thumb
+   holds it for several frames after that. Swallowed from the close
+   until it comes back up, which is the pad's copy of the key_stale
+   latch the focus edge sets, for the same reason: a press already
+   spent on one thing must not be spent again on another.
+   Here rather than inside the block above because this has to run on
+   the frames AFTER the close, when the menu is shut and that block is
+   no longer looking at B.
+
+   A HAS THE SAME OVERLAP ON THE LEVEL-SELECT ROW AND IT IS NOT FIXED
+   HERE. PRE-EXISTING, measured, written down so the next person does
+   not have to find it twice: MENU_LEVEL's enter branch sets
+   menu_on = 0 on a successful select, and A is the jump button with
+   the menu shut, so the A that picks a level also jumps on the
+   handoff frame. It wants the same latch this one gets. It is left
+   alone deliberately -- it sits on the level handoff, which is
+   somebody else's change this run, and widening a menu commit into
+   that path is how two fixes become one bisect. */
+static void menu_b_swallow_spend(int pad_live, XPad *pad)
+{
+    if (!menu_b_swallow) return;
+    if (pad_live && (pad->buttons & 0x2000))
+        pad->buttons = (unsigned short)(pad->buttons & ~0x2000u);
+    else
+        menu_b_swallow = 0;
+}
+
+/* SM64DS_PAD_TEST=<hex>@<frame>[,<hex>@<frame>...]: A SCRIPTED PAD, DBG1's,
+   hoisted to file scope by SW1 so it reaches the windowed scene loop as well
+   as the level loop. It is there for the same reason in both: a pad button is
+   the one input this program has no way to drive from a script, so every claim
+   about one used to rest on somebody's hands -- and a scene lane that cannot
+   press A cannot prove its menu works at all.
+
+   Each entry holds its XInput mask for PAD_TEST_HOLD frames from its frame and
+   releases it after, so a list of entries produces a list of EDGES through the
+   ordinary detector rather than around it: what it proves is the real mapping,
+   not a shortcut past it.
+
+   An entry with no @frame is SILENTLY INERT -- the frame defaults to -1 and
+   nothing matches it -- so "1000" alone presses nothing and only "1000@105"
+   presses A. That is deliberate (a malformed entry must not fire on every
+   frame of the run) but it is quiet, so a fixture that does nothing is worth
+   re-reading for a missing @ before it is worth debugging.
+
+   Inert unless the variable is set, and it cannot reach a selftest: the
+   environment is read once behind g_selftest and never read again. */
+/* The parser both scripted-pad variables share (run link100, lane STARSEL5).
+   Grammar: <hex>@<f0>[-<f1>][,<hex>@<f0>[-<f1>]...]. With no -<f1> the entry
+   holds for PAD_TEST_HOLD frames from <f0>, which is what SM64DS_PAD_TEST has
+   always done, so every existing fixture parses to the same mask it did. The
+   range form is new and is here because a menu that has to be WAITED for needs
+   a press held across an unknown number of frames rather than four. */
+static unsigned pad_script_mask(const char *spec, int frame)
+{
+    enum { PAD_TEST_HOLD = 4 };
+    unsigned mask = 0;
+    const char *p = spec;
+    while (*p) {
+        char *q;
+        const unsigned m = (unsigned)strtoul(p, &q, 16);
+        long f0 = -1, f1 = -1;
+        p = q;
+        if (*p == 64 /* '@' */) {
+            f0 = strtol(p + 1, &q, 10);
+            p = q;
+            f1 = f0 + PAD_TEST_HOLD - 1;
+            if (*p == 45 /* '-' */) { f1 = strtol(p + 1, &q, 10); p = q; }
+        }
+        if (f0 >= 0 && frame >= f0 && frame <= f1)
+            mask |= m;
+        while (*p && *p != 44 /* ',' */) ++p;
+        if (*p == 44) ++p;
+    }
+    return mask;
+}
+
+/* SM64DS_HOST_PAD: SM64DS_PAD_TEST's grammar, and the ONE difference is that a
+   SELFTEST MAY USE IT (run link100, lane STARSEL5).
+ *
+ * SM64DS_PAD_TEST reads its environment behind g_selftest and SM64DS_CLICK_TEST
+ * does the same, and the only scripted route into a painting -- SM64DS_WARP_SEQ
+ * -- lives inside the level loop's `if (selftest)` block. So the three of them
+ * cannot be combined, and the one thing that could not be measured headless was
+ * the thing Tango's bug is made of: whether a press made by the HOST INPUT
+ * LAYER THE WINDOW LOOP READS reaches the star select. SM64DS_PROBE_INPUT can
+ * reach it, and that is exactly why it proves nothing here -- it is applied
+ * inside the scene frame, downstream of every duty the interlude skips.
+ *
+ * So this variable enters at the same seam a real controller does: after
+ * port_pad_poll and pad_focus_gate, into the XPad the frame is about to read,
+ * so everything downstream -- host_ds_buttons, host_btn_to_raw_keys, the Ctrl
+ * words, the PadData mirror -- is the program's own and none of it is
+ * shortcut. A press that arrives this way arrives only if the loop that polls
+ * the host ran on that frame, which is the whole question.
+ *
+ * It is INERT unless set, it is read once, and it never overrides
+ * SM64DS_PAD_TEST: both are applied, OR-ed, and outside a selftest a fixture
+ * may use either. */
+static void pad_test_apply(int frame, int *pad_live, XPad *pad)
+{
+    static const char *pt_env = (const char *)1;
+    if (pt_env == (const char *)1)
+        pt_env = g_selftest ? 0 : getenv("SM64DS_PAD_TEST");
+    static const char *hp_env = (const char *)1;
+    if (hp_env == (const char *)1) {
+        hp_env = getenv("SM64DS_HOST_PAD");
+        if (hp_env) {
+            fprintf(stderr, "[hostpad] SM64DS_HOST_PAD=%s -- scripted XInput "
+                    "buttons enter at port_pad_poll's own seam, so a press "
+                    "lands only on a frame the host input layer was polled "
+                    "on\n", hp_env);
+            fflush(stderr);
+        }
+    }
+    if (!pt_env && !hp_env)
+        return;
+    unsigned mask = 0;
+    if (pt_env) mask |= pad_script_mask(pt_env, frame);
+    if (hp_env) mask |= pad_script_mask(hp_env, frame);
+    /* THE TRAP THIS LINE EXISTS FOR (run link100, lanes STAREXIT1
+       and STARLAND1). A walking selftest already holds the stick
+       fully forward, so a HOST_PAD script whose mask carries
+       DPAD_UP (bit 0) adds the direction the run is already
+       pushing: a pad / no-pad pair then comes out BYTE-IDENTICAL
+       whatever the player can or cannot do, and two lanes read
+       that as a frozen player. Say so once, in the log, where the
+       next lane will see it. */
+    if (hp_env && (mask & 1) && g_selftest &&
+        !getenv("SM64DS_SELFTEST_IDLE")) {
+        static int warned;
+        if (!warned) {
+            warned = 1;
+            fprintf(stderr, "[hostpad] NOTE: this is a walking "
+                    "selftest, which already holds the stick "
+                    "fully forward, and this script's DPAD_UP "
+                    "bit pushes the same way -- a pad / no-pad "
+                    "pair will be byte-identical whatever the "
+                    "player can do. Measure control with another "
+                    "direction (4 LEFT, 8 RIGHT, 2 DOWN), with "
+                    "1000 (A), or with SM64DS_SELFTEST_IDLE=1.\n");
+            fflush(stderr);
+        }
+    }
+    /* THE EDGES, so a row can say on which host frames the script was actually
+       APPLIED rather than on which frames it was scheduled. The two differ by
+       exactly the bug this instrument exists for: a frame the loop never
+       polled is a frame this line never prints. Only with SM64DS_HOST_PAD set,
+       so no existing SM64DS_PAD_TEST row gains a line. */
+    if (hp_env) {
+        static unsigned last_mask;
+        if (mask != last_mask) {
+            fprintf(stderr, "[hostpad] f%d mask %04x\n", frame, mask);
+            fflush(stderr);
+            last_mask = mask;
+        }
+    }
+    if (mask) {
+        if (!*pad_live) { memset(pad, 0, sizeof *pad); *pad_live = 1; }
+        pad->buttons = (unsigned short)(pad->buttons | mask);
+    }
+}
+
+#ifndef PORT_ROM_CLEAN
+/* ---- SM64DS_CLICK_TEST: A SCRIPTED STYLUS (port mod, run link60 lane TCH2) -
+ *
+ * COMPILED OUT OF THE SHIPPING (PORT_ROM_CLEAN) BUILD, run link60 lane RELSTRIP.
+ * This is the one OS-input DRIVER in the port: SetCursorPos + SendInput move the
+ * real pointer and press a real button edge through the OS input queue, which is
+ * exactly the "fileless" synthetic-input pattern a stranger's antivirus flags.
+ * It is a developer/reviewer test tool, dormant in normal play (inert unless the
+ * env is set, and unreachable from a selftest), so it stays in the developer
+ * build and only that build. When SM64DS_CLICK_TEST is set on a shipping build
+ * the driver is simply not present and the variable does nothing; real player
+ * input (GetCursorPos/GetAsyncKeyState for the mouse-as-stylus) is untouched,
+ * and SM64DS_PAD_TEST (in-process, no OS input API) also stays in all builds.
+ *
+ * The pad has SM64DS_PAD_TEST and the touch record has SM64DS_TOUCH_PROBE, and
+ * between them sits the thing neither one covers: THE MOUSE. SM64DS_TOUCH_PROBE
+ * writes DS pixels straight into data_020a0de8 and therefore proves nothing
+ * about the window, the present rectangle or the transform -- it starts
+ * downstream of all three. So every claim about where a click lands rested on
+ * somebody's hand on a mouse, which is why a correct transform went five
+ * sessions being blamed for a minigame that would not respond.
+ *
+ *     SM64DS_CLICK_TEST="cx,cy@f0[-f1][,cx,cy>dx,dy@f0-f1,...]"
+ *
+ *   cx,cy@f0        press at CLIENT pixel (cx,cy) on frame f0, held
+ *                   CLICK_TEST_HOLD frames -- long enough for the DS's own
+ *                   edge rule, which needs the button down on two consecutive
+ *                   polls before `held` comes up
+ *   cx,cy@f0-f1     the same press, held from f0 to f1 inclusive
+ *   cx,cy>dx,dy@f0-f1
+ *                   a DRAG: held across f0..f1, the point walking linearly
+ *                   from (cx,cy) to (dx,dy). Curling wants one of these.
+ *
+ * IT DRIVES THE OS, NOT THE WINDOW QUEUE, and that is the whole design of it.
+ * The obvious build is PostMessage(WM_LBUTTONDOWN) and it would have proved
+ * nothing here: the stylus is poll_touch (hal/sub_screen.cpp), which reads
+ * GetCursorPos and GetAsyncKeyState(VK_LBUTTON) and never looks at a window
+ * message, so a posted message exercises walk_window's WM_LBUTTONDOWN handler
+ * -- whose output nothing consumes -- and leaves the touch record untouched. A
+ * driver that proves the dead path green while the live path is dark is worse
+ * than no driver. SetCursorPos plus SendInput puts the press in the same place
+ * the player's hand puts it, upstream of BOTH paths, so the WndProc gets its
+ * genuine WM_LBUTTONDOWN and poll_touch gets its genuine GetAsyncKeyState in
+ * one motion, through every layer of arithmetic either of them uses.
+ *
+ * WHAT IT COSTS: it moves the real pointer, because the real pointer is what
+ * is being tested. The cursor's position is saved on the first press and put
+ * back when the script ends. Run it on a machine nobody is typing on.
+ *
+ * INERT UNLESS SET, LOUD WHEN IT IS. Unset, the env is read once and this
+ * function returns on a null for the rest of the run. Set, it prints the
+ * script it parsed and one line per edge, so a fixture that silently matched
+ * no frame cannot read as a pass. It can never reach a selftest: g_selftest is
+ * checked at the same read SM64DS_PAD_TEST checks it at, so the BMP battery
+ * cannot be perturbed by a stray click.
+ */
+enum { CLICK_TEST_HOLD = 6, CLICK_TEST_MAX = 16 };
+struct ClickTestEnt {
+    int x0, y0, x1, y1;      /* client pixels; x1/y1 == x0/y0 for a plain press */
+    int f0, f1;
+};
+static ClickTestEnt g_ct[CLICK_TEST_MAX];
+static int g_ct_n = -1;          /* -1 = env not read yet, 0 = driver off */
+static int g_ct_down;            /* is the synthetic button currently down */
+static POINT g_ct_restore;       /* where the pointer was before the first press */
+static int g_ct_restore_ok;
+
+/* ---- CLICKQUIET, run link100 lane TOUCH1 ----------------------------------
+ *
+ * THE DRIVER NO LONGER FRONTS THE WINDOW. The banner above is still the
+ * derivation for what a click test has to exercise -- the client pixel, the
+ * present rectangle, both layout transforms -- and none of that changes. What
+ * changes is the delivery: instead of moving the real pointer and pushing a
+ * real button edge through the OS input queue (which only lands while this
+ * window is the foreground one, hence the SetForegroundWindow call this
+ * replaces), the driver hands hal/sub_screen.cpp the same client point and the
+ * same button, in process. poll_touch then takes its OWN live branch with
+ * those two values: same transform, same drag latch, same clamp, same
+ * change-edge store, same ring. Nothing is copied here and nothing downstream
+ * can tell the difference.
+ *
+ * WHY: Tango's standing rule is that no game window may ever take his screen,
+ * and every other launcher in port/tools already starts the game minimized,
+ * never activated and muted. This driver was the one path that undid that from
+ * the inside, and the window he saw on top of his screen during the minigame
+ * runs was this call.
+ *
+ * WHAT IS LOST, said plainly: the WndProc half. A real OS press also produced
+ * a genuine WM_LBUTTONDOWN, and the injected one does not. Nothing in the game
+ * consumes that message -- walk_window's own handler publishes into
+ * g_mouse_click_*, which nothing reads, and the stylus is poll_touch -- so the
+ * half that was load bearing is the half that still runs. A reviewer who wants
+ * the OS path back for a hand test sets SM64DS_CLICK_FRONT=1; no tool in this
+ * tree sets it. */
+static int click_front(void)
+{
+    static int v = -1;
+    if (v < 0) {
+        const char *e = getenv("SM64DS_CLICK_FRONT");
+        v = e ? (atoi(e) != 0) : 0;
+    }
+    return v;
+}
+
+/* hal/sub_screen.cpp: the in-process stylus poll_touch consumes in its own
+   live branch, and the census the finish line below prints. */
+extern "C" void port_touch_inject_client(int cx, int cy);
+extern "C" void port_touch_inject_release(void);
+extern "C" void port_touch_inject_census(unsigned *frames, unsigned *presses,
+                                         unsigned *on_surface);
+
+static void click_test_parse(void)
+{
+    g_ct_n = 0;
+    const char *s = g_selftest ? 0 : getenv("SM64DS_CLICK_TEST");
+    /* SM64DS_HOST_CLICK: the same script, and a SELFTEST MAY USE IT (run
+       link100, lane STARSEL5), for SM64DS_HOST_PAD's reason exactly. The star
+       select's grid is stylus-only when the level being entered is a course:
+       src/_ZN12dScStarSel_c8BehaviorEv.cpp:139 takes its button arm only when
+       SublevelToLevel(data_02092110) > 0xe, so every painting entry into one of
+       the fifteen courses is picked with the stylus and with nothing else. A
+       row that presses a button therefore cannot prove a painting entry at all,
+       and the only scripted route into a painting lives inside the level loop's
+       own "if (selftest)" block. Consumed in-process by poll_touch's own live
+       branch, never through SendInput: no window is fronted, no cursor is
+       moved. */
+    if (!s) {
+        s = getenv("SM64DS_HOST_CLICK");
+        if (s) {
+            fprintf(stderr, "[hostclick] SM64DS_HOST_CLICK=%s -- the scripted "
+                    "stylus enters at the window loop's own click seam, so a "
+                    "press lands only on a frame that seam was reached on\n", s);
+            fflush(stderr);
+        }
+    }
+    if (!s)
+        return;
+    while (*s && g_ct_n < CLICK_TEST_MAX) {
+        ClickTestEnt e;
+        char *q;
+        memset(&e, 0, sizeof e);
+        e.x0 = (int)strtol(s, &q, 10);
+        s = q;
+        if (*s == ',') ++s;
+        e.y0 = (int)strtol(s, &q, 10);
+        s = q;
+        e.x1 = e.x0;
+        e.y1 = e.y0;
+        if (*s == '>') {
+            ++s;
+            e.x1 = (int)strtol(s, &q, 10);
+            s = q;
+            if (*s == ',') ++s;
+            e.y1 = (int)strtol(s, &q, 10);
+            s = q;
+        }
+        /* NO @frame IS NOT "every frame". An entry that names no frame is
+           inert, the same refusal SM64DS_PAD_TEST makes for the same reason:
+           a malformed fixture must not fire continuously and read as a pass. */
+        e.f0 = -1;
+        e.f1 = -1;
+        if (*s == '@') {
+            ++s;
+            e.f0 = (int)strtol(s, &q, 10);
+            s = q;
+            if (*s == '-') {
+                ++s;
+                e.f1 = (int)strtol(s, &q, 10);
+                s = q;
+            } else {
+                e.f1 = e.f0 + CLICK_TEST_HOLD - 1;
+            }
+        }
+        if (e.f0 >= 0) {
+            g_ct[g_ct_n++] = e;
+            fprintf(stderr, "[click] script %d: client (%d,%d)", g_ct_n - 1,
+                    e.x0, e.y0);
+            if (e.x1 != e.x0 || e.y1 != e.y0)
+                fprintf(stderr, " -> (%d,%d)", e.x1, e.y1);
+            fprintf(stderr, " frames %d..%d\n", e.f0, e.f1);
+        } else {
+            fprintf(stderr, "[click] an entry named no @frame and is INERT "
+                            "(client %d,%d)\n", e.x0, e.y0);
+        }
+        while (*s && *s != ',') ++s;
+        if (*s == ',') ++s;
+    }
+    if (g_ct_n)
+        fflush(stderr);
+}
+
+/* One synthetic left-button edge through the OS input queue.
+ *
+ * THE STRUCT IS windows.h's OWN INPUT AND THE SIZE IS ITS sizeof, and this is
+ * not tidiness -- it is the bug this function shipped with for one run. The
+ * first cut hand-rolled the layout and got 36 bytes where the 32-bit INPUT is
+ * 28. SendInput VALIDATES cbSize against its own idea of the structure and
+ * returns 0 without injecting anything when they disagree, so every press in
+ * the grid was announced by the [click] line above and none of them happened.
+ * A run that logs eleven presses and zero touches looks exactly like a broken
+ * touch bridge, which is the wrong bug to spend an evening on.
+ *
+ * THE RETURN IS CHECKED FOR THE SAME REASON. It is the only thing that can
+ * tell an injected press from a refused one, and UIPI refuses silently too: a
+ * process at a lower integrity level than the foreground window's cannot send
+ * it input, and the failure mode there is also "the log says press, the game
+ * sees nothing". Said once, loudly. */
+static void click_test_button(int down)
+{
+    INPUT in;
+    if (!W.SendInput_)
+        return;
+    memset(&in, 0, sizeof in);
+    in.type = INPUT_MOUSE;
+    in.mi.dwFlags = down ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP;
+    if (W.SendInput_(1, &in, (int)sizeof(INPUT)) != 1) {
+        static int said;
+        if (!said++) {
+            fprintf(stderr, "[click] SendInput REFUSED the button edge "
+                    "(win32 %lu). Nothing was pressed; every [click] line in "
+                    "this run is a request, not an event.\n",
+                    (unsigned long)GetLastError());
+            fflush(stderr);
+        }
+        return;
+    }
+    g_ct_down = down;
+}
+
+static void click_test_finish(void);   /* defined below; armed with atexit */
+
+static void click_test_apply(HWND h, int frame)
+{
+    if (g_ct_n < 0) {
+        click_test_parse();
+        if (g_ct_n > 0)
+            atexit(click_test_finish);
+        if (g_ct_n > 0 && click_front() && W.SetForegroundWindow_) {
+            /* the window has to be the foreground one or the WndProc half of
+               the press is delivered somewhere else entirely. poll_touch would
+               still see it (GetAsyncKeyState is machine-global) which is
+               exactly the kind of half-green this driver exists to refuse.
+
+               THIS IS WHY SM64DS_NO_FOCUS SWITCHES ITSELF OFF when this driver
+               is armed. A WS_EX_NOACTIVATE window cannot be brought to the
+               foreground at all, so under both flags at once this call would
+               fail and every press below would be refused by the pid gate.
+               nofocus_mode() makes that decision, out loud, before the window
+               is created; nothing here has to check. */
+            W.SetForegroundWindow_(h);
+            /* and it has to be top of the z-order too: WindowFromPoint reads
+               z-order, so on a busy desktop the pid gate refuses every press
+               and a grid reads as all-refusals (review TCR1 lost three runs
+               to this). HWND_TOPMOST, no move, no resize; only when the
+               click driver is armed. */
+            if (W.SetWindowPos_)
+                W.SetWindowPos_(h, (HWND)-1, 0, 0, 0, 0, 0x0001u | 0x0002u);
+        }
+    }
+    if (g_ct_n <= 0)
+        return;
+    if (click_front() && (!W.SetCursorPos_ || !W.ClientToScreen_))
+        return;
+
+    const ClickTestEnt *e = 0;
+    for (int i = 0; i < g_ct_n; ++i)
+        if (frame >= g_ct[i].f0 && frame <= g_ct[i].f1) { e = &g_ct[i]; break; }
+
+    if (!e) {
+        if (g_ct_down) {
+            if (click_front()) {
+                click_test_button(0);
+            } else {
+                port_touch_inject_release();
+                g_ct_down = 0;
+            }
+            fprintf(stderr, "[click] f%d release\n", frame);
+            fflush(stderr);
+        }
+        return;
+    }
+
+    /* the point this frame: the start for a press, walked for a drag */
+    int cx = e->x0, cy = e->y0;
+    if ((e->x1 != e->x0 || e->y1 != e->y0) && e->f1 > e->f0) {
+        const int span = e->f1 - e->f0;
+        cx = e->x0 + (e->x1 - e->x0) * (frame - e->f0) / span;
+        cy = e->y0 + (e->y1 - e->y0) * (frame - e->f0) / span;
+    }
+    /* THE QUIET PATH, and it is the default. The client point goes straight to
+       poll_touch's live branch, so the press needs no pointer, no button and
+       no foreground window. It latches: the level loop calls this driver AFTER
+       its own hal_sub_screen_frame_begin, and a press armed on one frame and
+       read on the next is exactly what the OS button state did here before. */
+    if (!click_front()) {
+        port_touch_inject_client(cx, cy);
+        if (!g_ct_down) {
+            g_ct_down = 1;
+            fprintf(stderr, "[click] f%d press client(%d,%d) in process, no "
+                    "window fronted\n", frame, cx, cy);
+            fflush(stderr);
+        }
+        return;
+    }
+
+    POINT p;
+    p.x = cx;
+    p.y = cy;
+    if (!W.ClientToScreen_(h, &p))
+        return;
+    if (!g_ct_down && W.GetCursorPos_ && !g_ct_restore_ok)
+        g_ct_restore_ok = W.GetCursorPos_(&g_ct_restore) ? 1 : 0;
+    /* EVERY frame, not only on the press edge: the pointer is a shared device
+       and a hand that brushes the desk mid-drag would otherwise move the
+       stylus somewhere the script never asked for and the log would show a
+       drag the fixture did not describe. */
+    W.SetCursorPos_((int)p.x, (int)p.y);
+    /* ---- THE PID GATE, AND IT IS NOT PARANOIA -------------------------------
+       A SendInput button edge is a real one: it goes to whatever window is
+       under the pointer, and this desktop runs several lanes' proof windows at
+       once. A press that lands on somebody else's window is at best a lost
+       proof and at worst a click on a control in their run. So the press is
+       gated on the window under that exact screen point belonging to THIS
+       process -- not on the window being ours by name, and not on focus, both
+       of which can be true while the pointer sits over a different one.
+       Refused loudly, once, because a driver that silently stops pressing is a
+       driver that reports a clean grid it never clicked. */
+    if (!g_ct_down) {
+        int mine = 1;
+        if (W.WindowFromPoint_ && W.GetWindowThreadProcessId_) {
+            DWORD owner = 0;
+            const HWND under = W.WindowFromPoint_(p);
+            if (!under) {
+                mine = 0;
+            } else {
+                W.GetWindowThreadProcessId_(under, &owner);
+                mine = owner == GetCurrentProcessId();
+            }
+        }
+        if (!mine) {
+            static int said;
+            if (!said++) {
+                fprintf(stderr, "[click] f%d REFUSED: screen point (%ld,%ld) "
+                        "is over a window this process does not own. Nothing "
+                        "is pressed; another lane's window is in the way or "
+                        "this one never came to the foreground.\n",
+                        frame, p.x, p.y);
+                fflush(stderr);
+            }
+            return;
+        }
+        click_test_button(1);
+        fprintf(stderr, "[click] f%d press client(%d,%d)\n", frame, cx, cy);
+        fflush(stderr);
+    }
+}
+
+/* Put the button and the pointer back.
+ *
+ * REGISTERED WITH atexit AND ALSO CALLED BY HAND, because a synthetic button
+ * left down does not die with the process -- it belongs to the desktop, and
+ * the next thing the owner clicks would be a drag. The level loop has several
+ * exits and the scene loop has one, so rather than find every one of them the
+ * cleanup is idempotent and armed at the same moment the script is. The
+ * by-hand call in the scene loop is kept for ordering: it releases before
+ * port_scene_finish writes its captures, not after. */
+static void click_test_finish(void)
+{
+    static int done;
+    if (g_ct_n <= 0 || done)
+        return;
+    done = 1;
+    /* THE RELEASE IS UNCONDITIONAL, and the `if (g_ct_down)` this replaces was
+       a real defect rather than a tidy-up.
+
+       g_ct_down is this driver's own bookkeeping and it is NOT the physical
+       button state. click_test_button leaves it untouched whenever SendInput
+       refuses an edge, and the pid gate can return between a press and its
+       release, so the two can disagree. When they disagree the wrong way the
+       button stays down after the process is gone -- and the next run on this
+       desktop starts with the stylus already pressed, because poll_touch reads
+       GetAsyncKeyState(VK_LBUTTON), which is machine-global and outlives us.
+
+       Review CTR1 lost a CONTROL run to exactly that: 96 dScMgCurling_c state
+       entries in a run with no script at all, from a button still held down by
+       the previous SM64DS_CLICK_TEST run, GetAsyncKeyState reading 1 until it
+       was cleared by hand. A control that is silently driving input is worse
+       than a failed one, because it reads as evidence.
+
+       A spurious LEFTUP when nothing is held costs nothing. A missed one
+       contaminates every run that follows. So: always send it. */
+    const int was_down = g_ct_down;
+    if (click_front()) {
+        click_test_button(0);
+        fprintf(stderr, "[click] release at exit%s\n",
+                was_down ? "" : " (button was not marked down; released "
+                                "anyway)");
+        if (g_ct_restore_ok && W.SetCursorPos_)
+            W.SetCursorPos_(g_ct_restore.x, g_ct_restore.y);
+    } else {
+        /* Nothing of ours outlives the process on the quiet path: the latch is
+           a variable in this address space, not a desktop-wide button. The
+           release is still unconditional, for the reason above and because the
+           scene loop calls this by hand before its captures. */
+        port_touch_inject_release();
+        g_ct_down = 0;
+    }
+    fflush(stderr);
+
+    /* THE CENSUS, ON STDOUT ON PURPOSE. stderr is the playlog on every scene
+       path, so a harness reading the child's stdout -- which is where the
+       [scene] report it grades comes out -- would never see this line. It is
+       the whole proof this lane owes: fronted=0 says no window was brought to
+       the foreground, and on-surface says the injected points actually
+       resolved onto the stylus surface and were published as DS pixels. */
+    {
+        unsigned ifr = 0, ipr = 0, ion = 0;
+        port_touch_inject_census(&ifr, &ipr, &ion);
+        printf("[clickquiet] fronted=%d injected=%u held=%u on-surface=%u\n",
+               click_front() ? 1 : 0, ipr, ifr, ion);
+        fflush(stdout);
+    }
+}
+#endif  /* !PORT_ROM_CLEAN: end of SM64DS_CLICK_TEST synthetic-stylus driver */
+
+/* ---- THE DS KEYPAD BITS BOTH PATHS AGREE ON (port mod, run link60 SW1) ----
+   Buttons -> the Ctrl held/pressed fields directly (CheckInput's remap tables
+   are ROM pointers with no host image). DS bits: 1 = A (punch), 2 = B (jump),
+   0x400 = X (crouch), 0x800 = Y (the dash button the walk core reads).
+
+   Xbox layout per Tango: A jump, X run, B punch, bumpers rotate the camera. RT
+   is meant to be crouch, but the old "crouch = 0x100" binding was a GUESS and
+   0x100 is provably the camera rotate-right bit (func_02009e70 reads
+   held & 0x4300) -- likely what the LT "crouch crash" actually hit. The REAL
+   crouch bit is 0x400 (St_Crouch_Main holds on it, St_Land enters with it,
+   Crawl exits by it).
+
+   SHARED BECAUSE THIS IS THE PART THAT COULD DRIFT: which button jumps. The
+   level loop adds its own tail on top (the camera-rotate bits, run-mode AUTO,
+   fifteen SM64DS_SELFTEST_* probes) and the scene loop adds the d-pad, Start
+   and Select, and those two tails are deliberately NOT unified -- see
+   port/scene_window.txt section 5a. */
+static unsigned short host_ds_buttons(int pad_live, const XPad *pad)
+{
+    unsigned short btn = 0;
+    /* EVERY KEY HERE IS A BINDING (settings.json KeyJump, KeyAttack,
+       KeyCrouch; hal/host_settings.h), read through key_act so 0 is unbound.
+       The defaults are the literals that used to be on these lines -- space,
+       X, ctrl -- so a file without the keys is the old program. */
+    if (key_act(HOST_KEY_JUMP)) btn |= 2;
+    /* THE RUN BUTTON, from wherever the player put it. Shift by default, so an
+       untouched settings.json is the line that was here before; zero means
+       they unbound the keyboard half. */
+    if (g_run_key && key_live(g_run_key)) btn |= 0x800;
+    if (key_act(HOST_KEY_CROUCH)) btn |= 0x400;
+    if (key_act(HOST_KEY_ATTACK)) btn |= 1;
+    if (pad_live) {
+        if (pad_act(pad, HOST_PAD_JUMP)) btn |= 2;       /* A by default  */
+        /* X by default; the rebind row moves it (0 = unbound) */
+        if (pad_mask_down(pad, g_run_pad))
+            btn |= 0x800;
+        if (pad_act(pad, HOST_PAD_ATTACK)) btn |= 1;     /* B by default  */
+        /* RT is the crouch default (PadCrouch 0x20000); a file that says
+           PadCrouch 0 -- every launcher before 0.3.4 wrote that -- keeps the
+           trigger too, so nobody's crouch vanishes on update. */
+        if (pad_act(pad, HOST_PAD_CROUCH)) btn |= 0x400;
+        if (!host_setting_pad(HOST_PAD_CROUCH) && pad->rt > 100) btn |= 0x400;
+        /* the bumpers are camera-rotate and go in with the rest of the rotate
+           input at the level loop's own call site, where the freecam gate is */
+    }
+    return btn;
+}
+
+/* The save-state toast, over everything, bottom-left, and decremented as it is
+   drawn rather than in the tick so a menu's pause does not freeze it. Shared
+   by both loops because it is the only channel the menu's refusals have. */
+static void toast_draw(const OvlSurface &fb)
+{
+    if (ss_toast_left <= 0)
+        return;
+    --ss_toast_left;
+    const int tw = (int)strlen(ss_toast) * OVL_ADVANCE * OVL_SCALE;
+    const int ty = ntr::SCREEN_H - OVL_LINE - 4;
+    ovl_shade(fb, 2, ty - 2, tw + 8 * OVL_SCALE, OVL_LINE + 4 * OVL_SCALE);
+    ovl_text(fb, 4 + OVL_SCALE, ty, ss_toast, 0xFFFFFFFFu);
+}
+
+/* ---- PRESENT (port mod) -----------------------------------------------
+   THE FRAME, FITTED TO WHATEVER SIZE THE WINDOW IS NOW.
+
+   What was here before was one line:
+
+       StretchDIBits(hdc, 0, 0, SCREEN_W * ZOOM, SCREEN_H * ZOOM, ...)
+
+   -- a destination rectangle that is a compile-time constant. That is fine
+   for a window that cannot change size, and the window was created
+   WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME to make sure of it. But clearing
+   WS_THICKFRAME only removes the SIZING BORDER; WS_MAXIMIZEBOX survives it,
+   so the maximize button and a double-click on the title bar still worked and
+   still do exactly what they say. The client area then became the monitor and
+   the blit stayed 768x576 in the top-left corner, and the rest of the client
+   area was never written by anything: the class brush is null (wc is
+   zero-initialised), there is no WM_ERASEBKGND handler and there is no
+   WM_PAINT handler, so nothing in the program had ever painted a pixel
+   outside that fixed rectangle. What showed there was the window's backing
+   store as the compositor left it -- the stale scrap of whatever the resize
+   dragged through. That is the glitch, and it is a present-path bug from end
+   to end: the raster never knew the window had a size.
+
+   So the destination is measured every present instead:
+
+     - GetClientRect for the size the window is at this instant,
+     - the largest DS-aspect rectangle that fits inside it, centred,
+     - the four leftover strips painted black (PatBlt BLACKNESS), which is
+       what makes the bars bars and not history,
+     - StretchDIBits into the fitted rectangle.
+
+   The bars are painted every present rather than on a size change. Painting
+   black over black is invisible, it costs four PatBlts on strips that are
+   empty at the default size, and it means no code path can leave a bar
+   showing something else -- including the ones that never reach the frame
+   loop at all (a WM_PAINT during a modal drag, a restore from minimised).
+
+   WM_ERASEBKGND is answered "handled, painted nothing" so the flicker the
+   default erase would add during a drag never starts.
+
+   THE FILTER is nearest by default (COLORONCOLOR: GDI drops and duplicates
+   whole pixels). SM64DS_PRESENT_FILTER=halftone asks for HALFTONE, which is
+   GDI's box filter and needs SetBrushOrgEx after it per the API contract.
+   Nearest keeps the DS's hard pixel edges and the 8x8 overlay font crisp at
+   any scale; halftone smooths both. Both are captured in this lane's
+   evidence set at every size and the call between them is Tango's. */
+static const int PRESENT_FILTER_NEAREST = 0;
+static const int PRESENT_FILTER_HALFTONE = 1;
+enum { PRESENT_STRETCH_COLORONCOLOR = 3, PRESENT_STRETCH_HALFTONE = 4 };
+static int g_present_filter = PRESENT_FILTER_NEAREST;
+
+/* What the frame loop hands the window procedure, so a WM_SIZE or a WM_PAINT
+   arriving inside a modal drag loop -- where the frame loop is not running --
+   can still redraw the picture at the size the drag is at. Nothing here is
+   written before the window exists, and present() no-ops until all three are.
+   The framebuffer pointer is the loop's own static, so this is a handle on
+   the live frame rather than a copy of one. */
+static HWND g_present_hwnd;
+static HDC g_present_hdc;
+static const BITMAPINFO *g_present_bi;
+static const ntr::Framebuffer *g_present_fb;
+/* THE STACKED SOURCE, when there is one. Set by the frame loop to the tall
+   image hal_sub_screen_stacked_image built, with its own BITMAPINFO because
+   the DIB height is part of the header rather than an argument. Null in the
+   inset layout, and present() then reads the framebuffer exactly as it always
+   did -- the two are never both live. */
+static const uint32_t *g_present_stack;
+static const BITMAPINFO *g_present_stack_bi;
+
+/* The DS aspect, once, in the two numbers the fit uses. SCREEN_W/SCREEN_H are
+   the framebuffer's, which is the DS panel at whatever tier this binary was
+   built for, so this is 4:3 at every tier -- and STACK_W/STACK_H are the same
+   panel twice, stacked, so the stacked fit is 2:3. */
+static void present(void)
+{
+    if (!g_present_hwnd || !g_present_hdc || !g_present_bi || !g_present_fb)
+        return;
+    if (!W.GetClientRect_ || !W.StretchDIBits_) return;
+    RECT rc;
+    if (!W.GetClientRect_(g_present_hwnd, &rc)) return;
+    const int cw = rc.right - rc.left, ch = rc.bottom - rc.top;
+    /* MINIMISED is a zero-by-zero client area, and every arithmetic step
+       below divides by one of them. Nothing to present to, so nothing is
+       presented -- and no StretchDIBits with a zero destination, which is
+       what a restore used to come back through. */
+    if (cw <= 0 || ch <= 0) return;
+
+    /* WHICH IMAGE IS BEING PRESENTED. Everything below is the same fit, the
+       same bars and the same blit whichever it is; only the source pointer,
+       the source size and the DIB header change. Doing it this way rather
+       than with a second present() is deliberate: a resize feature that lives
+       in one of two copies of this function is a resize feature that works in
+       one layout. */
+    const uint32_t *bits;
+    const BITMAPINFO *bi;
+    int sw, sh;
+    if (g_present_stack && g_present_stack_bi) {
+        bits = g_present_stack;
+        bi = g_present_stack_bi;
+        /* THE SOURCE SIZE IS THE HEADER'S, not a constant, and it is read out
+           of the header rather than asked of hal because present() runs from
+           the window procedure inside a modal resize drag. Reading the live
+           layout there would be reading a value the frame loop is between two
+           uses of; the header and the pixels were published together by
+           stack_present_arm below, so they agree by construction. */
+        sw = bi->bmiHeader.biWidth;
+        sh = -bi->bmiHeader.biHeight;
+    } else {
+        bits = &g_present_fb->px[0][0];
+        bi = g_present_bi;
+        /* THE SOURCE RECT IS THE ACTIVE EXTENT, not the buffer. On NTR_WIDE_RT
+           with the toggle off the live 4:3 image is active_w x active_h in the
+           top-left of a SCREEN_W-strided framebuffer; the DIB header (g_present_
+           bi) still carries the SCREEN_W stride, so StretchDIBits reads exactly
+           that sub-rectangle. On every fixed tier active == SCREEN_W/SCREEN_H and
+           this is the old value. */
+        sw = ntr::active_w;
+        sh = ntr::active_h;
+    }
+    /* the largest sw:sh rectangle inside cw x ch, via hal_present_fit (the
+       one copy of this arithmetic; see port/hal/sub_screen.cpp, next to
+       hal_present_set_rect). The layout selftest drives the same code. */
+    int dw, dh, dx, dy;
+    hal_present_fit(cw, ch, sw, sh, &dx, &dy, &dw, &dh);
+
+    /* the four strips around it, black. Written before the picture so a
+       stretch that lands a pixel wide of the arithmetic covers the bar
+       rather than the bar covering it. */
+    if (W.PatBlt_) {
+        if (dy > 0) W.PatBlt_(g_present_hdc, 0, 0, cw, dy, BLACKNESS);
+        if (dy + dh < ch)
+            W.PatBlt_(g_present_hdc, 0, dy + dh, cw, ch - (dy + dh), BLACKNESS);
+        if (dx > 0) W.PatBlt_(g_present_hdc, 0, dy, dx, dh, BLACKNESS);
+        if (dx + dw < cw)
+            W.PatBlt_(g_present_hdc, dx + dw, dy, cw - (dx + dw), dh, BLACKNESS);
+    }
+
+    if (W.SetStretchBltMode_) {
+        if (g_present_filter == PRESENT_FILTER_HALFTONE) {
+            W.SetStretchBltMode_(g_present_hdc, PRESENT_STRETCH_HALFTONE);
+            /* the API contract: HALFTONE leaves the brush origin needing a
+               reset or the shrink pattern walks */
+            if (W.SetBrushOrgEx_) W.SetBrushOrgEx_(g_present_hdc, 0, 0, 0);
+        } else {
+            W.SetStretchBltMode_(g_present_hdc, PRESENT_STRETCH_COLORONCOLOR);
+        }
+    }
+    /* THE DIB HEIGHT MUST EQUAL THE SOURCE-RECT HEIGHT, or StretchDIBits into a
+       window (device) DC leaves the bottom of a taller client BLACK.
+
+       Measured against a real CS_OWNDC window, reproduced and fixed: when the
+       source rectangle is SHORTER than the DIB the header declares -- here the
+       live image is active_h (384) rows read from a framebuffer whose header
+       carried SCREEN_H (576, the NTR_WIDE_RT allocation) -- the display driver's
+       StretchDIBits copies the source rows 1:1 into the TOP of the destination
+       and does not scale the vertical axis, so a 384-row image fitted into a
+       768-row client fills only the top half and the rest is never painted.
+       The WM_ERASEBKGND that returns 1 (present owns every pixel) then leaves
+       that band the window's initial black. The horizontal axis does NOT show it
+       (a narrower source rect scales fine), and a blit to a MEMORY DIB does not
+       show it either -- which is exactly why the framebuffer capture read full
+       (fb_lastcontentrow = 383/384) while the on-screen window had a black
+       bottom half.
+
+       The width is a STRIDE and stays SCREEN_W so the active_w sub-rect reads
+       the correct columns; only the height is corrected, to sh, so the declared
+       DIB is byte-for-byte the rectangle being read. The stacked header already
+       carries -sh (sh is read out of it above) and is unchanged by this. */
+    BITMAPINFO bihdr = *bi;
+    bihdr.bmiHeader.biHeight = -sh;
+    W.StretchDIBits_(g_present_hdc, dx, dy, dw, dh, 0, 0, sw, sh,
+                     bits, &bihdr, DIB_RGB_COLORS, SRCCOPY);
+    /* the touch bridge's half of the same arithmetic. The SOURCE SIZE goes
+       with the rectangle: in the stacked layout the rectangle was filled from
+       an image twice as tall as the framebuffer, and an inverse that assumed
+       otherwise would put every stylus press on the wrong screen. */
+    hal_present_set_rect(dx, dy, dw, dh, sw, sh);
+}
+
+/* ---- THE PRESENT FILTER, MEASURED OFF SCREEN ---------------------------
+ *
+ * SM64DS_PRESENT_BENCH=<repeats> times the two StretchDIBits scalers -- the
+ * nearest one the port presents with (COLORONCOLOR) and the filtered one
+ * SM64DS_PRESENT_FILTER=halftone selects -- on the finished framebuffer, and
+ * writes one BMP of each so the two can be looked at side by side. It runs at
+ * the end of a selftest, once, and a run that does not set it does nothing.
+ *
+ * WHY IT IS OFF SCREEN AND NOT THROUGH present(). Every automated run in this
+ * project launches minimised and never activated, and a minimised window has a
+ * zero-by-zero client area, so present() returns before it blits (see its own
+ * first lines). There is no way to measure the real present path from a run
+ * that obeys the house rule. So the same GDI call is made into a MEMORY DIB of
+ * the window's own client size: the same StretchDIBits, the same stretch mode,
+ * the same source rectangle and the same destination size. What that does NOT
+ * measure is the display driver's own path to the screen, which can differ, so
+ * these numbers are the scaler's cost and not the whole present's. Said here
+ * rather than left to be discovered.
+ *
+ * THE DESTINATION IS THE WINDOW'S CLIENT SIZE, which is the default extent's
+ * size at every RenderScale (win_px above). That is the whole question this
+ * measures: at scale 4 the source is 1024x768 and the destination is 1024x768,
+ * so there is nothing to scale; at scale 3 it is 768x576 into 1024x768, an
+ * upscale; and the interesting row is a high scale presented DOWN into a
+ * smaller client, which is supersampling. Whether it looks better is Tango's
+ * call and these files are for him; this function only counts milliseconds.
+ */
+static void present_bench(const ntr::Framebuffer &fb)
+{
+    const char *e = getenv("SM64DS_PRESENT_BENCH");
+    if (!e) return;
+    int reps = atoi(e);
+    if (reps < 1) reps = 60;
+
+    /* gdi32/user32 by hand, the rule this whole port follows: a static import
+       table maps over 0x02000000 and the ROM's address space lives there. */
+    HMODULE g = LoadLibraryA("gdi32.dll");
+    HMODULE u = LoadLibraryA("user32.dll");
+    if (!g || !u) return;
+    typedef HDC(WINAPI * CreateCompatibleDC_t)(HDC);
+    typedef HBITMAP(WINAPI * CreateDIBSection_t)(HDC, const BITMAPINFO *, UINT,
+                                                 void **, HANDLE, DWORD);
+    typedef HGDIOBJ(WINAPI * SelectObject_t)(HDC, HGDIOBJ);
+    typedef BOOL(WINAPI * DeleteObject_t)(HGDIOBJ);
+    typedef BOOL(WINAPI * DeleteDC_t)(HDC);
+    typedef HDC(WINAPI * GetDC_t)(HWND);
+    typedef int(WINAPI * ReleaseDC_t)(HWND, HDC);
+    CreateCompatibleDC_t CreateCompatibleDC_ =
+        (CreateCompatibleDC_t)GetProcAddress(g, "CreateCompatibleDC");
+    CreateDIBSection_t CreateDIBSection_ =
+        (CreateDIBSection_t)GetProcAddress(g, "CreateDIBSection");
+    SelectObject_t SelectObject_ = (SelectObject_t)GetProcAddress(g, "SelectObject");
+    DeleteObject_t DeleteObject_ = (DeleteObject_t)GetProcAddress(g, "DeleteObject");
+    DeleteDC_t DeleteDC_ = (DeleteDC_t)GetProcAddress(g, "DeleteDC");
+    GetDC_t GetDC2_ = (GetDC_t)GetProcAddress(u, "GetDC");
+    ReleaseDC_t ReleaseDC_ = (ReleaseDC_t)GetProcAddress(u, "ReleaseDC");
+    if (!CreateCompatibleDC_ || !CreateDIBSection_ || !SelectObject_ ||
+        !DeleteObject_ || !DeleteDC_ || !GetDC2_ || !ReleaseDC_ ||
+        !W.StretchDIBits_ || !W.SetStretchBltMode_)
+        return;
+
+    const int sw = ntr::active_w, sh = ntr::active_h;
+    const int dw = win_px(sw), dh = win_px(sh);
+    if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) return;
+
+    HDC screen = GetDC2_(0);
+    HDC mem = CreateCompatibleDC_(screen);
+    if (!mem) { if (screen) ReleaseDC_(0, screen); return; }
+    BITMAPINFO dbi;
+    memset(&dbi, 0, sizeof dbi);
+    dbi.bmiHeader.biSize = sizeof dbi.bmiHeader;
+    dbi.bmiHeader.biWidth = dw;
+    dbi.bmiHeader.biHeight = -dh;          /* top-down, like the source */
+    dbi.bmiHeader.biPlanes = 1;
+    dbi.bmiHeader.biBitCount = 32;
+    dbi.bmiHeader.biCompression = BI_RGB;
+    void *dbits = 0;
+    HBITMAP dib = CreateDIBSection_(mem, &dbi, DIB_RGB_COLORS, &dbits, 0, 0);
+    if (!dib || !dbits) {
+        DeleteDC_(mem);
+        ReleaseDC_(0, screen);
+        return;
+    }
+    SelectObject_(mem, dib);
+
+    /* the source header: the framebuffer's own STRIDE for the width and the
+       source rectangle's own height, which is exactly the pair present()
+       hands StretchDIBits. Built here rather than copied off the window's
+       g_bi because that one is set up when a window opens and this runs on a
+       path that may never have opened one. */
+    BITMAPINFO sbi;
+    memset(&sbi, 0, sizeof sbi);
+    sbi.bmiHeader.biSize = sizeof sbi.bmiHeader;
+    sbi.bmiHeader.biWidth = ntr::SCREEN_W;
+    sbi.bmiHeader.biHeight = -sh;
+    sbi.bmiHeader.biPlanes = 1;
+    sbi.bmiHeader.biBitCount = 32;
+    sbi.bmiHeader.biCompression = BI_RGB;
+    const uint32_t *src = &fb.px[0][0];
+
+    struct Arm { const char *name; int mode; const char *path; };
+    const Arm arms[2] = {
+        {"COLORONCOLOR", PRESENT_STRETCH_COLORONCOLOR,
+         "walk_window_present_coloroncolor.bmp"},
+        {"HALFTONE", PRESENT_STRETCH_HALFTONE,
+         "walk_window_present_halftone.bmp"},
+    };
+    for (int a = 0; a < 2; ++a) {
+        W.SetStretchBltMode_(mem, arms[a].mode);
+        if (arms[a].mode == PRESENT_STRETCH_HALFTONE && W.SetBrushOrgEx_)
+            W.SetBrushOrgEx_(mem, 0, 0, 0);
+        /* one warm blit first, so the measured ones are not paying for the
+           driver's first touch of a fresh DIB */
+        W.StretchDIBits_(mem, 0, 0, dw, dh, 0, 0, sw, sh, src, &sbi,
+                         DIB_RGB_COLORS, SRCCOPY);
+        LARGE_INTEGER freq, t0, t1;
+        QueryPerformanceFrequency(&freq);
+        QueryPerformanceCounter(&t0);
+        for (int i = 0; i < reps; ++i)
+            W.StretchDIBits_(mem, 0, 0, dw, dh, 0, 0, sw, sh, src, &sbi,
+                             DIB_RGB_COLORS, SRCCOPY);
+        QueryPerformanceCounter(&t1);
+        const double ms = freq.QuadPart
+                              ? (double)(t1.QuadPart - t0.QuadPart) * 1000.0 /
+                                    (double)freq.QuadPart / reps
+                              : 0.0;
+        const bool wrote =
+            ntr::ppu_write_bmp_px(arms[a].path, (const uint32_t *)dbits, dw, dh);
+        fprintf(stderr, "[present-bench] %-12s %dx%d -> %dx%d  %.3f ms per "
+                "blit over %d  %s\n", arms[a].name, sw, sh, dw, dh, ms, reps,
+                wrote ? arms[a].path : "(BMP not written)");
+    }
+    fflush(stderr);
+    DeleteObject_(dib);
+    DeleteDC_(mem);
+    ReleaseDC_(0, screen);
+}
+
+/* ---- FULLSCREEN (port mod) --------------------------------------------
+   F12, borderless, and never a mode change. Exclusive fullscreen would mean
+   asking the display for a resolution, which can fail, can leave the desktop
+   rearranged if the program dies while it holds it, and buys nothing here --
+   the present path already scales to any client size, so a borderless window
+   over the monitor's own bounds is the same picture with none of that.
+
+   The restore is a saved WINDOWPLACEMENT plus the saved style, so a window
+   that was maximised before F12 comes back maximised and one that was at
+   some hand-dragged size comes back at that size.
+
+   ITS SetWindowPos DOES FRONT THE WINDOW (HWND_TOP, no SWP_NOACTIVATE) and is
+   left that way under SM64DS_NO_FOCUS, because it cannot run under it: the
+   only caller is the F12/F11 edge in the two frame loops, read through
+   key_live, and key_live returns released whenever hal_window_focused() is
+   false -- which a window that never reaches the foreground always is. A
+   person pressing F12 has focus by definition and should get the fullscreen
+   they asked for. Named here so a future caller that is not a keypress knows
+   it is fronting. */
+static int g_fullscreen;
+static WINDOWPLACEMENT g_fs_placement;
+static LONG g_fs_style;
+
+static void fullscreen_toggle(HWND h)
+{
+    if (!W.GetWindowLongA_ || !W.SetWindowLongA_ || !W.SetWindowPos_ ||
+        !W.MonitorFromWindow_ || !W.GetMonitorInfoA_ ||
+        !W.GetWindowPlacement_ || !W.SetWindowPlacement_)
+        return;
+    if (!g_fullscreen) {
+        g_fs_placement.length = sizeof g_fs_placement;
+        if (!W.GetWindowPlacement_(h, &g_fs_placement)) return;
+        g_fs_style = W.GetWindowLongA_(h, GWL_STYLE);
+        MONITORINFO mi;
+        mi.cbSize = sizeof mi;
+        HMONITOR mon = W.MonitorFromWindow_(h, MONITOR_DEFAULTTONEAREST);
+        if (!mon || !W.GetMonitorInfoA_(mon, &mi)) return;
+        W.SetWindowLongA_(h, GWL_STYLE,
+                          (g_fs_style & ~(LONG)WS_OVERLAPPEDWINDOW) |
+                              (LONG)WS_POPUP);
+        W.SetWindowPos_(h, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
+                        mi.rcMonitor.right - mi.rcMonitor.left,
+                        mi.rcMonitor.bottom - mi.rcMonitor.top,
+                        SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        g_fullscreen = 1;
+    } else {
+        W.SetWindowLongA_(h, GWL_STYLE, g_fs_style);
+        W.SetWindowPlacement_(h, &g_fs_placement);
+        W.SetWindowPos_(h, 0, 0, 0, 0, 0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                            SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        g_fullscreen = 0;
+    }
+    present();
 }
 
 /* ---- MOUSE (port mod) -------------------------------------------------
@@ -2004,112 +6495,293 @@ static void menu_draw(ntr::Framebuffer &fb)
    leaves the pointer exactly where it was picked up.
 
    The wheel zooms the rig. Both act in ANALOG and FREECAM; in DS-exact the
-   camera is the game's and the mouse does not touch it. */
+   camera is the game's and the mouse does not touch it.
+
+   ---- AND THE CAPTURE MODE IS BACK, BEHIND A SETTING (run mg10, lane ESC)
+
+   What stands above is still the DEFAULT and still the whole program with the
+   setting off. But Tango asked for the other half -- "hold my mouse in the
+   game and let me just move to turn" -- so settings.json's MouseCapture turns
+   it on, and the three objections written above are answered rather than
+   ignored, because they were all correct:
+
+   "IT FIGHTS THE DEBUG MENU." It does, so it is not on while the menu is
+   open: mo_capture_want below has menu_on in it. That is also what makes
+   ESCAPE the release, which is the convention every game with a captured
+   pointer already teaches -- escape opens the menu (lane ESC's other half),
+   the menu drops the capture, and the pointer is back in one press. Escape
+   again closes the menu and takes it again. There is no second key to learn
+   and no third state to be stuck in.
+
+   "IT FIGHTS ALT-TABBING OUT OF A PLAY SESSION." It did, so focus is in the
+   same test: the frame the window stops being foreground is the frame the
+   pointer is handed back, unclipped and visible, and coming back takes it
+   again. This is the same edge key_live already reads for the keyboard, so
+   the mouse and the keys let go together.
+
+   "IT LEAVES A HIDDEN CURSOR BEHIND IF THE PROGRAM DIES WITH IT ON -- and the
+   flight recorder exists because this program does sometimes die." This is
+   the one that needed a mechanism rather than a test, and the answer is that
+   both halves of the capture are PER-PROCESS state that Windows unwinds for
+   us. ShowCursor's counter belongs to this process's own input queue and dies
+   with it; ClipCursor's fence is released when the thread that set it goes
+   away. A crash therefore ends with a visible, free pointer without this
+   program running a single line of cleanup -- which is the only kind of
+   cleanup a crash can be relied on to do. The tidy paths (WM_KILLFOCUS,
+   WM_DESTROY, the frame test) are belt and braces on top of that, not the
+   thing being relied on.
+
+   HOW IT STEERS, and it is deliberately not a new input path: the capture
+   simply makes the anchor-and-spring-back above run without a button held.
+   The anchor is the middle of the client area rather than wherever the
+   pointer happened to be, because there is no pick-up point when there is no
+   pick-up; every move still reports its delta and is put straight back, so
+   the same mo_dx/mo_dy reach the same rig at the same 48 and 24 binangs a
+   pixel. Nothing downstream of these two variables can tell the two modes
+   apart, which is why turning the setting on cannot change how the camera
+   feels, only what your hand has to do.
+
+   WHAT THE POINTER IS FOR WHEN IT IS NOT STEERING is the reason for the rest
+   of mo_capture_want's list. The mouse in this program is also the DS's
+   stylus (poll_touch, hal/sub_screen.cpp), and a stylus that is pinned to the
+   middle of the picture and invisible is not a stylus. So the capture stays
+   off wherever the pointer is really a pen: the whole SCENE path, which is
+   where the minigames run; any STACKED window, where the bottom half of the
+   picture IS the bottom screen; and DS-exact, where the mouse steers nothing
+   and taking it would be pure cost.
+
+   WHAT IT TAKES AWAY, said plainly because a player meets both of these before
+   they meet anything else. The fence is the CLIENT AREA, so while the capture
+   is on the pointer cannot reach the corner stylus panel, the title bar, the
+   sizing border or the close button: the window cannot be dragged, resized or
+   closed with the mouse until it lets go. Escape is how it lets go, alt+F4
+   still closes and alt-tab still leaves. That is the same bargain every game
+   with a captured pointer makes, and it is the reason the release is a key
+   players already reach for rather than one this file invented. */
 static int mo_look;              /* right button down */
 static POINT mo_anchor;          /* screen point the drag springs back to */
 static int mo_dx, mo_dy;         /* accumulated since the loop last drained */
 static int mo_wheel;             /* accumulated notches, forward positive */
 
+/* THE CAPTURE'S OWN THREE. mo_capture_opt is settings.json's MouseCapture,
+   re-read live beside the volume; mo_captured is whether the pointer is
+   actually held THIS FRAME, which is the option and the six refusals together;
+   mo_capture_home is where the pointer was standing when it was taken, so
+   letting go puts it back rather than leaving it in the middle of the picture.
+
+   mo_capture_opt is a file-scope copy rather than a call to
+   host_setting_mouse_capture() at each reader, for the reason the run-mode
+   keys are: the frame loop asks this question every frame and the answer may
+   only move when the watcher says the file moved. */
+static int mo_capture_opt;
+static int mo_captured;
+static POINT mo_capture_home;
+static int mo_capture_home_ok;
+
 /* THE TOUCH BRIDGE'S HANDOFF. The DS has a touchscreen and this program has a
    mouse, and the last left click is where the two meet. Position is in
-   FRAMEBUFFER pixels -- client coordinates divided by ZOOM -- so a consumer
-   gets the same numbers at either tier without knowing which one it is on.
-   `g_mouse_click_new` is true for exactly the frame the click landed on and
-   `g_mouse_left_down` is the hold, which is what a drag on a touchscreen is.
-   NOTHING IN THIS FILE READS ANY OF IT: it is published for the touch bridge
-   a sibling stream is building. */
+   FRAMEBUFFER pixels, so a consumer gets the same numbers at either tier
+   without knowing which one it is on.
+
+   IT IS NO LONGER A DIVIDE BY ZOOM. The window resizes, so the frame is
+   scaled to fit the client area and centred inside it, and the inverse of
+   that fit is hal_present_client_to_fb (hal/sub_screen.cpp) -- the same
+   function the bottom-screen stylus goes through, which is the point of it
+   being one function.
+
+   A CLICK IN A LETTERBOX BAR IS NOT A CLICK ON THE PICTURE, and these words
+   say so: the position keeps the last on-picture click and `g_mouse_click_new`
+   stays down for a bar click, the same answer poll_touch gives the stylus.
+   `g_mouse_click_new` is true for exactly the frame an on-picture click landed
+   on and `g_mouse_left_down` is the hold, which is what a drag on a
+   touchscreen is. NOTHING IN THIS FILE READS ANY OF IT: it is published for
+   the touch bridge a sibling stream is building. */
 int g_mouse_click_x, g_mouse_click_y;
 int g_mouse_click_new;
 int g_mouse_left_down;
+
+/* THE CURSOR IS HIDDEN IFF SOMETHING IS STEERING WITH IT, and this is the one
+   function that decides it. ShowCursor is a COUNTER and not a flag, so two
+   independent hiders that each pushed and popped it would drift the moment
+   they overlapped -- let go of the right button during a capture and the
+   pointer would reappear in the middle of a look. Both loops drive the counter
+   to a target instead of stepping it, so calling this at any time from
+   anywhere leaves it in the state these two variables describe. */
+static void mo_cursor_sync(void)
+{
+    if (!W.ShowCursor_) return;
+    if (mo_look || mo_captured) while (W.ShowCursor_(FALSE) >= 0) {}
+    else                        while (W.ShowCursor_(TRUE) < 0) {}
+}
 
 static void mo_release(void)
 {
     if (!mo_look) return;
     mo_look = 0;
     if (W.ReleaseCapture_) W.ReleaseCapture_();
-    if (W.ShowCursor_) while (W.ShowCursor_(TRUE) < 0) {}
+    mo_cursor_sync();
 }
 
-/* text-editor commit/cancel shared by chat input, username edit */
-static void edit_commit(void)
+/* The middle of the client area in SCREEN coordinates -- the point a captured
+   pointer is parked on and springs back to. The client area and not the window
+   rect, so the title bar and the sizing border do not pull the anchor off
+   centre, and re-asked on every engage so a resized or moved window re-centres
+   without anything having to notice that it moved. */
+static int mo_client_center(HWND h, POINT *p)
 {
-    if (g_edit_mode == EDIT_CHAT) {
-        if (g_chat_input[0]) chat_add(g_username, g_chat_input);
-        g_chat_input[0] = 0;
-        g_chat_open = 0;
-    } else if (g_edit_mode == EDIT_NAME) {
-        if (g_chat_input[0]) {
-            strncpy(g_username, g_chat_input, sizeof g_username - 1);
-            g_username[sizeof g_username - 1] = 0;
-            sm64ds::lobby::set_name(g_username);
-            front_save_state();
-            toast("Name: %s", g_username);
-        }
-        g_chat_input[0] = 0;
-    } else if (g_edit_mode == EDIT_IP) {
-        strncpy(g_lobby_ip, g_chat_input, sizeof g_lobby_ip - 1);
-        g_lobby_ip[sizeof g_lobby_ip - 1] = 0;
-        g_chat_input[0] = 0;
-        front_save_state();
-        toast("Host IP: %s", g_lobby_ip[0] ? g_lobby_ip : "(blank)");
+    RECT rc;
+    if (!W.GetClientRect_ || !W.ClientToScreen_) return 0;
+    if (!W.GetClientRect_(h, &rc)) return 0;
+    if (rc.right <= rc.left || rc.bottom <= rc.top) return 0;  /* zero-size */
+    p->x = (rc.right - rc.left) / 2;
+    p->y = (rc.bottom - rc.top) / 2;
+    return W.ClientToScreen_(h, p) ? 1 : 0;
+}
+
+/* THE FENCE. Pens the pointer inside the client area, so a fast flick between
+   two spring-backs cannot land it on another window and click something there.
+   A null ClipCursor_ leaves a capture that still hides and re-centres, which is
+   a worse capture and not a broken one -- hence no refusal here. */
+static void mo_capture_clip(HWND h)
+{
+    RECT rc, s;
+    POINT tl, br;
+    if (!W.ClipCursor_ || !W.GetClientRect_ || !W.ClientToScreen_) return;
+    if (!W.GetClientRect_(h, &rc)) return;
+    tl.x = rc.left;  tl.y = rc.top;
+    br.x = rc.right; br.y = rc.bottom;
+    if (!W.ClientToScreen_(h, &tl) || !W.ClientToScreen_(h, &br)) return;
+    s.left = tl.x; s.top = tl.y; s.right = br.x; s.bottom = br.y;
+    W.ClipCursor_(&s);
+}
+
+/* RE-AIM A HELD POINTER AT THE WINDOW IT IS ON. The anchor and the fence are
+   both derived from the client rectangle, so a window that moves or resizes
+   under a capture leaves both of them describing where the window USED to be:
+   the pointer springs back to a point off the picture and the fence pens it
+   somewhere the player is not looking. Called from WM_SIZE and WM_MOVE, which
+   between them are every way a client rectangle can change -- a border drag, a
+   maximise, and this program's own F12 fullscreen toggle. */
+static void mo_capture_refresh(HWND h)
+{
+    POINT c;
+    if (!mo_captured) return;
+    if (!mo_client_center(h, &c)) return;
+    mo_anchor = c;
+    if (W.SetCursorPos_) W.SetCursorPos_(c.x, c.y);
+    mo_dx = mo_dy = 0;          /* a re-aim is not a look */
+    mo_capture_clip(h);
+}
+
+/* TAKE OR HAND BACK THE POINTER. Idempotent on purpose: the frame loop calls
+   this every frame with the answer it wants, so the transitions live here
+   rather than at each of the seven places that can change the answer. */
+static void mo_capture_set(HWND h, int on)
+{
+    if (!!on == mo_captured) return;
+    if (on) {
+        POINT c;
+        if (!W.GetCursorPos_ || !W.SetCursorPos_) return;
+        /* A ZERO-SIZE CLIENT AREA HAS NO MIDDLE, and this is the honest
+           refusal for it rather than a capture centred on a corner: the
+           harness opens windows like that. */
+        if (!mo_client_center(h, &c)) return;
+        /* remembered BEFORE the pointer is moved, which is the whole point of
+           remembering it */
+        mo_capture_home_ok = W.GetCursorPos_(&mo_capture_home) ? 1 : 0;
+        mo_captured = 1;
+        mo_anchor = c;
+        W.SetCursorPos_(c.x, c.y);
+        /* WHATEVER THE POINTER DID ON THE WAY IN IS NOT A LOOK. Moving it to
+           the centre is this program's own move and the WM_MOUSEMOVE it
+           generates would otherwise be drained as a delta and snap the camera
+           by however far across the desk the pointer had been standing. */
+        mo_dx = mo_dy = 0;
+        mo_capture_clip(h);
+    } else {
+        mo_captured = 0;
+        if (W.ClipCursor_) W.ClipCursor_(0);
+        if (mo_capture_home_ok && W.SetCursorPos_)
+            W.SetCursorPos_(mo_capture_home.x, mo_capture_home.y);
+        mo_capture_home_ok = 0;
+        /* and the move BACK is not a look either, for the same reason */
+        mo_dx = mo_dy = 0;
     }
-    g_edit_mode = EDIT_NONE;
-    g_edit_just_done = 1;
+    mo_cursor_sync();
+    fprintf(stderr, "[mouse] capture %s\n", on ? "ENGAGED" : "released");
 }
 
-static void edit_cancel(void)
+/* MAY THE POINTER BE HELD THIS FRAME? Every term is a release the player would
+   otherwise have to go and find, and the reasons are in the MOUSE banner
+   above. Written as one function with one caller so the answer cannot be half
+   true anywhere: the loop asks, mo_capture_set does.
+
+   `stacked` is passed rather than asked, because this is a header-free file
+   scope and the loops already hold the answer their window was built for. */
+static int mo_capture_want(int selftest, int stacked)
 {
-    g_chat_input[0] = 0;
-    if (g_edit_mode == EDIT_CHAT) g_chat_open = 0;
-    g_edit_mode = EDIT_NONE;
-    g_edit_just_done = 1;
+    if (!mo_capture_opt) return 0;      /* the setting, and it is off by default */
+    if (selftest) return 0;             /* no player, no pointer */
+    if (stacked) return 0;              /* the bottom half is a touchscreen */
+    if (cam_mode == CAM_DS) return 0;   /* the mouse steers nothing there */
+    if (menu_on) return 0;              /* escape is the release */
+    if (g_rebind_capture) return 0;     /* a key is being chosen */
+    if (g_padlearn) return 0;           /* a pad is being taught */
+    if (rb_replaying()) return 0;       /* a rewound window is being re-run */
+    if (!hal_window_focused()) return 0;/* alt-tab hands it back */
+    return 1;
 }
+
+/* The player has chosen a window size, by dragging the border or by
+   maximising, so nothing in this program may choose one for them afterwards.
+   Set by the window procedure below; read by stack_present_arm, which is the
+   one thing that would otherwise re-size a running window. */
+static int g_user_sized;
 
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
-    if (m == WM_DESTROY) { mo_release(); W.PostQuitMessage_(0); return 0; }
-    if (m == WM_KEYDOWN && w == VK_ESCAPE) {
-        if (g_edit_mode != EDIT_NONE) { edit_cancel(); return 0; }
+    /* the capture is dropped here as well as on the frame test, because a
+       window being destroyed has no more frames to test on */
+    if (m == WM_DESTROY) {
+        mo_capture_set(h, 0);
         mo_release();
         W.PostQuitMessage_(0);
         return 0;
     }
-    if (m == WM_KEYDOWN && g_edit_mode == EDIT_KEY && g_edit_key_target &&
-        !g_edit_pad) {
-        /* rebind capture: any key becomes the binding (Esc cancels above) */
-        *g_edit_key_target = (int)(w & 0xff);
-        fprintf(stderr, "[keys] bound to %s\n", key_name(*g_edit_key_target));
-        front_save_state();
-        toast("Bound: %s", key_name(*g_edit_key_target));
-        g_edit_key_target = 0;
-        g_edit_mode = EDIT_NONE;
-        g_edit_just_done = 1;
+    /* AHEAD OF THE ESCAPE BRANCH, deliberately: while the rebind row is
+       capturing, a press is a BINDING and nothing else, escape included --
+       otherwise the one key a player would reach for to back out would close
+       the game instead. Bit 30 of lParam is the previous key state, so the
+       auto-repeat of a key still held from arming the capture is ignored and
+       only a fresh press counts. WM_SYSKEYDOWN as well as WM_KEYDOWN, or alt
+       would be the one key on the board a player could not bind and would
+       open the system menu behind the capture instead. */
+    if ((m == WM_KEYDOWN || m == WM_SYSKEYDOWN) &&
+        (g_rebind_capture || g_padlearn)) {
+        if (!(l & (1 << 30))) g_rebind_key = (int)w;
         return 0;
     }
-    if (m == WM_CHAR && (g_edit_mode == EDIT_CHAT || g_edit_mode == EDIT_NAME ||
-                         g_edit_mode == EDIT_IP)) {
-        if (w == '\r') {
-            edit_commit();
-            return 0;
-        }
-        if (w == 0x08) {   /* backspace */
-            size_t n = strlen(g_chat_input);
-            if (n) g_chat_input[n - 1] = 0;
-            return 0;
-        }
-        if (w >= 32 && w < 127) {
-            size_t n = strlen(g_chat_input);
-            const size_t cap = g_edit_mode == EDIT_NAME ? sizeof g_username - 1 :
-                               g_edit_mode == EDIT_IP ? sizeof g_lobby_ip - 1 :
-                                                        sizeof g_chat_input - 1;
-            if (n < cap) {
-                g_chat_input[n] = (char)w;
-                g_chat_input[n + 1] = 0;
-            }
-        }
-        return 0;
-    }
+    /* THERE IS NO ESCAPE BRANCH HERE ANY MORE (run mg10, lane ESC), and its
+       absence is the feature. It read
+           if (m == WM_KEYDOWN && w == VK_ESCAPE) { mo_release(); quit; }
+       so escape closed the game. It is now an alias of F5 -- it opens and
+       closes the debug menu -- and it is read where F5 is read, in menu_input's
+       held-mask, so it passes the selftest gate, the rebind-capture gate, the
+       focus gate and the stale-key latch that a branch up here would each have
+       had to re-solve. The rebind capture above still swallows it before
+       anything else sees it, for the reason it always did.
+
+       Escape now falls through to DefWindowProcA with every other key, which
+       does nothing with it. THE WINDOW'S CLOSE BUTTON AND ALT+F4 ARE THE QUIT,
+       and they were always the other way out: they arrive as WM_CLOSE, the
+       default handler destroys the window, and WM_DESTROY above posts the quit
+       message escape used to post directly. */
     switch (m) {
+    case WM_DEVICECHANGE:
+        /* a controller came or went: the pad backend's worker scans now
+           instead of on its slow cadence (hal/pad_backend.h) */
+        port_pad_device_changed();
+        break;
     case WM_RBUTTONDOWN:
         if (W.GetCursorPos_ && W.GetCursorPos_(&mo_anchor)) {
             mo_look = 1;
@@ -2122,11 +6794,22 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         mo_release();
         return 0;
     case WM_KILLFOCUS:
+        /* AHEAD OF THE FRAME TEST AND NOT INSTEAD OF IT. mo_capture_want has
+           hal_window_focused() in it, so the next frame would drop the capture
+           anyway -- but "the next frame" is a promise a stalled loop does not
+           keep, and the one moment a player must not have to wait for a frame
+           is the moment they have alt-tabbed away and want their pointer. */
+        mo_capture_set(h, 0);
+        mo_release();
+        return 0;
     case WM_CAPTURECHANGED:
+        /* NOT a capture drop: this is win32's mouse capture (SetCapture), a
+           different thing that happens to share the word. Losing it ends a
+           right-button drag and says nothing about the pointer lock. */
         mo_release();
         return 0;
     case WM_MOUSEMOVE:
-        if (mo_look && W.GetCursorPos_) {
+        if ((mo_look || mo_captured) && W.GetCursorPos_) {
             POINT p;
             if (W.GetCursorPos_(&p)) {
                 mo_dx += p.x - mo_anchor.x;
@@ -2138,28 +6821,878 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         }
         return 0;
     case WM_LBUTTONDOWN: {
-        int cx = (short)LOWORD(l) / ZOOM, cy = (short)HIWORD(l) / ZOOM;
+        /* CLIENT PIXELS BACK TO FRAMEBUFFER PIXELS, and it is no longer a
+           divide by ZOOM. The picture is centred in whatever the client area
+           is now and scaled to fit it, so undoing that is the present rect's
+           own arithmetic run backwards -- which is why it lives next to the
+           forward one rather than being spelled a second time here. A click
+           in a letterbox bar is outside the picture; it is clamped to the
+           edge the way an off-window drag always was, so the published point
+           stays a framebuffer pixel. */
+        int cx = 0, cy = 0;
+        /* THE RETURN IS HONOURED, the way poll_touch honours it. A click in a
+           letterbox bar is off the picture, and publishing the clamped edge
+           pixel for it would hand the touch bridge a stylus press on the rim
+           of the screen that the player never made -- a bug with no reader
+           today and therefore no way to notice it later. Off the picture: the
+           hold still latches (a drag that starts on the picture and wanders
+           into a bar is still a drag) but no new click position is published.
+
+           AND THE MESSAGE WAS A LIE IN THE STACKED LAYOUT (run link60, lane
+           TCH2). hal_present_client_to_fb means the TOP screen in both
+           layouts, so in a stacked run EVERY click on the bottom half -- which
+           is every click a minigame player makes, the whole point of the
+           layout -- came back "outside" and this line called it a letterbox
+           bar. There is no letterbox in a 512x768 client showing a 512x768
+           image; the click was on the picture, on the other screen, and the
+           stylus took it. These were the only touch-shaped lines in a play
+           session's log (poll_touch printed nothing at all until this lane
+           gave it a voice), so a working stylus read as fifteen rejected
+           clicks, and this lane was opened to fix a transform that was
+           already correct. Ask the other band before saying which it is. */
+        const int mx = (short)LOWORD(l), my = (short)HIWORD(l);
+        int dsx = 0, dsy = 0;
+        const int on_picture = hal_present_client_to_fb(mx, my, &cx, &cy);
+        const int on_sub = hal_present_client_to_sub(mx, my, &dsx, &dsy);
+        g_mouse_left_down = 1;
+        /* THE MOUSE IS CAPTURED FOR THE LENGTH OF THE HOLD, so the motion and
+           the button-up keep arriving while the pointer is outside the window.
+           The STYLUS does not need this and never did, because poll_touch
+           reads GetCursorPos and GetAsyncKeyState, which are machine-global and
+           were never interrupted. g_mouse_left_down did: without a capture a
+           release outside the window delivers WM_LBUTTONUP to whatever is under
+           the pointer instead, and the hold below latched at 1 for the rest of
+           the session. Armed here rather than after the on-picture test, on
+           purpose: a press in a letterbox bar already latches the hold, and a
+           hold that latches without a capture is the half-state this closes.
+           Released in WM_LBUTTONUP. */
+        if (W.SetCapture_) W.SetCapture_(h);
+        if (!on_picture) {
+            if (on_sub)
+                fprintf(stderr, "[mouse] click %d,%d client is on the BOTTOM "
+                        "screen, DS (%d,%d) -- the stylus takes it; no "
+                        "top-screen point published\n", mx, my, dsx, dsy);
+            else
+                fprintf(stderr, "[mouse] click %d,%d client off-picture "
+                        "(letterbox bar), not published\n", mx, my);
+            return 0;
+        }
         if (cx < 0) cx = 0;
         if (cy < 0) cy = 0;
-        if (cx >= ntr::SCREEN_W) cx = ntr::SCREEN_W - 1;
-        if (cy >= ntr::SCREEN_H) cy = ntr::SCREEN_H - 1;
+        if (cx >= ntr::active_w) cx = ntr::active_w - 1;
+        if (cy >= ntr::active_h) cy = ntr::active_h - 1;
         g_mouse_click_x = cx;
         g_mouse_click_y = cy;
         g_mouse_click_new = 1;
-        g_mouse_left_down = 1;
         fprintf(stderr, "[mouse] click %d,%d fb\n", cx, cy);
         return 0;
     }
     case WM_LBUTTONUP:
         g_mouse_left_down = 0;
+        /* and only when the right-button look is not holding a capture of its
+           own, which mo_release owns and would lose here */
+        if (!mo_look && W.ReleaseCapture_) W.ReleaseCapture_();
         return 0;
     case WM_MOUSEWHEEL:
         mo_wheel += (short)HIWORD(w) / WHEEL_DELTA;
         return 0;
+    /* ---- the resize seam ------------------------------------------------
+       A drag on the sizing border runs a MODAL loop inside DefWindowProc:
+       this file's frame loop is not running for as long as the button is
+       held, so the only thing that can keep the picture under the edge being
+       dragged is the window procedure itself. WM_SIZE arrives on every step
+       of that drag, and presenting the last frame from here is what makes
+       the picture follow the edge instead of smearing behind it. */
+    case WM_SIZE:
+        /* SIZE_MAXIMIZED (2) is a size the player asked for as much as a drag
+           is, so the stacked layout must not grow out from under it either.
+           SIZE_RESTORED from this program's own SetWindowPos is NOT: that path
+           is stack_present_arm and it sets nothing. */
+        if (w == 2) g_user_sized = 1;
+        /* a held pointer is aimed at a client rectangle that has just moved */
+        mo_capture_refresh(h);
+        present();
+        return 0;
+    /* ONLY EVER FOR THE CAPTURE. The window has never needed to know that it
+       moved -- the picture is drawn in client coordinates -- but a held
+       pointer's anchor and fence are in SCREEN coordinates, so a drag of the
+       title bar is exactly the case that strands them. Falls through to the
+       default handler either way, because moving is still the system's. */
+    case WM_MOVE:
+        mo_capture_refresh(h);
+        break;
+    /* THE PLAYER'S HAND ON THE SIZING BORDER, which is the edge the stacked
+       layout has to stop growing at. WM_SIZING arrives only from a border
+       drag -- SetWindowPos does not send it -- so it is the one message that
+       says "this size is a choice" rather than "this size happened". */
+    case WM_SIZING:
+        g_user_sized = 1;
+        break;
+    /* Same reason, for the repaints the compositor asks for: a restore from
+       minimised, an uncover, a monitor change. Presenting and then
+       validating is the whole of it -- without the validate the region stays
+       dirty and WM_PAINT is re-posted forever. */
+    case WM_PAINT:
+        present();
+        /* The validate is what ends the paint. Without it the region stays
+           dirty and WM_PAINT is re-posted forever, so if ValidateRect is the
+           one name in this file that failed to resolve, this branch must NOT
+           swallow the message -- DefWindowProc's BeginPaint/EndPaint pair
+           validates it instead. Falling through is the safe answer; returning
+           0 here would spin the message loop at 100% of a core. */
+        if (!W.ValidateRect_) break;
+        W.ValidateRect_(h, 0);
+        return 0;
+    /* "Handled, and I painted nothing." The default erase fills the client
+       area with the class brush before the picture lands on top of it, which
+       is a full-window flash on every step of a drag. present() already owns
+       every pixel: the picture, and black in the bars. */
+    case WM_ERASEBKGND:
+        return 1;
+    /* A sane floor on the drag. 256x192 is the DS panel at 1:1 -- below that
+       the frame is being thrown away rather than scaled, and the overlay
+       font stops being readable at all. Sent before the window exists on
+       some paths, so the style is read defensively. */
+    case WM_GETMINMAXINFO: {
+        MINMAXINFO *mmi = (MINMAXINFO *)l;
+        RECT mr = {0, 0, 256, 192};
+        const LONG style = W.GetWindowLongA_ ? W.GetWindowLongA_(h, GWL_STYLE)
+                                             : (LONG)WS_OVERLAPPEDWINDOW;
+        if (W.AdjustWindowRect_) W.AdjustWindowRect_(&mr, (DWORD)style, FALSE);
+        mmi->ptMinTrackSize.x = mr.right - mr.left;
+        mmi->ptMinTrackSize.y = mr.bottom - mr.top;
+        return 0;
+    }
     default:
         break;
     }
     return W.DefWindowProcA_(h, m, w, l);
+}
+
+/* ---- THE WINDOW, OPENED THE ONE WAY (port mod, run link60 SW1) ------------
+
+   Both modes ask for the same class, the same styles, the same class-owned DC
+   and the same two DIB headers; only the size the layout asks for and the
+   controls card in the title bar differ, and both of those are arguments. A
+   second copy of this would be a second place for CS_OWNDC, WS_THICKFRAME or
+   the min-track size to be got wrong, and the first two have each already cost
+   this file a session.
+
+   CS_OWNDC IS LOAD-BEARING FOR THE RESIZE rather than a habit. The DC below is
+   fetched once and held for the life of the program. A DC out of the common
+   cache has its VISIBLE REGION computed at GetDC time and never again, so
+   after the client area grew, every pixel of the new area was outside that
+   region and clipped away -- the bars could not have been painted through it
+   even by code that tried. A class-owned DC is the one kind the system keeps
+   in step with the window's size.
+
+   THE STACKED LAYOUT ASKS FOR A WINDOW TWICE AS TALL, because the picture it
+   presents is twice as tall and a window opened at the framebuffer's aspect
+   would letterbox the whole thing down to half the width. AND IT DOES NOT TAKE
+   THE ZOOM WITH IT, which is measured rather than tidy: ZOOM is 2 at the 2x
+   tier, so SCREEN_W x STACK_H x ZOOM is 1024x1536 and a window that tall does
+   not fit on any ordinary desktop -- the first stacked run opened one and the
+   fit letterboxed the picture into the top two thirds of a window whose bottom
+   third was off the screen. The stacked window opens at the stacked image's
+   own size, 512x768 at this tier, which is Tango's number and the largest that
+   fits. Nothing is lost by it: the present path scales to whatever the client
+   area becomes, so the sizing border and F12 both still work.
+
+   WS_THICKFRAME HAS TO BE IN BOTH PLACES, this call and the CreateWindowExA
+   below. Changing it in the AdjustWindowRect alone is a silent no-op that
+   looks like the fix: AdjustWindowRect only decides how big to ask for, and on
+   Windows 11 it returns the SAME frame metrics with and without the sizing
+   border (measured: identical rect for both styles), so the window opens at
+   exactly the size it always did and every screenshot looks right while the
+   sizing border is still not there. The style the window actually gets is the
+   CreateWindowExA argument.
+
+   THE TITLE BAR IS THE CONTROLS CARD. There is nowhere else to put them that
+   does not cost a keypress to read: the F3 overlay is timings, the F5 menu is
+   state, and both of those you have to already know how to open. The bar is
+   the one surface that is legible before you touch anything, so the keys live
+   there -- and a minigame's are not a level's, which is why it is a parameter. */
+static BITMAPINFO g_bi;
+static BITMAPINFO g_bi_stack;
+
+/* ---- SM64DS_NO_FOCUS: A WINDOW THAT DOES NOT TAKE THE DESK (port mod) -------
+ *
+ * WHY. Every scripted run of this exe -- a battery selftest, a BMP probe, a
+ * scene census -- opens a real window, and a real window opened the ordinary
+ * way becomes the foreground one. On a shared machine that means the owner's
+ * keystroke lands in Mario instead of in whatever he was typing into, once per
+ * proof run, and there have been days with dozens of them. The window itself is
+ * wanted (the scene path needs one for the stylus and the present loop, see
+ * scene_window_run); it is the ACTIVATION that is not.
+ *
+ * WHAT IT DOES, in the two places a window can take the foreground:
+ *
+ *   at creation   WS_EX_NOACTIVATE in the extended style, and WS_VISIBLE taken
+ *                 OUT of the ordinary style so CreateWindowExA does not do the
+ *                 implicit activating show. The window is then shown with
+ *                 ShowWindow(SW_SHOWNOACTIVATE).
+ *   afterwards    the one automatic SetWindowPos on the frame path
+ *                 (stack_present_arm's grow) takes SWP_NOACTIVATE.
+ *
+ * BOTH HALVES, not either. WS_EX_NOACTIVATE governs what a later click does and
+ * SW_SHOWNOACTIVATE governs what THIS show does, and a window created
+ * WS_VISIBLE has already been shown by the time any ShowWindow could speak.
+ *
+ * WHAT IT DELIBERATELY DOES NOT DO. It does not hide the window, does not make
+ * it topmost, does not move it (SM64DS_WINDOW_POS is a separate knob) and does
+ * not touch a single pixel of what is drawn. A run under this flag composes,
+ * presents and captures exactly the frames the same run composes without it;
+ * that is the claim the BMP floor checks.
+ *
+ * WHAT IT COSTS, stated rather than discovered. Two things, and the second is
+ * the one that surprises people.
+ *
+ *   THE INTERACTIVE KEYBOARD IS DEAD for the run. A window that is never the
+ *   foreground one is never focused, so hal_window_focused() is false the whole
+ *   time and key_live returns released -- which is the same state the window is
+ *   in today the moment you alt-tab away from it, not a new one. Right for a
+ *   scripted run, wrong for a person, so this flag is for harnesses and the
+ *   launcher bundle does not set it.
+ *
+ *   AND WS_EX_NOACTIVATE KEEPS THE WINDOW OFF THE TASKBAR, which Windows does
+ *   on its own and this file cannot ask it not to without giving the activation
+ *   back. So a run under this flag is not alt-tabbable and has no taskbar
+ *   button. It is still a perfectly ordinary window otherwise: it has its title
+ *   bar, it can be dragged, and its close button works -- a click on a
+ *   WS_EX_NOACTIVATE window is delivered, it simply does not activate. A
+ *   scripted run that hangs is closed with its X or with taskkill on the exe
+ *   path, not by alt-tabbing to it.
+ *
+ * THE SCRIPTED INPUT PATHS ARE UNAFFECTED, and that is the whole reason this is
+ * safe. SM64DS_PAD_TEST ORs bits into an in-process pad struct after
+ * XInputGetState; SM64DS_PROBE_INPUT ORs into the pad mirror; the fifteen
+ * SM64DS_SELFTEST_* probes write the stick and the buttons by hand;
+ * SM64DS_TOUCH_PROBE pokes the DS touch record in memory. None of them reads
+ * the OS, none of them asks hal_window_focused, and poll_touch's live branch is
+ * gated on g_headless and GetAsyncKeyState -- which is machine-global -- rather
+ * than on focus. Nothing in that list can tell the difference.
+ *
+ * SM64DS_CLICK_TEST IS THE ONE THING THAT CAN, and it OVERRIDES the flag out
+ * loud instead of failing quietly. That driver moves the real pointer and
+ * pushes a real button edge through the OS input queue, so the window has to be
+ * the foreground one or the WndProc half of the press is delivered somewhere
+ * else entirely (see click_test_apply). A WS_EX_NOACTIVATE window cannot be
+ * brought to the foreground, so its SetForegroundWindow would fail and the run
+ * would read as a grid of refusals -- exactly the half-green that driver's pid
+ * gate exists to refuse. Under PORT_ROM_CLEAN the driver is not compiled in at
+ * all, so there the variable is only a name and the override is gone with it.
+ *
+ * READ ONCE, like every other env in this file, so nothing can change the
+ * window's shape halfway through a run. */
+static int nofocus_mode(void)
+{
+    static int v = -1;
+    if (v >= 0)
+        return v;
+    /* ATOI, NOT A NULL TEST, and the difference matters more here than it does
+       for the other flags in this file. This one is meant to be set BROADLY --
+       by a harness over a whole battery, by a run law over every scripted
+       launch -- so the thing somebody will reach for to opt one run back out is
+       SM64DS_NO_FOCUS=0. Under the `getenv() != 0` shape the rest of the file
+       uses, that spelling would turn the flag ON and the run would look broken
+       in the one direction nobody checks. =0 means off. */
+    const char *e = getenv("SM64DS_NO_FOCUS");
+    v = e ? (atoi(e) != 0) : 0;
+#ifndef PORT_ROM_CLEAN
+    /* run link100 lane TOUCH1: the override is now the exception, not the
+       rule. The click driver delivers its stylus in process and needs no
+       foreground window, so SM64DS_NO_FOCUS survives a click script exactly
+       the way it survives SM64DS_TOUCH_PROBE. Only SM64DS_CLICK_FRONT=1, the
+       explicit opt-in back to the OS input path, still needs the window. */
+    if (v && click_front() && getenv("SM64DS_CLICK_TEST")) {
+        v = 0;
+        fprintf(stderr, "[win] SM64DS_NO_FOCUS is OVERRIDDEN by "
+                "SM64DS_CLICK_FRONT: that path pushes a real button edge "
+                "through the OS and needs the foreground window. This run "
+                "takes focus.\n");
+        fflush(stderr);
+    }
+#endif
+    if (v && !W.ShowWindow_) {
+        /* Never on Windows, but the whole user32 surface here is loaded by
+           name and a window created without WS_VISIBLE and never shown would
+           be an invisible run that still wrote its BMP -- the worst possible
+           way for this to fail. Fail back to the ordinary window. */
+        v = 0;
+        fprintf(stderr, "[win] SM64DS_NO_FOCUS asked for, but ShowWindow did "
+                        "not resolve; opening the ordinary window instead.\n");
+        fflush(stderr);
+    }
+    return v;
+}
+
+/* ---- WHAT SHOW THIS WINDOW GETS (port mod) ----------------------------------
+ *
+ * MEASURED FIRST, BECAUSE THE ANSWER WAS NO. Until this lane, the window was
+ * created WS_VISIBLE, which means CreateWindowExA shows it itself and the
+ * launcher's STARTUPINFO -- the wShowWindow that carries `start /min` and
+ * PowerShell's -WindowStyle Minimized -- was NEVER CONSULTED for it. Anyone
+ * launching a harness run minimized got a minimized CONSOLE (that one the OS
+ * creates from the same STARTUPINFO, and walk_window is a console-subsystem
+ * exe) and a perfectly normal, perfectly foreground-hungry game window beside
+ * it. Half the request was being honoured and it looked like all of it.
+ *
+ * SO IT IS HONOURED NOW, for the shows that mean "stay out of my way":
+ *
+ *   SW_SHOWMINIMIZED / SW_MINIMIZE / SW_SHOWMINNOACTIVE -> SW_SHOWMINNOACTIVE
+ *   SW_SHOWNOACTIVATE / SW_SHOWNA                       -> SW_SHOWNOACTIVATE
+ *
+ * The minimised ones are mapped to the NOACTIVE spelling deliberately: a
+ * launcher that asked for minimised was asking not to be interrupted, and
+ * SW_SHOWMINIMIZED activates the window on the way down.
+ *
+ * SW_HIDE IS NOT HONOURED, and that is a decision rather than an oversight.
+ * -WindowStyle Hidden is the ordinary way to hide a CONSOLE, so honouring it
+ * here would turn a routine "don't show me the terminal" into a run that
+ * composes frames, writes a BMP and shows nothing -- a real capture from a run
+ * nobody could watch, which is the stale-artifact shape wearing a different
+ * hat. A run that wants to stay out of the way asks with SM64DS_NO_FOCUS.
+ *
+ * EVERY OTHER wShowWindow, and any launcher that does not set
+ * STARTF_USESHOWWINDOW at all, returns -1 and gets the historical path: the
+ * window keeps WS_VISIBLE and no ShowWindow is called. That covers SW_SHOWNORMAL
+ * and SW_SHOWDEFAULT, which is what PowerShell's Start-Process sends by default
+ * and what the kit's play.bat produces, so no ordinary launch changes.
+ *
+ * GetStartupInfoA is kernel32, called directly rather than through W: kernel32
+ * is already this file's one static import (GetModuleHandleA, GetLastError) and
+ * port/release_hardening.txt's kit property is "KERNEL32.dll only", which this
+ * keeps. */
+static int host_show_mode(int nofocus)
+{
+    int want = -1;
+    if (!W.ShowWindow_)
+        return -1;      /* no show call available; keep WS_VISIBLE */
+    STARTUPINFOA si;
+    memset(&si, 0, sizeof si);
+    si.cb = sizeof si;
+    GetStartupInfoA(&si);
+    if (si.dwFlags & STARTF_USESHOWWINDOW) {
+        switch (si.wShowWindow) {
+        case SW_SHOWMINIMIZED:
+        case SW_MINIMIZE:
+        case SW_SHOWMINNOACTIVE:
+            want = SW_SHOWMINNOACTIVE;
+            break;
+        case SW_SHOWNOACTIVATE:
+        case SW_SHOWNA:
+            want = SW_SHOWNOACTIVATE;
+            break;
+        default:
+            break;
+        }
+    }
+    /* SM64DS_MINIMIZED=1 -- THE SAME REQUEST, FOR A LAUNCHER THAT CANNOT MAKE
+       IT. Run mg16 lane MP3.
+
+       Everything above reads the request out of STARTUPINFO, which is the right
+       place and is what port/tools/mp2_proof.py uses (it sets wShowWindow = 7
+       directly, because Python can). NOT EVERY LAUNCHER CAN. .NET's
+       ProcessStartInfo.WindowStyle is not carried into STARTUPINFO when
+       UseShellExecute is false, and a launcher that needs to redirect a stream
+       has no choice about that -- so port/tools/mp2_two_windows.ps1 asked for
+       Minimized, got no STARTF_USESHOWWINDOW at all, and the window came up
+       VISIBLE. That is the second time a launcher lost this guarantee silently;
+       the first was a cmd.exe shim eating the STARTUPINFO on the way past.
+
+       So the request can also be made the way every other port knob is made.
+       STARTUPINFO STILL WINS where it carries a real spelling -- this only
+       fills in when the launcher could not speak that way -- and the composition
+       with SM64DS_NO_FOCUS below is unchanged.
+
+       It is deliberately a REQUEST TO BE QUIETER, never louder: there is no
+       env value that un-minimizes a window STARTUPINFO asked to minimize. */
+    if (want == -1) {
+        const char *m = getenv("SM64DS_MINIMIZED");
+        if (m && atoi(m) != 0) want = SW_SHOWMINNOACTIVE;
+    }
+    if (nofocus) {
+        /* THE TWO COMPOSE rather than one winning. A minimized request under
+           SM64DS_NO_FOCUS is minimized AND not activated, which is the quietest
+           run this program can do; the flag alone is a visible window that does
+           not take the desk. */
+        if (want == SW_SHOWMINNOACTIVE)
+            return SW_SHOWMINNOACTIVE;
+        return SW_SHOWNOACTIVATE;
+    }
+    return want;
+}
+
+static HWND host_window_open(int stacked, HDC *out_hdc, const char *title)
+{
+    /* run mg16 lane MP2: WHICH COPY OF THE GAME IS THIS?
+       Two instances now run side by side as DS parent and child, and two
+       identical title bars are two windows a player cannot tell apart. When
+       SM64DS_INSTANCE names an instance its tag leads the title, so the pair
+       reads "[P1] SM64DS | ..." and "[P2] SM64DS | ...". With the env unset the
+       tag is empty and the title is byte-for-byte the string the caller passed,
+       which is what every existing run still gets. The same env separates the
+       exe-adjacent files that ARE separated -- startup_error.txt,
+       savestate.bin and settings.json's sibling temp, but NOT crash.txt or
+       exit.txt, and hal/instance_tag.h's survey says exactly which and why --
+       so one knob does both jobs and there is no second name to keep in
+       sync. */
+    char titlebuf[320];
+    if (port_instance_tag()[0]) {
+        _snprintf(titlebuf, sizeof titlebuf, "[%s] %s",
+                  port_instance_tag() + 1 /* skip the leading '.' */, title);
+        titlebuf[sizeof titlebuf - 1] = 0;
+        title = titlebuf;
+    }
+    /* Registered once. Two windows are never open at the same time in this
+       program, but a second RegisterClassA of a live class fails and there is
+       no reason to make the second caller find that out. */
+    static int registered;
+    if (!registered) {
+        WNDCLASSA wc = {};
+        wc.lpfnWndProc = wndproc;
+        wc.style = CS_OWNDC;
+        wc.hInstance = GetModuleHandleA(0);
+        wc.hCursor = W.LoadCursorA_(0, (LPCSTR)IDC_ARROW);
+        wc.lpszClassName = "sm64ds_walk";
+        if (!W.RegisterClassA_(&wc))
+            return 0;
+        registered = 1;
+    }
+    /* SM64DS_PRESENT_FILTER=halftone swaps the scaler; see present(). */
+    {
+        const char *pf = getenv("SM64DS_PRESENT_FILTER");
+        if (pf && (pf[0] == 'h' || pf[0] == 'H'))
+            g_present_filter = PRESENT_FILTER_HALFTONE;
+    }
+    /* THE STACKED SHAPE IS ASKED FOR RATHER THAN SPELLED, because a minigame
+       that simulates the DS's hinge composes a taller image and the number is
+       not known until its InitResources has run. At this point -- before the
+       scene has booted -- the answer is the gapless one, 512x768, which is
+       exactly the window this opened before the gap existed. stack_present_arm
+       grows it later, once, when the scene latches its G. */
+    int stw = ntr::active_w, sth = ntr::active_h * 2;
+    if (stacked) hal_sub_screen_stacked_size(&stw, &sth);
+    /* win_px on BOTH shapes, for the reason over its definition: the stacked
+       image is the active extent stacked, so a scaled run builds a taller one
+       and the client has to stay the size a default run's client is. At the
+       default extent win_px(x) IS x * ZOOM and the stacked arm's 1:1 is
+       win_px at ZOOM 1 on its own tier, so neither line moves with the key
+       absent. */
+    RECT r = stacked ? RECT{0, 0, win_px_1(stw), win_px_1(sth)}
+                     : RECT{0, 0, win_px(ntr::active_w), win_px(ntr::active_h)};
+    W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW, FALSE);
+    /* ---- WHERE IT OPENS (port mod, Tango's ask: "can it open center screen")
+       CW_USEDEFAULT IS NOT A POSITION. It asks Windows for the next slot in
+       its cascade, which starts near the top-left of the primary monitor and
+       steps down and right for each window an application opens -- so where
+       the frame lands depended on how many windows this process had opened
+       before it and on nothing a player can see or change. On the owner's
+       desk that came out in the top right.
+
+       Centred on the WORK AREA (rcWork, not rcMonitor) so the taskbar never
+       covers the bottom of the picture, and on the monitor UNDER THE CURSOR
+       rather than the primary one, because somebody with two screens is
+       looking at the one their hand is on.
+
+       SIZE IS NOT TOUCHED: r is whatever the block above decided, and BOTH
+       SHAPES come through here -- the inset level window and the 512x768
+       stacked scene -- so both are placed by this one block and neither is
+       resized by it. The F12 fullscreen path is not involved: it saves and
+       restores its own WINDOWPLACEMENT and picks its monitor with
+       MonitorFromWindow, so it now springs back to the middle instead of to
+       the cascade slot, which is the whole change it sees.
+
+       Degrades in two steps rather than one, because a window at 0,0 would be
+       a worse answer than the old one: no cursor or no MonitorFromPoint falls
+       back to the primary monitor, and no monitor info at all falls back to
+       CW_USEDEFAULT and the behaviour that shipped before this. */
+    int wx = CW_USEDEFAULT, wy = CW_USEDEFAULT;
+    {
+        const int ww = r.right - r.left, wh = r.bottom - r.top;
+        HMONITOR mon = 0;
+        POINT cur;
+        MONITORINFO mi;
+        mi.cbSize = sizeof mi;
+        if (W.MonitorFromPoint_ && W.GetCursorPos_ && W.GetCursorPos_(&cur))
+            mon = W.MonitorFromPoint_(cur, MONITOR_DEFAULTTONEAREST);
+        if (!mon && W.MonitorFromWindow_)
+            mon = W.MonitorFromWindow_(0, MONITOR_DEFAULTTOPRIMARY);
+        if (mon && W.GetMonitorInfoA_ && W.GetMonitorInfoA_(mon, &mi)) {
+            wx = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - ww) / 2;
+            wy = mi.rcWork.top + (mi.rcWork.bottom - mi.rcWork.top - wh) / 2;
+            /* A window TALLER than the work area centres to a negative origin
+               and loses its title bar off the top of the screen, which is the
+               one placement a person cannot drag their way out of. The
+               stacked shape is 512x768 plus frame, so this is reachable on a
+               short screen rather than theoretical. Clamped to the work
+               area's own corner; the bottom is allowed to overhang, because
+               that is draggable and a lost title bar is not. */
+            if (wx < mi.rcWork.left) wx = mi.rcWork.left;
+            if (wy < mi.rcWork.top)  wy = mi.rcWork.top;
+            /* SAYS WHERE IT PUT THE WINDOW AND WHAT IT MEASURED, because a
+               placement is the one thing in this program a player can see and
+               nobody can reproduce from a log without it. "The window opened
+               off screen" is otherwise an unanswerable report: this line has
+               the work area, the frame size and the origin, so the arithmetic
+               can be checked after the fact from the recorder file alone.
+               It is also this change's own evidence -- centring is a claim
+               about numbers the process has and the outside does not. */
+            fprintf(stderr, "[win] work area %ld,%ld %ldx%ld -> %dx%d frame "
+                    "centred at %d,%d\n", mi.rcWork.left, mi.rcWork.top,
+                    mi.rcWork.right - mi.rcWork.left,
+                    mi.rcWork.bottom - mi.rcWork.top, ww, wh, wx, wy);
+        } else {
+            fprintf(stderr, "[win] no monitor info; leaving the placement to "
+                            "Windows (the pre-centring behaviour)\n");
+        }
+        /* SM64DS_WINDOW_POS=x,y OVERRIDES THE CENTRE, and it is the last word
+           on purpose: a harness that says where the window goes has said
+           something more specific than "the monitor under the cursor". Virtual
+           screen coordinates, the same ones CreateWindowExA takes, so a
+           negative x parks it on a left-hand second monitor. Nothing is
+           clamped -- a run that asks to be off screen has asked for that, and
+           the clamp above exists for the CENTRING's own arithmetic rather than
+           as a policy about where windows may be. SIZE IS NOT TOUCHED; this
+           moves the same rect the block above sized. */
+        if (const char *wp = getenv("SM64DS_WINDOW_POS")) {
+            int px = 0, py = 0;
+            if (sscanf(wp, "%d,%d", &px, &py) == 2) {
+                wx = px;
+                wy = py;
+                fprintf(stderr, "[win] SM64DS_WINDOW_POS put the frame at "
+                        "%d,%d\n", wx, wy);
+            } else {
+                fprintf(stderr, "[win] SM64DS_WINDOW_POS=\"%s\" is not x,y; "
+                                "keeping the placement above\n", wp);
+            }
+        }
+    }
+    /* SM64DS_NO_FOCUS (see nofocus_mode above) and the launcher's own show
+       request (host_show_mode above). Dropping WS_VISIBLE is what stops
+       CreateWindowExA doing its implicit activating show before any ShowWindow
+       can speak, so it comes out whenever there is a show to make by hand.
+
+       WITH NEITHER ASKED FOR, show is -1 and both expressions are the constants
+       that were written here before -- 0 and WS_OVERLAPPEDWINDOW | WS_VISIBLE
+       -- and no ShowWindow is called at all. */
+    const int nofocus = nofocus_mode();
+    const int show = host_show_mode(nofocus);
+    HWND hwnd = W.CreateWindowExA_(nofocus ? WS_EX_NOACTIVATE : 0,
+                                   "sm64ds_walk", title,
+                                   /* the sizing border is here, not in the
+                                      AdjustWindowRect above; see that note */
+                                   show >= 0 ? (WS_OVERLAPPEDWINDOW)
+                                             : (WS_OVERLAPPEDWINDOW | WS_VISIBLE),
+                                   wx, wy,
+                                   r.right - r.left, r.bottom - r.top, 0, 0,
+                                   GetModuleHandleA(0), 0);
+    if (!hwnd)
+        return 0;
+    if (show >= 0) {
+        /* The show the style above withheld. Neither of the two spellings that
+           reach here activates the window, so the foreground stays where it
+           was, which is the entire ask. */
+        W.ShowWindow_(hwnd, show);
+        fprintf(stderr, "[win] shown with %s%s; this window does not take the "
+                "foreground%s\n",
+                show == SW_SHOWMINNOACTIVE ? "SW_SHOWMINNOACTIVE"
+                                           : "SW_SHOWNOACTIVATE",
+                nofocus ? " and WS_EX_NOACTIVATE (SM64DS_NO_FOCUS)"
+                        : " (the launcher's own STARTUPINFO asked for it)",
+                nofocus ? " and the interactive keyboard is off for the run "
+                          "(the scripted input paths are unaffected)"
+                        : "");
+    }
+    *out_hdc = W.GetDC_(hwnd);
+    memset(&g_bi, 0, sizeof g_bi);
+    g_bi.bmiHeader.biSize = sizeof g_bi.bmiHeader;
+    g_bi.bmiHeader.biWidth = ntr::SCREEN_W;
+    g_bi.bmiHeader.biHeight = -ntr::SCREEN_H;   /* top-down */
+    g_bi.bmiHeader.biPlanes = 1;
+    g_bi.bmiHeader.biBitCount = 32;
+    g_bi.bmiHeader.biCompression = BI_RGB;
+    /* the stacked image's header. Same in every field but the height, and a
+       second BITMAPINFO rather than one mutated per frame because present()
+       can run from the window procedure inside a modal resize drag, with the
+       frame loop stopped -- a header the frame loop was halfway through
+       editing would be read by that path. */
+    g_bi_stack = g_bi;
+    g_bi_stack.bmiHeader.biWidth = stw;
+    g_bi_stack.bmiHeader.biHeight = -sth;
+    return hwnd;
+}
+
+/* ---- THE RESPONSIVE STACKED LAYOUT (port mod) -------------------------------
+ *
+ * A minigame's simulated screen gap is not known when the window opens. The
+ * value lives in ov004's framework word and each minigame writes it in its own
+ * InitResources, which runs after the scene has been handed the window, so the
+ * image the frame loop composes gets 2G rows taller partway through the first
+ * few frames of a run. Something has to notice.
+ *
+ * WHAT IT DOES WHEN IT NOTICES. The DIB header takes the new height -- without
+ * that the blit reads the right pixels through the wrong shape and the picture
+ * shears. And the window GROWS by exactly the band, so the image stays at an
+ * integer scale in the client area and the two screens keep the size they had
+ * a frame ago. Growing rather than re-fitting is the point: a fit into the old
+ * client area would shrink both screens to make room for the band, which is
+ * the feature taking picture away to add furniture.
+ *
+ * AND IT DOES NOT FIGHT THE PLAYER. If the window has been resized by hand,
+ * maximised, or put in F12 fullscreen, the size is theirs and the band is
+ * absorbed by the fit -- letterboxed or scaled down inside whatever they chose.
+ * A program that snapped a hand-sized window back to its own idea of correct
+ * would be worse than one that letterboxes.
+ *
+ * NOTHING HERE TOUCHES THE INSET LAYOUT, which has no stacked image and no
+ * band, and nothing here runs at all until the first stacked image exists.
+ */
+static unsigned g_stack_gen = ~0u;
+
+/* SM64DS_STACK_BMP=<path>[,<frame>]: WRITE THE IMAGE THIS PROGRAM IS ABOUT TO
+   PRESENT, once, at the named frame (default 0).
+ *
+ * The one thing no capture in the tree could show. SM64DS_SCENE_BMP writes the
+ * 512x384 framebuffer; SM64DS_SCENE_BMP_STACKED writes an image that
+ * port_scene_finish RE-COMPOSES from that framebuffer after the run. Both of
+ * them are pictures of engine A plus engine B, and neither is a picture of what
+ * the window showed -- which is the only thing that can settle where a HOST
+ * overlay landed, because an overlay is not in either engine.
+ *
+ * Off unless the variable is set, and then it fires once and never again: the
+ * frame count is part of the probe on a scene whose two screens exchange every
+ * frame, and a capture that could not name its frame would be unreadable there.
+ */
+static void stack_capture(const uint32_t *img)
+{
+    static int at = -2;
+    static int done;
+    static char path[512];
+    static unsigned long frame;
+    if (at == -2) {
+        at = -1;
+        if (const char *e = getenv("SM64DS_STACK_BMP")) {
+            const char *comma = strrchr(e, ',');
+            size_t n = comma ? (size_t)(comma - e) : strlen(e);
+            if (n >= sizeof path) n = sizeof path - 1;
+            memcpy(path, e, n);
+            path[n] = 0;
+            at = comma ? atoi(comma + 1) : 0;
+            if (at < 0) at = 0;
+        }
+    }
+    const unsigned long f = frame++;
+    if (at < 0 || done || !img || (long)f < (long)at) return;
+    done = 1;
+    int w = 0, h = 0;
+    hal_sub_screen_stacked_size(&w, &h);
+    if (ntr::ppu_write_bmp_px(path, img, w, h))
+        fprintf(stderr, "  [stack] wrote %s at frame %lu, %dx%d: THE PRESENTED "
+                "IMAGE, host overlays included, upper screen at row %d\n",
+                path, f, w, h, hal_sub_screen_stacked_top_y());
+    else
+        fprintf(stderr, "  [stack] could not write %s\n", path);
+    fflush(stderr);
+}
+
+static void stack_present_arm(const uint32_t *img, HWND hwnd)
+{
+    stack_capture(img);
+    if (!img) return;
+    const unsigned gen = hal_sub_screen_stacked_generation();
+    if (gen != g_stack_gen) {
+        int w = ntr::STACK_W, h = ntr::STACK_H;
+        hal_sub_screen_stacked_size(&w, &h);
+        const int was_h = -g_bi_stack.bmiHeader.biHeight;
+        /* the header first and always: it describes the buffer, and a blit
+           through a stale one is a sheared picture whatever the window does */
+        g_bi_stack.bmiHeader.biWidth = w;
+        g_bi_stack.bmiHeader.biHeight = -h;
+        /* WHAT IT COMPARES AGAINST IS THE HEADER, not a "have I run before"
+           flag, and that distinction cost a windowed run before it was written
+           down. host_window_open opens the window at the layout's size AS IT
+           IS THEN -- which on a minigame is the gapless 512x768, because the
+           scene's InitResources has not run and G is still 0 -- and stamps
+           that size into g_bi_stack. The layout latches G a moment later,
+           inside port_scene_begin, so the FIRST arm this function ever sees is
+           already a change: 768 to 864. A draft that treated the first arm as
+           "no change by definition" left the window at 768 with an 864-row
+           image in it, and the fit letterboxed the whole picture into 455
+           columns of a 512-column client area, with the stylus mapping
+           correctly onto a window nobody wanted. was_h is the header's, the
+           header is the window's, and a difference is a grow whenever it
+           appears. */
+        if (h != was_h && hwnd && !g_user_sized &&
+            !g_fullscreen && W.GetClientRect_ && W.AdjustWindowRect_ &&
+            W.SetWindowPos_ && W.GetWindowLongA_) {
+            RECT cr;
+            if (W.GetClientRect_(hwnd, &cr)) {
+                /* THE GROWTH IS THE CLIENT AREA'S, measured rather than
+                   assumed: the client is grown by the same number of rows the
+                   image grew by, and the frame is re-derived from that with
+                   AdjustWindowRect against the window's CURRENT style. Taking
+                   the delta rather than re-asking for w x h is what keeps a
+                   window a player nudged one pixel wide from snapping back. */
+                const int cw = cr.right - cr.left, ch = cr.bottom - cr.top;
+                RECT want = {0, 0, cw, ch + (h - was_h)};
+                const LONG style = W.GetWindowLongA_(hwnd, GWL_STYLE);
+                W.AdjustWindowRect_(&want, (DWORD)style, FALSE);
+                /* SWP_NOMOVE and SWP_NOZORDER: the top-left corner stays put,
+                   so the window grows downward from where the player left it
+                   rather than re-centring itself mid-game.
+
+                   AND SWP_NOACTIVATE (0x0010) UNDER SM64DS_NO_FOCUS. This is
+                   the one SetWindowPos on the frame path that fires by itself,
+                   a few frames into every minigame, and SetWindowPos without
+                   that bit activates the window as part of the z-order work.
+                   WS_EX_NOACTIVATE should already refuse it; both are named
+                   because the flag's whole promise is that nothing on the frame
+                   path takes the desk, and a promise resting on one API's
+                   refusal is a promise resting on a reading of the docs. Added
+                   only under the flag, so an ordinary run gets the same three
+                   bits it always got. */
+                W.SetWindowPos_(hwnd, 0, 0, 0, want.right - want.left,
+                                want.bottom - want.top,
+                                0x0002u | 0x0004u |
+                                    (nofocus_mode() ? 0x0010u : 0u));
+                fprintf(stderr, "[gap] the stacked image grew %d -> %d rows; "
+                        "the window client area follows (%dx%d)\n", was_h, h,
+                        cw, ch + (h - was_h));
+            }
+        } else if (h != was_h) {
+            fprintf(stderr, "[gap] the stacked image grew %d -> %d rows; the "
+                    "window keeps the size it has (%s)\n", was_h, h,
+                    g_user_sized ? "the player chose it"
+                                 : g_fullscreen ? "fullscreen" : "no window");
+        }
+        g_stack_gen = gen;
+    }
+    g_present_stack = img;
+    g_present_stack_bi = &g_bi_stack;
+}
+
+/* ---- THE IN-PROCESS HANDOVER'S RE-DERIVE POINT (run vsdec, lane LAY) -------
+ *
+ * THE PRESENTATION FOLLOWS THE LIVE SCENE, and until the boot-to-title ruling
+ * it did not have to: every crossing from one kind of scene to another was a
+ * RELAUNCH (port_menu_relaunch and port_menu_relaunch_vs above), so the window
+ * and the mode were chosen together at process start and could not disagree
+ * with what was on screen. hal/title_entry.cpp added the first crossing that
+ * stays in the process, on purpose -- a child would lose the save the player
+ * just picked -- and everything the old flow got free from process creation had
+ * to be found and re-derived by hand. This is the presentation's share of that.
+ *
+ * IT IS A FAMILY AND THIS IS ONE MEMBER. The star freeze was another (per-boot
+ * InitResources statements that never re-ran), and the frame pacer is a third.
+ * They share one shape: state that is correct once per PROCESS, on a path that
+ * now changes scene without one. Anything on the WINDOW side that has to be
+ * re-derived when the scene under it is replaced belongs in this function.
+ * Game-side state usually has a truer home: a statement the ROM runs per boot
+ * or per stage belongs at that seat (the frame-pacer fix moved its divider
+ * write into the per-stage seat in level_boot.cpp for exactly this reason);
+ * only game-side state with no ROM seat of its own should ride the one call
+ * site below. One named place beats three scattered fix-ups.
+ *
+ * WHAT IT DOES, in the order it has to be done:
+ *
+ *   1. RE-DECIDE. hal_sub_screen_relatch takes the new scene's proposal and
+ *      answers whether the mode moved; SM64DS_DUAL_SCREEN still overrides, so
+ *      a pinned run is pinned across the boundary too.
+ *   2. DROP THE OLD SOURCE. present() reads g_present_stack whenever it is set,
+ *      including from a WM_PAINT during the next scene's bring-up, and in the
+ *      inset layout nothing ever calls stack_present_arm to clear it -- the
+ *      loops gate that call on their own `stacked`. Left standing it is a
+ *      frozen picture of the last title frame, presented forever.
+ *   3. RE-ARM THE SHAPE WATCH. g_stack_gen remembers which generation the DIB
+ *      header was built for. A run that goes back to stacked later must see the
+ *      first arm as a change, which is the same reasoning stack_present_arm's
+ *      own was_h note carries.
+ *   4. RE-SHAPE THE WINDOW, to the client size host_window_open would have
+ *      opened for this mode. Same three refusals as the grow path above: a
+ *      window the player sized, a fullscreen window and a run with no window
+ *      keep what they have, and the fit letterboxes rather than snapping a
+ *      hand-chosen size back to this program's idea of correct.
+ *
+ * THE TOP-LEFT STAYS PUT (SWP_NOMOVE), which is the grow path's rule and is
+ * kept here rather than re-centring, for its reason: a window is where the
+ * player left it, and a program that re-centres on a scene change moves a
+ * window somebody put somewhere.
+ *
+ * AND WINDOWS DROPS THE RESIZE WHILE THE WINDOW IS MINIMIZED. Measured on a
+ * throwaway window rather than reasoned about: SetWindowPos with these three
+ * flags on a SW_SHOWMINNOACTIVE window leaves both the current rect and the
+ * restored rect exactly as they were, so a swap that happens while the window
+ * is in the taskbar comes back at the old shape. It is left that way on
+ * purpose. Nobody can pick a save file in a minimized window, so the swap
+ * arrives minimized only if somebody minimized it during the level bring-up;
+ * the cost is a window the wrong shape and NOT a picture the wrong shape,
+ * because present() fits whatever image is live into whatever client area
+ * exists and letterboxes the rest. The existing grow path above has the same
+ * property and has had it since it landed. Written down so the next reader
+ * meets it as a known edge rather than as a fresh bug.
+ */
+static void host_layout_follow_scene(HWND hwnd, int two_screen, const char *what)
+{
+    /* THE FIELD FOLLOWS THE SCENE AS WELL AS THE LAYOUT, and for the same
+       reason the layout does: this is the one crossing that replaces the
+       scene under the window WITHOUT starting a process, so anything the
+       old scene latched has to be re-derived here by hand. The field is
+       latched by hal/scene_boot.cpp's port_scene_layout_propose, which has
+       a static and will not run twice, so without this line the title's
+       native 4:3 presentation would stay on through the whole adventure and
+       a level would be drawn pillarboxed inside its own wide framebuffer.
+       The one call site passes 0 -- the adventure, which is a LEVEL and the
+       only thing that keeps the wide field -- and if a future crossing ever
+       hands this function a SCENE it passes non-zero for it and gets the
+       right field from the same answer, because after the 2026-09-17 22:10
+       ruling "is a scene" and "both screens full size" are one predicate.
+       Inert at aspect 0, where the native flag changes no arithmetic. */
+    ntr::set_present_native(two_screen != 0);
+
+    if (!hal_sub_screen_relatch(two_screen)) {
+        /* Says the LIVE answer rather than "no change", because 0 covers two
+           cases -- the mode was already what this scene wants, and the mode has
+           not been handed out yet so the proposal is all there is -- and a line
+           that named neither would be unreadable on the run where it matters. */
+        fprintf(stderr, "[present] %s shows %s; nothing to re-shape\n", what,
+                hal_sub_screen_stacked() ? "STACKED, both DS screens full size"
+                                         : "the corner inset panel");
+        fflush(stderr);
+        return;
+    }
+    const int stacked = hal_sub_screen_stacked();
+    g_present_stack = 0;
+    g_present_stack_bi = 0;
+    g_stack_gen = ~0u;
+
+    int cw = win_px(ntr::active_w), ch = win_px(ntr::active_h);
+    if (stacked) {
+        hal_sub_screen_stacked_size(&cw, &ch);
+        cw = win_px_1(cw);
+        ch = win_px_1(ch);
+    }
+    if (hwnd && !g_user_sized && !g_fullscreen && W.AdjustWindowRect_ &&
+        W.SetWindowPos_ && W.GetWindowLongA_) {
+        RECT want = {0, 0, cw, ch};
+        const LONG style = W.GetWindowLongA_(hwnd, GWL_STYLE);
+        W.AdjustWindowRect_(&want, (DWORD)style, FALSE);
+        W.SetWindowPos_(hwnd, 0, 0, 0, want.right - want.left,
+                        want.bottom - want.top,
+                        0x0002u | 0x0004u | (nofocus_mode() ? 0x0010u : 0u));
+        fprintf(stderr, "[present] %s shows %s; the window client area "
+                "follows (%dx%d)\n", what,
+                stacked ? "STACKED, both DS screens full size"
+                        : "the corner inset panel", cw, ch);
+    } else {
+        fprintf(stderr, "[present] %s shows %s; the window keeps the size it "
+                "has (%s)\n", what,
+                stacked ? "STACKED, both DS screens full size"
+                        : "the corner inset panel",
+                !hwnd ? "no window" : g_user_sized ? "the player chose it"
+                                                   : "fullscreen");
+    }
+    fflush(stderr);
 }
 
 /* camera folded into the GX projection matrix: P(perspective) * V(lookAt),
@@ -2200,8 +7733,7 @@ static void push_camera(const float eye_w[3], const float at_w[3])
        old 55 was a wide-angle lens -- it shrank and warped the world
        around Mario no matter how right the geometry was. */
     const float fovy = 32.9f * 3.14159265f / 180.0f;
-    const float aspect =
-        g_widescreen ? 16.0f / 9.0f : (float)ntr::SCREEN_W / ntr::SCREEN_H;
+    const float aspect = (float)ntr::active_w / ntr::active_h;
     const float f = 1.0f / tanf(fovy * 0.5f);
     const float zn = 3.0f / 8, zf = 25600.0f / 8;
     float P[16] = {f / aspect, 0, 0, 0,
@@ -2223,84 +7755,944 @@ static void push_camera(const float eye_w[3], const float at_w[3])
     NTR_MMIO(uint32_t, 0x04000454) = 0;
 }
 
+/* fault_probe.h reads this into crash.txt/exit.txt as the death's frame
+   number; -1 is its weak fallback for harnesses without a frame loop. */
+extern "C" int port_last_frame = -1;
+
+/* The buffered stdout's last mile (see the setvbuf note in main). The exit
+   probe's RtlExitUserProcess detour ends every orderly exit in
+   NtTerminateProcess, which skips the CRT's own stream teardown -- measured
+   as the end-of-run census and the "selftest:" line simply missing from a
+   captured stdout. atexit callbacks run inside exit() BEFORE that detour
+   fires, so this one gets the buffer out on every return from main. */
+static void stdout_flush_atexit(void) { fflush(stdout); }
+
+/* The host program entry point (window + ntr bring-up + frame loop). It
+   name-collides with the ROM's boot spine src/main.c, which is the DS init
+   sequence and runs as its own decomp TU, not as this launcher shell. The
+   machine-read PORT_HOST_ABI tag sits directly above int main(void) below so
+   linkage.py's reason binder reaches it. */
+/* ---- startup_error.txt: the only channel a failed START has ----------------
+   A crash mid-session leaves crash.txt, a playlog and a report the player can
+   send. A failure BEFORE the window opens leaves none of that: the process
+   exits cleanly, so there is no dump, and the launcher only ever saw an exit
+   code. That is how the fixed-address failure in ntr/io.cpp reached us as four
+   lines of stderr and nothing else, and why one player could not start the game
+   at all with nothing on screen to say why.
+
+   So a startup failure writes one plain-language file next to the exe. The
+   launcher reads it after a non-zero exit and shows it (SM64DSLauncher's
+   MainForm), which is the same shape as the extraction failure path: the child
+   says what went wrong in words, the launcher is the thing with a window to put
+   them in. Raw Win32 and a static buffer, the same discipline crash.txt and
+   exit.txt keep, because this runs on a path where the process is already
+   known to be in trouble. */
+static void port_startup_error_path(char *path, unsigned cap)
+{
+    DWORD n = GetModuleFileNameA(0, path, cap);
+    while (n && path[n - 1] != 92 /* '\\' */)
+        --n;
+    /* run mg16 lane MP2: SM64DS_INSTANCE suffixes this so a second copy of the
+       game on the same machine cannot clear or overwrite the first copy's
+       startup error. Unset, the name is unchanged. See hal/instance_tag.h. */
+    _snprintf(path + n, cap - n, "startup_error%s.txt", port_instance_tag());
+    path[cap - 1] = 0;
+}
+
+static void port_startup_error_clear(void)
+{
+    char path[MAX_PATH + 32];
+    port_startup_error_path(path, sizeof path);
+    DeleteFileA(path);
+}
+
+static void port_startup_error_write(const char *text)
+{
+    char path[MAX_PATH + 32];
+    HANDLE f;
+    port_startup_error_path(path, sizeof path);
+    f = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ, 0, CREATE_ALWAYS,
+                    FILE_ATTRIBUTE_NORMAL, 0);
+    if (f != INVALID_HANDLE_VALUE) {
+        DWORD wr;
+        WriteFile(f, text, (DWORD)lstrlenA(text), &wr, 0);
+        FlushFileBuffers(f);
+        CloseHandle(f);
+    }
+}
+
+/* Also say it on screen, for the player who double-clicked the exe instead of
+   using the launcher. user32 is loaded here rather than imported, for the same
+   reason winapi_load below does it: a static import chain maps the desktop heap
+   before main and that mapping can land in the DS ranges. By the time this runs
+   the reservation has already been decided, so loading it now costs nothing.
+   SM64DS_NO_DIALOG=1 suppresses the box for automated runs, which must never
+   block on a modal nobody is there to dismiss. */
+static void port_startup_error_show(const char *text)
+{
+    HMODULE u32;
+    int (WINAPI *mb)(HWND, LPCSTR, LPCSTR, UINT);
+    if (getenv("SM64DS_NO_DIALOG") || getenv("SM64DS_WINDOW_SELFTEST"))
+        return;
+    u32 = LoadLibraryA("user32.dll");
+    if (!u32)
+        return;
+    mb = (int(WINAPI *)(HWND, LPCSTR, LPCSTR, UINT))
+         GetProcAddress(u32, "MessageBoxA");
+    if (mb)
+        mb(0, text, "Super Mario 64 DS could not start", 0x10 /* MB_ICONERROR */);
+}
+
+/* ---- DOES THIS SCENE RUN GET A WINDOW? (port mod, run link60 SW1) ---------
+
+   A scene run is WINDOWED unless it names a frame budget or is a selftest.
+
+   The tempting rule is "a scene that is not a selftest gets a window", and it
+   is wrong here for a measured reason: port/tools/battery.py's scene_env DOES
+   NOT SET SM64DS_WINDOW_SELFTEST. It sets SM64DS_SCENE, SM64DS_SCENE_FRAMES
+   and SM64DS_FAULTS_FATAL, and pops every other scene knob so an inherited
+   variable cannot decide what the code under test does. Under that rule every
+   battery scene row would open a window and hal/sub_screen.cpp's g_headless
+   would go false under all of them -- which puts the live mouse into
+   poll_touch and a machine-global TAB into the panel toggle, in the one place
+   that has to be deterministic. That is the exact non-determinism g_headless
+   was added for, arriving through the door it was built to shut.
+
+   A FRAME BUDGET IS A MEASUREMENT AND ITS ABSENCE IS A SESSION. Nobody sitting
+   down to play curling says how many frames to play it for, and no automated
+   run in this tree omits the number: counted rather than asserted, all 24
+   command lines in port/ that set SM64DS_SCENE set SM64DS_SCENE_FRAMES on the
+   same line, and battery.py's scene_env sets it for every scene row. The
+   SM64DS_SCENE mentions that do not are prose about the variable rather than
+   commands. port/scene_window.txt section 3b has the per-file count.
+
+   So NEITHER SIDE NEEDED AN EDIT. The battery stays headless because it always
+   named a count, and DBG1's minigame picker gets a window because it never
+   did: it sets SM64DS_SCENE and SM64DS_DUAL_SCREEN and nothing else.
+
+   SM64DS_SCENE_WINDOW=1/0 overrides, and it is not decoration. It is the only
+   way to give a WINDOWED run a frame budget, which is the only way a pad or a
+   touch claim about this path can be proved from a script instead of by hand:
+   =1 with SM64DS_SCENE_FRAMES and SM64DS_PAD_TEST is a live window, driven by
+   a script, that ends by itself. It can never turn a window ON under a
+   selftest -- that floor is checked first, and it is the same floor
+   SM64DS_PAD_TEST has.
+
+   port/scene_window.txt is the derivation. */
+static int port_scene_want_window(void)
+{
+    if (getenv("SM64DS_WINDOW_SELFTEST"))
+        return 0;
+    {
+        const char *e = getenv("SM64DS_SCENE_WINDOW");
+        if (e) return atoi(e) != 0;
+    }
+    return getenv("SM64DS_SCENE_FRAMES") == 0;
+}
+
+/* ---- A WINDOWED SCENE RUN (port mod, run link60 SW1) ----------------------
+
+   The same window, the same present, the same input and the same debug menu
+   the level path has, put around hal/scene_boot.cpp's own frame. Nothing about
+   the scene's bring-up, its capture or its census is duplicated here: those
+   are port_scene_begin, port_scene_tick and port_scene_finish, and
+   port_scene_run composes the identical three for a headless run.
+
+   THE SCENE'S FRAME IS THAT FILE'S AND THE HOST'S FRAME IS THIS ONE'S, which
+   is the division main's level loop already has. What this function owns is
+   the message pump, the DS keypad words, the debug menu, the stacked compose,
+   the present, the hosted ARM7 pump and the pacer.
+
+   THE STYLUS NEEDED NO CODE AT ALL. hal_sub_screen_frame_begin has been
+   calling poll_touch on the scene path every frame all along, and poll_touch's
+   stacked branch is the mapping Tango click-tested on levels -- the bottom
+   half of the picture IS the bottom screen, so a click anywhere in it lands on
+   the corresponding DS pixel with no fudge term (ntr/include/ntr/ppu.h refuses
+   a hinge row for exactly that reason). What held it shut was
+   hal_sub_screen_init_hw's `g_headless = ... || hwnd == nullptr`, and
+   port_scene_begin now has a real window to pass it.
+
+   THE FLIGHT RECORDER AND THE CRASH FILES WERE ALREADY HERE, because main
+   opens the playlog and installs the fault probe ABOVE the scene handover. The
+   one thing missing was the frame number: port_last_frame is this file's
+   counter and nothing on the scene path fed it, so a scene crash reported
+   frame -1. This loop feeds it. The headless loop deliberately still does not
+   -- it is the battery's, and it is left alone. */
+/* THE WINDOW A TITLE-ENTRY RUN HANDS FORWARD (run lvled).
+   A windowed title run that ends in a save-file pick does not end the process:
+   main falls through to its own level boot. That boot opens a window of its
+   own, and without this the title's window would be left standing while a
+   second one appeared beside it -- two windows for one game, the first of them
+   dead. The player picked a file; he should keep looking at the same window.
+
+   Recorded unconditionally and read only when port_title_entry_taken() says
+   the fall-through happened, so an ordinary scene session sets two statics
+   nobody reads.
+
+   THE LAYOUT NO LONGER RIDES ALONG WITH IT, and the sentence that stood here
+   said it did: "the layout was latched by the scene runner, which is why main's
+   own latch comment still holds -- the window is created once and the mode with
+   it". The first half is still true and the conclusion was the defect. The
+   title is a two-screen scene and the adventure is not, so a window handed
+   forward unchanged handed the adventure the title's stacked shape and kept it
+   for the session. main re-derives the mode at the fall-through now and
+   re-shapes THIS window to it; see host_layout_follow_scene. */
+static HWND g_entry_hwnd;
+static HDC  g_entry_hdc;
+
+/* ---- ONE COPY OF THE SCENE PATH'S PER-FRAME HOST DUTIES ------------------
+ * (run link100, lane STARSEL5.)
+ *
+ * This was the body of scene_window_run's loop, from the message pump down to
+ * the pad publish, and it is a function now because a SECOND caller needs
+ * exactly it: hal/level_change.cpp's star-select interlude, which runs a scene
+ * inside a level change and until now called port_scene_tick and nothing else.
+ * Everything below -- the message pump, the focus edge, the fullscreen key, the
+ * pad poll and the scripted pads, the stylus, the debug menu's input and the DS
+ * keypad publish that ends in PadData -- is a duty the outer loop performs once
+ * per frame, and the interlude performed none of them. dScStarSel_c::Behavior
+ * reads PadData (data_020a0e58) directly, so with none of this running no key,
+ * no pad button and no stylus press could reach the star select at all, and a
+ * painting entry in a real session sat there until the interlude's backstop
+ * gave up and booted the course underneath a live star select.
+ *
+ * COPIED NOWHERE. The alternative was to service the window inside the
+ * interlude's own loop, which is a second frame loop to keep in step with this
+ * one forever; two of those already exist in this file and the cost of the
+ * second one is written up all over it. There is one copy, it is here, and both
+ * callers pass their own frame number and their own pad.
+ *
+ * Returns 1 when the window asked to close (WM_QUIT), 0 otherwise. The caller
+ * decides what closing means; the interlude stops, and scene_window_run breaks
+ * its loop exactly as it did when this code was inline. */
+static int scene_host_input_frame(HWND hwnd, int frame, XPad *pad,
+                                  int *focus_was)
+{
+    MSG msg;
+    while (W.PeekMessageA_(&msg, 0, 0, 0, PM_REMOVE)) {
+        if (msg.message == WM_QUIT) return 1;
+        W.TranslateMessage_(&msg);
+        W.DispatchMessageA_(&msg);
+    }
+    /* the focus edge, read once a frame BEFORE any key is. Coming back,
+       every key starts stale; going away needs no work, because key_live
+       is already returning released. */
+    {
+        const int now = hal_window_focused();
+        if (now && !*focus_was) memset(key_stale, 1, sizeof key_stale);
+        *focus_was = now;
+    }
+    {
+        static int fs_edge;
+        const int now = key_live(VK_F12) || key_live(VK_F11);
+        if (now && !fs_edge) fullscreen_toggle(hwnd);
+        fs_edge = now;
+    }
+
+    int pad_live = port_pad_poll(pad);
+    pad_focus_gate(&pad_live, pad);
+    pad_test_apply(frame, &pad_live, pad);
+    /* the pad layout learn flow, the same call the level loop makes;
+       inert unless the menu's row armed it */
+    padlearn_frame(&pad_live);
+#ifndef PORT_ROM_CLEAN
+    /* SM64DS_CLICK_TEST: the scripted stylus, driven BEFORE the tick that
+       polls it, so a press is in the OS's button state by the time
+       hal_sub_screen_frame_begin reads it on this same frame. */
+    click_test_apply(hwnd, frame);
+#endif
+
+    /* THE DEBUG MENU, the same block main runs. g_menu_host is left zeroed
+       on this path, which is what makes the four rows that need a Player
+       refuse in words instead of writing through a null -- and what leaves
+       the MINIGAME row working, because a relaunch needs nothing from the
+       loop it was started in. */
+    menu_input(pad_live, pad);
+    menu_b_swallow_spend(pad_live, pad);
+
+    /* THE DS KEYPAD, written every frame so a release is a release. The
+       four shared bits plus the d-pad, Start and Select.
+
+       THE LEVEL PATH HAS NEVER NEEDED THOSE LAST THREE and that is why
+       they are here rather than in host_ds_buttons: a level walks off the
+       analog stick, and the d-pad and Start are what a minigame's own
+       menus are built on. Select is keyboard-only (backspace) because
+       every free pad button is already spoken for -- BACK opens the debug
+       menu, and a Select that also opened the menu would be a trap.
+
+       Zeroed while the menu is open: enter and A belong to the menu, not
+       to the scene, exactly as the level loop zeroes it. */
+    {
+        static unsigned short btn_was;
+        unsigned short btn = 0;
+        if (!menu_on) {
+            btn = host_ds_buttons(pad_live, pad);
+            /* the DS d-pad off the bound walk keys, either half of each
+               pair (settings.json KeyRight / KeyRightAlt and siblings).
+               ONE DELIBERATE CHANGE FROM THE LITERALS THIS REPLACED: the
+               arrows alone used to drive a minigame's d-pad and W/A/S/D
+               did not. Now both defaults do, because "the walk keys" is
+               one binding with two halves and a player who moved it to
+               IJKL should not find the minigames still want the arrows. */
+            if (key_act(HOST_KEY_RIGHT) || key_act(HOST_KEY_RIGHT_ALT))
+                btn |= 0x10;
+            if (key_act(HOST_KEY_LEFT)  || key_act(HOST_KEY_LEFT_ALT))
+                btn |= 0x20;
+            if (key_act(HOST_KEY_UP)    || key_act(HOST_KEY_UP_ALT))
+                btn |= 0x40;
+            if (key_act(HOST_KEY_DOWN)  || key_act(HOST_KEY_DOWN_ALT))
+                btn |= 0x80;
+            if (key_act(HOST_KEY_START))  btn |= 0x08;   /* enter     */
+            if (key_act(HOST_KEY_SELECT)) btn |= 0x04;   /* backspace */
+            if (pad_live) {
+                if (pad->buttons & 0x0008) btn |= 0x10;   /* d-pad right */
+                if (pad->buttons & 0x0004) btn |= 0x20;   /* d-pad left  */
+                if (pad->buttons & 0x0001) btn |= 0x40;   /* d-pad up    */
+                if (pad->buttons & 0x0002) btn |= 0x80;   /* d-pad down  */
+                if (pad_act(pad, HOST_PAD_START))  btn |= 0x08; /* START */
+                if (pad_act(pad, HOST_PAD_SELECT)) btn |= 0x04; /* none
+                                                 by default; see header */
+            }
+        }
+        /* run mg16 lane MPBTN: the host key word for the scene path's
+           publisher (hal/scene_boot.cpp's port_scene_comms_publish),
+           refreshed every frame from the SAME host state the store below
+           uses -- so the title's key word comes from the keyboard and the
+           pad, never from a record something else may be filling. This
+           word is MIXED convention by construction: host_ds_buttons'
+           four bits are Ctrl-convention and go through the translator;
+           the d-pad, Start and Select added above are already raw DS bits
+           (0xf0, 0x08, 0x04) and pass straight through. Named (run
+           link100, lane INPUTRAW) because the pad-mirror store below
+           wants this SAME value. */
+        const unsigned short scene_raw_all =
+            (unsigned short)(host_btn_to_raw_keys(btn) | (btn & 0x00fc));
+        port_host_keys_set(scene_raw_all);
+        /* SLOT 0 ONLY, AND ONLY WHEN THE ROM'S FAN-OUT IS NOT DRIVING.
+           Run mg16 lane MP3, field failure 2. This publishes the LOCAL
+           buttons into Ctrl slot 0's held and pressed words, which is
+           right for a single-player port and is the crouch bleed in a
+           session: on the CHILD it put the child's own buttons into the
+           HOST's Ctrl record, so crouch pressed in the child's window
+           crouched MARIO in the child's world -- and only in that world,
+           because the host was never told. Same shape as the PadData[0]
+           clobber and gated the same way.
+
+           With a transport up, these words come from the ROM's own path
+           instead: the key register, the local comms record, the wire, the
+           fan-out into all four PadData slots, Stage::CheckInput into all
+           four Ctrl records, and the per-player split-symbol copy further
+           down this file. The local player's buttons still arrive -- into
+           the slot this console actually is. */
+        if (!(port::comms_transport() && comms_fanout_on())) {
+            *(unsigned short *)(data_0209f49c + 0) = btn;
+            *(unsigned short *)(data_0209f49e + 0) =
+                (unsigned short)(btn & (unsigned short)~btn_was);
+            /* THE SCENE PATH'S PAD MIRROR (run link100, lane INPUTRAW).
+               The scene loop has never written PadData (data_020a0e58)
+               at all -- only the level loop did, and only its four
+               direction bits -- so the title screen, the file select and
+               every minigame menu had no raw source for ANY button,
+               including the directions: src/_ZN10dScTitle_c8BehaviorEv.cpp,
+               src/_ZN11dScMiniGm_c8BehaviorEv.cpp,
+               src/_ZN12dScStarSel_c8BehaviorEv.cpp and
+               src/minigames/d_s_mg_base.cpp all read data_020a0e58
+               directly, not the Ctrl block above. scene_raw_all is the
+               same whole raw key word port_host_keys_set was just handed;
+               scene_raw_prev is a static LOCAL to this path (the level
+               loop's raw_prev is a separate local in a separate scope),
+               so it tracks frame to frame here the same way raw_prev
+               tracks raw_all in the level loop, and the pressed halfword
+               is a real edge rather than a stale value borrowed from the
+               other path. */
+            static unsigned short scene_raw_prev;
+            *(unsigned short *)((char *)data_020a0e58 + 0) = scene_raw_all;
+            const unsigned short scene_edge = (unsigned short)(
+                scene_raw_all & (unsigned short)~scene_raw_prev);
+            *(unsigned short *)((char *)data_020a0e58 + 2) = scene_edge;
+            *(unsigned short *)((char *)data_020a0e5a + 0) = scene_edge;
+            scene_raw_prev = scene_raw_all;
+        }
+        btn_was = btn;
+    }
+    return 0;
+}
+
+/* The other half of the same extraction: the scene path's per-frame PICTURE.
+ * One copy, two callers, for scene_host_input_frame's reason.
+ *
+ * THE STACKED IMAGE IS BUILT BEFORE THE OVERLAYS, and the order is the whole of
+ * an earlier lane's change on this path. Every line before this one that writes
+ * a pixel writes it into fb -- the raster, the engine-A composite -- and the
+ * stacked image is a copy of the finished fb with the bottom screen under it,
+ * so the compose still runs on a finished frame. The MENU and the TOAST are
+ * host UI and belong to the UPPER PHYSICAL SCREEN; painting them into fb gave
+ * them engine A's affinity instead, which the display swap then carried into
+ * the wrong half. Nothing happens in the inset layout: the compose returns 0,
+ * the surface falls back to fb and present() keeps reading fb. */
+static void scene_host_present_frame(HWND hwnd, int stacked,
+                                     ntr::Framebuffer &fb)
+{
+    uint32_t *stack_img = stacked
+            ? hal_sub_screen_stacked_image(&fb.px[0][0]) : 0;
+    const OvlSurface surf =
+        stacked ? ovl_surface_stacked(stack_img, fb) : ovl_surface(fb);
+
+    if (menu_on) menu_draw(surf);
+    if (!rb_skip_render())
+        toast_draw(surf);
+
+    if (stacked && !rb_skip_render())
+        stack_present_arm(stack_img, hwnd);
+    present();
+    /* the click flag is true for exactly the frame it landed on; the hold
+       in g_mouse_left_down is what outlives it */
+    g_mouse_click_new = 0;
+}
+
+/* ---- THE STAR-SELECT INTERLUDE'S FRAME (run link100, lane STARSEL5) -------
+ *
+ * hal/level_change.cpp runs the star select between the teardown half and the
+ * boot half of a painting entry, and it ran it by calling port_scene_tick and
+ * nothing else. On the cartridge the star select is an ORDINARY SCENE with the
+ * ordinary frame loop around it, so the port's interlude has to be an ordinary
+ * frame too. This is that frame, and it is the same two functions
+ * scene_window_run calls: nothing here is a copy.
+ *
+ * WHAT THIS RESTORES, in the order the player notices it:
+ *   - host input. The pad, the keyboard and the stylus are polled and published
+ *     into PadData, which is what dScStarSel_c::Behavior reads. Without this no
+ *     press of any kind could reach the screen, so the select could not be
+ *     made at all.
+ *   - the picture. present() blits g_present_fb, and on the level path that is
+ *     the LEVEL's framebuffer, so even a present during the interlude would
+ *     have shown the frozen course. For the interlude's duration the present
+ *     path points at the scene's own framebuffer -- the one port_scene_tick
+ *     rasterises into -- and is put back afterwards. The bottom screen already
+ *     came from hal_sub_screen_present inside the tick.
+ *   - the window. Messages are pumped, so the window stays responsive, can be
+ *     moved, and can be CLOSED: a WM_QUIT here returns 1 and the interlude
+ *     stops instead of holding the process for the length of its backstop.
+ *   - the pace. frame_pace under the same condition the host frame pump uses,
+ *     so a select takes as long as it takes on hardware rather than going by
+ *     in a few unpaced milliseconds.
+ *
+ * WHAT IT DELIBERATELY DOES NOT DO is port_rom_frame_phase6. The ROM frame
+ * counter and the level loop's own frame number are cross-checked every frame
+ * (port_rom_frame_checked), the interlude sits INSIDE one level frame, and
+ * stepping the ROM counter here would make every check after the crossing fail.
+ * The interlude did not step it before this change either; this says so rather
+ * than leaving it to be noticed.
+ *
+ * The frame number handed to the scripted pad and the scripted stylus continues
+ * the level loop's own count (port_last_frame + f), so a fixture numbers the
+ * interlude's frames the way it numbers every other frame of the session. */
+extern "C" int port_interlude_frame(int f)
+{
+    static XPad ipad;
+    static int ifocus = 1;
+    if (!g_present_hwnd) {
+        /* no window: a headless bring-up, the smoke targets, or a window that
+           refused to open. The scene frame is still owed. */
+        port_scene_tick(f, 1);
+        return 0;
+    }
+    const int stacked = hal_sub_screen_stacked();
+    ntr::Framebuffer &sfb = *(ntr::Framebuffer *)port_scene_framebuffer();
+    const ntr::Framebuffer *was = g_present_fb;
+    g_present_fb = &sfb;
+    int quit = scene_host_input_frame(g_present_hwnd, port_last_frame + f,
+                                      &ipad, &ifocus);
+    if (!quit) {
+        port_scene_tick(f, !menu_on);
+        scene_host_present_frame(g_present_hwnd, stacked, sfb);
+        /* the paused frames' sound, scene_window_run's rule exactly: the game's
+           frames were pumped inside the tick, the paused ones are pumped here,
+           and no frame is pumped twice */
+        if (menu_on) sdat_host_tick();
+        frame_stat();
+        if ((!rb_replaying() || rb_presented_frame()) &&
+            (!g_selftest_frames || port_pace_selftest())) frame_pace();
+    }
+    g_present_fb = was;
+    return quit;
+}
+
+static int scene_window_run(void)
+{
+    /* THE LAYOUT FIRST, because the window has to be sized for the picture it
+       is going to show and the mode latches on its first reader. The proposal
+       is hal/scene_boot.cpp's -- the ROM's own IsMinigameActorID -- asked here
+       rather than invented here, and port_scene_begin's second ask is a no-op
+       so the setter never reports a late write that is in fact correct. */
+    port_scene_layout_propose();
+    const int stacked = hal_sub_screen_stacked();
+
+    HDC hdc = 0;
+    HWND hwnd = host_window_open(
+        stacked, &hdc,
+        "SM64DS   |   stylus = left mouse drag   Space jump   X punch"
+        "   Ctrl crouch   |   arrows / d-pad   Enter start"
+        "   |   F5 or Esc menu   F12 fullscreen");
+    if (!hwnd) {
+        /* A window that will not open is not a reason to lose the run: the
+           scene still boots, still ticks and still writes whatever capture it
+           was asked for. Loud, because a silent fall back to headless is how a
+           play session becomes three hundred frames of nothing that nobody can
+           account for afterwards. */
+        fprintf(stderr, "[scene] the window did NOT open (win32 %lu); falling "
+                "back to the headless run\n", (unsigned long)GetLastError());
+        return port_scene_run();
+    }
+    /* kept for a title-entry fall-through; see the banner above */
+    g_entry_hwnd = hwnd;
+    g_entry_hdc = hdc;
+
+    const int rc = port_scene_begin(hwnd, stylus_fallback_zoom());
+    if (rc)
+        return rc;
+
+    /* THE PRESENT PATH IS ARMED AFTER THE SPAWN and not before it, the same
+       order the level loop uses: until a frame has been rasterised the
+       framebuffer is blank, and a WM_PAINT answered before then paints grey.
+       From here on a WM_SIZE or a WM_PAINT can redraw without this loop's
+       help, which is what a drag on the sizing border needs. */
+    g_present_hwnd = hwnd;
+    g_present_hdc = hdc;
+    g_present_bi = &g_bi;
+    g_present_fb = (const ntr::Framebuffer *)port_scene_framebuffer();
+    ntr::Framebuffer &fb = *(ntr::Framebuffer *)port_scene_framebuffer();
+
+    /* A BUDGET ONLY IF ONE WAS NAMED. With no SM64DS_SCENE_FRAMES this runs
+       until the window closes, which is what a session is; with one -- which
+       takes SM64DS_SCENE_WINDOW=1 to reach this function at all -- it ends by
+       itself, which is what a scripted proof needs. */
+    const int budget = getenv("SM64DS_SCENE_FRAMES")
+                           ? port_scene_frames_wanted() : 0;
+    /* THE IMAGE'S shape, which by this line is the scene's own: the window
+       opened before the scene latched its screen gap and is still at the
+       gapless size, and the first frame's stack_present_arm grows it to match
+       and says so on its own line. */
+    int wsw = ntr::active_w, wsh = ntr::active_h * 2;
+    if (stacked) hal_sub_screen_stacked_size(&wsw, &wsh);
+    fprintf(stderr, "[scene] WINDOWED %dx%d, %s, %s\n",
+            stacked ? win_px_1(wsw) : win_px(ntr::active_w),
+            stacked ? win_px_1(wsh) : win_px(ntr::active_h),
+            stacked ? "STACKED (both DS screens, stylus over the bottom half)"
+                    : "corner inset panel",
+            budget ? "frame budget set" : "runs until the window closes");
+    fflush(stderr);
+
+    /* SM64DS_SCENE_MENU=<frame>: open the debug menu on this path, at that
+       frame, without a hand on F5.
+     *
+     * SM64DS_MENU is read in main() and main() is the LEVEL path; a scene run
+     * hands over before it, so the documented "boot with the menu open" knob
+     * has never reached the one path where the menu's own screen bug lives.
+     * A FRAME rather than a plain flag because opening it at 0 would freeze
+     * the scene before it had booted -- menu_on pauses the game tick -- and a
+     * capture of a scene that never ran is a capture of nothing.
+     *
+     * WHAT IT DOES NOT PAUSE is the display, and that is why the flashing is
+     * reproducible under it: slot 24 rides the RENDER path, not the behavior
+     * one, so POWCNT1 bit 15 keeps toggling while the menu holds the world
+     * still. Measured -- scene 384, 900 frames: behavior 853, slot24 900. */
+    int scene_menu_at = -1;
+    if (const char *e = getenv("SM64DS_SCENE_MENU")) {
+        scene_menu_at = atoi(e);
+        if (scene_menu_at < 0) scene_menu_at = 0;
+        fprintf(stderr, "[scene] SM64DS_SCENE_MENU: the debug menu opens at "
+                "frame %d\n", scene_menu_at);
+    }
+
+    int frame = 0, focus_was = 1, quit = 0;
+    /* R3a: the ROM's frame state is this loop's frame number too, so a run that
+       plays a scene and then falls through into a level reports two frame
+       accounts rather than one blurred one. */
+    port_rom_frame_begin("scene loop");
+    static XPad pad;
+    while (!quit) {
+        if (scene_menu_at >= 0 &&
+            port_rom_frame_checked(frame, "scene-menu-at") == scene_menu_at)
+            menu_on = 1;
+        if (scene_host_input_frame(
+                hwnd, port_rom_frame_checked(frame, "scene-host-input"),
+                &pad, &focus_was)) {
+            quit = 1;
+            break;
+        }
+
+        /* the scene's own frame; the menu's pause is its second argument, the
+           same switch the level loop's game_ticked is */
+        port_scene_tick(port_rom_frame_checked(frame, "scene-tick"), !menu_on);
+
+        scene_host_present_frame(hwnd, stacked, fb);
+        /* THE HOSTED ARM7, EXACTLY ONCE A FRAME -- and port_scene_tick above
+           has already done it on every frame that ticked the game, so this
+           call is only for the frames that did not.
+
+           IT WAS RUNNING TWICE. This call landed first (6482ce682, the scene
+           path's window) and hal/scene_boot.cpp:2763 added a second one inside
+           port_scene_tick the next day (5264b7bea, the minigame music seat)
+           for the headless path, which had none. Both then ran on every
+           windowed frame: 600 frames of scene 368 measured 1201 pushes through
+           the waveOut layer. Tempo survived it -- hal/sdat/mixer.cpp clocks the
+           sequencer off the AUDIO clock at 192 Hz on purpose -- but the ARM9
+           sound frame (func_0204fafc's volume ramps, the player-status
+           publish) stepped twice per video frame, and once the pacer above
+           stopped running minigames at half speed that became four times the
+           rate the DS runs it at.
+
+           NOT DELETED OUTRIGHT, because port_scene_tick's copy is gated on
+           tick_game and the debug menu clears it. A paused scene should not
+           advance the sequencer, but it must still hand the device buffers or
+           the 125ms ring drains and the speaker gets whatever the hardware
+           repeats. So: the game's frames are pumped there, the paused frames
+           are pumped here, and no frame is pumped twice. */
+        if (menu_on) sdat_host_tick();
+        /* THE ROM'S PHASE 6 on this path, for the level loop's reason: the
+           frame's work is done and nothing of the next has started. The scene
+           path has no rollback boundary, so there is no re-anchor here. */
+        port_rom_frame_phase6();
+        ++frame;
+        /* fault_probe.h: crash.txt/exit.txt context, the ROM's frame number and
+           this path's every-frame cross-check. */
+        port_last_frame = port_rom_frame_checked(frame, "scene-fault-context");
+        fflush(stdout);
+        if (budget &&
+            port_rom_frame_checked(frame, "scene-budget") >= budget)
+            break;
+        /* THE TITLE HANDOFF (hal/title_entry.cpp), tested here for the same
+           reason the headless bridge tests it after its tick: the title writes
+           the request from inside port_actor_tick, so the words are only
+           settled once the frame has run. Answers 0 unless SM64DS_TITLE_ENTRY
+           is set on a title run, so this costs an unarmed session one compare
+           of a cached int. */
+        if (port_title_entry_should_stop()) {
+            fprintf(stderr, "[title-entry] a save file was picked; leaving the "
+                            "title after %d frame(s)\n",
+                    port_rom_frame_checked(frame, "title-entry"));
+            break;
+        }
+        /* THE PACE, off the scene's own divider and not off a constant. A
+           minigame writes data_0208ee44 = 1 in its InitResources and therefore
+           runs at 60; the 33.3ms this block used to hardcode is the 3D level
+           path's number, and pacing a minigame to it ran the whole minigame at
+           EXACTLY HALF SPEED. See frame_pace's banner. */
+        frame_stat();
+        frame_pace();
+    }
+    /* THE ORDINARY EXIT. A window close, an Esc, or the minigame row's own
+       PostQuitMessage all arrive here the same way, and the census below is
+       what the run leaves behind -- the same lines a headless run ends with,
+       over however many frames were actually played. */
+#ifndef PORT_ROM_CLEAN
+    click_test_finish();
+#endif
+    fprintf(stderr, "[scene] window closed after %d frame(s)\n",
+            port_rom_frame_checked(frame, "scene-closed"));
+    port_rom_frame_report();   /* R3a: this loop's frame account, one line */
+    const int scene_rc =
+        port_scene_finish(port_rom_frame_checked(frame, "scene-finish"));
+    /* AFTER the census, so a run that enters the adventure still leaves the
+       title's own slot hits, captures and trap counts behind. Answers 0 and
+       prints nothing unless the bridge is armed AND the handoff completed. */
+    port_title_entry_commit();
+    return scene_rc;
+}
+
+/* PORT_HOST_ABI: the host program entry point (window + ntr bring-up + frame
+   loop). Name-collides with the ROM's boot spine src/main.c, which is the DS
+   init sequence and runs as its own decomp TU, not as this launcher shell. The
+   host process needs its own main() to open the window and pump frames; the
+   ROM's void main(void) links as a decomp TU that the host boot path calls,
+   not as the process entry point. */
+/* ---- THE Ctrl BRIDGE, PUBLISHED AT THE ROM'S OWN BOUNDARY ----------------
+   (run link100, lane FRAME.)
+
+   _ZTV5Stage slot 6 runs the ROM's Stage::Behavior, and Stage::Behavior:107 is
+   Stage::CheckInput -- so the Ctrl block at data_0209f498 is filled from inside
+   port_actor_tick, at the head of the behaviour walk. Everything below used to
+   sit in the input phase immediately after a hand-placed CheckInput call.
+
+   The port hosts five of Ctrl's interior fields as SEPARATE arrays
+   (data_0209f4a0/a2/a4/a6/ac), so a copy is needed that the cartridge does not
+   need, and the only correct place for it is the instant the ROM's own write
+   finishes: after Stage::Behavior returns, before any other actor's Behavior
+   reads it. hal/stage_frame.cpp's slot-6 thunk calls this there.
+
+   The four statics are this frame's pad, stashed by the input phase above so
+   the publish can run from inside the tick without the frame loop's locals.
+   They are written every frame before port_actor_tick and read once after
+   Stage::Behavior, which is the whole of their lifetime. */
+static XPad g_fc_pad;
+static int  g_fc_pad_live;
+static int  g_fc_menu_on;
+static int  g_fc_selftest;
+
+/* The camera-rotate request, stashed the same way g_fc_pad is: this is the
+   one Ctrl word the raw path cannot carry (host_btn_to_raw_keys' banner
+   above says why -- in mode 0 the two bits are the touch screen's arrows,
+   and passing them through as raw bits would land on R and L), so it rides
+   from the input phase to the publish and is merged where
+   Stage::CheckCameraInput's own write lands on hardware. */
+static unsigned short g_fc_cam_rot;      /* this frame's held rotate bits  */
+static unsigned short g_fc_cam_rot_prev; /* last frame's, for the edge     */
+
+extern "C" void port_frame_ctrl_publish(void)
+{
+    const XPad &pad = g_fc_pad;
+    const int pad_live = g_fc_pad_live;
+    const int menu_on = g_fc_menu_on;
+    const int selftest = g_fc_selftest;
+    (void)pad_live; (void)menu_on; (void)selftest;
+    /* main()'s own run_mode lambda, repeated here rather than shared, because
+       it is two terms and sharing it would mean giving a file-scope function a
+       reference to a frame-loop local. Same definition, same pin: a selftest is
+       always button mode, whatever settings.json says. */
+    const auto run_mode = [&]() -> int {
+        return selftest ? RUN_BUTTON : g_run_mode;
+    };
+
+    /* THE CAMERA-ROTATE BITS, MERGED WHERE THE CARTRIDGE MERGES THEM.
+       On the DS these two bits are Stage::CheckCameraInput's entire output
+       and it ORs them into the Ctrl block from inside Stage::Behavior,
+       between CheckInput and the actor walk. This function runs at exactly
+       that instant (hal/stage_frame.cpp's slot-6 thunk calls it after
+       Stage::Behavior returns and before any other actor's Behavior), so
+       the merge belongs here and nowhere above the tick: a write to
+       data_0209f49c in the input phase is overwritten by
+       port_frame_ctrl_prime at the head of Stage::Behavior and again by the
+       copy below. OR, never store: the pad word is already written and a
+       rotate request adds to it. */
+    {
+        char *r = (char *)data_0209f498 + (int)data_0209f250 * 0x18;
+        const unsigned short held = g_fc_cam_rot;
+        const unsigned short pressed =
+            (unsigned short)(g_fc_cam_rot & ~g_fc_cam_rot_prev);
+        g_fc_cam_rot_prev = g_fc_cam_rot;
+        *(unsigned short *)(r + 4) |= held;
+        *(unsigned short *)(r + 6) |= pressed;
+    }
+
+            /* the matched TU writes its own data_0209f498 block; older
+               TUs read per-field split symbols -- copy the record out
+               ----------------------------------------------------------------
+               run mg16 lane MP3: FOR EVERY PLAYER, AT THE DS's OWN STRIDE.
+               This copied slot 0 and only slot 0, which was right while the
+               port asserted one player and is the exact reason a second
+               player could receive input and still not move.
+
+               ON THE DS THESE FIVE NAMES ARE INTERIOR ADDRESSES OF THE Ctrl
+               BLOCK ITSELF: data_0209f498 + 8, +0xa, +0xc, +0xe and +0x14,
+               with Ctrl striding 0x18 per player. That is why
+               port/unmatched/Player_Behavior.cpp reads its stick angle as
+               `*(s16 *)((char *)&data_0209f4a6 + data_020a0e40 * 0x18)` --
+               on hardware that walks straight into player N's own Ctrl record.
+               The port hosts the five as SEPARATE arrays, so the same walk
+               lands inside data_0209f4a6's own storage instead, reading a byte
+               nobody wrote. Slot 0 worked because its offset is zero.
+
+               So the copy writes each player's fields at that same 0x18 stride,
+               which puts player N's values exactly where the ROM's walk looks
+               for them.
+
+               THE CEILING IS GONE, and it was never a layout fact. An
+               earlier revision of this comment said the split symbols could
+               not be enlarged because they sit interior to .dsstate and
+               growing them retires every BMP baseline. The first half was
+               wrong: they are SEPARATE host symbols, not interior addresses,
+               and this tree already sizes two of the family
+               (data_0209f4ac/data_0209f4ae) at 0x18 * 4 for exactly this
+               reason -- hal/actor_vtables.cpp carries the note about the stray
+               that taught it. The rest now match. Baselines do move, which is
+               what rung 1's position check is for. */
+            {
+                const char *q = (const char *)data_0209f498;
+                int np = (int)data_0209f21c;
+                if (np < 1) np = 1;
+                /* 0.3.2: sixteen. The five split arrays this fans into
+                   (hal/actor_vtables.cpp f49c/f49e/f4a0/f4ac/f4ae, and
+                   auto_bss.cpp's f4a2/f4a4/f4a6) are all 0x18 * kPortMaxPlayers
+                   now; the old cap at four was what kept slots 4..15 motionless
+                   in a wide match -- their records arrived and were never
+                   fanned out, so every peer agreed they stood still. */
+                if (np > kPortMaxPlayers) np = kPortMaxPlayers;
+                for (int pi = 0; pi < np; ++pi) {
+                    const char *r = q + pi * 0x18;
+                    const int o = pi * 0x18;
+                    /* THE BUTTONS, and leaving them out was the second input
+                       seam. Ctrl+0x04 is the HELD word and +0x06 is
+                       pressed-this-frame, and they are what every button
+                       reader in the game uses -- crouch among them. Fanning
+                       the stick fields and not these meant movement routed to
+                       the right player and one button family did not: crouch
+                       in the child's window crouched MARIO in the child's
+                       world. Same one-line character as the PadData[0]
+                       clobber, one layer further in. */
+                    *(short *)((char *)data_0209f49c + o) = *(const short *)(r + 0x04);
+                    *(short *)((char *)data_0209f49e + o) = *(const short *)(r + 0x06);
+                    *(short *)((char *)data_0209f4a0 + o) = *(const short *)(r + 0x08);
+                    *(short *)((char *)data_0209f4a2 + o) = *(const short *)(r + 0x0a);
+                    *(short *)((char *)data_0209f4a4 + o) = *(const short *)(r + 0x0c);
+                    *(short *)((char *)data_0209f4a6 + o) = *(const short *)(r + 0x0e);
+                    *((unsigned char *)data_0209f4ac + o) = *(const unsigned char *)(r + 0x14);
+                }
+            }
+            /* ---- RUN MODE ANALOG: the record, refilled from the pad's left
+               stick. See the RUN_ mode block up by the menu enum for why this
+               is the game's own analog path and not a new one.
+
+               CheckInput has just written the D-PAD answer: magnitude pinned
+               at 0x1000, touching zero, direction quantized to the eight
+               table entries. That is right for a keyboard and wrong for a
+               stick, so when there IS a stick and it is off its rest, the
+               same five fields are written again the way CheckInput's TOUCH
+               branch writes them -- and every reader downstream, the walk
+               core included, cannot tell which branch filled them in.
+
+               The mapping, end to end. XInput reports each axis as +-32767,
+               so the deflection is the radius sqrt(lx^2+ly^2) clamped to the
+               stop, and the usable travel starts at XInput's own left-stick
+               floor (7849) rather than at zero, so a stick that rests a
+               little off centre is still at rest:
+
+                   mag = 0x1000 * (len - 7849) / (32767 - 7849)
+
+               clamped into 0..0x1000. Direction goes in as the touch screen's
+               axes -- x right, y DOWN, which is why the stick's up becomes a
+               negative dy -- and the angle through the ROM's own atan2 rather
+               than a host one, so it lands on the same table entry the
+               hardware would have picked.
+
+               What the game then does with it is entirely the game's:
+               func_ov002_020bf224 scales the speed target by mag/0x1000, so
+               the speed is linear in that deflection, and the walk/run flag
+               flips when mag crosses 0xdc7 with 0x80 of hysteresis -- 0xe47
+               of 0x1000 to break into a run and back under 0xdc7 to drop out
+               of it, which is 89.2 and 86.1 percent of the usable travel, or
+               91.8 and 89.4 percent of the whole stick once the dead zone is
+               counted back in. Those are the ROM's numbers and nothing here
+               touches them -- so running in this mode does mean pushing the
+               stick most of the way, which is what pushing the touch stick
+               most of the way did.
+
+               A stick inside the dead zone falls through with CheckInput's
+               answer untouched, which is button mode -- so analog mode on a
+               keyboard, or with the pad put down, is exactly the program that
+               shipped before. */
+            /* ---- THE FOURTH SLOT-0 WRITER, AND THE ONE NO RUNG COULD SEE
+             *
+             * Run mg16 lane MP4. Same shape as the three already gated -- it
+             * writes THIS console's stick straight into Ctrl slot 0, on the
+             * level path, AFTER the per-player fan -- and it is the stick
+             * family rather than the buttons, so on a child it would drive the
+             * HOST's character and destroy the host's own stick values in one
+             * store.
+             *
+             * IT WAS INVISIBLE TO EVERY RUNG BY CONSTRUCTION. The guard
+             * includes pad_live, which is XInputGetState succeeding, and no
+             * harness has a physical gamepad -- so every green ladder in this
+             * campaign ran with this block switched off. It would have bitten
+             * the owner the first time he played multiplayer with a controller
+             * in analog mode, which is a configuration no proof had ever
+             * entered. The reviewer found it by reading, which is the only way
+             * it could have been found.
+             *
+             * SM64DS_FORCE_ANALOG makes it reachable from a proof: it forces
+             * the run-mode half of the condition, and SM64DS_PAD_TEST already
+             * forces the pad_live half in play mode (it fakes a pad and sets
+             * pad_live=1 at walk_window.cpp:3442, and is deliberately disabled
+             * under selftest). Together they cover the block with no hardware.
+             * Test scaffolding of the same class as SM64DS_SYNC_FORCE_V1 and
+             * SM64DS_SYNC_DROP, and named here so it is not mistaken for a
+             * player-facing setting. */
+            static int force_analog = -1;
+            if (force_analog < 0)
+                force_analog = getenv("SM64DS_FORCE_ANALOG") ? 1 : 0;
+            const int analog_mode = force_analog || run_mode() == RUN_ANALOG;
+            if (!selftest && analog_mode && pad_live && !menu_on &&
+                !(port::comms_transport() && comms_fanout_on())) {
+                const int DEAD = 7849;      /* XInput's left-stick floor */
+                const int FULL = 32767;
+                const int dxs = pad.lx;
+                const int dys = -pad.ly;    /* stick up is touch-screen up */
+                double len = sqrt((double)dxs * dxs + (double)dys * dys);
+                if (len > FULL) len = FULL;
+                if (len > DEAD) {
+                    int mag = (int)(4096.0 * (len - DEAD) / (FULL - DEAD));
+                    if (mag > 0x1000) mag = 0x1000;
+                    if (mag < 0) mag = 0;
+                    /* THE LOCAL SLOT, at the 0x18 Ctrl stride. Each split array
+                       (f4a0/f4a2/f4a4/f4a6/f4ac) is 0x18 * kPortMaxPlayers, and
+                       the ROM reads player N's fields at symbol + N*0x18 (see the
+                       fan block above). On the child data_0209f250 is 1, so the
+                       stick must land in slot 1. */
+                    const int lo = (int)data_0209f250 * 0x18;
+                    *(short *)((char *)data_0209f4a0 + lo) = (short)mag;
+                    *(short *)((char *)data_0209f4a2 + lo) =
+                        (short)((double)dxs * mag / len);
+                    *(short *)((char *)data_0209f4a4 + lo) =
+                        (short)((double)dys * mag / len);
+                    *(short *)((char *)data_0209f4a6 + lo) =
+                        _ZN4cstd5atan2E5Fix12IiES1_(dxs, dys);
+                    /* the field the walk/run branch keys off: "the player is
+                       on the analog stick, read the deflection" */
+                    *((unsigned char *)data_0209f4ac + lo) = 1;
+                }
+            }
+}
+
 int main(void)
 {
-    sm64ds::port::RomInfo rom;
-    std::string rom_error;
-    if (!sm64ds::port::locate_rom_next_to_exe(rom, rom_error)) {
-        fprintf(stderr, "ROM required: %s\n", rom_error.c_str());
-        return 2;
-    }
-    SetEnvironmentVariableA("SM64DS_ROM", rom.path.c_str());
-    printf("ROM: %s (%s)\n", rom.title.c_str(), rom.game_code.c_str());
-    std::string mod_error;
-    const std::string mods_directory =
-        std::filesystem::path(rom.path).parent_path().append("mods").string();
-    g_mods_dir = mods_directory;
-    if (!sm64ds::mods::load_all(mods_directory, mod_error)) {
-        fprintf(stderr, "Lua mod error: %s\n", mod_error.c_str());
-        return 2;
-    }
-    front_load_state();
-    /* lobby transport: UI callbacks in, display name out, headless env
-       hooks for the two-instance test (NAME/HOST/JOIN; CHAT fires once
-       a peer is actually connected, see the poll site) */
-    lobby_ev.text = lobby_on_text;
-    lobby_ev.peer = lobby_on_peer;
-    sm64ds::lobby::set_events(&lobby_ev);
-    if (const char *ln = std::getenv("SM64DS_LOBBY_NAME")) {
-        strncpy(g_username, ln, sizeof g_username - 1);
-        g_username[sizeof g_username - 1] = 0;
-    }
-    sm64ds::lobby::set_name(g_username);
-    if (std::getenv("SM64DS_LOBBY_HOST")) {
-        front_on = 0;
-        sm64ds::lobby::host_start();
-    } else if (const char *lj = std::getenv("SM64DS_LOBBY_JOIN")) {
-        front_on = 0;
-        sm64ds::lobby::join(lj);
-    }
-    /* Lua startup requests (sm64ds.set_* in any mod main.lua file) overlay
-       the persisted settings, so a mod folder can ship its own defaults. */
-    if (sm64ds::mods::requested_character() >= 0)
-        g_character = sm64ds::mods::requested_character();
-    if (sm64ds::mods::requested_speed_pct() > 0)
-        g_speed_pct = sm64ds::mods::requested_speed_pct();
-    if (sm64ds::mods::requested_jump_pct() > 0)
-        g_jump_pct = sm64ds::mods::requested_jump_pct();
-    if (sm64ds::mods::requested_sub_scale() > 0)
-        g_sub_scale = sm64ds::mods::requested_sub_scale();
-    if (sm64ds::mods::requested_widescreen() >= 0)
-        g_widescreen = sm64ds::mods::requested_widescreen();
-    if (sm64ds::mods::requested_arena() >= 0)
-        g_arena = sm64ds::mods::requested_arena();
-    if (sm64ds::mods::requested_camera() >= 0)
-        cam_mode = sm64ds::mods::requested_camera() & 3;
-    if (sm64ds::mods::requested_color() >= 0)
-        g_color = sm64ds::mods::requested_color();
-    /* env still wins for one-shot A/B runs */
-    if (const char *ec = std::getenv("SM64DS_CHARACTER"))
-        g_character = std::atoi(ec) & 3;
-    if (const char *es = std::getenv("SM64DS_SPEED_PCT"))
-        g_speed_pct = std::atoi(es);
-    if (const char *ej = std::getenv("SM64DS_JUMP_PCT"))
-        g_jump_pct = std::atoi(ej);
-    if (const char *eu = std::getenv("SM64DS_SUB_SCALE"))
-        g_sub_scale = std::atoi(eu);
-    if (const char *ew = std::getenv("SM64DS_WIDESCREEN"))
-        g_widescreen = std::atoi(ew) != 0;
-    if (const char *ea = std::getenv("SM64DS_ARENA"))
-        g_arena = std::atoi(ea) != 0;
-    if (g_speed_pct < 25) g_speed_pct = 25;
-    if (g_speed_pct > 300) g_speed_pct = 300;
-    if (g_jump_pct < 25) g_jump_pct = 25;
-    if (g_jump_pct > 300) g_jump_pct = 300;
-    if (g_sub_scale < 1) g_sub_scale = 1;
-    if (g_sub_scale > 4) g_sub_scale = 4;
-    /* Mods are real units: a disabled analog mod means vanilla digital.
-       (Every other shipped mod only adds its Lua request when enabled, so
-       the persisted values stand on their own.) */
-    if (!sm64ds::mods::mod_enabled("analog_controls")) g_analog_controls = 0;
+    /* THE ASPECT IS CHOSEN HERE, ONCE, BEFORE ANYTHING TOUCHES THE FRAMEBUFFER.
+       host_setting_aspect() reads the Aspect key from settings.json (or
+       SM64DS_ASPECT, or the legacy SM64DS_WIDESCREEN) as a RATIO -- width over
+       height, 0 for native -- and ntr::configure_aspect latches the active
+       render size for the whole run: 512x384 (the shipped 4:3 window) at 0,
+       1024x576 at 1.7777778, and the largest rectangle of that ratio inside the
+       wide-maximum buffer for anything else. The framebuffer itself is always
+       that wide maximum, so this only picks how much of it is live -- nothing
+       reallocates, and at 0 every render, HUD, sub-screen and present path is
+       byte-for-byte the 4:3 build. On a non-runtime tier configure_aspect is a
+       no-op. */
+    /* THE RenderScale KEY RIDES THE SAME CALL, because the two answer one
+       question between them -- how wide and how sharp -- and a second setter
+       would be a second chance for them to disagree about the extent. 0 is
+       the key absent and the extent is then derived exactly as it was before
+       the key existed, at every aspect; a value of 1..4 anchors the height at
+       that many host rows per DS row and derives the width from the aspect.
+       Either way the WINDOW opens at the default extent's size (win_px), so a
+       sharper picture is more pixels in the same window. */
+    ntr::configure_aspect(host_setting_aspect(), host_setting_render_scale());
+    if (ntr::render_scale())
+        fprintf(stderr, "[render] RenderScale %d: the 3D picture is %dx%d "
+                "(the default for this aspect is %dx%d) and the window opens "
+                "at %dx%d\n",
+                ntr::render_scale(), ntr::active_w, ntr::active_h,
+                ntr::default_active_w(), ntr::default_active_h(),
+                win_px(ntr::active_w), win_px(ntr::active_h));
+    /* THE OTHER TWO PICTURE SETTINGS ARE LATCHED HERE FOR THE SAME REASON,
+       and beside the aspect so there is one place in the program where the
+       picture's shape is decided. Both default to off, both are no-ops while
+       they are off, and with all three keys absent every one of these three
+       calls leaves the render path exactly as the build before them drew it.
+
+       HdTextures names a replacement texture pack and the directory to find
+       it in (ntr/hdtex.h); SmoothModels is the model subdivision level
+       (ntr/smooth.h). Neither reads anything back from the render path, so
+       the order of the three calls does not matter; they are together
+       because they answer one question. */
+    ntr::hdtex_configure(host_setting_hd_textures(),
+                         host_setting_hd_textures_dir());
+    ntr::smooth_configure(host_setting_smooth_models());
+    /* fault_probe.h has been included here since gate 4 and was never armed,
+       so every crash in the window build printed nothing at all. It costs
+       nothing until something faults, and it prints a module-relative address
+       the .map file resolves. The _with_file form also writes crash.txt next
+       to the exe with raw Win32, so a run without a captured stderr still
+       leaves the address behind. */
+    SetUnhandledExceptionFilter(port_fault_probe_with_file);
     /* world = KCL file x64. Default spawn: north end of the stone
        bridge (deck ~892), facing the walk south across it -- the shot
        that calibrates against real-game footage. Roof surface = 4916,
@@ -2332,7 +8724,39 @@ int main(void)
     g_fake_snap = fake_snap;
     PORT_INSTALL_FAULT_PROBE();
     port_install_watchdog();
-    setvbuf(stdout, NULL, _IONBF, 0);
+    /* PORT_WATCH_MCC=1: who writes MovingCylinderClsn's GetPos/GetOwnerID
+       slots. This is the watch that caught SetPlayerGlobals' controller
+       loop straying out of a two-byte data_0209f4ae into the vtable
+       (hal/actor_vtables.cpp has the full story). Kept armed for the next
+       time a layout shift puts something else behind an undersized host
+       global. */
+    if (getenv("PORT_WATCH_MCC"))
+        port_watch_words(&_ZTV7dCcAc_c[2], 2);
+    /* PORT_WATCH_TRACKER=1: who writes the particle tracker pointer. On the
+       direct Bob-omb Battlefield boot it read 0x0007f000 by frame 0 after a
+       healthy [fx] boot line, which is this same stomp class again. */
+    if (getenv("PORT_WATCH_TRACKER"))
+        port_watch_words(&data_0209ee74, 1);
+    /* STDOUT IS FULLY BUFFERED, ON PURPOSE. It was unbuffered here for years,
+       and that made every printf its own blocking WriteFile against whatever
+       the sink is -- 2-6ms a line on a healthy console, worse on a degraded
+       one, forever if QuickEdit has a selection holding the console lock. A
+       level entry prints ~248 lines (the census, the spawn-skip lines, the
+       [clsn] CLPS dump), so the same 600-frame CCM selftest measured 2540ms
+       to a file, 7579ms to a console, and 22s to an undrained pipe. The 64KB
+       full buffer decouples the game loop from sink latency: the boot's
+       lines go out in ONE write at the fflush below the boot block, and the
+       frame loop flushes once per frame (one write, not hundreds).
+       What this does NOT buffer: stderr. Every FATAL, fault dump and trace
+       goes to stderr, which stays unbuffered (the flight recorder below
+       re-asserts that), so a hard crash still leaves the whole trail; the
+       most a fault can strand in this buffer is the current frame's stdout,
+       and orderly exits flush it through stdout_flush_atexit above (the CRT
+       teardown flush never runs here: the exit probe's detour terminates
+       first). */
+    static char stdout_buf[1 << 16];
+    setvbuf(stdout, stdout_buf, _IOFBF, sizeof stdout_buf);
+    atexit(stdout_flush_atexit);
     /* FLIGHT RECORDER (Tango's ask): every diagnostic this program
        writes to stderr -- unhosted states, spawn skips, fault dumps
        with registers and stack, the traces below -- lands in a
@@ -2348,16 +8772,185 @@ int main(void)
         snprintf(logname, sizeof g_playlog,
                  "playlog/play_%04u%02u%02u_%02u%02u%02u.log", st_.wYear,
                  st_.wMonth, st_.wDay, st_.wHour, st_.wMinute, st_.wSecond);
+        /* THE NAME IS CLAIMED, NOT ASSUMED (run link100, lane SLOT).
+           This name has one-second resolution and nothing else in it, so two
+           copies of the game started in the same second in one folder pick the
+           SAME file and the second one's freopen "w" truncates the first one's
+           recorder. That is not a theory: twenty concurrent scene runs out of
+           one directory left TEN playlogs, so half of every pair's flight
+           recorder was destroyed -- and a recorder is exactly what somebody
+           wants when the run that went wrong was one of two.
+
+           CREATE_NEW is the claim, and it is atomic, so a loser cannot even
+           briefly believe it owns the name; the pid is what the loser falls
+           back to, and a second collision (one pid, two runs in a second --
+           impossible today, cheap to survive) walks a counter.
+
+           INERT FOR A SINGLE INSTANCE, which is every run today: the plain
+           timestamped name is free, the first CREATE_NEW wins it, and the file
+           is the same file with the same name it has always been. The handle is
+           closed immediately and freopen re-opens and truncates it; nobody else
+           can take the name in between, because by then it exists. */
+        for (int tries = 0; tries < 64; ++tries) {
+            HANDLE claim = CreateFileA(logname, GENERIC_WRITE,
+                                       FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                                       CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (claim != INVALID_HANDLE_VALUE) {
+                CloseHandle(claim);
+                break;
+            }
+            if (GetLastError() != ERROR_FILE_EXISTS)
+                break;      /* not a name clash; let freopen report it */
+            if (tries == 0)
+                snprintf(logname, sizeof g_playlog,
+                         "playlog/play_%04u%02u%02u_%02u%02u%02u_%lu.log",
+                         st_.wYear, st_.wMonth, st_.wDay, st_.wHour,
+                         st_.wMinute, st_.wSecond,
+                         (unsigned long)GetCurrentProcessId());
+            else
+                snprintf(logname, sizeof g_playlog,
+                         "playlog/play_%04u%02u%02u_%02u%02u%02u_%lu_%d.log",
+                         st_.wYear, st_.wMonth, st_.wDay, st_.wHour,
+                         st_.wMinute, st_.wSecond,
+                         (unsigned long)GetCurrentProcessId(), tries);
+        }
         if (freopen(logname, "w", stderr)) {
             setvbuf(stderr, NULL, _IONBF, 0);
             printf("flight recorder: %s\n", logname);
             fprintf(stderr, "[recorder] session start\n");
         }
     }
-    if (!ntr::io_init()) { fprintf(stderr, "io_init failed\n"); return 2; }
+    /* A stale file from an earlier run must never be read as this run's verdict.
+       Clear it before the decision, write it only if the decision goes badly. */
+    port_startup_error_clear();
+    if (!ntr::io_init()) {
+        /* THE FAILURE A PLAYER USED TO GET IN SILENCE. Three places now, all of
+           them cheap because none of it runs unless the start already failed:
+           the technical block goes to the log for us, the plain sentence goes
+           in a file for the launcher, and the same sentence goes on screen for
+           someone running the exe directly. */
+        fprintf(stderr, "io_init failed\n");
+        fputs(ntr::io_reserve_detail(), stderr);
+        {
+            const char *say = ntr::io_reserve_player_text();
+            if (say[0]) {
+                port_startup_error_write(say);
+                port_startup_error_show(say);
+            }
+        }
+        return 2;
+    }
+    /* Which stage actually won the fixed ranges, and how many passes it took.
+       One line, always, because "it wins more often now" is not a claim a log
+       can be read for afterwards, and the stage number is. 1 = the TLS callback
+       at process start, 2 = here in main, which is where it used to happen. A
+       stage 2 on a healthy machine means the early claim lost and the retry
+       rescued it, which is worth seeing in a player's log. */
+    fprintf(stderr, "[io] fixed ranges: stage %d, %u attempt(s), lost %02x\n",
+            ntr::io_reserve_stage_won(), ntr::io_reserve_attempts(),
+            ntr::io_reserve_lost_mask());
+    /* A start that SURVIVED a lost range still needs the record. Losing main
+       memory is not fatal, but it is the difference between two runs of the same
+       build and it is the shape a later mystery crash grows out of, so the same
+       block that a fatal loss prints goes in the log here too. */
+    if (ntr::io_reserve_lost_mask()) fputs(ntr::io_reserve_detail(), stderr);
     if (!winapi_load()) { fprintf(stderr, "winapi_load failed\n"); return 2; }
+    /* run mg16 lane MP2: the loopback carrier, if and only if SM64DS_COMMS_ROLE
+       names a role. With the env unset this installs nothing and returns false,
+       the seam keeps its own solo answers, and every path below is the one that
+       ran yesterday. Placed after io_init because the seam's boot indicator
+       writes through the 0x027ff000 mapping io_init reserves. */
+    port::comms_loopback_install_from_env();
     pacer_begin();
-    if (!_ZN4Heap13SetupRootHeapEv()) return 2;
+#ifdef PORT_ROM_CLEAN
+    /* ROM-CLEAN: load + verify the ROM tables from romdata.bin FIRST, before
+       any table is read. Loud FATAL if the file is missing, short, or fails its
+       manifest sha. The pointer-rebase passes below (port_ov002_patch,
+       port_cross_patch, the overlay syms patches) then run over the loaded
+       bytes exactly as they would over baked-in ones. */
+    port_romdata_load();
+#endif
+    /* SM64DS_DUMP_LEVEL_NAMES=1: print the debug level-select rows exactly as
+       the menu's MENU_LEVEL row renders them -- row, id, name, entrance,
+       overlay, mount state -- then exit. A standalone proof of the id->name
+       mapping that needs no window or game boot (so it runs on a host where
+       the selftest's fabricated PE is quarantined). Mounts are installed here
+       first (the call is idempotent) so the MOUNTED column is the real one. */
+    if (getenv("SM64DS_DUMP_LEVEL_NAMES")) {
+        port_level_mounts_install();
+        const int rows = port_title_rows();
+        printf("[levelnames] %d rows in the debug level select\n", rows);
+        for (int i = 0; i < rows; ++i) {
+            int lv = 0, en = 0;
+            if (!port_title_row(i, &lv, &en)) {
+                const char *sc = lv == -1 ? "back to file select"
+                               : lv == -2 ? "minigame menu" : "scene sentinel";
+                printf("  row %2d/%d  <%s %d>\n", i, rows, sc, lv);
+                continue;
+            }
+            const char *nm = level_short_name(lv);
+            printf("  row %2d/%d  %2d %-20s  ent %2d ov%03d %s\n",
+                   i, rows, lv, nm ? nm : "(unnamed)", en,
+                   port_level_overlay_id(lv),
+                   port_level_is_mounted(lv) ? "MOUNTED" : "not mounted");
+        }
+        fflush(stdout);
+        return 0;
+    }
+    /* THE ROM'S OWN ENTRY, not one level in. This was
+       `if (!_ZN4Heap13SetupRootHeapEv()) return 2;` -- correct, and calling the
+       inner half. func_0201a054's chain reaches the root heap through
+       Heap::InitializeRootHeap (arm9 0x0203cae8, 0x1c), which clears the OS
+       globals word at 0x020a0ea4 and then TAIL-CALLS SetupRootHeap:
+
+           0203cae8  e59f000c   LDR r0, [pc, #0xc]   -> 0x020a0ea4
+           0203caec  e3a01000   MOV r1, #0
+           0203caf0  e59fc008   LDR ip, [pc, #8]     -> 0x0203cb04
+           0203caf4  e5801000   STR r1, [r0]
+           0203caf8  e12fff1c   BX  ip
+
+       THE GUARD MOVES RATHER THAN GOES. Because that last instruction is a
+       tail call, the ROM hands SetupRootHeap's HeapS* straight back to this
+       caller -- but src/_ZN4Heap18InitializeRootHeapEv.cpp declares the
+       function `void`, so the return value cannot come through the seated TU.
+       Testing data_020a0ea0 instead is the same test, not a weaker one:
+       src/_ZN4Heap13SetupRootHeapEv.cpp writes the new heap into data_020a0e9c
+       and data_020a0ea0 only on the success path and returns 0 without
+       touching either on failure. Weakening the boot guard to seat a TU would
+       be exactly the kind of non-ROM-faithful fix the port exists to refuse.
+
+       Zeroing 0x020a0ea4 is inert here, which is why the heap numbers do not
+       move: hal/os_arena.cpp's accessors take that word as their `g` argument
+       and ignore it outright. It matters on the DS, where NULL means "use the
+       default OS globals", and it costs nothing to be faithful about. */
+    /* func_02019780 runs its own body BEFORE the root heap: func_02058c84's
+       arms, then func_0201a490, then this line. hal/boot_os.cpp carries that
+       span and names the four PXI arms it cannot run. */
+    port_boot_rom_pre_main();
+    _ZN4Heap18InitializeRootHeapEv();
+    if (!data_020a0ea0) return 2;
+    /* and main()'s own first three calls, which the ROM makes after Entry has
+       returned from func_02019780: the OS tick, the alarm system and the main
+       thread record. */
+    /* rung D2: the frame's own pump, installed BEFORE the ROM's main is
+       entered, because under rung D5 main never returns -- it runs
+       func_020197b8, whose phase-7 wait is where the pump is called from.
+       Installing it here rather than beside the loop is what makes that
+       ordering true on both sides of rung D5's knob. */
+    if (getenv("SM64DS_R3D_NO_PUMP_INSTALL")) {
+        fprintf(stderr, "[r3d] SM64DS_R3D_NO_PUMP_INSTALL=1: the host frame "
+                        "pump is NOT installed; step 1b of the ROM's wait runs "
+                        "nothing (rung D1's program, on rung D2's binary)\n");
+    } else {
+        port_install_host_frame_pump(port_host_frame_pump);
+        fprintf(stderr, "[r3d] the host frame pump is installed; step 1b of "
+                        "the ROM's wait (hal/boot2_thread.cpp) runs the frame's "
+                        "own duties from now on\n");
+    }
+    if (port_rom_main_enabled())
+        port_rom_main_run();      /* the ROM's own main -- the default */
+    else
+        port_boot_rom_main_head();   /* SM64DS_ROM_MAIN=0: the transcription */
     memset(data_0209b3ec, 0, 48);
     data_0209b3ec[0] = data_0209b3ec[4] = data_0209b3ec[8] = 0x1000;
     hal_fill_model_vtable();
@@ -2366,6 +8959,7 @@ int main(void)
     hal_fill_modelanim2_vtable();
 
     port_ov002_patch();
+    port_cross_patch();
     __sinit_ov002_02100560(); __sinit_ov002_02100938();
     __sinit_ov002_02100adc(); __sinit_ov002_02100c50();
     __sinit_ov002_02100d44(); __sinit_ov002_02100e50();
@@ -2377,20 +8971,261 @@ int main(void)
     __sinit_ov002_021019d0(); __sinit_ov002_02106e40();
     __sinit_ov002_02107118(); __sinit_ov002_021071f4();
     __sinit_ov002_02107298(); __sinit_ov002_02107304();
+    port_cutscene_states_seat();
+    /* link100 lane SMALLS: the fourteen kuppa command records, before
+       the matched src/func_ov002_020bd664.cpp copies them into its
+       function static on the first script command. */
+    port_kuppa_cmd_seat();
     __sinit_ov002_02107370(); __sinit_ov002_02107f88();
     __sinit_ov002_0210804c(); __sinit_ov002_02108094();
 
-    /* THE GAME'S OWN LEVEL BOOT, now the default: ov009 mounted,
+    /* SM64DS_SCENE=<id> BOOTS A NON-LEVEL SCENE INSTEAD, and takes the run
+       with it. Mirrors SM64DS_LEVEL: it names what to boot and nothing else.
+       4 is the star select (ov003's dScStarSel_c), the only scene seated
+       today; it comes up through the ROM's own Scene::SetSceneToSpawn ->
+       Scene::SpawnIfNecessary -> spawn spine, and an unhosted id is refused
+       by name the way an unmounted level is.
+       The hand-over is HERE, at the end of the host bring-up and before the
+       first level-shaped statement, because everything above this line (the
+       fixed ranges, the root heap, the ov002 pointer pass and its static
+       initialisers, the model vtable fills) is bring-up both modes need and
+       everything below it reads the Player the entrance spawned -- which a
+       scene run has not got. The scene runner owns the rest of the process;
+       see hal/scene_boot.cpp.
+
+       AND IT MAY OPEN A WINDOW NOW. port_scene_want_window above decides:
+       a run that names a frame budget or is a selftest is a MEASUREMENT and
+       takes the headless port_scene_run it always took, and everything else is
+       a SESSION and takes scene_window_run, which drives the same three calls
+       with a pump, live input, the debug menu and a present between the ticks.
+       The battery names a count on every scene row and DBG1's minigame picker
+       names none, so neither of them needed an edit for this. */
+    /* SM64DS_TITLE_ENTRY=1 (hal/title_entry.cpp) IS THE ONE WAY THIS BRANCH
+       DOES NOT OWN THE REST OF THE PROCESS. Armed, a title run stops on the
+       ROM's own handoff -- a save file was picked, StartFile staged a level
+       and asked for scene 3 -- and falls THROUGH to the level boot below,
+       carrying the request the game itself wrote. Unarmed, and on every scene
+       that is not the title, this is the same two lines it has always been.
+
+       The fall-through is safe here for the reason the block above gives: this
+       is the end of the host bring-up, everything below is the level's own,
+       and a title run that has torn itself down has no Player to lose. */
+    /* ---- RUNG G2: THE SCENE PATH HAD NO VBLANK HANDLER (lane R3G) --------
+
+       MEASURED FIRST, then repaired. With rung G1's phase 7 in
+       hal/scene_boot.cpp's port_scene_run, a 300-frame scene 1 run under
+       SM64DS_ROM_LOOP=1 came back rc=0 and reported
+
+           [r3g] G1: phase 7 was the ROM's own sleep on 300 of 300 scene frames
+           [thr] EXIT-STATS ... halts=301 framepump=300
+                 vbl_enter=0 vbl_dispatch=0 vbl_wakes=1 starved=300
+
+       -- so the frame SLEPT the ROM's way and was WOKEN THE HOST'S WAY on
+       every one of the three hundred. vbl_enter counts step 2 of
+       hal/boot2_thread.cpp's CP15::WaitForInterrupt, the lookup
+       IRQ::GetIRQHandler(1); zero of them means the lookup answered NULL, so
+       IRQ::VBlankHandler never ran, so neither did func_02019144 (the display
+       commit) or func_02019100. The same run on a LEVEL reports vbl_enter=300
+       vbl_dispatch=299 (lane R3F, out/R3F/gate2_measure.log).
+
+       WHY THE TWO PATHS DIFFER, and it is one call. The ROM registers the
+       handler inside main's fifth call: src/func_0201a054.c:46 is
+       func_0201a4e4(), which is
+       IRQ::SetIRQHandler(1, IRQ::VBlankHandler) plus the two sleep-queue words.
+       This port does not run that body whole -- hal/boot_arms.cpp runs its
+       refused arms through the seam and hal/boot_os.cpp puts func_0201a4e4 in
+       port_boot_rom_game_init_head() instead, which is called at :7975 of this
+       file, BELOW the scene handover. So the registration has always been part
+       of the LEVEL bring-up, and a scene run -- which takes the whole process
+       here and never reaches :7975 -- has never had a VBlank handler at all.
+       On the DS the handler is installed before any scene exists.
+
+       SO THE CALL IS MADE HERE, at the last statement before the scene owns the
+       process. func_0201a4e4 is idempotent (two zero stores, the registration,
+       and data_0209d4dc = 1) and the level path's own call at :7975 is
+       untouched, so a title-entry fall-through re-runs it exactly where it
+       always ran. It is not the whole of port_boot_rom_game_init_head: the rest
+       of that function stays where it is. This is the one line the ROM's own
+       main makes and this port defers.
+
+       AND IT IS BEHIND ITS OWN GATE, SM64DS_R3G_ROM_WAKE, OFF BY DEFAULT, so
+       that the two halves of the handover are separable on one binary. Measured
+       with it ARMED, 300 frames each:
+
+         scene 1  SCENE_TITLE     rc=0  block seated by this port
+                  [r3g] G2(a): face entries by slot 0/1/2/3 = 300/0/450/150,
+                        entered with the WRONG block 0 time(s)
+                  [thr] vbl_enter=150 vbl_dispatch=150 -- the ROM's handler ran
+         scene 8  SCENE_GAMEOVER  rc=0  data_0209d4a8 null the whole run, so the
+                  ROM's two dispatchers took their own null arm and did nothing
+         scene 6  SCENE_VS_MENU   rc=0xC0000005 accessing 00000000, inside
+                  UnknownVsEntry::Behavior+0x178, on the frame after the first
+                  sleep
+
+       AND OVER ALL THIRTY-SEVEN HOSTED SCENES with the gate armed: 36 rc=0,
+       scene 6 the one red, and 31 of the 37 report the counted proof
+       0/1/2/3 = 300/0/450/150 with the wrong block 0 times (30 minigames share
+       one block, the title has its own, four scenes have none, and scenes 6 and
+       360 have a block this port never registered).
+
+       WHAT SCENE 6'S FAULT IS NOT, bisected on this binary, three arms, the
+       same address every time:
+
+         SM64DS_ROM_LOOP unset                              rc=0
+         SM64DS_ROM_LOOP=1, this gate UNSET                 rc=0xC0000005
+         SM64DS_ROM_LOOP=1, SM64DS_R3D_NO_PUMP_INSTALL=1    rc=0xC0000005
+
+       -- so it is not the graphics block (arm 2 registers no handler, so
+       func_02019144 and func_02019100 never run), not the calling convention,
+       and not the pacer or anything else step 1b of the wait does. IT IS THE
+       ROM'S OWN PHASE-7 SLEEP, on its own. The fault is at 0x0049B098, which is
+       UnknownVsEntry::Behavior's OWN EPILOGUE -- `mov ecx,[ebp-4]`, the /GS
+       cookie load -- immediately after that method's last call,
+       func_ov075_0211b418. That body is four instructions of member-pointer
+       dispatch:
+
+         mov eax,[ebp+8] / mov edx,[eax+0x84] / mov ecx,[edx+0xC] / add ecx,eax
+         mov eax,[edx+8] / call eax
+
+       -- `this` in ecx, no stack argument, and the frame pointer is gone by the
+       time the caller's epilogue runs, which is a stack imbalance in the
+       callee. hal/scene_vs_menu.cpp is the file that seats that record and it
+       says in as many words which site it deliberately leaves alone: "The
+       third site, 0x0211d34c, is NOT touched -- its body is marked as recovered
+       from vtable slot identity and the inferred-stub guard forbids seating a
+       guess." Neither that file nor src/func_ov075_0211b418.cpp is this lane's,
+       and the second candidate -- the fiber round-trip through the ROM's idle
+       thread in hal/boot2_thread.cpp, which the level path takes 300 times a
+       run without trouble -- needs a control this lane did not have room for.
+       Named, not worked around: this lane's report, blocked item G2(b).
+
+       WHAT THE BLOCK CENSUS SAID ABOUT SCENE 6 ANYWAY, since it is the other
+       unregistered block and the next lane will want it. Its census reads
+
+         data_0209d4a8=0187E814 vptr=0187DB34
+         vt[0..3]=00431f20 00431f20 0049d440 00431f20
+         data_0209d514=0 data_0208ee44=2  seated-by-this-port=no
+
+       -- a graphics block whose table already holds HOST addresses (walk_window
+       .map: 00431f20 is func_ov102_0214d1b0, 0049d440 is _ZN10dScEntry_c15graphCallback_c14GraphCallback2Ev)
+       but which hal/scene_boot.cpp's port_graph_block_register has never been
+       told about. The port's OWN beat therefore refuses it and answers 1; the
+       ROM's func_02019144 and func_02019100 have no such test, so under the
+       wake they dispatch it for the first time. src/_ZN10dScEntry_c15graphCallback_c14GraphCallback2Ev.cpp --
+       slot 2, the VS menu's own display sync -- is
+
+         *(u16*)0x400100c = (BG2CNT_B & ~0x1f00) | (c[0xc] << 8);
+         if (c[4]) { DecompressLZ16(c[4], G2S::GetBG2ScrPtr()); Deallocate(c[4]);
+                     c[4] = 0; }
+         if (c[8]) func_ov075_021160dc(c[8]);
+
+       so the first VBlank of the run would FREE the queued screen payload and
+       NULL the word under any lane that arms this gate. That is a second
+       reconciliation waiting behind the first one, between the ROM's
+       once-per-VBlank display sync and what hal/scene_vs_menu.cpp does with the
+       same payload. Scene 360 is the other unregistered block
+       (vt[0..3] = 0041ae30 00431f20 0041ae30 005e2130) and it does not fault.
+
+       WITH THE GATE OFF a scene frame still sleeps at the ROM's phase 7 and is
+       still woken by the port's starvation wake, which is rung G1 exactly and
+       is what all 37 battery rows measure. */
+    if (port_scene_env_want() >= 0 && port_rom_loop_enabled() &&
+        port_r3g_rom_wake()) {
+        func_0201a4e4();
+        fprintf(stderr, "[r3g] SM64DS_R3G_ROM_WAKE=1 on a scene run: "
+                        "IRQ::SetIRQHandler(1, IRQ::VBlankHandler) made here "
+                        "(src/func_0201a4e4.c, main's own func_0201a054:46). "
+                        "This port defers that call into the LEVEL bring-up "
+                        "(hal/boot_os.cpp's port_boot_rom_game_init_head, "
+                        "called below the scene handover), so without this a "
+                        "scene frame sleeps at the ROM's phase 7 and is woken "
+                        "by the port's starvation wake instead of by the ROM's "
+                        "own VBlank\n");
+    }
+    if (port_scene_env_want() >= 0) {
+        const int scene_rc =
+            port_scene_want_window()
+                ? scene_window_run()          /* carries the stop test itself */
+                : (port_title_entry_armed() ? port_title_entry_run()
+                                            : port_scene_run());
+        if (!port_title_entry_taken())
+            return scene_rc;
+        fprintf(stderr, "[title-entry] scene run over; falling through to the "
+                        "level boot in this process\n");
+        /* AND THE PRESENTATION FOLLOWS IT. The title is a two-screen scene and
+           says so (hal/scene_boot.cpp's port_scene_layout_propose names it
+           beside the minigames, on the owner's ruling); an adventure is the
+           corner inset panel, which is what a level has always been and what
+           every relaunching crossing gets by starting a process. This crossing
+           does not start one, so the swap is made here, by hand, at the one
+           point where the scene under the window is replaced. See
+           host_layout_follow_scene's banner for the family this belongs to.
+
+           g_entry_hwnd is the title's own window when there was one and null on
+           a headless title run, which is the right argument either way: with no
+           window there is nothing to re-shape and the mode still has to move,
+           because the level path reads it below. */
+        host_layout_follow_scene(g_entry_hwnd, 0, "the adventure");
+    }
+
+    /* THE GAME'S OWN LEVEL BOOT: ov009 mounted,
        Stage::LoadClsnAndObjects run against it, and the level's own entrance
-       record spawning the Player and the Camera. SM64DS_LEGACY_BOOT=1 goes
+       record spawning the Player and the Camera.
+
+       IT IS NO LONGER "THE DEFAULT", and that phrase used to be here. Since
+       the owner's boot-to-title ruling this block is reached three ways --
+       SM64DS_LEVEL naming a level, SM64DS_VS_MAP naming a VS match, or the
+       SM64DS_BOOT_CLASSIC opt-out -- plus the one that matters most, a title
+       run FALLING THROUGH after a save file was picked, which is the branch
+       just above. A launch with no environment at all goes to the title now;
+       hal/title_entry.cpp's port_boot_default_scene is where that is decided
+       and its banner carries the whole derivation.
+
+       SM64DS_LEGACY_BOOT=1 goes
        back to the harness staging (hand-built spawn context, KCL mounted by
        hand); SM64DS_BOOT_NOSPAWN=1 holds the entrance table off, which is
        stage A1, the same boot with nothing spawning. SM64DS_REAL_BOOT is
        still accepted and is now a no-op. */
     const int real_boot = getenv("SM64DS_LEGACY_BOOT") == 0;
     const int boot_spawns = real_boot && getenv("SM64DS_BOOT_NOSPAWN") == 0;
-    if (real_boot)
-        port_ov009_probe();
+    if (real_boot) {
+        /* [lvl-perf] span 3: the boot-dump printf blocks, timed apart from
+           the boot so time-inside-printf is its own number */
+        const double t0 = port_lvlperf_now();
+        port_level_probe();
+        port_lvlperf_note(3, port_lvlperf_now() - t0);
+    }
+    /* SM64DS_MENU=1 opens the debug menu at boot, which is the only way to
+       see it in a selftest frame: a selftest reads no live keys, so F5 never
+       arrives. It pauses the tick like any other open menu. */
+    menu_on = getenv("SM64DS_MENU") != 0;
+    /* SM64DS_MENU_AT=<frame> opens it LATER, on this path, at that frame --
+       the level-path twin of SM64DS_SCENE_MENU (port_scene_run above), in the
+       same shape and for the same reason.
+
+       IT EXISTS BECAUSE OPENING AT BOOT FREEZES THE STATE BEFORE IT FORMS.
+       The menu's pause is 'skip the tick', so SM64DS_MENU=1 on a level holds
+       frame 0 forever -- and a VS match has not dealt its players, started its
+       clock or drawn a single HUD sprite at frame 0, so what a capture gets is
+       an empty field. Measured exactly that way: a VS_MAP=0 capture under
+       SM64DS_MENU=1 came back with no HUD at all, and the layer mask and the
+       HUD-placement knob both read as no-ops on it because there was nothing
+       on screen for either to act on.
+
+       So the freeze has to come after the state exists. Given a frame, the
+       tick advances normally until then and stops on a fully formed screen,
+       which is what port/tools/wide_sweep.py needs: its HUD isolation
+       subtracts one capture from another and that is only meaningful between
+       two captures of the SAME frame. A still screen makes two launches
+       photograph the same frame; a live one does not.
+
+       It is an instrument and it changes nothing when unset. */
+    if (const char *e = getenv("SM64DS_MENU_AT")) {
+        menu_at = atoi(e);
+        if (menu_at < 0) menu_at = 0;
+        fprintf(stderr, "[menu] SM64DS_MENU_AT: the debug menu opens at "
+                "frame %d\n", menu_at);
+    }
 
     data_02092144[0] = 8 << 8;
     if (!boot_spawns) {
@@ -2401,11 +9236,135 @@ int main(void)
         static unsigned short spawn_info[4] = {0, 0, 100, 100};
         data_020a4bb8[0] = spawn_info;
     }
-    data_020a0eac_c = data_020a0ea0;
+    /* THE GAME HEAP, the ROM's own chain instead of an alias.
+       This line used to be `data_020a0eac_c = data_020a0ea0;` -- the game heap
+       word pointed straight at the root heap, so every allocation the game made
+       came out of the whole host arena and the ROM's own heap object never
+       existed. func_0201a054, the main.c boot spine, does this instead:
+
+           0x0201a100  e3a00a3b   MOV r0, #0x3b000
+           0x0201a104  e3a01000   MOV r1, #0
+           0x0201a108  eb00884f   BL  0x0203c24c   Heap::InitializeGameHeap
+
+       so the size is a hard immediate, 0x3b000 = 241664 bytes, and the parent
+       is NULL. Nothing is derived from the OS arena, which is why there is
+       nothing here for the port to invent: the arena only decides how big the
+       ROOT heap is (Heap::SetupRootHeap above), and the game heap is a fixed
+       carve out of that. Heap::CreateExpandingHeap resolves the NULL parent to
+       data_020a0ea0, takes size+0x18 from it, builds the allocator over the
+       0x3b000 payload and runs the ExpandingHeap constructor over the header.
+       Both bodies are src/, byte-matched, and reached by name from here. */
+    /* everything func_0201a054 does BEFORE that line, in its order: the tick
+       veneer and the boot timestamp, the VBlank handler install, the owner
+       record and the debug name. hal/boot_os.cpp lists the arms it skips. */
+    port_boot_rom_game_init_head();
+    _ZN4Heap18InitializeGameHeapEjPS_(0x3b000, 0);
+    if (!data_020a0eac_c) {
+        /* Heap::Allocate Crash()es on a failed carve when the parent's flag
+           word has 0x4000 set, which Heap::Heap sets, so a null here means
+           CreateExpandingHeapAllocator refused the span rather than the root
+           heap running dry. Either way the game has no heap and every later
+           allocation is undefined; stop while the reason is still on screen. */
+        fprintf(stderr, "InitializeGameHeap returned null -- no game heap\n");
+        return 2;
+    }
+    /* One line of evidence that 0x3b000 is the right number for the port and
+       not just for the DS: the free space in the game heap right after the
+       carve, and again at the end of a selftest. The DS budget is the budget. */
+    fprintf(stderr, "[heap] game heap %p, 0x%x bytes, %u free after boot\n",
+            data_020a0eac_c, 0x3b000u,
+            _ZN22ExpandingHeapAllocator10MemoryLeftEv(
+                *(void **)((char *)data_020a0eac_c + 0x14)));
+
+    /* and the tail of func_0201a054, after its own InitializeGameHeap line:
+       the fade word pair and the fatal-vector pair that ends the function. */
+    port_boot_rom_game_init_tail();
 
     /* Game mode 0 (adventure) -- LoadClsnAndObjects branches its minimap
        and HUD spawns on this, and Stage::CheckInput reads it later. */
     data_0209f2d8 = 0;
+
+    /* ---- VS wiring lane: THE VS BOOT --------------------------------------
+       SM64DS_VS_MAP=<0..3> makes this boot a VS match on the ROM's own map
+       list. The ORDER IS THE ROM'S (port/slice_vs.txt section 4): one byte
+       (the lobby's own map pick) and one matched call, func_ov075_02116c8c,
+       which runs PrepareVsMode -- data_0209f2d8 back to 1, SetPlayerGlobals,
+       StartSceneFade(3), the save defaults -- then LoadLevelNoReturn(map, 0,
+       2, 0) and the music stop. Placed AFTER the adventure default above so
+       the ROM's own mode write is the one that stands, and after the game
+       heap so the staged path allocates like the DS does.
+
+       The staged level then flows through the port's ONE latch
+       (port_level_entry_latch, the title-entry seam) into the boot target,
+       and the scene-3 request is released because the level path is serving
+       it -- the same two moves hal/title_entry.cpp makes for StartFile. The
+       entrance and star filter the ROM staged (0 and 2) are re-asserted via
+       the env the direct boot re-seats from, so the boot's own defaults
+       cannot overwrite the ROM's values. */
+    {
+        const char *vsm = getenv("SM64DS_VS_MAP");
+        if (vsm && vsm[0]) {
+            /* the mount registry fills on the level boot below; asking
+               is_mounted before it is filled refuses every map (measured on
+               the first proof run). The call is idempotent. */
+            port_level_mounts_install();
+            const int mi = atoi(vsm) & 3;
+            const int vlv = port_vs_map_level(mi);
+            const char *vmode = getenv("SM64DS_VS_MODE");
+            if (vmode && vmode[0] && atoi(vmode) != 0)
+                fprintf(stderr, "[vs] SM64DS_VS_MODE=%s: the ROM's VS has "
+                        "exactly one mode (the star battle); reported and "
+                        "ignored\n", vmode);
+            if (!port_level_is_mounted(vlv)) {
+                fprintf(stderr, "[vs] REFUSED: VS map %d is level %d "
+                        "(overlay %d), not mounted in this build -- not "
+                        "booting\n", mi + 1, vlv, port_level_overlay_id(vlv));
+                return 2;
+            }
+            port_vs_stage_and_start(mi);
+            {
+                const int staged = port_level_entry_latch();
+                if (staged != vlv) {
+                    fprintf(stderr, "[vs] REFUSED: the ROM's own start staged "
+                            "level %d where the map list says %d -- not "
+                            "booting a level the ROM did not ask for\n",
+                            staged, vlv);
+                    return 2;
+                }
+                port_level_set_target(staged);
+                port_scene_request_release("the VS start staged the map and "
+                                           "the level boot is serving it");
+                /* _putenv_s, NOT SetEnvironmentVariableA, and the difference
+                   is the whole reason the ROM's staged star never arrived.
+                   These two are read back by THIS process -- hal/level_boot.cpp
+                   seats data_0209f264 and data_0209f220 from std::getenv a few
+                   thousand lines into the same run -- and MSVC's getenv answers
+                   out of the CRT's own copy of the environment, which
+                   SetEnvironmentVariableA does not touch. It edits the Win32
+                   block, which is what a CHILD process inherits.
+
+                   THE OTHER SetEnvironmentVariableA CALLS IN THIS FILE ARE
+                   CORRECT AND MUST NOT BE "FIXED" TOO. Every one of them
+                   (port_menu_relaunch_* around 2765-2823) is setting up the
+                   environment of a relaunched child, which is exactly what the
+                   Win32 block is for. This pair is the only place the value has
+                   to reach a getenv in the same process.
+
+                   port/tests/smoke_persist.cpp:423-429 documents this exact
+                   trap, in this tree, in these words -- and it still fired here.
+                   Measured: with SetEnvironmentVariableA the VS boot seated star
+                   1 (the default) instead of the 2 the ROM staged, so
+                   Stage::InitResources' VS sound branch never armed and
+                   LoadObjects filtered the arena's objects on the wrong group. */
+                _putenv_s("SM64DS_ENTRANCE", "0");
+                _putenv_s("SM64DS_STAR_FILTER", "2");
+                fprintf(stderr, "[vs] ENTERING VS: map %d of 4 -> level %d "
+                        "(overlay %d), star filter 2, VS mode flag %d "
+                        "(PrepareVsMode's own write)\n", mi + 1, staged,
+                        port_level_overlay_id(staged), (int)data_0209f2d8);
+            }
+        }
+    }
 
     /* The collision object itself is the harness's either way; what fills it
        is the question. Under SM64DS_REAL_BOOT the game's own
@@ -2424,7 +9383,7 @@ int main(void)
         g_mc = stage + 0x91c;
     } else {
         g_mc = mc_storage;
-        _ZN12MeshColliderC1Ev(mc_storage);
+        _ZN7dBgW_KcC1Ev(mc_storage);
     }
     if (real_boot) {
         /* Door and exit stay off in both stages -- their actors are Stage B.
@@ -2432,75 +9391,53 @@ int main(void)
            sub-table is dropped, which is stage A1: geometry only. */
         if (boot_spawns)
             port_stage_a2_seat();
-        /* character select at boot: the seat defaults to Mario (0); the
-           entrance spawn reads the per-player slot, so park the choice
-           before the boot runs. The save byte mirrors it. */
-        if (boot_spawns && g_character >= 0 && g_character <= 3) {
-            data_02092128[0] = (unsigned char)g_character;
-            data_0209cad2[0x41 - 0x32] = (unsigned char)g_character;
-            printf("[mod] boot character %s\n",
-                   character_name(g_character));
+        /* SM64DS_CHARACTER=0..3 (Mario, Luigi, Wario, Yoshi). It goes in HERE,
+           before the boot, because LoadEntranceObjects reads the save byte to
+           build the Player's spawn param and Player::InitResources loads that
+           character's models and no others. Setting it after the spawn gets a
+           Player whose model slot is null. */
+        if (const char *cs = getenv("SM64DS_CHARACTER")) {
+            character_set_pending(atoi(cs));
+            fprintf(stderr, "[char] spawning %s\n",
+                    CHAR_NAME[g_character_pending & 3]);
         }
         void *lvl = port_stage_a_boot(g_mc, boot_spawns);
         level_bmd = *(unsigned short *)((char *)lvl + 8);
-        port_stage_a_probe(g_mc);
+        {
+            const double t0 = port_lvlperf_now();
+            port_stage_a_probe(g_mc);
+            port_lvlperf_note(3, port_lvlperf_now() - t0);
+        }
+        /* PORT_WATCH_FADER=1: who writes the INSTALLED fader's vtable
+           pointer. LoadEntranceObjects installs it during this boot (the
+           r0 ride-through, port/unmatched/LoadEntranceObjects.cpp), and
+           HUD::Behavior dispatches IsAtStart through it every frame, so a
+           write there is fatal a long way from the writer. */
+        if (getenv("PORT_WATCH_FADER") && data_0209f5bc) {
+            fprintf(stderr, "[fwatch] arming write-watch on fader %p "
+                    "(wipes at %p, stride %u)\n", data_0209f5bc,
+                    *(void **)&data_0209f324,
+                    (unsigned)((char *)data_0209f5bc -
+                               (char *)*(void **)&data_0209f324));
+            port_watch_words(data_0209f5bc, 1);
+        }
         if (boot_spawns) {
             port_stage_tree_probe(data_0209f394[0], "PLAYER");
-            port_actor_census();
-            port_actor_lists_probe();
-            /* SM64DS_TRACE_JUMPTAB=1: dump the jump-physics PMF table rows
-               (adj, ptr pairs). Diagnosing the DEP jump into a raw DS
-               helper from St_Jump_Main's dispatch. */
-            if (getenv("SM64DS_TRACE_JUMPTAB")) {
-                extern int data_ov002_0211073c[];
-                for (int r = 0; r < 16; ++r)
-                    printf("[jumptab] row %d adj=%08x ptr=%08x%s\n", r,
-                           (unsigned)data_ov002_0211073c[r * 2],
-                           (unsigned)data_ov002_0211073c[r * 2 + 1],
-                           (data_ov002_0211073c[r * 2 + 1] & 1)
-                               ? " virt"
-                               : " RAW");
-                /* state-object census: first word (Main fn) of candidate
-                   states, to identify the LongJump state for the dive. */
-                printf("[states] 119c=%08x 11b4=%08x 113c=%08x 0514=%08x "
-                       "0154=%08x\n",
-                       *(unsigned *)data_ov002_0211019c,
-                       *(unsigned *)data_ov002_021101b4,
-                       *(unsigned *)data_ov002_0211013c,
-                       *(unsigned *)data_ov002_02110514,
-                       *(unsigned *)data_ov002_02110154);
-                /* anim-file slots around the LongJump anim (0x1a*4+char):
-                   empty here means SetAnim loads nothing. */
-                extern int data_ov002_020ff480[];
-                for (int s = 100; s <= 112; ++s) {
-                    char *sfp =
-                        *(char **)&data_ov002_020ff480[s];
-                    printf("[anims] slot[%d]=%p id=%u refs=%u file=%p\n",
-                           s, (void *)sfp, sfp ? *(unsigned short *)sfp : 0,
-                           sfp ? *(unsigned char *)(sfp + 2) : 0,
-                           sfp ? *(void **)(sfp + 4) : 0);
-                }
-                {
-                    unsigned *w = (unsigned *)data_ov002_0210a504;
-                    for (int i = 0; i < 0xFC / 4; ++i) {
-                        if (w[i] == 0x020e1238 || w[i] == 0x020e127c)
-                            printf("[ljscan] ds=%08x val=%08x\n",
-                                   0x0210a504u + (unsigned)i * 4u, w[i]);
-                    }
-                    /* full-record shape compare: suspected LongJump record
-                       vs a known state object. */
-                    unsigned *lj =
-                        (unsigned *)((char *)w + (0x524 - 0x504));
-                    unsigned *st = (unsigned *)data_ov002_0211013c;
-                    printf("[ljrec] lj+0=%08x +4=%08x +8=%08x +c=%08x "
-                           "+10=%08x +14=%08x\n",
-                           lj[0], lj[1], lj[2], lj[3], lj[4], lj[5]);
-                    printf("[ljrec] st+0=%08x +4=%08x +8=%08x +c=%08x "
-                           "+10=%08x +14=%08x\n",
-                           st[0], st[1], st[2], st[3], st[4], st[5]);
-                }
+            /* SM64DS_SPAWN_ACTOR=<id>[:<param>][@<area>][,...]: put one actor of each
+               named class at the player, through the level's own spawn path.
+               Fired here, after the entrance made the player and before the
+               census, so an env-spawned class is counted with the rest. */
+            port_debug_spawn_env();
+            {
+                const double t0 = port_lvlperf_now();
+                port_actor_census();
+                port_lvlperf_note(2, port_lvlperf_now() - t0);
             }
+            port_actor_lists_probe();
         }
+        /* the direct boot's one [lvl-perf] line; a warp's comes from
+           hal/level_change.cpp at the end of the change */
+        port_lvlperf_emit();
     }
 
     void *player;
@@ -2510,26 +9447,85 @@ int main(void)
            0 -- position, rotation, area and entrance type all the level's
            own, and Player::InitResources already run through the spawn
            spine's init Process. */
-        player = data_0209f394[0];
+        /* run mg16 lane MP3, field failure: THE LOCAL PLAYER IS NOT ALWAYS
+           SLOT 0. This took data_0209f394[0] unconditionally, which is right on
+           a console that is player 1 and wrong on every other one. On the child
+           it made the harness's whole notion of "me" -- the camera target, the
+           body the walk states drive, the actor every debug readout follows --
+           point at the HOST's character. That is the owner's "P2 shows me as
+           Mario when I should be Luigi", and it is a different bug from the pad
+           clobber that shared the symptom.
+
+           data_0209f250 is the ROM's own "which player am I", seated from
+           func_0203da9c() (my comms slot). Falls back to slot 0 when the slot
+           is out of range or its actor did not spawn, because a harness that
+           refuses to boot is worse than one that boots as player 0 and says
+           so. */
+        {
+            int me = (int)data_0209f250;
+            /* run vs16: kPortMaxPlayers, not 4. This literal was the ONE thing
+               standing between a five-player session and a five-player match:
+               the wire paired, the fifth body spawned, data_0209f394[4] held a
+               real actor -- and the harness threw all of it away and followed
+               slot 0's body instead, because its range check still believed
+               the roster was four wide. It said so in its own log line every
+               run, which is the only reason it took minutes rather than
+               hours. */
+            if (me < 0 || me >= kPortMaxPlayers || !data_0209f394[me]) {
+                if (me != 0)
+                    fprintf(stderr,
+                            "[vs] local player index %d has no actor; the "
+                            "harness is falling back to slot 0\n", me);
+                me = 0;
+            }
+            player = data_0209f394[me];
+            if (me != 0)
+                fprintf(stderr,
+                        "[vs] this window is player %d; the camera and the "
+                        "walk states follow data_0209f394[%d]\n", me, me);
+        }
         if (!player) {
             fprintf(stderr, "the entrance spawned no player\n");
             return 3;
         }
     } else {
-        player = _ZN9ActorBasenwEj(0x800);
+        player = _ZN7fBase_cnwEj(0x800);
         _ZN6PlayerC1Ev(player);
         if (hal_player_init_resources(player) != 1) return 3;
     }
 
     /* the castle grounds floor, gate-8 recipe */
     char *c = (char *)player;
+
+    /* Read the character back off the Player the spawn actually produced,
+       rather than assuming the save byte got through. Zeroed storage gives 0,
+       which IS Mario, but that is a property of the entrance param and not a
+       guarantee worth leaning on. */
+    g_character = *(unsigned char *)(c + 0x6d9) & 3;
+    g_character_pending = g_character;
+
+    /* SKIP THE CHARACTER INTRO CUTSCENE, which the other three spawn with and
+       Mario does not. func_ov002_020c4188 is that cutscene's state machine,
+       entered whenever +0x71e is nonzero, and it is built on two things the
+       port does not have: the Message box (func_0201f32c, guarded to a no-op
+       in hal/level_boot.cpp) and the camera-script calls that follow it. With
+       the message guarded it simply faults one step further along, on the
+       object the message was supposed to have made. Zeroing the cutscene id is
+       the honest version of "not hosted": the state machine returns on its
+       first line and the character just plays. No-op for Mario, who arrives
+       with it already 0. */
+    if (*(unsigned char *)(c + 0x71e) && !getenv("SM64DS_INTRO_CUTSCENE")) {
+        fprintf(stderr, "[char] skipping intro cutscene %u (not hosted)\n",
+                (unsigned)*(unsigned char *)(c + 0x71e));
+        *(unsigned char *)(c + 0x71e) = 0;
+    }
     if (!real_boot) {
         static struct { unsigned short id; unsigned char refs; void *p; } kp;
         _ZN13SharedFilePtr9ConstructEj(&kp, 1941);
-        char *kcl = (char *)_ZN12MeshCollider8LoadFileER13SharedFilePtr(&kp);
+        char *kcl = (char *)_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(&kp);
         if (!kcl) return 4;
         static char clps[0x100];
-        _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
+        _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
                                                           clps);
         /* ROOT CAUSE (found 2026-08-02): the level collider's OWNER feeds
            func_02035354's self-collision exclusion. Enabling it with the
@@ -2546,7 +9542,7 @@ int main(void)
            probes (hal_ground_ray / hal_line_ray) work under a NULL owner
            either way. SM64DS_FAKE_SNAP=1 brings the harness ground snap
            back on top for shots that need Mario planted. */
-        _ZN16MeshColliderBase6EnableEP5Actor(
+        _ZN4dBgW6EnableEP8dActor_c(
             mc_storage, fake_snap ? (void *)player : (void *)0);
         /* NO SCALE PAIR HERE ANY MORE. world = KCL raw << 6 is the walk's
            own business now (the ROM's `asr #6`, see
@@ -2580,14 +9576,9 @@ int main(void)
                (unsigned short)*(short *)(c + 0x8e), *(void **)(c + 0x370),
                *(unsigned char *)(c + 0x6e3), *(unsigned char *)(c + 0x6e5),
                *(unsigned *)(c + 0x670));
-         if (getenv("PORT_WATCH_POS"))
-             port_watch_words(c + 0x5c, 3);
-         /* SM64DS_WATCH_HOLD=1: break on writes to the held-actor slot.
-            Diagnosing the swim-stroke crash that reads c+0x358. */
-         if (getenv("SM64DS_WATCH_HOLD"))
-             port_watch_words(c + 0x358, 1);
+        if (getenv("PORT_WATCH_POS"))
+            port_watch_words(c + 0x5c, 3);
     }
-    g_live_player = player;
     /* THE RADIUS LEVER IS NOT HERE. WithMeshClsn+0x18 is the radius
        UpdateExtraContinous hands to SphereClsn::SetObjAndSphere and +0x1c the
        vertical offset it adds to pos first, but Player::Behavior RECOMPUTES
@@ -2612,7 +9603,15 @@ int main(void)
     int level_shift = 0;
     if (real_boot) {
         level_model = stage + 0x86c;
-        _ZN5Stage9LoadModelEv(stage);
+        /* Stage::LoadModel IS NOT CALLED HERE ANY MORE (run link60, lane SL0).
+           It runs inside port_stage_boot_body, ahead of
+           Stage::LoadClsnAndObjects, which is the order Stage::InitResources
+           has it in (:361 then :363). The harness used to call it after the
+           whole boot, which left data_0209f320 null for the object pass and
+           cost level 40 its ten id-167 platforms. Calling it again here would
+           be the second rebase hal/level_boot.cpp's block warns about, so the
+           call MOVED rather than being added there. The model is already
+           loaded by this point; the reads below just pick up the result. */
         /* ModelBase+0x04 is the loaded BMD (include/ModelBase.h); its header
            word 0 is the scaleShift, which is 1 for the castle. */
         void *bmd = *(void **)(level_model + 0x04);
@@ -2620,6 +9619,16 @@ int main(void)
         printf("level model loaded by Stage::LoadModel, handle %u, "
                "scaleShift %d, components %p\n", level_bmd, level_shift,
                (void *)(size_t)data_0209f320);
+        /* the SKYBOX, InitResources' last load: LoadSkybox reads the
+           LVL_Overlay's skybox id (castle grounds: 1 -> data_02075620[0] =
+           handle 2040 = data/vrbox/vr01.bmd), news a Model off the game heap
+           and parks it at Stage+0x9bc; port_stage_render_skybox draws it in
+           front of the opaque pass, glued to the camera eye. Id 0 leaves
+           +0x9bc NULL and both sides no-op, same as the ROM. */
+        _ZN5Stage10LoadSkyboxEv(stage);
+        printf("skybox loaded by Stage::LoadSkybox, id %u, model %s\n",
+               _ZN5Stage11GetSkyboxIDEv(),
+               *(void **)(stage + 0x9bc) ? "set" : "none");
     } else {
         static struct { unsigned short id; unsigned char refs; void *p; } mp;
         _ZN13SharedFilePtr9ConstructEj(&mp, level_bmd);
@@ -2637,16 +9646,37 @@ int main(void)
     /* diagnostic: a direct ground ray at the spawn separates a filter
        problem (player flags) from a registry problem (nothing hittable) */
     {
+        /* NOT CAPTURED, and it does not need to be. RELOADRV's reverse scan
+           named this buffer because its +12 word holds the Player (30039f38)
+           -- but that word is an OUTPUT: RaycastGround's constructor runs over
+           the whole 0x50 on the next line and SetObjAndPos writes the object
+           before DetectClsn reads it, every time. A function-scope static that
+           is fully re-constructed before every read cannot carry a stale
+           pointer into a use. (It is a static rather than a local only so the
+           address is stable for the printf walk below.) */
         static char rg[0x50];
         int pos[3] = {*(int *)(c + 0x5c), *(int *)(c + 0x60),
                       *(int *)(c + 0x64)};
-        _ZN13RaycastGroundC1Ev(rg);
-        _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(rg, pos, player);
+        _ZN9dBgCh_GndC1Ev(rg);
+        _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(rg, pos, player);
         rg[4] |= 1;   /* BgCh collide-ordinary (the gate-8 predicate bit) */
         *(int *)(rg + 0x4c) = 0x100000;   /* reach: 256 units down */
-        int hit = _ZN13RaycastGround10DetectClsnEv(rg);
-        printf("ground probe at spawn: hit=%d ground_y=%d (%.1f units)\n",
-               hit, *(int *)(rg + 0x3c), *(int *)(rg + 0x3c) / 4096.0f);
+        int hit = _ZN9dBgCh_Gnd10DetectClsnEv(rg);
+        /* +0x44 is the HIT, +0x3c is where the ray STARTED. This line printed
+           +0x3c under the name "ground_y" and was read as a collision signal
+           for exactly as long as nobody checked it: include/RaycastGround.h
+           pins 0x038 as the probe position (so +0x3c is its .y) and 0x044 as
+           "the collision height in Fix12i: the search seed on entry, the hit
+           on exit", with 0x048 the has-collision byte. The tell was in the
+           data -- the old number read 1700.0 in every level-6 arm of the
+           stage-geom proof, stock and fully-replaced collision alike, and a
+           real hit height cannot be invariant across that. Both are printed
+           now, each under its own name, because the origin is still worth
+           seeing next to the hit. */
+        printf("ground probe at spawn: hit=%d clsn_y=%d (%.1f units) "
+               "has_clsn=%d ray_origin_y=%.1f\n",
+               hit, *(int *)(rg + 0x44), *(int *)(rg + 0x44) / 4096.0f,
+               rg[0x48], *(int *)(rg + 0x3c) / 4096.0f);
         {
             extern void *data_020a0c80[];
             int direct = ((int(__fastcall *)(void *, void *, void *))(
@@ -2705,13 +9735,13 @@ int main(void)
                 for (int gx = -8000; gx <= 8000; gx += step) {
                     static char rgw[0x50];
                     int pos[3] = {gx << 12, 6000 << 12, gz << 12};
-                    _ZN13RaycastGroundC1Ev(rgw);
-                    _ZN4BgCh19StartDetectingWaterEv(rgw);
-                    _ZN4BgCh21StopDetectingOrdinaryEv(rgw);
-                    _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(
+                    _ZN9dBgCh_GndC1Ev(rgw);
+                    _ZN5dBgCh19StartDetectingWaterEv(rgw);
+                    _ZN5dBgCh21StopDetectingOrdinaryEv(rgw);
+                    _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(
                         rgw, pos, player);
                     *(int *)(rgw + 0x4c) = 12000 << 12;
-                    int wet = _ZN13RaycastGround10DetectClsnEv(rgw) &&
+                    int wet = _ZN9dBgCh_Gnd10DetectClsnEv(rgw) &&
                               SurfaceInfo_TestFlag0x20((int *)(rgw + 0x14));
                     int wy = *(int *)(rgw + 0x44);
                     int gy = 0;
@@ -2732,19 +9762,71 @@ int main(void)
     data_020a0e40[0] = 0;
     /* input processor staging: route Stage::CheckInput to its main
        path (mode flags), one controller, pad 0 active, mode 0 (D-pad
-       drives the stick fields) */
-    data_0209caa0[2] |= 0x80;
+       drives the stick fields)
+
+       TWO OF THESE THREE LINES RUN AFTER THE LEVEL BOOT AND UNDO IT.
+       port_stage_a_boot is called ~350 lines above; on the entrance path the
+       ROM's own Stage::LoadClsnAndObjects has by then taken its intro branch
+       and called StartIntroCutscene, which seats data_0209fc48 with the
+       opening's first script. `data_0209fc48 = 0` then throws that script away
+       before its second frame, and `data_0209caa0[2] |= 0x80` marks the
+       opening SEEN before it has played a frame -- the bit the ROM's own ov085
+       state writes at the end of the flight. Measured: the cast spawned, one
+       ProcessKuppaScript ran (cursor 0 -> 1), and the script pointer was 0 at
+       the first CutsceneObject::Behavior, so the cursor froze at 1 and the
+       camera held one pose for 1800 frames.
+
+       This is the same "two seats for one fact, and the later one silently
+       won" shape the player-count note below records, and it is why the intro
+       lane's removal of the force-set in hal/level_boot.cpp was not enough:
+       there was a second one here.
+
+       THE GUARD IS THE ROM'S OWN WORD, not a new flag. data_0209fc48 is
+       non-zero only when a cutscene script is actually running, which on a
+       level boot happens on exactly one path -- the opening. Every other boot
+       reaches this line with it already 0, so both lines run exactly as they
+       always have and the default path is unchanged. data_0209d660 is not part
+       of the pair and is left unconditional. */
+    if (data_0209fc48 == 0) {
+        data_0209caa0[2] |= 0x80;
+        data_0209fc48 = 0;              /* already 0 here; kept for the diff */
+    } else {
+        fprintf(stderr, "[intro] a cutscene script is running (%p): leaving "
+                        "flags2 bit 7 clear and the script seated -- the "
+                        "harness staging would have ended the opening here\n",
+                (void *)(size_t)data_0209fc48);
+    }
     data_0209d660 = 0;
-    data_0209fc48 = 0;
-    data_0209f21c = 1;
+    /* run mg16 lane MP3: THE SECOND SEAT, and the one that was actually
+       winning. hal/level_boot.cpp's a2 seat sets the player count too, and this
+       line runs after it -- so seating two players there and reading one here
+       is exactly what the VS probe measured: the boot log said "2 players" and
+       the probe reported count=1 with slot1 NULL on every frame of a 300-frame
+       run. Two seats for one fact, and the later one silently won. */
+    data_0209f21c = (unsigned char)port::vs_player_count();
     data_0209f350[0] = 0;
-    /* the ROM's button-remap tables are DS pointers (0x0207xxxx) the
-       host has no image behind; buttons are written directly to the
-       Ctrl fields anyway, so give CheckInput's remap loop zeros */
+    /* run mg16 lane MPBTN: THE REAL REMAP MAPS, and retiring the zeros that
+       sat here. This line used to point all four entries at a zero map,
+       because "buttons are written directly to the Ctrl fields anyway" -- and
+       that premise died the day the direct Ctrl stores were gated off in a
+       session (the third-writer gate below, 0f0d5e134). From then on the ROM's
+       own button path -- key register, local record, wire, fan-out into
+       PadData, CheckInput's remap -- was the ONLY path, and its last step
+       multiplied every button by zero. The maps are Nintendo's own bytes now
+       (port/tools/romdata.py), so a fanned pad word turns into exactly the
+       Ctrl bits the DS would have produced, for every slot.
+
+       The pointer table data_0209214c itself is also hosted ROM bytes, but
+       its words are DS ADDRESSES (0x02075650..) -- the relocated-pointer-table
+       class -- so it is repointed here, never dereferenced as emitted. Mode 3
+       keeps a zero map: the ROM's fourth word is not a map (it points into
+       unrelated data) and no staged pad ever selects mode 3. */
     {
         static unsigned short zero_btn_map[32];
-        for (int i = 0; i < 4; ++i)
-            ((unsigned short **)data_0209214c)[i] = zero_btn_map;
+        ((unsigned short **)data_0209214c)[0] = (unsigned short *)data_02075650;
+        ((unsigned short **)data_0209214c)[1] = (unsigned short *)data_02075670;
+        ((unsigned short **)data_0209214c)[2] = (unsigned short *)data_02075690;
+        ((unsigned short **)data_0209214c)[3] = zero_btn_map;
     }
     /* InitResources parked the state machine in St_LevelEnter, which was a
        no-op state under the fake spawn context: its entrance-anim table read
@@ -2834,76 +9916,193 @@ int main(void)
                *(int *)((char *)cam + 0xfc), *(int *)((char *)cam + 0x100));
     }
 
-    /* window. Widescreen (MODS/F5, persisted) opens a 16:9 client and
-       stretches the 4:3 framebuffer into it -- anamorphic widescreen, the
-       same tradeoff the N64 PC ports shipped first. The framebuffer itself
-       stays 512x384 so the raster, the selftest BMPs and the sub panel
-       are untouched. */
-    int win_client_w = ntr::SCREEN_W * ZOOM;
-    int win_client_h = ntr::SCREEN_H * ZOOM;
-    if (g_widescreen) {
-        win_client_w = 1280;
-        win_client_h = 720;
+    /* GATE 35: the course loop's own boot. After the level and the entrance,
+       because it reads data_0209f2f8 for the sound row and wants the Player
+       already spawned; before the frame loop, because the health words it
+       seats are what the HUD's first Behavior reads.
+       SM64DS_NO_COURSE_SEAT=1 goes back to the gate-28 state: the single
+       hand-written health word above, no lives, no music, and the queued
+       character swap left reading as pending. */
+    if (real_boot && !getenv("SM64DS_NO_COURSE_SEAT"))
+        port_course_seat();
+
+    /* window. The class, the styles, the DC and the two DIB headers are
+       host_window_open's now (see its banner), because the windowed scene
+       runner opens the same window and a second copy of that block is a second
+       place for CS_OWNDC or WS_THICKFRAME to be got wrong.
+
+       THE MODE IS READ HERE AND IT LATCHES HERE: the window is created once,
+       and a layout that could change after this point would leave the picture
+       and the frame permanently out of step. On the LEVEL path the answer can
+       only ever come from SM64DS_DUAL_SCREEN, because nothing proposes on a
+       level; a minigame's own default is proposed in the scene runner, which
+       main hands over to well above this line.
+
+       ONE ROUTE REACHES THIS LINE WITH THE MODE ALREADY DECIDED BY A SCENE, and
+       it is the title-entry fall-through: the title proposed stacked, a window
+       was opened to it, and the adventure is arriving in that window. That
+       route re-derives the mode and re-shapes the window at the fall-through,
+       above, and by this line the answer is the level's own again. Nothing in
+       this block changed; what changed is that the value it reads is no longer
+       necessarily the first one anybody asked for. */
+    const int stacked = hal_sub_screen_stacked();
+    HDC hdc = 0;
+    HWND hwnd = 0;
+    /* A TITLE-ENTRY RUN ARRIVES HERE WITH A WINDOW ALREADY OPEN and reuses it,
+       rather than leaving the title's window standing and opening a second one
+       beside it. Only a windowed title run can satisfy both tests; a headless
+       one recorded no handle and takes the ordinary open below. */
+    if (port_title_entry_taken() && g_entry_hwnd) {
+        hwnd = g_entry_hwnd;
+        hdc = g_entry_hdc;
+        fprintf(stderr, "[title-entry] reusing the title's own window for the "
+                        "adventure (one window, one game)\n");
+    } else {
+        hwnd = host_window_open(
+            stacked, &hdc,
+            "SM64DS   |   WASD move   Shift dash   Space jump"
+            "   X punch   Ctrl crouch   |   Q/E turn   R/F"
+            " tilt   |   F1 camera   F3 stats   F5 or Esc menu"
+            "   F12 fullscreen   Tab panel");
     }
-    if (!g_logo_tried) {
-        g_logo_tried = 1;
-        if (!port_logo_load(g_logo))
-            printf("[logo] no logo.bmp beside the exe: text wordmark\n");
+    if (!hwnd) {
+        fprintf(stderr, "the window did not open (win32 %lu)\n",
+                (unsigned long)GetLastError());
+        return 2;
     }
-    WNDCLASSA wc = {};
-    wc.lpfnWndProc = wndproc;
-    wc.hInstance = GetModuleHandleA(0);
-    wc.hCursor = W.LoadCursorA_(0, (LPCSTR)IDC_ARROW);
-    if (W.LoadIconA_)
-        wc.hIcon = W.LoadIconA_(wc.hInstance, (LPCSTR)(size_t)1);
-    wc.lpszClassName = "sm64ds_walk";
-    W.RegisterClassA_(&wc);
-    RECT r = {0, 0, win_client_w, win_client_h};
-    W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME, FALSE);
-    HWND hwnd = W.CreateWindowExA_(0, "sm64ds_walk",
-                              "SM64DS COOP -- T chat, F5 menu, ESC quit",
-                              (WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME) |
-                                  WS_VISIBLE,
-                              CW_USEDEFAULT, CW_USEDEFAULT,
-                              r.right - r.left, r.bottom - r.top, 0, 0,
-                              wc.hInstance, 0);
-    if (g_widescreen)
-        printf("[mod] widescreen window %dx%d (4:3 frame stretched)\n",
-               win_client_w, win_client_h);
-    HDC hdc = W.GetDC_(hwnd);
-    BITMAPINFO bi = {};
-    bi.bmiHeader.biSize = sizeof bi.bmiHeader;
-    bi.bmiHeader.biWidth = ntr::SCREEN_W;
-    bi.bmiHeader.biHeight = -ntr::SCREEN_H;   /* top-down */
-    bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = 32;
-    bi.bmiHeader.biCompression = BI_RGB;
 
     /* SM64DS_WINDOW_SELFTEST=N: run N frames with W held, dump the last
        framebuffer next to the exe, exit -- CI-checkable without a user */
     const char *st = getenv("SM64DS_WINDOW_SELFTEST");
     const int selftest = st ? atoi(st) : 0;
-    /* headless runs have no one to dismiss the front menu, and its keys are
-       off under a selftest by design -- so start past it. Otherwise the tick
-       stays paused and the run proves boot + render only.
-       SM64DS_SELFTEST_MENU=1 keeps the menu up (still no input) and draws
-       the HUD into the BMP: a screenshot of the menu over live gameplay. */
-    if (selftest && !getenv("SM64DS_SELFTEST_MENU")) front_on = 0;
-    /* SM64DS_AUTOPLAY=1: skip the front menu and start offline. Headless
-       smoke runs (rate proofs, soak tests) have no hands to press Host. */
-    if (getenv("SM64DS_AUTOPLAY")) front_on = 0;
-    if (selftest && getenv("SM64DS_SELFTEST_MENU")) {
-        /* SM64DS_SELFTEST_MENUPAGE=N shot a subpage (0 home, 1 options,
-           2 files, 3 mods, 4 lobby, 5 character, 6 player, 7 controls,
-           8 camera, 9 display, 10 sound, 11 misc, 12 info) */
-        if (getenv("SM64DS_SELFTEST_MENUPAGE"))
-            front_page = atoi(getenv("SM64DS_SELFTEST_MENUPAGE")) % 13;
-        toast("Welcome to SM64DS COOP");
-    }
+    /* rung R3b step B2: the pump reads this from file scope, because under
+       R3d its caller is hal/boot2_thread.cpp and not this function. */
+    g_selftest_frames = selftest;
+    /* The agreed stop round for a lockstep selftest; see the check at the
+       end of the frame loop. Selftest only, and 0 means "frame budget". */
+    const char *sr = getenv("SM64DS_COMMS_STOP_ROUND");
+    const unsigned long long stop_round =
+        (selftest && sr) ? (unsigned long long)atoll(sr) : 0ull;
+    /* Live input, gated. key_live and its stale-key table are at file scope
+       now (see their banner up there): the three gates inside them -- the
+       selftest, the rebind capture and the window focus -- have two frame
+       loops to serve since the scene path got a window, and three gates in two
+       copies is three gates to keep in step. This is the one line that arms
+       the first of them, from main's own local so the local stays the reader
+       everything else in this function uses. */
+    g_selftest = selftest;
+    int focus_was = 1;   /* launch focused = launch unchanged */
     int frame = 0;
+    /* R3a: the ROM's frame state takes over as the harness's frame number from
+       here. `frame` stays, as the cross-check the accessor is measured against
+       and as the loop's own control variable. */
+    port_rom_frame_begin("level loop");
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
     const int trace_cam = getenv("SM64DS_TRACE_CAM") != 0;
+    /* Which way the camera turns when the player pushes a camera control to
+       the right, as a signed step on the camera's heading. -1 by default:
+       push right, pan right. settings.json's SwapCameraTurnDirection returns
+       +1, which is what this program did before. Read once at boot, like the
+       volume, so it takes effect the next time the player presses Play.
+
+       EVERY horizontal camera control below multiplies by this one value --
+       Q and E, the right stick, the bumpers, the mouse, and all three camera
+       modes -- so no two of them can end up disagreeing about which way is
+       right. See port/hal/host_settings.h for the measurement the default
+       comes from; the DS has none of these controls, so there was never a
+       hardware binding to be faithful to. */
+    const int cam_turn = host_camera_turn_sign();
+    /* HOW RUNNING WORKS, read once at boot beside the camera setting and for
+       the same reason: a change takes effect the next time the player presses
+       Play, except that this one can also be changed from the menu, which
+       writes it straight back to settings.json.
+
+       A SELFTEST IS PINNED TO THE DEFAULT. Every automated run reads no live
+       key and no live pad already (key_live and pad_live both return nothing
+       under one), so leaving the mode free would only mean a settings.json
+       that happened to be beside the exe could move a comparator run -- and a
+       comparator run that quietly depends on a player's preferences file is
+       worse than no comparator. run_mode() is the one value the rest of the
+       loop reads, so that pin is a single line rather than a gate per use.
+       Nothing can move g_run_mode under a selftest either -- the menu is the
+       only writer and the whole menu block is behind !selftest -- so the pin
+       is belt and braces on top of that, not the only thing holding it. */
+    g_run_mode = host_setting_run_mode();
+    g_run_key = host_setting_run_key();
+    g_run_pad = host_setting_run_pad();
+    /* MouseCapture's boot value. Re-read live below beside the volume, and
+       needing no selftest pin of its own: mo_capture_want refuses a selftest
+       outright, which is the same belt-and-braces shape the run mode has. */
+    mo_capture_opt = host_setting_mouse_capture();
+    auto run_mode = [&]() -> int { return selftest ? RUN_BUTTON : g_run_mode; };
+    /* said once at boot whatever it is, unlike the settings loader's
+       off-default-only line: "which run mode was this player in" is the first
+       question a movement report raises, and a support log that only mentions
+       the setting when it is non-default cannot answer it */
+    {
+        char kb[16], pb[16];
+        fprintf(stderr, "[run] mode %s, run on %s / %s%s\n",
+                RUN_MODE_NAME[run_mode()],
+                run_key_name(g_run_key, kb, sizeof kb),
+                run_pad_name(g_run_pad, pb, sizeof pb),
+                selftest && g_run_mode != RUN_BUTTON
+                    ? "   (selftest: pinned to button)" : "");
+    }
+    /* THE BINDINGS, said once at boot for the same reason the run line is,
+       and in the same words the menu uses. This is also the line a headless
+       LEVEL check reads: a settings.json that moves jump must show up here
+       even in a run that never reads a live key. Only the level path reaches
+       it: a scene run (SM64DS_SCENE) returns from main before this block,
+       and a headless scene run never asks a binding getter at all. */
+    bindings_load();
+    {
+        char b[HOST_KEY_COUNT][20];
+        fprintf(stderr, "[keys] walk %s %s %s %s (alt %s %s %s %s) jump %s attack %s "
+                        "crouch %s start %s select %s\n",
+                run_key_name(g_key[HOST_KEY_UP], b[0], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_LEFT], b[1], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_DOWN], b[2], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_RIGHT], b[3], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_UP_ALT], b[4], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_LEFT_ALT], b[5], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_DOWN_ALT], b[6], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_RIGHT_ALT], b[7], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_JUMP], b[8], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_ATTACK], b[9], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_CROUCH], b[10], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_START], b[11], sizeof b[0]),
+                run_key_name(g_key[HOST_KEY_SELECT], b[12], sizeof b[0]));
+        char pb[HOST_PAD_COUNT][20];
+        fprintf(stderr, "[keys] pad jump %s attack %s crouch %s (and the right "
+                        "trigger) start %s select %s\n",
+                run_pad_name(g_pad[HOST_PAD_JUMP], pb[0], sizeof pb[0]),
+                run_pad_name(g_pad[HOST_PAD_ATTACK], pb[1], sizeof pb[0]),
+                run_pad_name(g_pad[HOST_PAD_CROUCH], pb[2], sizeof pb[0]),
+                run_pad_name(g_pad[HOST_PAD_START], pb[3], sizeof pb[0]),
+                run_pad_name(g_pad[HOST_PAD_SELECT], pb[4], sizeof pb[0]));
+    }
+    /* SM64DS_DECEL_PROBE=1 (under a selftest): hold the stick and the dash
+       button until DECEL_RELEASE, then let go of both and log the horizontal
+       speed every frame until it reaches zero. The point is the SHAPE of the
+       tail -- how many frames Mario coasts, and at what rate per frame -- so
+       a before/after can be read off two runs. Off by default; the plain
+       selftest picture is untouched by it. */
+    /* =1 lets go of the stick AND the dash button (the full stop);
+       =2 lets go of the dash button only and keeps the stick down, which is
+       what "releasing run" means with a thumb still on the pad -- the target
+       drops from the run speed to the walk speed and the skid path, which
+       only the no-input branch can arm, never runs. */
+    const char *dp_env = getenv("SM64DS_DECEL_PROBE");
+    const int decel_probe = dp_env ? atoi(dp_env) : 0;
+    /* late enough that the run has actually saturated: the walk core steps
+       the speed 0x1000 a frame and the run target is ~0x24000, so he needs
+       ~36 frames of held stick after the state settles before the tail
+       measured is a tail off TOP speed and not off a ramp. */
+    const int DECEL_RELEASE = (dp_env && atoi(dp_env) == 4) ? 170 : 80;
+    /* mode 4 only: how long he stands still with run held, charging +0x6e5 */
+    const int DASH_CHARGE_UNTIL = 110;
+    int decel_stopped = 0;
     /* the F3 overlay: off unless SM64DS_OVERLAY=1 says otherwise */
     g_overlay_on = getenv("SM64DS_OVERLAY") != 0;
     /* SM64DS_MENU=1 opens the menu at boot. Its KEYS are off under a selftest
@@ -2913,20 +10112,172 @@ int main(void)
     int overlay_edge = 0;
     double ovl_fps = 0, ovl_tps = 0, ovl_last_present = 0;
     unsigned ovl_mem_kb = 0;
-    unsigned long long ovl_frames = 0;   /* `frame` only counts under selftest */
 
-    /* the bottom screen: dual OAM, the 2D frame, and the corner panel.
-       Small by default (1/3) so the main view stays big; F5/MODS changes
-       it live, TAB still hides it. */
-    hal_sub_screen_init(hwnd, ZOOM);
-    hal_sub_screen_set_scale(g_sub_scale);
-    if (!g_overlay_on && std::getenv("SM64DS_OVERLAY"))
-        g_overlay_on = 1;
+    /* the bottom screen: dual OAM, the 2D frame, and the corner panel */
+    hal_sub_screen_init(hwnd, stylus_fallback_zoom());
     hal_sub_screen_probe();
 
+    /* boot complete: everything the boot queued in the stdout buffer goes to
+       the sink here, in one write (see the setvbuf note above) */
+    fflush(stdout);
+
+    /* ---- THE RESTORE RE-SEAT ----------------------------------------------
+
+       A save-state load replaces the world the same way a level handoff does,
+       and the handoff's own comment further down says what that costs: "EVERY
+       POINTER main() HOLDS INTO THE LEVEL IS STALE AFTERWARDS". The handoff
+       re-derives them. Until run mg15 no restore did, in any of its four
+       paths -- the boot-time disk read, F9, the debug menu's load row and the
+       scripted SM64DS_SS_LOAD -- so a state whose world put the Player at a
+       different arena address left this frame loop ticking whatever now sat
+       at the boot's address, handing port_stage_path_guard a floor binding
+       the restored level cannot produce and Camera::Behavior a follow target
+       that is not a Player.
+
+       The same three reads the handoff makes, in the same order, and it says
+       what it changed so a log shows whether a given restore needed it.
+       SM64DS_SS_NO_RESEAT=1 turns it off, for the A/B that proves it is
+       load-bearing. */
+    auto ss_reseat = [&](const char *why) {
+        static int off = -1;
+        if (off < 0) off = getenv("SM64DS_SS_NO_RESEAT") != 0;
+        if (off) {
+            fprintf(stderr, "[ss-reseat] %s: SM64DS_SS_NO_RESEAT=1, host "
+                    "pointers left as they were\n", why);
+            return;
+        }
+        void *np = data_0209f394[0];
+        void *nc = data_0209f318;
+        if (np == player && nc == cam) {
+            fprintf(stderr, "[ss-reseat] %s: player %p camera %p, both "
+                    "already the world's own\n", why, player, cam);
+            return;
+        }
+        fprintf(stderr, "[ss-reseat] %s: player %p -> %p, camera %p -> %p\n",
+                why, player, np, cam, nc);
+        if (np) {
+            player = np;
+            c = (char *)player;
+            /* read the character back off the restored Player, exactly as the
+               handoff does off the entrance-spawned one */
+            g_character = *(unsigned char *)(c + 0x6d9) & 3;
+            g_character_pending = g_character;
+        }
+        cam = nc;
+        an_pivot_live = 0;
+        if (cam_mode != CAM_DS && cam) fc_seed(cam);
+        /* g_mc IS A FOURTH POINTER INTO THE WORLD, and RELOADRV's reverse scan
+           found it: it is the Stage's level MeshCollider at Stage+0x91c, set
+           once during setup and then read by every ground and line ray this
+           frame loop casts. RE-DERIVED rather than captured, because it is a
+           harness global in the file whose frame counter and playlog must NOT
+           roll back (hal/dsstate_seg.h draws that line per symbol, and putting
+           a bracket in this file to hold one word invites the later-extern
+           trap that file warns about). The expression is the boot's own, and
+           only for the Stage-backed case: the no-Stage boot points g_mc at
+           mc_storage, a harness buffer, which a restore has no opinion about. */
+        {
+            void *st = port_stage_object();
+            if (st && g_mc != (void *)mc_storage)
+                g_mc = (char *)st + 0x91c;
+        }
+    };
+    (void)ss_reseat;
+
+    /* Disk save state, read exactly once, here: the world is fully booted (the
+       disk state describes a booted world, so restoring earlier would be
+       stomped by the rest of boot) and the frame loop has not started. Never in
+       a selftest: the comparator runs must stay deterministic, and a stray
+       savestate.bin beside the exe would silently swap the world out from
+       under them. */
+    /* SM64DS_SS_DISKLOAD=1 opts a selftest INTO the disk read, for the
+       cross-restart reproducer: run one saves to disk (SM64DS_SS_DISK=1), run
+       two boots with this set and must land on the first run's hardware hash.
+       Without the env, selftests never touch savestate.bin, so the comparator
+       runs stay deterministic. */
+    /* THE ROLLBACK-COUPLED GUARDS' A/B HOOK, joined here because this is the
+       only binary that links both halves: hal/lk6_savestate.cpp owns the hook
+       and the two smoke targets link it without the mount table, while
+       hal/level_boot.cpp owns the stash pair and smoke_player links THAT
+       without lk6. Registered before the first restore of any kind -- the disk
+       read below is the earliest one, and F9 and the menu's load row are all
+       later, in the frame loop. Does nothing unless SM64DS_SS_NO_ROLLGUARD=1
+       asks for the fix-off arm. */
+    port_ss_rollguard_hook(port_rollguard_stash, port_rollguard_unstash);
+
+    if ((!selftest || getenv("SM64DS_SS_DISKLOAD")) && lk7_persist_available()) {
+        if (lk7_persist_read()) {
+            an_pivot_live = 0;   /* no ease across the load */
+            ss_census("after the boot-time disk restore", player, cam);
+            ss_reseat("after the boot-time disk restore");
+            ss_note("state loaded from disk (F9 reloads it)");
+        } else if (lk7_persist_refusal()[0]) {
+            /* THE REFUSAL HAS TO BE VISIBLE, and this is the only place it can
+               be. The game has just booted FRESH on purpose -- a savestate.bin
+               was there and was turned away -- and without this line the player
+               sees a normal boot and a save state that quietly stopped
+               existing. The long form is already in the playlog; this is the
+               sentence on the screen. Same toast slot the load note uses, so
+               the two outcomes appear in the same place and read as the pair
+               they are. */
+            ss_note(lk7_persist_refusal());
+        }
+    }
+
     static ntr::Framebuffer fb;
+    /* THE PRESENT PATH IS ARMED HERE and not a line earlier: present() draws
+       whatever these point at, and until the frame loop has rasterised once
+       the framebuffer is a blank static. Arming it after the boot printing
+       means the first thing the window ever shows is a real frame rather than
+       a grey rectangle. From this point on a WM_SIZE or a WM_PAINT can
+       redraw without the frame loop's help, which is what a drag on the
+       sizing border needs -- that drag runs a modal loop inside
+       DefWindowProc and the frame loop does not get a turn until it ends. */
+    g_present_hwnd = hwnd;
+    g_present_hdc = hdc;
+    g_present_bi = &g_bi;
+    g_present_fb = &fb;
+    /* THE STAR-SELECT INTERLUDE'S FRAME, handed to hal/level_change.cpp here
+       and not linked to it directly: level_change.cpp is on the smoke targets
+       too and this file is not, so the interlude asks through a pointer and
+       falls back to a bare scene tick when nobody filled it in. Set at the same
+       point the present path is armed, because the frame it runs needs both.
+       (run link100, lane STARSEL5.) */
+    port_interlude_frame_hook = port_interlude_frame;
     MSG msg;
+    /* THE DS'S POWER-ON INTERRUPT STATE, standing in for src/func_0201a054.c,
+       the game's own IRQ init, which is in no slice. The ROM's arming
+       sequences SAVE AND RESTORE IME rather than setting it, so a host that
+       boots with IME at zero arms interrupts that can never be delivered.
+       Only ntr::rt_run used to seat it and this loop is not on that fiber.
+       See port/irq2_map.txt section 2. */
+    ntr::rt_irq_boot_state();
+    /* The editor control channel (hal/editor_channel.cpp). A no-op unless
+       SM64DS_EDITOR_CHANNEL=1 -- it reads the variable and returns before any
+       socket exists -- so the shipped window grows no listener by default. */
+    editor_channel_init();
     for (;;) {
+        /* A FRAME BUDGET FOR THE WINDOWED LEVEL PATH (run link100, boot sweep).
+           The windowed SCENE path has ended by itself since it was written --
+           "it ends by itself, which is what a scripted proof needs" -- because
+           it reads SM64DS_SCENE_FRAMES before its own loop. THIS loop never
+           did, so a windowed level ran until somebody closed the window. That
+           is right for a player and useless for a sweep: an automated run over
+           all 51 levels sat on its first row until the timeout and reported a
+           hang that was not one. Level 1 was still going at ten minutes.
+
+           UNSET, THIS COSTS ONE getenv FOR THE LIFE OF THE PROCESS and never
+           ends the loop, so the shipped window is unchanged and still runs
+           until it is closed. The budget is read once on purpose: re-reading
+           it every frame would let the settings poll a few lines below move a
+           proof's finish line under it mid-run. */
+        {
+            static const int fb_budget = getenv("SM64DS_SCENE_FRAMES")
+                                             ? port_scene_frames_wanted() : 0;
+            static int fb_elapsed;
+            if (fb_budget && ++fb_elapsed > fb_budget)
+                return 0;
+        }
         double t_frame, t_phase;
         int game_ticked = 1;   /* cleared when a tick is skipped */
         while (W.PeekMessageA_(&msg, 0, 0, 0, PM_REMOVE)) {
@@ -2934,12 +10285,447 @@ int main(void)
             W.TranslateMessage_(&msg);
             W.DispatchMessageA_(&msg);
         }
+        /* A restore that happened outside this scope (the debug menu's load
+           row) left every pointer below addressing the pre-restore world.
+           Re-seat before anything this frame reads them. */
+        if (ss_reseat_pending) {
+            ss_reseat_pending = 0;
+            ss_census("after the debug menu's load row", player, cam);
+            ss_reseat("after the debug menu's load row");
+        }
+        /* settings.json, watched while running: the launcher's dialog writes
+           the file on every change, so the gap and the volume follow the
+           player's hand without a relaunch. The poll is a counter compare on
+           29 frames out of 30 and says 1 only when an answer moved; the gap
+           side needs no push here because the layout latch reads
+           host_settings_gen itself. */
+        if (host_settings_poll()) {
+            const int v = host_setting_volume();
+            if (v >= 0) out_set_volume_pct(v);
+            /* MouseCapture is PUSHED like the volume rather than pulled like
+               the gap keys: the frame loop asks mo_capture_want every frame and
+               a per-frame settings call would turn a counter compare into a
+               file question. The engage and the release still happen on the
+               frame test below, so flipping the key mid-play is not a special
+               path -- it just changes what that test answers. */
+            mo_capture_opt = host_setting_mouse_capture();
+        }
         ph_begin(&t_frame);
+        rb_frame_begin();
         ph_begin(&t_phase);
+        /* the focus edge, read once a frame BEFORE any key is. Coming back,
+           every key starts stale, so whatever the player was holding in the
+           other window has to be released before this one will see it. Going
+           away needs no work: key_live is already returning released, which is
+           what empties the pad words below. */
+        if (!selftest) {
+            const int now = hal_window_focused();
+            if (now && !focus_was) memset(key_stale, 1, sizeof key_stale);
+            focus_was = now;
+        }
         {
-            const int now = W.GetAsyncKeyState_(VK_F3) < 0;
+            const int now = key_live(VK_F3);
             if (now && !overlay_edge) g_overlay_on = !g_overlay_on;
             overlay_edge = now;
+        }
+        /* F12 (and F11, the same thing) toggles borderless fullscreen. Its own
+           edge latch, up here with the other window-level keys, and read
+           through key_live rather than off a WM_KEYDOWN for three reasons a
+           WM_KEYDOWN branch would each have had to re-solve: key_live is what
+           carries the focus gate, the rebind-capture gate, and the selftest
+           gate -- and that last one is why a headless run cannot toggle
+           anything, whatever is being typed on the machine at the time.
+
+           F11 IS AN ALIAS, not a second feature. The F-row this program had
+           spoken for ended at F9 (F1 camera, F3 stats, F4 character, F5 menu,
+           F8/F9 save state), so F11 and F12 were both free and both are the
+           key a person reaches for; binding one and not the other is a
+           coin-flip a player would have to lose once to learn.
+
+           ALT+ENTER IS DELIBERATELY NOT A THIRD ALIAS. Enter is the debug
+           menu's act button (the pad-A mirror further down), so alt+enter
+           would fire the menu selection under the cursor on the way into
+           fullscreen. Making it not do that means special-casing the alt
+           state inside the menu's own key read, which is game input, and this
+           lane does not touch game input. */
+        {
+            static int fs_edge;
+            const int now = key_live(VK_F12) || key_live(VK_F11);
+            if (now && !fs_edge) fullscreen_toggle(hwnd);
+            fs_edge = now;
+        }
+        /* F4 cycles the character with the menu CLOSED, mid-walk. Its own edge
+           latch, deliberately outside the menu's held-mask below, so it is not
+           one of the keys the menu swallows while it is open.
+
+           REFUSED WHILE THE SESSION IS LIVE. The cycle is local BY
+           CONSTRUCTION: port_player_set_character (hal/player_bridges.cpp)
+           writes this process's player and nothing else, and the sync layer
+           carries no character identity at all -- hal/comms_sync.cpp moves
+           bodies and input, never who the body is. Both machines start out
+           agreeing about who is who because the ROM's own spawn loop decides
+           it and runs identically on each: _Z19LoadEntranceObjects... gives
+           every slot data_0209caa0[0x41], the save file's one character, or
+           forces 3 on every slot in a VS match. (This used to cite a
+           `port_vs_set_character(i, i)` loop in level_boot.cpp. That loop is
+           gone -- it wrote the slot index into data_02092128, which the spawn
+           loop packs as f1 at Player+0x6da and is not the character at all --
+           and the agreement it was credited with was always the ROM's.) A local cycle breaks that agreement in
+           one direction only: this side simulates a different character for
+           its own slot -- other stats, other collision -- while the peer keeps
+           simulating the one it was seated with, and nothing ever heals it.
+
+           OBSERVED, not only reasoned. In the two-window session of
+           2026-08-31 10:44 (playlog play_20260831_104440 / _104441, both
+           windows already reporting `VS: 2 players` at line 16 before the
+           first press) the parent cycled ONCE and the child cycled FOUR
+           times, and the two consoles finished the session disagreeing about
+           who was who. The SIZE of the gap is one step, not four: the cycle
+           is (g_character + 1) & 3, so the child's four presses wrap it back
+           to where it started and the parent's single press is the whole of
+           the divergence. One press is enough -- the point is that the peer
+           is never told, not how far it drifted. That run is what this gate
+           is written against.
+
+           The predicate is the seam's own -- the same question
+           hal/comms_sync.cpp's gate asks and the [comms:level] line prints:
+           connected, and more than one player. One printed line says why, in
+           the place the player is already looking; solo is untouched.
+
+           NOT PROVEN END TO END. Review checked the predicate on both sides
+           and the refusal is correct for every reading of the seam it was
+           given, but no scripted route in this tree reaches key_live -- the
+           harnesses drive the pad and the probes, never the interactive
+           keyboard -- so the KEYPRESS itself has never been exercised in a
+           live session by anything but a person. What is proven is the gate;
+           what is owed is a hand at the keyboard. */
+        {
+            static int chr_edge;
+            const int now = key_live(VK_F4);
+            if (now && !chr_edge) {
+                const port::CommsReadout cr = port::comms_readout();
+                if (cr.connected && cr.players > 1) {
+                    fprintf(stderr,
+                            "[chr] F4 refused: the character cycle is local "
+                            "only (link=%d players=%d) and would desync the "
+                            "session\n", cr.link_state, cr.players);
+                } else {
+                    const int nxt = (g_character + 1) & 3;
+                    fprintf(stderr, "[chr] F4 becoming %s\n", CHAR_NAME[nxt]);
+                    port_player_set_character(c, nxt);
+                    g_character = g_character_pending = nxt;
+                    an_pivot_live = 0;   /* do not ease across it */
+                }
+            }
+            chr_edge = now;
+        }
+        /* F8 SNAPSHOTS the game, F9 RESTORES it. Their own edge latches, up
+           here at the top of the frame after the message drain and before this
+           frame's tick, which is the between-frames point the save state wants:
+           the previous tick is fully complete and nothing is mid-update. A load
+           with no prior save is a safe no-op (lk6_savestate_load says so and
+           does nothing). Deliberately outside the menu's held-mask below so
+           they work during live play whether or not the menu is open, and so
+           the menu never swallows them. */
+        {
+            static int save_edge, load_edge;
+            const int save_now = key_live(VK_F8);
+            const int load_now = key_live(VK_F9);
+            if (save_now && !save_edge) {
+                if (lk6_savestate_save()) {
+                    /* mirror to disk; the toast tells the player whether this
+                       save will outlive the run, which is the difference every
+                       "it did not save" report was actually about */
+                    ss_note(lk7_persist_write()
+                                ? "state saved to disk (F9 loads it)"
+                                : "state saved for THIS RUN (F9 loads it)");
+                } else {
+                    ss_note("state NOT saved (see log)");
+                }
+            }
+            if (load_now && !load_edge) {
+                if (lk6_savestate_load()) {
+                    an_pivot_live = 0;   /* no ease across */
+                    ss_census("after an F9 restore", player, cam);
+                    ss_reseat("after an F9 restore");
+                    ss_note("state loaded");
+                } else {
+                    ss_note(lk6_savestate_has() ? "state NOT loaded (see log)"
+                                                : "no state saved yet (F8 saves)");
+                }
+            }
+            save_edge = save_now;
+            load_edge = load_now;
+        }
+        /* SCRIPTED SAVE-STATE REPRODUCER (headless, selftest only).
+           This is the regression rig for the 0.2.0 restore crash: real players
+           save, then a message/cutscene changes hosted mode-lock state that
+           lives OUTSIDE the arena, then they restore, and the game either
+           faults in Player::SetAnim on a null BCA_File* (the ANIM_PTRS
+           SharedFilePtr table, data_ov002_020ff480, is a hosted overlay global
+           the pre-fix snapshot never captured) or stays wedged in a message the
+           arena has already rolled away from.
+
+               SM64DS_SS_SAVE=<frame>   fire lk6_savestate_save() at this frame
+               SM64DS_SS_LOAD=<frame>   fire lk6_savestate_load() at this frame
+               SM64DS_SS_LOCK=1         between save and load, force the hosted
+                                        message-active lock (data_0209d660) set,
+                                        the way opening a dialogue would, so the
+                                        restore has a specific out-of-arena bit
+                                        to prove it rolls back
+               SM64DS_SS_ASSERT=1       capture data_0209d660 at save and assert
+                                        it equals that value after load; a
+                                        non-zero exit if the lock survived the
+                                        restore. This is acceptance test 2 (the
+                                        mode/lock global rolls back) run
+                                        directly on the underlying global, since
+                                        a full castle-grounds cutscene is not
+                                        reachable in a plain headless walk. */
+        if (selftest) {
+            static int ss_env, ss_save_fr = -1, ss_load_fr = -1,
+                       ss_lock = 0, ss_assert = 0, ss_expect_mount = 0,
+                       ss_disk = 0, ss_watch = 0;
+            static unsigned ss_flag_at_save;
+            static unsigned long long ss_expect_hw;
+            static unsigned char ss_lock_at_save;
+            static int ss_saw_save = 0;
+            static unsigned long long ss_hash_at_save;
+            if (!ss_env) {
+                ss_env = 1;
+                const char *s = getenv("SM64DS_SS_SAVE");
+                const char *l = getenv("SM64DS_SS_LOAD");
+                if (s) ss_save_fr = atoi(s);
+                if (l) ss_load_fr = atoi(l);
+                ss_lock = getenv("SM64DS_SS_LOCK") != 0;
+                ss_assert = getenv("SM64DS_SS_ASSERT") != 0;
+                ss_disk = getenv("SM64DS_SS_DISK") != 0;
+                /* the cross-restart reproducer's second half: this run did not
+                   save, it BOOTED from run one's savestate.bin, so the hash to
+                   hold the restore to arrives from outside (run one's printed
+                   save hash) instead of from a save frame in this process */
+                if (const char *xh = getenv("SM64DS_SS_EXPECT_HW"))
+                    ss_expect_hw = strtoull(xh, 0, 16);
+                /* the cross-area variant: something between save and load is
+                   expected to MOUNT another area (SM64DS_EXIT_ENTER drives the
+                   real door path). Requiring the hardware stores to have
+                   actually CHANGED before the load makes a mistimed run fail
+                   loudly instead of passing without testing anything. */
+                ss_expect_mount = getenv("SM64DS_SS_EXPECT_MOUNT") != 0;
+                /* SM64DS_SS_WATCH_FLAG=1: the PACKED-GAP reproducer. Watch the
+                   id halfword of ov009's castle-water texture animation record
+                   (see the declaration of data_ov009_02112bc4 above; the env
+                   name says FLAG for continuity with the review, the storage
+                   is not FLAG's) across the save/load, and report whether it is
+                   captured at all. =2 also FAILS the run if the halfword did
+                   not roll back, which is the assertion form. Separate from
+                   SM64DS_SS_ASSERT because that one is the message-lock and
+                   hardware-store acceptance test and this must be able to run
+                   red while that runs green.
+
+                   =2 IS NOT SELF-GUARDING BY HAND. It fails a rollback that
+                   did not happen, but a run where the halfword never moved
+                   between the save and the load still exits 0, because a bare
+                   walk_window has no way to know whether the caller meant to
+                   drive a level change. port/tools/savestate_soak.py is the
+                   guard. Read a hand-run's lines, do not read its exit code.
+
+                   WHAT THE SOAK READS NOW (run mg15 lane RELOAD2). The
+                   halfword was the wrong anchor: it reads the same whether
+                   ov009's record is reached through the mount's rebased
+                   pointer or through the raw DS reservation, so the arm it
+                   guarded could only ever report VACUOUS, and it did, on every
+                   level, for as long as it existed. The line that moves is the
+                   STORAGE COVERAGE printed above -- ".dsstate (captured)"
+                   against "NOT CAPTURED" -- and the soak asserts its three
+                   transitions in order: the pass ran, a restore rolled it
+                   back, the pass ran again. */
+                if (const char *w = getenv("SM64DS_SS_WATCH_FLAG"))
+                    ss_watch = atoi(w);
+            }
+            /* Every change of the watched halfword, as it happens. A save
+               state can only miss a rollback for a byte that actually moves,
+               so a run where this prints nothing has not tested anything and
+               must not be read as a pass. */
+            if (ss_watch) {
+                static int gap_seeded;
+                static unsigned gap_last;
+                const unsigned gap_now =
+                    *(const unsigned short *)(port_ov009_gap_0211222c + 12);
+                if (!gap_seeded || gap_now != gap_last) {
+                    fprintf(stderr, "[ss-gap] f%d port_ov009_gap_0211222c+12 "
+                            "%04x -> %04x, block %s\n", frame,
+                            gap_seeded ? gap_last : gap_now, gap_now,
+                            lk6_savestate_covers(port_ov009_gap_0211222c)
+                                ? "captured" : "NOT CAPTURED");
+                    gap_seeded = 1;
+                    gap_last = gap_now;
+                }
+            }
+            if (ss_watch) {
+                static int seeded;
+                static unsigned last;
+                /* THE COVERAGE IS THE MEASUREMENT, not just the value.
+                   Whether the pointer leads into .dsstate or into the raw DS
+                   reservation is exactly what a mount's patch pass decides,
+                   and the id halfword behind it reads 0000 on BOTH sides of
+                   that -- so a watch keyed only on the value prints one line
+                   at f0 and never again, which is why the soak's cross-level
+                   arm could only ever report VACUOUS. Keying on the pair makes
+                   the line fire when the pass runs, when a restore rolls it
+                   back, and when it runs again. */
+                static int last_cov = -1;
+                int cov = 0;
+                const unsigned now = ss_flag_word(&cov);
+                if (!seeded || now != last || cov != last_cov) {
+                    fprintf(stderr, "[ss-flag] f%d ov009 water-anim id "
+                            "%04x -> %04x, storage %s\n", frame,
+                            seeded ? last : now, now,
+                            cov & 1 ? "in .dsstate (captured)"
+                                    : (cov & 2 ? "in the arena (captured)"
+                                               : "NOT CAPTURED"));
+                    ss_flag_dump(seeded ? "after the change" : "first look");
+                    seeded = 1;
+                    last = now;
+                    last_cov = cov;
+                }
+            }
+            if (ss_save_fr >= 0 && frame == ss_save_fr) {
+                lk6_savestate_save();
+                ss_census("at the scripted SM64DS_SS_SAVE", player, cam);
+                /* the cross-restart reproducer's first half: mirror this save
+                   to savestate.bin so a SECOND run (SM64DS_SS_DISKLOAD=1) can
+                   boot from it and compare hashes across the restart */
+                if (ss_disk)
+                    fprintf(stderr, "[ss-repro] f%d disk write: %s\n", frame,
+                            lk7_persist_write() ? "ok" : "SKIPPED/FAILED");
+                ss_lock_at_save = data_0209d660;
+                ss_hash_at_save = ss_hw_hash();
+                ss_saw_save = 1;
+                if (ss_watch) {
+                    int cov = 0;
+                    const unsigned live = ss_flag_word(&cov);
+                    ss_flag_at_save = *(const unsigned short *)
+                        (port_ov009_gap_0211222c + 12);
+                    fprintf(stderr, "[ss-flag] f%d save: gap+12=%04x, live "
+                            "id=%04x in %s; gap block %s\n", frame,
+                            ss_flag_at_save, live,
+                            cov & 1 ? ".dsstate" : (cov & 2 ? "the arena"
+                                                            : "NOTHING "
+                                                              "CAPTURED"),
+                            lk6_savestate_covers(port_ov009_gap_0211222c)
+                                ? "captured -- a load rolls it back"
+                                : "NOT CAPTURED -- a load cannot roll it "
+                                  "back");
+                }
+                fprintf(stderr, "[ss-repro] f%d save: msglock(d660)=%u "
+                        "hw=%016llx\n", frame, (unsigned)data_0209d660,
+                        ss_hash_at_save);
+            }
+            /* perturb the out-of-arena lock strictly between save and load, so
+               the world provably diverges on a hosted global the arena copy
+               does not own */
+            if (ss_lock && ss_saw_save && ss_load_fr >= 0 &&
+                frame > ss_save_fr && frame < ss_load_fr)
+                data_0209d660 = 1;
+            if (ss_load_fr >= 0 && frame == ss_load_fr) {
+                const unsigned long long pre = ss_hw_hash();
+                fprintf(stderr, "[ss-repro] f%d pre-load: msglock(d660)=%u "
+                        "hw=%016llx (%s the saved hash)\n", frame,
+                        (unsigned)data_0209d660, pre,
+                        pre == ss_hash_at_save ? "STILL" : "differs from");
+                if (ss_expect_mount && ss_saw_save && pre == ss_hash_at_save) {
+                    fprintf(stderr, "[ss-repro] FAIL(vacuous): the hardware "
+                            "stores never changed between save and load, so "
+                            "no area mounted and a cross-area restore was not "
+                            "tested. Check SM64DS_EXIT_ENTER's index/frame "
+                            "and give the mount more frames.\n");
+                    ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+                    return 5;
+                }
+                /* A rollback test over a byte that never moved proves
+                   nothing, and it fails silently in the direction of looking
+                   green. Say so before the load rather than after.
+
+                   THE HALFWORD IS NO LONGER THE ARM'S VERDICT, and the wording
+                   says so, because a line reading VACUOUS in a run that PASSES
+                   is its own little trap. This byte reads the same on both
+                   sides of the mount's patch pass, so it can be expected to sit
+                   still; port/tools/savestate_soak.py reads the COVERAGE
+                   transitions in the [ss-flag] lines instead, which do move.
+                   Kept because a run where it DOES move is still worth
+                   seeing. */
+                if (ss_watch && ss_saw_save) {
+                    const unsigned pre_gap = *(const unsigned short *)
+                        (port_ov009_gap_0211222c + 12);
+                    fprintf(stderr, "[ss-flag] f%d pre-load: gap+12=%04x "
+                            "(saved %04x)%s\n", frame, pre_gap,
+                            ss_flag_at_save,
+                            pre_gap == ss_flag_at_save
+                                ? " -- this halfword did not move, so it tests "
+                                  "no rollback (the soak's verdict comes from "
+                                  "the storage-coverage lines above)" : "");
+                }
+                if (lk6_savestate_load()) {
+                    an_pivot_live = 0;
+                    ss_census("after the scripted SM64DS_SS_LOAD restore",
+                                   player, cam);
+                    ss_reseat("after the scripted SM64DS_SS_LOAD restore");
+                }
+                const unsigned long long post = ss_hw_hash();
+                fprintf(stderr, "[ss-repro] f%d post-load: msglock(d660)=%u "
+                        "(saved %u) hw=%016llx\n", frame,
+                        (unsigned)data_0209d660, (unsigned)ss_lock_at_save,
+                        post);
+                if (ss_assert && data_0209d660 != ss_lock_at_save) {
+                    fprintf(stderr, "[ss-repro] FAIL: message-lock global "
+                            "data_0209d660 did NOT roll back on restore "
+                            "(post-load %u, saved %u) -- a hosted DS global "
+                            "outside the capture set survived the load\n",
+                            (unsigned)data_0209d660, (unsigned)ss_lock_at_save);
+                    ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+                    return 3;
+                }
+                /* the reference hash: this run's own save when there was one,
+                   else the one passed in for a cross-restart run. Neither set
+                   means there is nothing sound to hold the restore to. */
+                const unsigned long long want =
+                    ss_saw_save ? ss_hash_at_save : ss_expect_hw;
+                if (ss_assert && want && post != want) {
+                    fprintf(stderr, "[ss-repro] FAIL: the hardware stores did "
+                            "NOT roll back on restore (post-load %016llx, "
+                            "expected %016llx) -- the world came back under "
+                            "another area's textures\n", post, want);
+                    ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+                    return 4;
+                }
+                if (ss_watch && ss_saw_save) {
+                    const unsigned post_gap = *(const unsigned short *)
+                        (port_ov009_gap_0211222c + 12);
+                    const int rolled = post_gap == ss_flag_at_save;
+                    fprintf(stderr, "[ss-flag] f%d post-load: gap+12=%04x "
+                            "(saved %04x) -- %s\n", frame, post_gap,
+                            ss_flag_at_save,
+                            rolled ? "ROLLED BACK" : "did NOT roll back");
+                    if (ss_watch >= 2 && !rolled) {
+                        fprintf(stderr, "[ss-flag] FAIL: a packed mount's DS "
+                                "storage did NOT roll back on restore. The "
+                                "bytes are ov009 DS 0x02112238, the castle "
+                                "water's texture animation record reached "
+                                "through the BTA_File at "
+                                "data_ov009_02112bc4+20 (NOT FLAG's, whatever "
+                                "this env is called), and they are outside the "
+                                "captured span -- the 0.2.0 ANIM_PTRS class "
+                                "again, this time in a synthetic gap block "
+                                "(port/tools/ovdata.py, audited by "
+                                "port/tools/gapaudit.py)\n");
+                        ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+                        return 6;
+                    }
+                }
+                if (ss_assert)
+                    fprintf(stderr, "[ss-repro] PASS: message-lock global and "
+                            "the hardware stores rolled back on restore\n");
+            }
         }
         /* drain what the window procedure collected. Unconditionally, so a
            drag taken in DS-exact mode does not pile up and dump into the rig
@@ -2950,12 +10736,15 @@ int main(void)
         int mouse_dyaw = 0, mouse_dpitch = 0, mouse_wheel = 0;
         {
             const int MOUSE_YAW = 48, MOUSE_PITCH = 24;
-            if (mo_look) {
+            /* mo_captured reads exactly like mo_look here, which is the whole
+               of MouseCapture as far as the camera is concerned: same
+               variables, same constants, same rig. */
+            if ((mo_look || mo_captured) && !selftest && !rb_replaying()) {
                 mouse_dyaw = mo_dx * MOUSE_YAW;
                 mouse_dpitch = mo_dy * MOUSE_PITCH;
             }
             mo_dx = mo_dy = 0;
-            mouse_wheel = mo_wheel;
+            if (!selftest) mouse_wheel = mo_wheel;
             mo_wheel = 0;
         }
 
@@ -2970,21 +10759,6 @@ int main(void)
            view). Q/E orbit it; when Mario walks and Q/E are idle it eases
            in behind his motion like the real game's lazy camera. */
         int dx = 0, dz = 0;
-        /* typing in chat/username capture owns the keyboard: game keys go
-           quiet (the tick itself keeps running, CoopDX-style) */
-        const int typing = (g_edit_mode != EDIT_NONE);
-        /* T opens chat outside menus (edge). Esc/Enter close it in wndproc. */
-        {
-            static int t_was;
-            const int t_now = !selftest && !front_on && !menu_on &&
-                              (W.GetAsyncKeyState_('T') < 0);
-            if (t_now && !t_was && g_edit_mode == EDIT_NONE) {
-                g_edit_mode = EDIT_CHAT;
-                g_chat_input[0] = 0;
-                g_chat_open = 1;
-            }
-            t_was = t_now;
-        }
         if (selftest && !getenv("SM64DS_SELFTEST_IDLE")) {
             dz = 1;
             /* turn probe: hold "A" from frame 60 -- position x must curve */
@@ -2993,799 +10767,136 @@ int main(void)
             if (getenv("SM64DS_SELFTEST_RELEASE") && frame >= 50) dz = 0;
             /* reversal probe: hard 180 at speed (the skid-turn path) */
             if (getenv("SM64DS_SELFTEST_REVERSE") && frame >= 50) dz = -1;
+            /* decel probe: stick fully forward, then nothing at all */
+            if (decel_probe == 1 && frame >= DECEL_RELEASE) dz = 0;
+            /* =3 is the turn: a hard 180 at full run, which is the input
+               that should throw him into the skid state. "Tight turns drift
+               wide" is this path, so the log wants the heading too. */
+            if (decel_probe == 3 && frame >= DECEL_RELEASE) dz = -1;
+            /* =4 is the CHARGED DASH, and it is the one that matters. Stand
+               still with the run button held: St_Wait_Main runs 020d2fdc,
+               which counts +0x6e5 up to 0x1e and then arms the 30-frame dash
+               window at +0x6ed. Only then push the stick. That is the only
+               input that reaches the boost multiply in the walk core, which
+               is why every other probe here looked clean. */
+            if (decel_probe == 4 && frame < DASH_CHARGE_UNTIL) dz = 0;
+            /* SM64DS_DOOR_DROP holds him on his mark: a held-forward stick
+               would turn him off the door's facing term within two frames
+               and walk him out of its box. Released the instant the door's
+               callback node moves, so the open animation gets a live pad. */
+            if (g_door_hold) { dx = 0; dz = 0; }
         }
-        if (!typing) {
-        if (W.GetAsyncKeyState_('W') < 0 || W.GetAsyncKeyState_(VK_UP) < 0) dz += 1;
-        if (W.GetAsyncKeyState_('S') < 0 || W.GetAsyncKeyState_(VK_DOWN) < 0) dz -= 1;
-        if (W.GetAsyncKeyState_('A') < 0 || W.GetAsyncKeyState_(VK_LEFT) < 0) dx -= 1;
-        if (W.GetAsyncKeyState_('D') < 0 || W.GetAsyncKeyState_(VK_RIGHT) < 0) dx += 1;
-        }
-        /* gamepad: left stick / d-pad walk, right stick orbits + tilts */
+        /* the walk keys, both halves of each pair (settings.json KeyUp and
+           KeyUpAlt and their siblings; W/A/S/D and the arrows by default) */
+        if (key_act(HOST_KEY_UP)    || key_act(HOST_KEY_UP_ALT))    dz += 1;
+        if (key_act(HOST_KEY_DOWN)  || key_act(HOST_KEY_DOWN_ALT))  dz -= 1;
+        if (key_act(HOST_KEY_LEFT)  || key_act(HOST_KEY_LEFT_ALT))  dx -= 1;
+        if (key_act(HOST_KEY_RIGHT) || key_act(HOST_KEY_RIGHT_ALT)) dx += 1;
+        /* gamepad: left stick / d-pad walk, right stick orbits + tilts.
+           Gated off under a selftest with the keyboard: a drifting stick
+           on a plugged-in pad perturbs a headless run the same way, and
+           gated off with the keyboard when this window is not the
+           foreground one -- see pad_focus_gate. */
         static XPad pad;
-        int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
+        int pad_live = !selftest && !rb_replaying() && port_pad_poll(&pad);
+        pad_focus_gate(&pad_live, &pad);
         int orbiting = 0;
-        /* gamepad rebind capture: first pressed button/trigger wins.
-           Keyboard Esc still cancels (wndproc), pad START cancels too. */
-        if (g_edit_mode == EDIT_KEY && g_edit_pad && pad_live) {
-            static unsigned short cap_was;
-            static unsigned char cap_lt, cap_rt;
-            if (g_edit_wait_release) {
-                /* the button that opened the row is still held: swallow
-                   the current state so it is not bound to itself */
-                cap_was = pad.buttons;
-                cap_lt = pad.lt;
-                cap_rt = pad.rt;
-                g_edit_wait_release = 0;
-            }
-            const unsigned edge = pad.buttons & (unsigned short)~cap_was;
-            int code = -1;
-            if (edge) {
-                for (int b = 0; b < 16; ++b) {
-                    if (edge & (1u << b)) {
-                        code = b;
-                        break;
-                    }
+        /* SM64DS_PAD_TEST: DBG1's scripted pad, at file scope now so the
+           windowed scene loop gets the same one. Inert unless the variable is
+           set and unreachable from a selftest; see its banner. */
+        pad_test_apply(port_rom_frame_checked(frame, "pad-test"),
+                       &pad_live, &pad);
+#ifndef PORT_ROM_CLEAN
+        /* SM64DS_CLICK_TEST: the scripted stylus, the same call the windowed
+           scene loop makes and for the same reason -- the level path is where
+           the inset panel's transform lives, so it is the half of the click
+           grid that guards against a stacked fix moving a level. */
+        click_test_apply(hwnd, port_rom_frame_checked(frame, "click-test"));
+#endif
+        /* ---- THE REBIND CAPTURE, ahead of every other reader of this frame's
+           input. The keyboard half already arrived through the window
+           procedure (see g_rebind_capture up there); this is the pad half and
+           the decision about what to do with either.
+
+           Ending with pad_live cleared is the pad's version of the one line
+           inside key_live: past this point the frame sees no pad at all, so
+           the button being bound cannot also open the menu, toggle the freecam
+           or nudge the camera on its way to becoming a binding. */
+        if (g_rebind_capture) {
+            static unsigned bind_pad_prev = ~0u;   /* first frame: no edges */
+            const unsigned now = pad_live ? pad_word_with_triggers(&pad) : 0u;
+            const unsigned fresh = now & ~bind_pad_prev;
+            bind_pad_prev = now;
+            int done = 0;
+            if (g_rebind_key) {
+                const int vk = g_rebind_key;
+                g_rebind_key = 0;
+                if (vk == VK_ESCAPE) {
+                    ss_note("rebind cancelled");
+                    done = 1;
+                } else if (run_key_reserved(vk)) {
+                    ss_note("that key belongs to the window, pick another");
+                } else {
+                    char kb[16], msg[64];
+                    g_run_key = vk;
+                    host_setting_save_run(g_run_mode, g_run_key, g_run_pad);
+                    snprintf(msg, sizeof msg, "run is now %s",
+                             run_key_name(vk, kb, sizeof kb));
+                    ss_note(msg);
+                    done = 1;
                 }
-                if (code == 4) code = -2;   /* START cancels */
-            } else {
-                if (pad.lt > 100 && !(cap_lt > 100)) code = 100;
-                if (pad.rt > 100 && !(cap_rt > 100)) code = 101;
+            } else if (fresh) {
+                /* one button per press: the lowest set bit, so a thumb that
+                   lands on two at once binds one of them instead of a mask
+                   that no single press can ever reproduce */
+                const unsigned bit = fresh & (unsigned)(-(int)fresh);
+                if (run_pad_reserved(bit)) {
+                    ss_note("that pad button drives the menu, pick another");
+                } else {
+                    char pb[16], msg[64];
+                    g_run_pad = (int)bit;
+                    host_setting_save_run(g_run_mode, g_run_key, g_run_pad);
+                    snprintf(msg, sizeof msg, "run is now %s",
+                             run_pad_name((int)bit, pb, sizeof pb));
+                    ss_note(msg);
+                    done = 1;
+                }
             }
-            cap_was = pad.buttons;
-            cap_lt = pad.lt;
-            cap_rt = pad.rt;
-            if (code == -2) {
-                edit_cancel();
-            } else if (code >= 0 && g_edit_key_target) {
-                *g_edit_key_target = code;
-                fprintf(stderr, "[keys] pad bound to %s\n",
-                        pad_name(code));
-                front_save_state();
-                toast("Pad bound: %s", pad_name(code));
-                g_edit_key_target = 0;
-                g_edit_pad = 0;
-                g_edit_mode = EDIT_NONE;
-                g_edit_just_done = 1;
+            if (done) {
+                g_rebind_capture = 0;
+                bind_pad_prev = ~0u;
+                /* every key that is down right now is marked stale, the same
+                   trick the focus-regained edge uses: the key just bound is
+                   still physically held, and without this it would read as a
+                   fresh press the instant the capture ends */
+                memset(key_stale, 1, sizeof key_stale);
             }
+            pad_live = 0;
         }
-        if (!selftest && front_on) {
-            static unsigned front_prev;
-            unsigned held = 0;
-            if (W.GetAsyncKeyState_(VK_UP) < 0) held |= 1u << 0;
-            if (W.GetAsyncKeyState_(VK_DOWN) < 0) held |= 1u << 1;
-            if (W.GetAsyncKeyState_(VK_LEFT) < 0) held |= 1u << 2;
-            if (W.GetAsyncKeyState_(VK_RIGHT) < 0) held |= 1u << 3;
-            if (W.GetAsyncKeyState_(VK_RETURN) < 0) held |= 1u << 4;
-            if (W.GetAsyncKeyState_(VK_F5) < 0) held |= 1u << 5;
-            if (pad_live) {
-                if (pad.buttons & 0x0001) held |= 1u << 0;
-                if (pad.buttons & 0x0002) held |= 1u << 1;
-                if (pad.buttons & 0x0004) held |= 1u << 2;
-                if (pad.buttons & 0x0008) held |= 1u << 3;
-                if (pad.buttons & 0x1000) held |= 1u << 4;
-                if (pad.buttons & 0x0020) held |= 1u << 5;
-            }
-            const unsigned edge = held & ~front_prev;
-            front_prev = held;
-            /* an editor commit/cancel lands on this frame's edge too; eat one
-               frame so Enter doesn't also activate a row */
-            static int edit_swallow;
-            if (g_edit_just_done) {
-                g_edit_just_done = 0;
-                edit_swallow = 2;
-            }
-            if (g_edit_mode != EDIT_NONE || edit_swallow > 0) {
-                if (edit_swallow > 0) --edit_swallow;
-            } else {
-            if (edge & (1u << 5)) front_on = 0;
-            if (edge & (1u << 0)) {
-                const int count = front_page == FRONT_HOME ? 5 :
-                                  front_page == FRONT_OPTIONS ? 7 :
-                                  front_page == FRONT_PLAYER ? 4 :
-                                  front_page == FRONT_CONTROLS ? 11 :
-                                  front_page == FRONT_CAMERA ? 5 :
-                                  front_page == FRONT_DISPLAY ? 5 :
-                                  front_page == FRONT_SOUND ? 3 :
-                                  front_page == FRONT_MISC ? 4 :
-                                  front_page == FRONT_INFO ? 1 :
-                                   front_page == FRONT_FILES ? 6 :
-                                   front_page == FRONT_LOBBY ? 5 :
-                                   front_page == FRONT_CHARACTER ? 5 :
-                                   front_page == FRONT_MODS ? 12 : 9;
-                front_sel = (front_sel + count - 1) % count;
-            }
-            if (edge & (1u << 1)) {
-                const int count = front_page == FRONT_HOME ? 5 :
-                                  front_page == FRONT_OPTIONS ? 7 :
-                                  front_page == FRONT_PLAYER ? 4 :
-                                  front_page == FRONT_CONTROLS ? 11 :
-                                  front_page == FRONT_CAMERA ? 5 :
-                                  front_page == FRONT_DISPLAY ? 5 :
-                                  front_page == FRONT_SOUND ? 3 :
-                                  front_page == FRONT_MISC ? 4 :
-                                  front_page == FRONT_INFO ? 1 :
-                                   front_page == FRONT_FILES ? 6 :
-                                   front_page == FRONT_LOBBY ? 5 :
-                                   front_page == FRONT_CHARACTER ? 5 :
-                                   front_page == FRONT_MODS ? 12 : 9;
-                front_sel = (front_sel + 1) % count;
-            }
-            /* left/right on stepped rows (turning the knob enables the mod) */
-            if ((edge & (1u << 2)) || (edge & (1u << 3))) {
-                const int dir = (edge & (1u << 2)) ? -1 : 1;
-                if (front_page == FRONT_MODS)
-                    mod_row_arm(front_sel <= 8 ? front_sel : -1);
-                if (front_page == FRONT_MODS) switch (front_sel) {
-                case 1:
-                    g_character = (g_character + dir + 4) % 4;
-                    front_save_state();
-                    break;
-                case 2:
-                    g_color = (g_color + dir + 8) % 8;
-                    front_save_state();
-                    break;
-                case 3:
-                    g_speed_pct += dir * 25;
-                    if (g_speed_pct < 25) g_speed_pct = 25;
-                    if (g_speed_pct > 300) g_speed_pct = 300;
-                    front_save_state();
-                    break;
-                case 4:
-                    g_jump_pct += dir * 25;
-                    if (g_jump_pct < 25) g_jump_pct = 25;
-                    if (g_jump_pct > 300) g_jump_pct = 300;
-                    front_save_state();
-                    break;
-                case 5:
-                    g_sub_scale += dir;
-                    if (g_sub_scale < 1) g_sub_scale = 1;
-                    if (g_sub_scale > 4) g_sub_scale = 4;
-                    hal_sub_screen_set_scale(g_sub_scale);
-                    front_save_state();
-                    break;
-                case 6:
-                    g_widescreen = !g_widescreen;
-                    front_save_state();
-                    break;
-                case 7: g_arena = !g_arena; front_save_state(); break;
-                default: break;
-                }
-                else if (front_page == FRONT_PLAYER && front_sel == 1) {
-                    g_color = (g_color + dir + 8) % 8;
-                    front_save_state();
-                } else if (front_page == FRONT_CAMERA) {
-                    if (front_sel == 0) {
-                        if (real_camera) {
-                            cam_mode = (cam_mode + dir + 4) % 4;
-                            if (cam_mode != CAM_DS) fc_seed(cam);
-                            if (cam_mode == CAM_ANALOG ||
-                                cam_mode == CAM_SM64)
-                                an_pivot_live = 0;
-                            fprintf(stderr, "[cam] mode %s\n",
-                                    cam_mode_name(cam_mode));
-                        }
-                    } else if (front_sel == 3) {
-                        static const int presets[] = {70, 85, 100, 120,
-                                                      150};
-                        int i = 2;
-                        for (int k = 0; k < 5; ++k)
-                            if (presets[k] == g_cam_dist_pct) i = k;
-                        i = (i + dir + 5) % 5;
-                        if (g_cam_dist_pct)
-                            fc_dist = (int)(((long long)fc_dist *
-                                             presets[i]) /
-                                            g_cam_dist_pct);
-                        g_cam_dist_pct = presets[i];
-                        fprintf(stderr, "[mod] camera dist %d%%\n",
-                                g_cam_dist_pct);
-                        front_save_state();
-                    }
-                } else if (front_page == FRONT_DISPLAY) {
-                    if (front_sel == 0) {
-                        g_fps_mode = (g_fps_mode + dir + 3) % 3;
-                        fprintf(stderr, "[mod] fps %s\n",
-                                fps_mode_name(g_fps_mode));
-                        front_save_state();
-                    } else if (front_sel == 3) {
-                        g_sub_scale += dir;
-                        if (g_sub_scale < 1) g_sub_scale = 1;
-                        if (g_sub_scale > 4) g_sub_scale = 4;
-                        hal_sub_screen_set_scale(g_sub_scale);
-                        front_save_state();
-                    }
-                }
-            }
-            if (edge & (1u << 4)) {
-                if (front_page == FRONT_HOME) {
-                    if (front_sel == 0) {
-                        front_on = 0;
-                        sm64ds::lobby::leave();
-                        sm64ds::lobby::set_name(g_username);
-                        sm64ds::lobby::host_start();
-                        if (sm64ds::lobby::hosting()) {
-                            char code[16];
-                            toast("Hosting as %s", g_username);
-                            if (sm64ds::lobby::host_code(code,
-                                                         sizeof code)) {
-                                char cmsg[96];
-                                snprintf(cmsg, sizeof cmsg,
-                                         "lobby code %s (friends type it "
-                                         "into Host IP)",
-                                         code);
-                                chat_add_local("Lobby", cmsg);
-                            }
-                        } else
-                            toast("Host failed (port busy?)");
-                    } else if (front_sel == 1) {
-                        front_page = FRONT_LOBBY;
-                        front_sel = 0;
-                    } else if (front_sel == 2) {
-                        front_page = FRONT_MODS;
-                        front_sel = 0;
-                    } else if (front_sel == 3) {
-                        front_page = FRONT_OPTIONS;
-                        front_sel = 0;
-                    } else if (front_sel == 4) {
-                        sm64ds::lobby::leave();
-                        W.PostQuitMessage_(0);
-                    }
-                } else if (front_page == FRONT_OPTIONS) {
-                    if (front_sel == 0) {
-                        front_page = FRONT_PLAYER;
-                        front_sel = 0;
-                    } else if (front_sel == 1) {
-                        front_page = FRONT_CONTROLS;
-                        front_sel = 0;
-                    } else if (front_sel == 2) {
-                        front_page = FRONT_CAMERA;
-                        front_sel = 0;
-                    } else if (front_sel == 3) {
-                        front_page = FRONT_DISPLAY;
-                        front_sel = 0;
-                    } else if (front_sel == 4) {
-                        front_page = FRONT_SOUND;
-                        front_sel = 0;
-                    } else if (front_sel == 5) {
-                        front_page = FRONT_MISC;
-                        front_sel = 0;
-                    } else if (front_sel == 6) {
-                        front_page = FRONT_HOME;
-                        front_sel = 0;
-                    }
-                } else if (front_page == FRONT_PLAYER) {
-                    if (front_sel == 0) {
-                        front_page = FRONT_CHARACTER;
-                        front_sel = g_character;
-                    } else if (front_sel == 1) {
-                        g_color = (g_color + 1) % 8;
-                        fprintf(stderr, "[mod] color %s\n",
-                                color_name(g_color));
-                        front_save_state();
-                    } else if (front_sel == 2) {
-                        g_edit_mode = EDIT_NAME;
-                        strcpy(g_chat_input, g_username);
-                    } else if (front_sel == 3) {
-                        front_page = FRONT_OPTIONS;
-                        front_sel = 0;
-                    }
-                } else if (front_page == FRONT_CONTROLS) {
-                    if (front_sel >= 0 && front_sel <= 3) {
-                        static int *const keys[] = {&g_key_jump, &g_key_run,
-                                                    &g_key_crouch,
-                                                    &g_key_punch};
-                        static const char *names[] = {"Jump", "Run", "Crouch",
-                                                      "Punch"};
-                        g_edit_key_target = keys[front_sel];
-                        g_edit_pad = 0;
-                        g_edit_mode = EDIT_KEY;
-                        toast("Press a key for %s...", names[front_sel]);
-                    } else if (front_sel >= 4 && front_sel <= 7) {
-                        static int *const pads[] = {&g_pad_jump, &g_pad_run,
-                                                    &g_pad_punch,
-                                                    &g_pad_crouch};
-                        static const char *names[] = {"Jump", "Run", "Punch",
-                                                      "Crouch"};
-                        g_edit_key_target = pads[front_sel - 4];
-                        g_edit_pad = 1;
-                        g_edit_wait_release = 1;
-                        g_edit_mode = EDIT_KEY;
-                        toast("Press a button for Pad %s...",
-                              names[front_sel - 4]);
-                    } else if (front_sel == 8) {
-                        g_analog_controls = !g_analog_controls;
-                        front_save_state();
-                    } else if (front_sel == 9) {
-                        front_invert_x = !front_invert_x;
-                        front_save_state();
-                    } else if (front_sel == 10) {
-                        front_page = FRONT_OPTIONS;
-                        front_sel = 1;
-                    }
-                } else if (front_page == FRONT_CAMERA) {
-                    if (front_sel == 0) {
-                        if (real_camera) {
-                            cam_mode = (cam_mode + 1) % 4;
-                            if (cam_mode != CAM_DS) fc_seed(cam);
-                            if (cam_mode == CAM_ANALOG ||
-                                cam_mode == CAM_SM64)
-                                an_pivot_live = 0;
-                            fprintf(stderr, "[cam] mode %s\n",
-                                    cam_mode_name(cam_mode));
-                        }
-                    } else if (front_sel == 1) {
-                        front_invert_x = !front_invert_x;
-                        front_save_state();
-                    } else if (front_sel == 2) {
-                        front_invert_y = !front_invert_y;
-                        front_save_state();
-                    } else if (front_sel == 3) {
-                        g_cam_dist_pct = g_cam_dist_pct == 100 ? 120 : 100;
-                        front_save_state();
-                    } else if (front_sel == 4) {
-                        front_page = FRONT_OPTIONS;
-                        front_sel = 2;
-                    }
-                } else if (front_page == FRONT_DISPLAY) {
-                    if (front_sel == 0) {
-                        g_fps_mode = (g_fps_mode + 1) % 3;
-                        fprintf(stderr, "[mod] fps %s\n",
-                                fps_mode_name(g_fps_mode));
-                        front_save_state();
-                    } else if (front_sel == 1) {
-                        g_vsync = !g_vsync;
-                        front_save_state();
-                    } else if (front_sel == 2) {
-                        g_widescreen = !g_widescreen;
-                        front_save_state();
-                    } else if (front_sel == 3) {
-                        g_sub_scale = g_sub_scale % 4 + 1;
-                        hal_sub_screen_set_scale(g_sub_scale);
-                        front_save_state();
-                    } else if (front_sel == 4) {
-                        front_page = FRONT_OPTIONS;
-                        front_sel = 3;
-                    }
-                } else if (front_page == FRONT_SOUND) {
-                    if (front_sel == 0) {
-                        g_sound_on = !g_sound_on;
-                        front_save_state();
-                    } else if (front_sel == 1) {
-                        g_mute_unfocused = !g_mute_unfocused;
-                        front_save_state();
-                    } else if (front_sel == 2) {
-                        front_page = FRONT_OPTIONS;
-                        front_sel = 4;
-                    }
-                } else if (front_page == FRONT_MISC) {
-                    if (front_sel == 0) {
-                        g_overlay_on = !g_overlay_on;
-                    } else if (front_sel == 1) {
-                        g_toasts_on = !g_toasts_on;
-                        front_save_state();
-                    } else if (front_sel == 2) {
-                        front_page = FRONT_INFO;
-                        front_sel = 0;
-                    } else if (front_sel == 3) {
-                        front_page = FRONT_OPTIONS;
-                        front_sel = 5;
-                    }
-                } else if (front_page == FRONT_INFO) {
-                    if (front_sel == 0) {
-                        front_page = FRONT_MISC;
-                        front_sel = 2;
-                    }
-                } else if (front_page == FRONT_FILES) {
-                    if (front_sel < 4) front_file = front_sel;
-                    else if (front_sel == 4) {
-                        toast("Rename needs save support");
-                    } else if (front_sel == 5) {
-                        front_page = FRONT_OPTIONS;
-                        front_sel = 0;
-                    }
-                } else if (front_page == FRONT_LOBBY) {
-                    if (front_sel == 0) {
-                        if (sm64ds::lobby::role() == 1) {
-                            sm64ds::lobby::leave();
-                            toast("Stopped hosting");
-                        } else {
-                            sm64ds::lobby::leave();
-                            sm64ds::lobby::set_name(g_username);
-                            front_on = 0;
-                            sm64ds::lobby::host_start();
-                            if (sm64ds::lobby::hosting()) {
-                                char code[16];
-                                toast("Hosting as %s", g_username);
-                                if (sm64ds::lobby::host_code(code,
-                                                             sizeof code)) {
-                                    char cmsg[96];
-                                    snprintf(cmsg, sizeof cmsg,
-                                             "lobby code %s (friends type "
-                                             "it into Host IP)",
-                                             code);
-                                    chat_add_local("Lobby", cmsg);
-                                }
-                            } else
-                                toast("Host failed (port busy?)");
-                        }
-                    } else if (front_sel == 1) {
-                        if (sm64ds::lobby::role() == 2) {
-                            sm64ds::lobby::leave();
-                            toast("Disconnected");
-                        } else if (!g_lobby_ip[0]) {
-                            toast("Enter a host IP or code first");
-                        } else {
-                            /* the box takes a code ("XXXX-XXXX-XX") or a
-                               plain address; codes decode to ip:port */
-                            char target[128];
-                            if (!sm64ds::lobby::decode_code(g_lobby_ip,
-                                                            target,
-                                                            sizeof target))
-                                snprintf(target, sizeof target, "%s",
-                                         g_lobby_ip);
-                            sm64ds::lobby::leave();
-                            sm64ds::lobby::set_name(g_username);
-                            front_on = 0;
-                            sm64ds::lobby::join(target);
-                            if (sm64ds::lobby::joined())
-                                toast("Joining %s...", target);
-                            else
-                                toast("Join failed");
-                        }
-                    } else if (front_sel == 2) {
-                        g_edit_mode = EDIT_IP;
-                        strcpy(g_chat_input, g_lobby_ip);
-                    } else if (front_sel == 3) {
-                        g_edit_mode = EDIT_NAME;
-                        strcpy(g_chat_input, g_username);
-                    } else if (front_sel == 4) {
-                        front_page = FRONT_HOME;
-                        front_sel = 0;
-                    }
-                } else if (front_page == FRONT_MODS) {
-                    /* ENTER on a mod row flips the mod itself -- except
-                       Character, which opens its own select screen */
-                    if (front_sel == 1) {
-                        front_page = FRONT_CHARACTER;
-                        front_sel = g_character;
-                    } else if (front_sel >= 0 && front_sel <= 8)
-                        mod_row_toggle(front_sel);
-                    else if (front_sel == 9) {
-                        sm64ds::mods::mod_rescan(g_mods_dir);
-                        toast("Mods rescanned");
-                    } else if (front_sel == 10) {
-                        /* open the mods folder in Explorer, best effort */
-                        HMODULE sh = LoadLibraryA("shell32.dll");
-                        if (sh) {
-                            typedef long(WINAPI *SE)(void *, const char *,
-                                                     const char *,
-                                                     const char *,
-                                                     const char *, int);
-                            SE se = (SE)GetProcAddress(sh, "ShellExecuteA");
-                            if (se)
-                                se(0, "open", g_mods_dir.c_str(), 0, 0, 1);
-                        }
-                        toast("Mods folder opened");
-                    } else if (front_sel == 11) {
-                        front_page = FRONT_OPTIONS;
-                        front_sel = 0;
-                    }
-                } else if (front_page == FRONT_CHARACTER) {
-                    if (front_sel >= 0 && front_sel <= 3) {
-                        g_character = front_sel;
-                        front_save_state();
-                        toast("%s selected", character_name(g_character));
-                        front_page = FRONT_MODS;
-                        front_sel = 1;
-                    } else if (front_sel == 4) {
-                        front_page = FRONT_MODS;
-                        front_sel = 1;
-                    }
-                }
-            }
-        }
-        }
-        /* ---- THE DEBUG MENU'S OWN INPUT. It runs before anything else reads
-           the keyboard, and while it is open it swallows the keys it uses and
-           the tick is skipped below, so nothing it does can also be a walk.
-           Every key here is edge-detected off one held-mask, which is the
-           cheapest way to get "one step per press" out of GetAsyncKeyState. */
-        if (!selftest && !front_on) {
-            static unsigned menu_prev;
-            unsigned held = 0;
-            unsigned edge;
-            if (W.GetAsyncKeyState_(VK_F5) < 0)     held |= 1u << 0;
-            if (W.GetAsyncKeyState_(VK_UP) < 0)     held |= 1u << 1;
-            if (W.GetAsyncKeyState_(VK_DOWN) < 0)   held |= 1u << 2;
-            if (W.GetAsyncKeyState_(VK_LEFT) < 0)   held |= 1u << 3;
-            if (W.GetAsyncKeyState_(VK_RIGHT) < 0)  held |= 1u << 4;
-            if (W.GetAsyncKeyState_(VK_RETURN) < 0) held |= 1u << 5;
-            if (pad_live) {
-                if (pad.buttons & 0x0001) held |= 1u << 1;   /* d-pad up    */
-                if (pad.buttons & 0x0002) held |= 1u << 2;   /* d-pad down  */
-                if (pad.buttons & 0x0004) held |= 1u << 3;   /* d-pad left  */
-                if (pad.buttons & 0x0008) held |= 1u << 4;   /* d-pad right */
-                if (pad.buttons & 0x0020) held |= 1u << 0;   /* BACK        */
-                if (menu_on && (pad.buttons & 0x1000)) held |= 1u << 5;  /* A */
-            }
-            edge = held & ~menu_prev;
-            menu_prev = held;
-            if (edge & (1u << 0)) {
-                menu_on = !menu_on;
-                fprintf(stderr, "[menu] %s\n", menu_on ? "open" : "closed");
-            }
-            if (menu_on) {
-                const int n_ent = port_entrance_count();
-                if (edge & (1u << 1))
-                    menu_sel = (menu_sel + MENU_COUNT - 1) % MENU_COUNT;
-                if (edge & (1u << 2))
-                    menu_sel = (menu_sel + 1) % MENU_COUNT;
-                {
-                    /* ENTER on a mod row flips the mod (pad A flips too);
-                       elsewhere ENTER still means right. Turning a knob
-                       re-arms its mod. All branchless single statements:
-                       no scope changes here, the switch below is untouched. */
-                    const int dec = (edge & (1u << 3)) != 0;
-                    const int enter = (edge & (1u << 5)) != 0;
-                    const int mi = f5_mod_index(menu_sel);
-                    if (enter && mi >= 0) mod_row_toggle(mi);
-                    const int inc = (edge & (1u << 4)) != 0 ||
-                        (enter && mi < 0);
-                    if ((dec || (edge & (1u << 4))) && mi >= 0)
-                        mod_row_arm(mi);
-                    if (dec || inc) switch (menu_sel) {
-                    case MENU_WARP:
-                        if (n_ent > 0) {
-                            /* left and right pick the entrance; enter warps */
-                            if (edge & (1u << 5)) {
-                                int ex, ey, ez, eyaw;
-                                if (port_entrance_record(menu_entrance, &ex,
-                                                         &ey, &ez, &eyaw)) {
-                                    /* the level's own record, in the units it
-                                       stores: world units, so <<12 into the
-                                       actor's fixed point. This MOVES him; it
-                                       is not a re-entry, nothing about the
-                                       level or the area is reloaded. */
-                                    *(int *)(c + 0x5c) = ex << 12;
-                                    *(int *)(c + 0x60) = ey << 12;
-                                    *(int *)(c + 0x64) = ez << 12;
-                                    *(short *)(c + 0x8e) = (short)eyaw;
-                                    *(int *)(c + 0x98) = 0;   /* mHorzSpeed */
-                                    *(int *)(c + 0xa4) = 0;
-                                    *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
-                                    *(int *)(c + 0xac) = 0;
-                                    an_pivot_live = 0;        /* do not ease
-                                                                 across a warp */
-                                    fprintf(stderr,
-                                            "[menu] warp to entrance %d "
-                                            "(%d, %d, %d)\n", menu_entrance,
-                                            ex, ey, ez);
-                                }
-                            } else if (dec) {
-                                menu_entrance =
-                                    (menu_entrance + n_ent - 1) % n_ent;
-                            } else {
-                                menu_entrance = (menu_entrance + 1) % n_ent;
-                            }
-                        }
-                        break;
-                    case MENU_SNAP:
-                        g_fake_snap = !g_fake_snap;
-                        fprintf(stderr, "[menu] fake snap %s\n",
-                                g_fake_snap ? "ON" : "off");
-                        break;
-                    case MENU_OVERLAY:
-                        g_overlay_on = !g_overlay_on;
-                        break;
-                    case MENU_CAMERA:
-                        if (real_camera) {
-                            cam_mode = dec ? (cam_mode + 3) % 4
-                                           : (cam_mode + 1) % 4;
-                            if (cam_mode != CAM_DS) fc_seed(cam);
-                            if (cam_mode == CAM_ANALOG ||
-                                cam_mode == CAM_SM64)
-                                an_pivot_live = 0;
-                            fprintf(stderr, "[menu] camera %s\n",
-                                    cam_mode_name(cam_mode));
-                        }
-                        break;
-                    case MENU_ANALOG:
-                        g_analog_controls = !g_analog_controls;
-                        fprintf(stderr, "[mod] analog controls %s\n",
-                                g_analog_controls ? "ON" : "off");
-                        front_save_state();
-                        break;
-                    case MENU_CHARACTER:
-                        g_character = dec ? (g_character + 3) % 4
-                                          : (g_character + 1) % 4;
-                        apply_character_live();
-                        fprintf(stderr, "[mod] character %s\n",
-                                character_name(g_character));
-                        front_save_state();
-                        break;
-                    case MENU_COLOR:
-                        g_color = dec ? (g_color + 7) % 8 : (g_color + 1) % 8;
-                        fprintf(stderr, "[mod] color %s\n",
-                                color_name(g_color));
-                        front_save_state();
-                        break;
-                    case MENU_SPEED:
-                        g_speed_pct += dec ? -25 : 25;
-                        if (g_speed_pct < 25) g_speed_pct = 25;
-                        if (g_speed_pct > 300) g_speed_pct = 300;
-                        fprintf(stderr, "[mod] speed %d%%\n", g_speed_pct);
-                        front_save_state();
-                        break;
-                    case MENU_JUMP:
-                        g_jump_pct += dec ? -25 : 25;
-                        if (g_jump_pct < 25) g_jump_pct = 25;
-                        if (g_jump_pct > 300) g_jump_pct = 300;
-                        fprintf(stderr, "[mod] jump %d%%\n", g_jump_pct);
-                        front_save_state();
-                        break;
-                    case MENU_SUB:
-                        if (dec) {
-                            g_sub_scale--;
-                            if (g_sub_scale < 1) g_sub_scale = 4;
-                        } else {
-                            g_sub_scale++;
-                            if (g_sub_scale > 4) g_sub_scale = 1;
-                        }
-                        hal_sub_screen_set_scale(g_sub_scale);
-                        fprintf(stderr, "[mod] bottom screen 1/%d\n",
-                                g_sub_scale);
-                        front_save_state();
-                        break;
-                    case MENU_WIDE:
-                        g_widescreen = !g_widescreen;
-                        fprintf(stderr, "[mod] widescreen %s (takes effect "
-                                "next boot)\n",
-                                g_widescreen ? "ON" : "off");
-                        front_save_state();
-                        break;
-                    case MENU_ARENA:
-                        g_arena = !g_arena;
-                        fprintf(stderr, "[mod] small arena %s\n",
-                                g_arena ? "ON" : "off");
-                        front_save_state();
-                        break;
-                    case MENU_CAMDIST: {
-                        static const int presets[] = {70, 85, 100, 120,
-                                                      150};
-                        int i = 2;
-                        for (int k = 0; k < 5; ++k)
-                            if (presets[k] == g_cam_dist_pct) i = k;
-                        i = dec ? (i + 4) % 5 : (i + 1) % 5;
-                        /* rescale the live rig distance so the change is
-                           visible without re-seeding the camera */
-                        if (g_cam_dist_pct)
-                            fc_dist = (int)(((long long)fc_dist *
-                                             presets[i]) /
-                                            g_cam_dist_pct);
-                        g_cam_dist_pct = presets[i];
-                        fprintf(stderr, "[mod] camera dist %d%%\n",
-                                g_cam_dist_pct);
-                        front_save_state();
-                        break;
-                    }
-                    case MENU_FPS:
-                        g_fps_mode = (g_fps_mode + (dec ? 2 : 1)) % 3;
-                        fprintf(stderr, "[mod] fps %s\n",
-                                fps_mode_name(g_fps_mode));
-                        front_save_state();
-                        break;
-                    case MENU_VSYNC:
-                        g_vsync = !g_vsync;
-                        fprintf(stderr, "[mod] vsync %s\n",
-                                g_vsync ? "ON" : "off");
-                        front_save_state();
-                        break;
-                    case MENU_DISCONNECT:
-                        if (front_on && g_lobby_state != 0) {
-                            sm64ds::lobby::leave();
-                            front_on = 0;
-                            toast("Disconnected");
-                        } else {
-                            front_on = 0;
-                            toast("Menu closed");
-                        }
-                        front_save_state();
-                        break;
-                    default:
-                        break;
-                    }
-                }
-            }
-        }
-        /* SM64DS_TEST_TALK=1: headless talk proof -- at frame 80, call
-           StartTalk(player, first SIGN_POST, proximity-path) directly,
-           skipping trigger geometry (punch range/facing). Proves the talk
-           chain the menus depend on without needing staged inputs. */
-        if (selftest && frame == 80 && getenv("SM64DS_TEST_TALK")) {
-            for (int *node = (int *)(size_t)data_020a4b78[0]; node;
-                 node = (int *)(size_t)node[1]) {
-                char *o = (char *)(size_t)node[2];
-                if (o && *(unsigned short *)(o + 0xc) == 184) {
-                    int r = _ZN6Player9StartTalkER9ActorBaseb(c, o, 1);
-                    fprintf(stderr, "[test] StartTalk(sign %p) = %d\n", (void *)o, r);
-                    break;
-                }
-            }
-        }
-        /* SM64DS_TEST_SWITCH=<0..3>[,<0..7>]: headless live character
-           switch -- the F5 "character" row's apply_character_live() at
-           frame 100, mid-walk, exactly as if a person moved the row. The
-           optional second number sets the outfit tint first, exercising
-           the material patch. Proves the switch the menu does without
-           needing a person on the keyboard. */
-        if (selftest && frame == 100 && !front_on && !menu_on) {
-            const char *ts = getenv("SM64DS_TEST_SWITCH");
-            if (ts) {
-                g_character = atoi(ts) & 3;
-                const char *comma = strchr(ts, ',');
-                if (comma) {
-                    g_color = atoi(comma + 1) & 7;
-                    fprintf(stderr, "[test] outfit %s\n",
-                            color_name(g_color));
-                }
-                fprintf(stderr, "[test] live switch to %s\n",
-                        character_name(g_character));
-                apply_character_live();
-            }
-        }
-            /* SM64DS_TEST_SCAN=1: every frame, report player animations
-               with a zero frame count (the WillHitFrame div0 shape) */
-            if (getenv("SM64DS_TEST_SCAN") && g_live_player) {
-                char *pl = (char *)g_live_player;
-                for (int i = 0; i < 4; ++i) {
-                    char *ma = *(char **)(pl + 0xdc + i * 4);
-                    if (ma) {
-                        int nf = *(int *)(ma + 0x54) & ~0xc0000000;
-                        if (nf == 0)
-                            fprintf(stderr,
-                                    "[scan] f%d body[%d]=%p numFrames=0\n",
-                                    frame, i, (void *)ma);
-                    } else {
-                        fprintf(stderr, "[scan] f%d body[%d]=NULL\n", frame,
-                                i);
-                    }
-                }
-                {
-                    int pi = *(int *)(pl + 8) & 0xff;
-                    char *ea = pl + 0x1dc + pi * 0x14;
-                    int nf = *(int *)(ea + 4) & ~0xc0000000;
-                    if (nf == 0)
-                        fprintf(stderr, "[scan] f%d embed[param=%d]=%p ZERO\n",
-                                frame, pi, (void *)ea);
-                }
-            }
-            /* SM64DS_TEST_DUMP=1: dump the char-file SharedFilePtr slots
-               (base+0..3 and the 0xC4 anim slots) to compare boot states */
-            if (getenv("SM64DS_TEST_DUMP") && g_live_player) {
-                extern int data_ov002_020ff480[];
-                char *pl = (char *)g_live_player;
-                char *arr = (char *)data_ov002_020ff480;
-                int base = *(int *)(pl + 0x63c);
-                for (int i = 0; i < 4; ++i) {
-                    char *s = *(char **)(arr + (base + i) * 4);
-                    char *a = *(char **)(arr + (0xc4 + i) * 4);
-                    fprintf(stderr,
-                            "[dump] slot[%x]=%p id=%u refs=%u file=%p "
-                            "w0=0x%08x | anim[%x]=%p id=%u refs=%u file=%p "
-                            "w0=0x%08x\n",
-                            base + i, (void *)s, s ? *(unsigned short *)s : 0,
-                            s ? *(unsigned char *)(s + 2) : 0,
-                            s ? *(void **)(s + 4) : 0,
-                            (s && *(void **)(s + 4))
-                                ? *(unsigned *)(*(void **)(s + 4))
-                                : 0,
-                            0xc4 + i, (void *)a, a ? *(unsigned short *)a : 0,
-                            a ? *(unsigned char *)(a + 2) : 0,
-                            a ? *(void **)(a + 4) : 0,
-                            (a && *(void **)(a + 4))
-                            ? *(unsigned *)(*(void **)(a + 4))
-                            : 0);
-                }
-            }
+        /* the pad layout learn flow (the menu's "pad layout" row), the same
+           shape: it eats the frame's pad while it runs */
+        padlearn_frame(&pad_live);
+        /* ---- THE DEBUG MENU, and the close that must not also be a punch.
+           Both live at file scope now (menu_input / menu_b_swallow_spend
+           above) so the windowed scene loop runs the same menu rather than a
+           second one. g_menu_host is what THIS loop has under it that a scene
+           has not -- the Player, the Camera and a real game camera -- and it
+           is refreshed every frame because a level change re-seats both
+           pointers. */
+        g_menu_host.player = c;
+        g_menu_host.cam = cam;
+        g_menu_host.real_camera = real_camera;
+        menu_input(pad_live, &pad);
+        menu_b_swallow_spend(pad_live, &pad);
+        /* MouseCapture, asked and acted on ONCE A FRAME and deliberately right
+           here: after menu_input, so a menu opened by this frame's escape has
+           already handed the pointer back before anything draws, and before the
+           mouse deltas are drained further down, so a frame never steers on a
+           delta collected while the capture was not on. mo_capture_set is
+           idempotent, so the steady state is one comparison. The scene loop
+           does NOT have this line and must not: the mouse is the stylus there.
+           See the MOUSE banner for the whole list. */
+        mo_capture_set(hwnd, mo_capture_want(selftest, stacked));
         /* the right stick's X, from the pad or from the selftest ramp:
            SM64DS_SELFTEST_STICK=<pct> holds it at pct% of full deflection
            from frame 20 (negative for the other way), and =0 ramps it from
@@ -3814,252 +10925,112 @@ int main(void)
             static int fc_edge, fc_boot;
             if (!fc_boot) {
                 fc_boot = 1;
-                /* the window plays in analog; the selftest stays DS-exact
-                   unless it is asked otherwise (see the mode block above) */
-                cam_mode = selftest ? CAM_DS : CAM_ANALOG;
+                /* the window plays in the mode settings.json's CameraMode
+                   names (ds when it names none, on Tango's order -- the
+                   cartridge's own stepped rotate, and the mode the bumpers
+                   turn in); the selftest stays DS-exact unless it is asked
+                   otherwise (see the mode block above). host_settings'
+                   numbering IS the CAM_ numbering: 0 analog, 1 freecam, 2 ds.
+                   The three environment knobs below still win over the file. */
+                cam_mode = selftest ? CAM_DS : host_setting_camera_mode();
+                if (cam_mode < CAM_ANALOG || cam_mode > CAM_DS) cam_mode = CAM_DS;
                 if (getenv("SM64DS_ANALOG_CAMERA")) cam_mode = CAM_ANALOG;
-                if (getenv("SM64DS_SM64_CAMERA")) cam_mode = CAM_SM64;
                 if (getenv("SM64DS_DS_CAMERA")) cam_mode = CAM_DS;
                 if (getenv("SM64DS_FREECAM")) cam_mode = CAM_FREE;
-                if (cam_mode != CAM_DS) {
-                    fc_seed(cam);
-                    /* camera-dist preset from MODS (persisted) */
-                    if (g_cam_dist_pct != 100 && g_cam_dist_pct > 0)
-                        fc_dist = (int)(((long long)fc_dist *
-                                         g_cam_dist_pct) /
-                                        100);
-                }
+                if (cam_mode != CAM_DS) fc_seed(cam);
             }
-            int now = W.GetAsyncKeyState_(VK_F1) < 0 ||
+            int now = key_live(VK_F1) ||
                       (pad_live && (pad.buttons & 0x0080));
             if (selftest && getenv("SM64DS_SELFTEST_FREECAM")) {
                 /* the probe wants the mod ON at 20 and OFF three quarters
-                   through, which the cycle cannot express -- so set
+                   through, which a three-way cycle cannot express -- so set
                    the mode outright and leave the edge alone. */
                 if (frame == 20) { cam_mode = CAM_FREE; fc_seed(cam); }
                 if (frame == 20 + 3 * (selftest - 20) / 4) cam_mode = CAM_DS;
                 now = 0;
             }
             if (now && !fc_edge) {
-                /* analog -> sm64 -> freecam -> DS */
-                cam_mode = (cam_mode + 1) % 4;
+                cam_mode = (cam_mode + 1) % 3;   /* analog -> freecam -> DS */
                 if (cam_mode != CAM_DS) fc_seed(cam);
-                if (cam_mode == CAM_ANALOG || cam_mode == CAM_SM64)
-                    an_pivot_live = 0;
+                if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
                 fprintf(stderr, "[cam] mode %s\n", cam_mode_name(cam_mode));
             }
             fc_edge = now;
         }
-        if (cam_mode != CAM_DS) {
+        if (cam_mode != CAM_DS && !rb_replaying()) {
             /* the rig's own frame: orbit and tilt at a rate proportional to
                the stick, zoom on the bumpers or R/F, C back behind Mario.
                `rig_touched` is what tells the analog auto-recenter to keep its
-               hands off -- the player is aiming the camera. Every rate below
-               is scaled by the real present interval (cam_k_live = 1 at 30
-               presents a second) so the lens moves the same distance per
-               second at any frame rate. */
-            static LARGE_INTEGER cam_qpf, cam_last;
-            if (!cam_qpf.QuadPart) QueryPerformanceFrequency(&cam_qpf);
-            {
-                LARGE_INTEGER cam_now;
-                QueryPerformanceCounter(&cam_now);
-                float dt = cam_last.QuadPart ?
-                    (float)(cam_now.QuadPart - cam_last.QuadPart) /
-                    (float)cam_qpf.QuadPart : 1.0f / 30.0f;
-                cam_last = cam_now;
-                if (dt < 0.005f) dt = 0.005f;
-                if (dt > 0.1f) dt = 0.1f;
-                cam_k_live = dt * 30.0f;
-            }
+               hands off -- the player is aiming the camera. */
             int rig_touched = 0;
+            /* the distance the game's camera converged to on the frame just
+               gone -- see the block above fc_seed. Ahead of the zoom keys so
+               a press this frame still lands on top of it. */
+            if (cam && !fc_dist_owned) fc_dist = fc_cam_dist(cam);
             {
-                const int r = (int)(fc_stick_rate(stick_rx, CAM_STEP) *
-                                    cam_k_live) +
-                              (int)(mouse_dyaw * cam_k_live);
+                /* stick and mouse are both a rightward push measured to the
+                   right, so both take cam_turn as-is */
+                const int r = (fc_stick_rate(stick_rx, CAM_STEP) + mouse_dyaw)
+                              * cam_turn;
                 if (r) { fc_yaw = (short)(fc_yaw + r); rig_touched = 1; }
             }
             {
-                /* N64 has no manual tilt and no stick zoom: in sm64 mode
-                   the right stick's Y is C-Up/C-Down (see below) instead.
-                   Analog and freecam keep the tilt. Invert Y flips every
-                   vertical input at once. */
-                const int ysign = front_invert_y ? -1 : 1;
-                int t = fc_pitch +
-                        (int)(ysign * mouse_dpitch * cam_k_live);
-                if (cam_mode != CAM_SM64)
-                    t -= (int)(ysign *
-                               fc_stick_rate(stick_ry, CAM_STEP / 2) *
-                               cam_k_live);
+                int t = fc_pitch - fc_stick_rate(stick_ry, CAM_STEP / 2)
+                        + mouse_dpitch;
                 if (mouse_dpitch) rig_touched = 1;
-                if (!typing && cam_mode != CAM_SM64) {
-                    if (W.GetAsyncKeyState_('R') < 0)
-                        t += ysign * (int)(0x80 * cam_k_live);
-                    if (W.GetAsyncKeyState_('F') < 0)
-                        t -= ysign * (int)(0x80 * cam_k_live);
-                }
+                if (key_live('R')) t += 0x80;
+                if (key_live('F')) t -= 0x80;
                 if (t > 0x3a00) t = 0x3a00;      /* just short of overhead */
                 if (t < -0x1000) t = -0x1000;    /* a little from below */
                 fc_pitch = (short)t;
             }
-            /* N64's C-buttons move in chunks, not a continuous slew: a tap
-               steps the lens one chunk, holding repeats after a beat (both
-               in seconds, so the feel is the same at any frame rate).
-               Analog and freecam keep the smooth slew. Either way the
-               player is aiming, so the follow law keeps its hands off. */
             {
-                static int q_was, e_was;
-                static float q_rt, q_nxt, e_rt, e_nxt;
-                const int q_now = !typing && W.GetAsyncKeyState_('Q') < 0;
-                const int e_now = !typing && W.GetAsyncKeyState_('E') < 0;
-                if (cam_mode == CAM_SM64) {
-                    if (q_now && !q_was) {
-                        fc_yaw = (short)(fc_yaw - SM64_CSTEP);
-                        q_rt = 0.0f;
-                        q_nxt = 0.4f;
-                    } else if (q_now) {
-                        q_rt += cam_k_live / 30.0f;
-                        if (q_rt >= q_nxt) {
-                            fc_yaw = (short)(fc_yaw - SM64_CSTEP);
-                            q_nxt += 0.15f;
-                        }
-                    }
-                    if (e_now && !e_was) {
-                        fc_yaw = (short)(fc_yaw + SM64_CSTEP);
-                        e_rt = 0.0f;
-                        e_nxt = 0.4f;
-                    } else if (e_now) {
-                        e_rt += cam_k_live / 30.0f;
-                        if (e_rt >= e_nxt) {
-                            fc_yaw = (short)(fc_yaw + SM64_CSTEP);
-                            e_nxt += 0.15f;
-                        }
-                    }
-                    if (q_now || e_now) rig_touched = 1;
-                } else {
-                    if (q_now) {
-                        fc_yaw = (short)(fc_yaw -
-                                         (int)((CAM_STEP / 2) * cam_k_live));
-                        rig_touched = 1;
-                    }
-                    if (e_now) {
-                        fc_yaw = (short)(fc_yaw +
-                                         (int)((CAM_STEP / 2) * cam_k_live));
-                        rig_touched = 1;
-                    }
-                }
-                q_was = q_now;
-                e_was = e_now;
-            }
-            /* C-Up / C-Down on the pad: right stick past ~60% deflection
-               is a C-button press (stick up zooms in, stick down zooms
-               out). Re-centering re-arms, so holding the stick is one
-               press -- tap it like the N64 buttons. */
-            if (cam_mode == CAM_SM64 && pad_live && !typing) {
-                static int ry_armed = 1;
-                if (pad.ry > 20000 || pad.ry < -20000) {
-                    /* a zoom press steers nothing (yaw untouched), so it
-                       must NOT set rig_touched: that flag cancels the
-                       glide below, which used to kill every C-press on
-                       the same frame (zoom targets set, never moved). */
-                    if (ry_armed)
-                        sm64_zoom_press(pad.ry > 20000 ? 1 : -1);
-                    ry_armed = 0;
-                } else if (pad.ry > -8000 && pad.ry < 8000) {
-                    ry_armed = 1;
-                }
+                /* Q pushes left, E pushes right, off the same sign as the
+                   stick so the keyboard and the pad cannot disagree */
+                const int qe = (CAM_STEP / 2) * cam_turn;
+                if (key_live('Q')) { fc_yaw = (short)(fc_yaw - qe); rig_touched = 1; }
+                if (key_live('E')) { fc_yaw = (short)(fc_yaw + qe); rig_touched = 1; }
             }
             {
                 int zoom = 0;
-                /* bumpers zoom everywhere except sm64 (C-buttons own it) */
-                if (cam_mode != CAM_SM64) {
-                    if (pad_live && (pad.buttons & 0x0100)) zoom -= 1; /* LB */
-                    if (pad_live && (pad.buttons & 0x0200)) zoom += 1; /* RB */
-                }
-                if (cam_mode == CAM_SM64) {
-                    /* wheel ticks are C-button presses too (zoom steers
-                       nothing, so no rig_touched -- see above). */
-                    if (mouse_wheel < 0) sm64_zoom_press(1);
-                    else if (mouse_wheel > 0)
-                        sm64_zoom_press(-1);
-                } else {
-                    zoom -= mouse_wheel; /* wheel fwd pulls the eye in */
-                }
-                /* C-Up / C-Down on the keyboard: R and F are edge-triggered
-                   presses (tap, don't hold), same modal rules. */
-                if (cam_mode == CAM_SM64 && !typing) {
-                    static int r_was, f_was;
-                    const int r_now = W.GetAsyncKeyState_('R') < 0;
-                    const int f_now = W.GetAsyncKeyState_('F') < 0;
-                    if (r_now && !r_was)
-                        sm64_zoom_press(1);
-                    if (f_now && !f_was)
-                        sm64_zoom_press(-1);
-                    r_was = r_now;
-                    f_was = f_now;
-                }
+                if (pad_live && (pad.buttons & 0x0100)) zoom -= 1;   /* LB */
+                if (pad_live && (pad.buttons & 0x0200)) zoom += 1;   /* RB */
+                zoom -= mouse_wheel;   /* wheel forward pulls the eye in */
                 if (zoom) {
-                    fc_dist += (int)(zoom * (fc_dist >> 5) * cam_k_live);
+                    /* the player has taken the distance off the game; the
+                       tracking above stands down until the next fc_seed */
+                    fc_dist_owned = 1;
+                    fc_dist += zoom * (fc_dist >> 5);
                     if (fc_dist < 0x30000) fc_dist = 0x30000;
                     if (fc_dist > 0x2000000) fc_dist = 0x2000000;
                 }
             }
-            if (!typing && W.GetAsyncKeyState_('C') < 0) {
+            if (key_live('C')) {
                 fc_yaw = (short)(*(short *)(c + 0x8e) + 0x8000);
-                /* N64's R restores the default cam: snap the heading and
-                   glide the pitch back instead of cutting it. Steering
-                   cancels the glide (see below). */
-                if (cam_mode == CAM_SM64) {
-                    sm64_glide = 0.6f;
-                } else {
-                    rig_touched = 1;
-                }
+                rig_touched = 1;
             }
-            if (typing) rig_touched = 1;   /* typing freezes the lens */
-            /* THE AUTO-RECENTER, analog and sm64. Nothing happens while the
-               player is steering the camera and nothing happens while Mario
-               is standing still. Analog keeps an eleven-degree deadzone
-               behind him and closes a twentieth of the error a frame, capped
-               at 0x200 binangs (2.8 degrees, 84 a second), so the worst case
-               settles in about two seconds and nothing ever reads as a snap.
-               Sm64 runs Lakitu's law instead: no deadzone, a tenth a frame
-               capped at 0x300, so the lens swings behind his direction of
-               travel through turns without whipping. During a sustained turn
-               the proportional term is what binds in both, and the camera
-               trails him -- lazily in analog, tightly in sm64 -- which is
-               the lag that makes it feel like a camera rather than a
-               bracket. All rates go through cam_ease_step, so they hold at
-               any present rate. */
-            if ((cam_mode == CAM_ANALOG || cam_mode == CAM_SM64) &&
-                !rig_touched) {
+            /* THE AUTO-RECENTER, analog only. Nothing happens while the player
+               is steering the camera, nothing happens while Mario is standing
+               still, and nothing happens inside eleven degrees of behind him --
+               the last one is what keeps it from hunting around the target.
+               Outside that it closes a twentieth of the error a frame, capped
+               at 0x200 binangs (2.8 degrees, 84 a second), so the worst case --
+               the player has spun Mario right around and let go -- settles in
+               about two seconds and nothing in it ever reads as a snap. During
+               a sustained turn the proportional term is what binds, and the
+               camera trails him by a dozen degrees or so, which is the lag
+               that makes it feel like a camera rather than a bracket. */
+            if (cam_mode == CAM_ANALOG && !rig_touched) {
                 const int spd = *(int *)(c + 0x98);
                 if (spd > (2 << 12) || spd < -(2 << 12)) {
                     const short behind = (short)(*(short *)(c + 0x8e) + 0x8000);
                     int d = (short)(behind - fc_yaw);
-                    if (cam_mode == CAM_SM64) {
-                        fc_yaw = (short)(fc_yaw +
-                                         cam_ease_step(d, 10, 0x300,
-                                                       cam_k_live, 1));
-                    } else if (d > 0x800 || d < -0x800) {
-                        fc_yaw = (short)(fc_yaw +
-                                         cam_ease_step(d, 20, 0x200,
-                                                       cam_k_live, 0));
+                    if (d > 0x800 || d < -0x800) {
+                        d /= 20;
+                        if (d > 0x200) d = 0x200;
+                        if (d < -0x200) d = -0x200;
+                        fc_yaw = (short)(fc_yaw + d);
                     }
-                }
-            }
-            /* sm64 entry glide: pitch and distance ease to Lakitu's
-               defaults over ~0.6s instead of cutting there. Any steering
-               cancels it; C restarts it. */
-            if (cam_mode == CAM_SM64 && sm64_glide > 0.0f) {
-                if (rig_touched) {
-                    sm64_glide = 0.0f;
-                } else {
-                    fc_pitch = (short)(fc_pitch +
-                                       cam_ease_step(SM64_PITCH - fc_pitch, 6,
-                                                     0, cam_k_live, 1));
-                    fc_dist += cam_ease_step(sm64_want_dist - fc_dist, 6, 0,
-                                             cam_k_live, 0);
-                    sm64_glide -= cam_k_live / 30.0f;
-                    if (sm64_glide <= 0.0f) sm64_glide = 0.0f;
                 }
             }
         }
@@ -4069,25 +11040,21 @@ int main(void)
             if (pad.lx < -12000 || (pad.buttons & 4)) dx -= 1;
             if (pad.lx > 12000 || (pad.buttons & 8)) dx += 1;
             if (pad.rx < -10000 || pad.rx > 10000) {
-                cam_yaw += 0.045f * (pad.rx / 32768.0f);
+                cam_yaw += cam_turn * 0.045f * (pad.rx / 32768.0f);
                 orbiting = 1;
             }
-            if (!front_invert_y) {
-                if (pad.ry > 10000 && cam_pitch < 0.85f) cam_pitch += 0.02f;
-                if (pad.ry < -10000 && cam_pitch > -0.15f) cam_pitch -= 0.02f;
-            } else {
-                if (pad.ry < -10000 && cam_pitch < 0.85f) cam_pitch += 0.02f;
-                if (pad.ry > 10000 && cam_pitch > -0.15f) cam_pitch -= 0.02f;
-            }
+            if (pad.ry > 10000 && cam_pitch < 0.85f) cam_pitch += 0.02f;
+            if (pad.ry < -10000 && cam_pitch > -0.15f) cam_pitch -= 0.02f;
         }
-        if (!typing && W.GetAsyncKeyState_('Q') < 0) { cam_yaw -= 0.045f; orbiting = 1; }
-        if (!typing && W.GetAsyncKeyState_('E') < 0) { cam_yaw += 0.045f; orbiting = 1; }
-        if (!typing && W.GetAsyncKeyState_('R') < 0 &&
-            (front_invert_y ? cam_pitch > -0.15f : cam_pitch < 0.85f))
-            cam_pitch += front_invert_y ? -0.02f : 0.02f;
-        if (!typing && W.GetAsyncKeyState_('F') < 0 &&
-            (front_invert_y ? cam_pitch < 0.85f : cam_pitch > -0.15f))
-            cam_pitch -= front_invert_y ? -0.02f : 0.02f;
+        /* the pre-Camera-actor dev rig (SM64DS_OLD_CAMERA). It never reaches a
+           player, but it takes cam_turn too so nobody debugging in it has to
+           remember that this one camera turns the other way. */
+        if (key_live('Q')) { cam_yaw -= cam_turn * 0.045f; orbiting = 1; }
+        if (key_live('E')) { cam_yaw += cam_turn * 0.045f; orbiting = 1; }
+        if (key_live('R') && cam_pitch < 0.85f)
+            cam_pitch += 0.02f;
+        if (key_live('F') && cam_pitch > -0.15f)
+            cam_pitch -= 0.02f;
         /* THE GAME'S OWN INPUT PROCESSOR: keys become raw DS pad bits,
            Stage::CheckInput turns them into the stick record (mag, dir,
            binang -- the D-pad path, mode 0), and Player::Behavior folds
@@ -4103,11 +11070,22 @@ int main(void)
             if (dz < 0) raw |= 0x80;   /* down  */
             if (dx < 0) raw |= 0x20;   /* left  */
             if (dx > 0) raw |= 0x10;   /* right */
-            static unsigned short raw_prev;
-            *(unsigned short *)((char *)data_020a0e58 + 0) = raw;
-            *(unsigned short *)((char *)data_020a0e58 + 2) =
-                (unsigned short)(raw & (unsigned short)~raw_prev);
-            raw_prev = raw;
+            /* run mg16 lane MP3: the SAME value the pad mirror gets, stashed
+               for hal/comms_conductor.cpp's key-register publish further down
+               the frame. Taken HERE, at the source, because the ROM's fan-out
+               (func_0203bc7c, when SM64DS_COMMS_FANOUT is on) rewrites that
+               mirror from the four comms records later in this same frame --
+               so reading the mirror at publish time would feed the wire back
+               into itself. Stashing the source value is what makes the
+               ordering a fact rather than a comment. */
+            port_raw_pad_stash(raw);
+            /* run link100, lane INPUTRAW: the SAME direction bits, stashed
+               for the pad-mirror store, which now runs further down this
+               frame (beside port_raw_btn_stash) so it can OR the direction
+               bits together with the host's button word before either one
+               reaches data_020a0e58. `raw` itself goes out of scope at the
+               end of this block, well above that store. */
+            port_raw_dir_stash(raw);
             /* the angle FROM Mario TO the camera (what the name
                GetAngleToCamera means): the D-pad table's "up" entry is
                0x8000, so up + angle-to-camera = away from the lens.
@@ -4118,64 +11096,37 @@ int main(void)
             if (!real_camera)
                 *(short *)((char *)data_020a1164 + 0) =
                     (short)((int)(cam_yaw * (32768.0f / 3.14159265f)) + 0x8000);
-            _ZN5Stage10CheckInputEv();
-            /* the matched TU writes its own data_0209f498 block; older
-               TUs read per-field split symbols -- copy the record out */
-            {
-                const char *q = (const char *)data_0209f498;
-                *(short *)(data_0209f4a0 + 0) = *(const short *)(q + 0x08);
-                *(short *)data_0209f4a2 = *(const short *)(q + 0x0a);
-                *(short *)data_0209f4a4 = *(const short *)(q + 0x0c);
-                *(short *)data_0209f4a6 = *(const short *)(q + 0x0e);
-                data_0209f4ac[0] = *(const unsigned char *)(q + 0x14);
-                if (g_analog_controls && pad_live) {
-                    const float sx = (float)pad.lx;
-                    const float sy = (float)pad.ly;
-                    const float length = sqrtf(sx * sx + sy * sy);
-                    const float deadzone = 5000.0f;
-                    if (length > deadzone) {
-                        float usable = (length - deadzone) /
-                                       (32767.0f - deadzone);
-                        /* speed mod: scale the stick magnitude. Above 100%
-                           the stick can exceed full tilt (up to 3x), which
-                           is what carries into faster walk/run speeds --
-                           but only while dashing. A light tilt must stay a
-                           walk, so without dash input cap at the vanilla
-                           walk ceiling (the magnitude of exactly 0.72
-                           travel, the same threshold that sets the dash
-                           bit below). Otherwise even a breath on the stick
-                           runs, and the run button stops meaning anything. */
-                        usable *= g_speed_pct / 100.0f;
-                        if (usable > 3.0f) usable = 3.0f;
-                        {
-                            const float walk_ceil =
-                                (0.72f * 32767.0f - deadzone) /
-                                (32767.0f - deadzone);
-                            if (length / 32767.0f <= 0.72f &&
-                                usable > walk_ceil)
-                                usable = walk_ceil;
-                        }
-                        const float scale = usable * 32767.0f / length;
-                        const float input_x = front_invert_x ? -sx : sx;
-                        *(short *)(q + 0x0a) = (short)(input_x * scale);
-                        *(short *)(q + 0x0c) = (short)(sy * scale);
-                        float mag = usable * 4096.0f;
-                        if (mag > 32767.0f) mag = 32767.0f;
-                        *(short *)(q + 0x08) = (short)mag;
-                        *(short *)(q + 0x0e) = (short)(
-                            (int)(atan2f(-input_x, sy) *
-                                  (32768.0f / 3.14159265f)) +
-                            *(short *)((char *)data_020a1164 + 0) + 0x8000);
-                    } else {
-                        *(short *)(q + 0x08) = 0;
-                        *(short *)(q + 0x0a) = 0;
-                        *(short *)(q + 0x0c) = 0;
-                    }
-                    *(short *)data_0209f4a2 = *(short *)(q + 0x0a);
-                    *(short *)data_0209f4a4 = *(short *)(q + 0x0c);
-                    *(short *)data_0209f4a6 = *(short *)(q + 0x0e);
-                }
-            }
+            /* TEMPORARY headless input: OR any SM64DS_PROBE_INPUT press for this
+               frame into the raw pad mirror BEFORE CheckInput, so the remap and
+               the direct readers (IsButtonInputValid, Message::Update) both see
+               it. Does nothing without the env var. */
+            port_input_probe_apply(port_rom_frame_checked(frame,
+                                                          "input-probe"));
+            /* THIS FRAME'S PAD, STASHED FOR THE Ctrl BRIDGE (run link100, lane
+               FRAME). port_frame_ctrl_publish runs from inside port_actor_tick
+               -- hal/stage_frame.cpp's slot-6 thunk calls it the instant the
+               ROM's Stage::Behavior has filled the Ctrl block -- so it cannot
+               reach these four frame-loop locals. Written here, above the tick,
+               and read once below it; see the function's own banner. */
+            g_fc_pad = pad;
+            g_fc_pad_live = pad_live;
+            g_fc_menu_on = menu_on;
+            g_fc_selftest = selftest;
+            /* STAGE::CheckInput IS THE STAGE'S AGAIN (run link100, lane FRAME).
+               This is where the port used to call it -- Stage::Behavior:107,
+               transcribed here so the two blocks that followed could read this
+               frame's Ctrl record. Slot 6 of _ZTV5Stage now holds the ROM's own
+               Stage::Behavior, which calls CheckInput itself, so a call here
+               would run the input processor TWICE a frame: `held` and `pressed`
+               are |= accumulations and DecIfAbove0_Byte would run p->cnt and
+               p->delay down at double rate.
+
+               THE TWO BLOCKS MOVED WITH IT, to the far side of port_actor_tick
+               -- the split-array Ctrl fan-out and the RUN-mode analog override.
+               Both have to see THIS frame's record, and the Stage fills it from
+               inside the tick now. See the block below the tick chain. The pad
+               mirror is still written HERE, above the tick, because that is
+               where CheckInput reads it from. */
             /* camera lazy-follow, from the same intended direction */
             if ((dx || dz) && !orbiting) {
                 float head = cam_yaw + atan2f((float)-dx, (float)dz);
@@ -4188,48 +11139,75 @@ int main(void)
         }
 
         /* Buttons -> the Ctrl held/pressed fields directly (CheckInput's
-           remap tables are ROM pointers with no host image). DS bits:
-           1 = A (punch), 2 = B (jump), 0x100 = R (crouch), 0x800 = the
-           dash button the walk core reads. */
+           remap tables are ROM pointers with no host image). The four bits
+           this path and the windowed scene path must not disagree about are
+           host_ds_buttons' (jump, punch, crouch and the run button the player
+           bound, off the keyboard and off the pad); everything below is this
+           path's own tail -- the camera-rotate bits behind func_02009e70's own
+           reader, run-mode AUTO, and the selftest probes -- and it is
+           deliberately not shared, because every level selftest frame in the
+           battery is a function of it. */
         {
             static unsigned short btn_was;
-            unsigned short btn = 0;
-            if (g_edit_mode != EDIT_NONE) btn = 0;   /* typing, not playing */
-            else {
-            if (W.GetAsyncKeyState_(g_key_jump) < 0) btn |= 2;
-            if (W.GetAsyncKeyState_(g_key_run) < 0) btn |= 0x800;
-            if (W.GetAsyncKeyState_(g_key_crouch) < 0) btn |= 0x400;
-            if (W.GetAsyncKeyState_(g_key_punch) < 0) btn |= 1;
-            }
-            if (pad_live) {
-                /* Xbox layout per Tango: A jump, X run, B punch,
-                   bumpers rotate the camera. RT is meant to be crouch,
-                   but the old "crouch = 0x100" binding was a GUESS and
-                   0x100 is provably the camera rotate-right bit
-                   (func_02009e70 reads held & 0x4300) -- likely what
-                   the LT "crouch crash" actually hit. The REAL crouch
-                   bit is 0x400 (St_Crouch_Main holds on it, St_Land
-                   enters with it, Crawl exits by it). */
-                if (pad_btn_down(&pad, g_pad_jump)) btn |= 2;
-                if (pad_btn_down(&pad, g_pad_run)) btn |= 0x800;
-                if (pad_btn_down(&pad, g_pad_punch)) btn |= 1;
-                if (pad_btn_down(&pad, g_pad_crouch)) btn |= 0x400;
-                if (g_analog_controls) {
-                    const float ax = (float)pad.lx;
-                    const float ay = (float)pad.ly;
-                    const float travel = sqrtf(ax * ax + ay * ay) / 32767.0f;
-                    if (travel > 0.72f) btn |= 0x800;   /* analog run */
-                }
-                /* the bumpers are camera-rotate and go in with the rest of
-                   the rotate input below, where the freecam gate is */
+            unsigned short btn = host_ds_buttons(pad_live, &pad);
+            /* ---- RUN MODE AUTO: the run bit, held for them. Literally that
+               and nothing else -- no exception for standing still, because
+               the honest reading of "always running, no button" is that the
+               button is always down, and inventing a host-side exception
+               would put a rule in the input layer that the game does not have.
+               It follows that the charged dash St_Wait_Main builds while the
+               run button is held standing still (+0x6e5 counting to 0x1e,
+               then the 30-frame window at +0x6ed) is ALWAYS armed in this
+               mode. That is what holding the button does on hardware; it is
+               listed as a thing to feel rather than papered over here.
+
+               Never under a selftest and never with the menu open: run_mode()
+               is pinned to button for the first and btn is zeroed below for
+               the second, but this reads menu_on itself so the intent is at
+               the line rather than three lines away. */
+            if (run_mode() == RUN_AUTO && !menu_on) btn |= 0x800;
+            /* ---- RUN MODE ANALOG, the multiplayer half. In single player the
+               push-far-to-run of analog mode is the magnitude write a few
+               hundred lines up (data_0209f4a0..): the stick's deflection lands
+               in the local slot and the ROM's own walk/run threshold reads it.
+               That write is GATED OFF with a transport up -- it would land on
+               the owner's slot, and the wire carries no deflection anyway, only
+               the digital d-pad and this button word -- so under a session an
+               analog player crossed as a d-pad press with no run bit and walked
+               everywhere, whatever the stick was doing. That is the owner's
+               "run does not work in multiplayer" for this mode. The faithful
+               reduction of "how far the stick is pushed" onto a wire that only
+               carries bits is to read THIS console's own stick against the same
+               ~87% floor the ROM's split uses and fold the result into the run
+               bit, which host_btn_to_raw_keys then carries across exactly like
+               button and auto do. Push past the floor and the run bit crosses
+               and he runs; ease off and the d-pad still crosses so he walks.
+               Only with a transport up, so the single-player magnitude path
+               above is untouched; never under a selftest (run_mode() is pinned
+               to button there) or with the menu open. */
+            if (run_mode() == RUN_ANALOG && !menu_on && pad_live &&
+                port::comms_transport() && comms_fanout_on()) {
+                const int DEAD = 7849;      /* the same XInput floor as above */
+                const int FULL = 32767;
+                const double len = sqrt((double)pad.lx * pad.lx +
+                                        (double)pad.ly * pad.ly);
+                const double norm = len > FULL ? 1.0
+                                  : (len - DEAD) / (double)(FULL - DEAD);
+                if (norm >= 0.87) btn |= 0x800;
             }
             /* selftest: synthetic hop at frame 30 (walking start speed) */
             if (selftest && frame >= 30 && frame <= 33 &&
                 !getenv("SM64DS_SELFTEST_DASHJUMP") &&
                 !getenv("SM64DS_SELFTEST_PUNCH") &&
-                !getenv("SM64DS_SELFTEST_IDLE"))
+                !getenv("SM64DS_SELFTEST_IDLE") &&
+                !getenv("SM64DS_SELFTEST_JUMPSPAM") &&
+                !decel_probe)
                 btn |= 2;
             if (selftest && getenv("SM64DS_SELFTEST_DASH") && frame >= 20)
+                btn |= 0x800;
+            /* decel probe: dash held to build top run speed, released with
+               the stick so the tail measured is a pure ground decay */
+            if (decel_probe && frame < DECEL_RELEASE)
                 btn |= 0x800;
             /* the 0x100-press repro: characterize the "LT crash" --
                camera rotate HUD vs a crouch entry, the fault dump
@@ -4244,14 +11222,70 @@ int main(void)
                 if (frame >= 20) btn |= 0x800;
                 if (frame >= 60 && frame <= 63) btn |= 2;
             }
-            /* punch probe: A-button edge at f40 (SM64DS_SELFTEST_PUNCH_AT
-               moves it; the entry animation still owns the player at f40
-               on some spawns) */
-            if (selftest && getenv("SM64DS_SELFTEST_PUNCH")) {
-                int pat = 40;
-                if (getenv("SM64DS_SELFTEST_PUNCH_AT"))
-                    pat = atoi(getenv("SM64DS_SELFTEST_PUNCH_AT"));
-                if (frame >= pat && frame <= pat + 2) btn |= 1;
+            /* LONGJUMP probe: the leg-twist repro. The long jump is the run
+               plus crouch plus A combination -- dash from f20 to build top
+               run speed, R held from f60 so St_Walk_Main sees the crouch bit
+               under speed, and the A edge two frames later, which is what
+               St_Crouch_Main reads to enter ST_LONG_JUMP. The flight is
+               roughly 35 frames after that, so 140 frames covers entry,
+               flight and landing. */
+            if (selftest && getenv("SM64DS_SELFTEST_LONGJUMP")) {
+                if (frame >= 20) btn |= 0x800;
+                if (frame >= 60) btn |= 0x400;
+                if (frame >= 62 && frame <= 64) btn |= 2;
+            }
+            /* punch probe: A-button edge at f40 */
+            if (selftest && getenv("SM64DS_SELFTEST_PUNCH") &&
+                frame >= 40 && frame <= 42)
+                btn |= 1;
+            /* TONGUE probe: the Yoshi ground-tongue repro. B (punch, bit 1) is
+               the tongue for Yoshi, but the BoB entrance keeps him in
+               St_LevelEnter until roughly frame 195, so a punch has to wait for
+               him to be walking. Press an edge every 40 frames from f210: three
+               frames held so the edge is not missed, long enough between that
+               St_YoshiPower runs to completion and drops back to walk before the
+               next one. Drive it as Yoshi (SM64DS_CHARACTER=3) in BoB
+               (SM64DS_LEVEL=6) with SM64DS_TRACE_STATE=2 to read the tongue
+               state chain 0x020d7ed0 (Init) / 0x020d7504 (Main). */
+            if (selftest && getenv("SM64DS_SELFTEST_TONGUE") &&
+                frame >= 210 && ((frame - 210) % 40) < 3 &&
+                /* SM64DS_SELFTEST_TONGUE_ONCE=1: press exactly ONCE, at f210.
+                   The repeating press is what the tongue-render lane wanted; the
+                   SWALLOW wants the opposite. A second B while an enemy is in the
+                   mouth is the SPIT (St_YoshiPower_Main case 4), and the swallow
+                   hand-off (func_ov002_020d6790) additionally needs the 0x5a-frame
+                   lockout at Player+0x6c6 to run down first -- 90 frames, longer
+                   than the 40-frame period -- so the repeating press can never
+                   reach a swallow. One press and then wait can. */
+                (frame < 213 || !getenv("SM64DS_SELFTEST_TONGUE_ONCE")))
+                btn |= 1;
+            /* THROW probe: the SECOND B press, the one that THROWS a held
+               Yoshi egg. After St_Swallow lays the egg the Player holds it
+               (mHeldObj); a B edge then enters St_YoshiPower_Init, which does
+               func_ov002_020ed63c(mHeldObj, 1) -- egg state 1, "thrown, in
+               flight". State 1's main func_ov002_020ecf94 calls
+               func_ov002_020ecd18 EVERY FRAME, and that is the function that
+               dispatches the target's vtable slot 30. Without this knob the
+               harness can lay an egg but never throw one, so the whole flight
+               path -- and slot 30 with it -- was unreachable from a test.
+               This only presses a button; nothing about the throw, the aim or
+               the flight is scripted. SM64DS_SELFTEST_TONGUE_THROW=<frame>. */
+            if (selftest && getenv("SM64DS_SELFTEST_TONGUE_THROW")) {
+                const int tf = atoi(getenv("SM64DS_SELFTEST_TONGUE_THROW"));
+                if (tf > 0 && frame >= tf && frame < tf + 3)
+                    btn |= 1;
+            }
+            /* JUMPSPAM probe: the frame-hitch repro. A press edge every
+               <period> frames from f20, three frames held so the edge is not
+               missed. The default period of 40 is long enough that he lands
+               and is standing again before the next one, so every cycle is a
+               fresh ground jump rather than a triple-jump chain. Pair it with
+               SM64DS_JUMP_PROBE=1 to get the per-frame cost line. */
+            if (selftest && getenv("SM64DS_SELFTEST_JUMPSPAM")) {
+                const int period = atoi(getenv("SM64DS_SELFTEST_JUMPSPAM"));
+                const int p = period > 3 ? period : 40;
+                if (frame >= 20 && (frame - 20) % p < 3)
+                    btn |= 2;
             }
             /* SWIM probe: a B-button STROKE every 24 frames. Swimming is the
                one locomotion in the game the stick alone cannot drive --
@@ -4262,6 +11296,57 @@ int main(void)
             if (selftest && getenv("SM64DS_SELFTEST_SWIM") &&
                 (frame % 24) < 3)
                 btn |= 2;
+            /* SM64DS_SELFTEST_SWAP=<n>[,<n>...] does mid-stride what F4 does by
+               hand: one swap every 20 frames from frame 30, with a walk cycle
+               already running and an animation partway through it. Two
+               different things need that. The boot swap SM64DS_CHARACTER takes
+               lands before the state machine has settled, which is not the path
+               a person uses; and a LIST is what catches the file bookkeeping,
+               because each swap releases the character it is leaving and loads
+               the one it is going to, so only a chain proves the pair stays
+               balanced across more than one hop. */
+            if (selftest && frame >= 30 && (frame - 30) % 20 == 0) {
+                const char *sw = getenv("SM64DS_SELFTEST_SWAP");
+                if (sw) {
+                    const int nth = (frame - 30) / 20;
+                    for (int k = 0; k < nth && sw; ++k)
+                        sw = strchr(sw, ',') ? strchr(sw, ',') + 1 : 0;
+                    if (sw && *sw) {
+                        const int want = atoi(sw);
+                        fprintf(stderr, "[chr] f%d selftest swap -> %d\n",
+                                frame, want);
+                        port_player_set_character(c, want);
+                        g_character = g_character_pending = want & 3;
+                        /* prove the swap TOOK: param1 (Player+8) is the live
+                           character index every downstream read keys off, so a
+                           mismatch here is the whole point of the chain failing.
+                           Prints PASS/FAIL so a headless run is a gate, not just
+                           a sequence of fire-and-forget pokes. */
+                        const int got = *(int *)((char *)c + 8) & 3;
+                        fprintf(stderr, "[chr] f%d swap %s: param1=%d want=%d\n",
+                                frame, got == (want & 3) ? "PASS" : "FAIL",
+                                got, want & 3);
+                    }
+                }
+            }
+            /* SM64DS_SELFTEST_SWAPMOVE=<n>: one swap to character n, fired late
+               (frame 210) so it lands well after any level's entrance cutscene
+               and while forward is held -- the "switch DURING movement" the F4
+               path is judged by. The door swap must keep him in his walk state
+               across it; the state trace (SM64DS_TRACE_STATE=2) is where that
+               reads. Pair with SM64DS_WINDOW_SELFTEST>=240. */
+            if (selftest && frame == 210) {
+                const char *mv = getenv("SM64DS_SELFTEST_SWAPMOVE");
+                if (mv && *mv) {
+                    const int want = atoi(mv) & 3;
+                    fprintf(stderr, "[chr] f210 mid-run swap -> %d\n", want);
+                    port_player_set_character(c, (unsigned)want);
+                    g_character = g_character_pending = want;
+                    const int got = *(int *)((char *)c + 8) & 3;
+                    fprintf(stderr, "[chr] f210 swapmove %s: param1=%d want=%d\n",
+                            got == want ? "PASS" : "FAIL", got, want);
+                }
+            }
             /* camera orbit through the game's own reader: func_02009e70
                tests data_0209f49c & 0x4300 -- L (0x200) rotates left, R
                (0x100) rotates right, 0x4000 is the snap-behind the input
@@ -4275,95 +11360,197 @@ int main(void)
                steps every frame. While the freecam mod owns the view none of
                it is written -- the Camera actor is left following Mario so
                there is something clean to hand back to. */
-            if (real_camera && cam_mode == CAM_DS && !typing) {
-                if (W.GetAsyncKeyState_('Q') < 0) btn |= 0x200;
-                if (W.GetAsyncKeyState_('E') < 0) btn |= 0x100;
-                if (W.GetAsyncKeyState_('C') < 0) btn |= 0x4000;
-                if (stick_rx < -10000) btn |= 0x200;
-                if (stick_rx > 10000) btn |= 0x100;
-                if (pad_live) {
-                    if (pad.buttons & 0x0100) btn |= 0x200;  /* LB -> cam L */
-                    if (pad.buttons & 0x0200) btn |= 0x100;  /* RB -> cam R */
-                }
-                /* orbit probe: hold the rotate-right bit from frame 20 --
-                   the camera's own heading and the angle it publishes must
-                   both move, and W must keep walking away from the lens */
-                if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20)
-                    btn |= 0x100;
-            }
-            /* speed mod for digital input: the D-pad has no magnitude,
-               so tiers map onto the dash bit the walk core reads. */
-            if ((dx || dz) && !menu_on) {
-                if (g_speed_pct >= 150) btn |= 0x800;
-                else if (g_speed_pct <= 75) btn &= (unsigned short)~0x800;
-            }
-            g_jump_edge = (btn & (unsigned short)~btn_was) & 2;
-            if (menu_on) { btn = 0; g_jump_edge = 0; }
-            *(unsigned short *)(data_0209f49c + 0) = btn;
-            *(unsigned short *)(data_0209f49e + 0) =
-                (unsigned short)(btn & (unsigned short)~btn_was);
-            btn_was = btn;
-        }
+            /* The host's camera-rotate request for THIS frame. Declared here,
+               above the if, so it exists on every frame and not only DS-camera
+               ones: a frame that leaves DS mode (or opens the menu) must clear
+               it rather than leave the last value latched -- see the
+               g_fc_cam_rot assignment below. */
+            unsigned short cam_rot = 0;
+            if (real_camera && cam_mode == CAM_DS) {
+                /* The two bits func_02009e70 reads, picked by the same
+                   cam_turn the rig steps its heading with, so DS mode and
+                   analog mode turn the same way for the same push. 0x100
+                   raises the heading (the ROM adds +0x400 for it) and 0x200
+                   lowers it, and a rising heading is the view panning left,
+                   so a rightward push takes 0x200 by default. Which host
+                   control feeds which bit is the port's own choice: the DS
+                   had L and R and none of these controls.
 
-        /* SM64 DIVE (sm64_movement mod): N64's dive is absent from DS, so
-           run + punch falls back to a standing punch that kills all speed.
-           With the mod on, a punch edge while dashing and moving on dry
-            ground becomes a dive instead: the ROM's own jump is triggered
-            (Walk + jump edge picks the right record itself -- no exotic
-            states), then the harness holds N64 dive ballistics while
-            airborne: entry speed held every tick (the ROM would bleed it
-            down) and a flat +20u rise. Landing
-           is the ROM's own (which preserves speed for jumps), the punch
-           bits are consumed so PunchKick does not also fire, and the dive
-           is always a fresh single (combo timer cleared). Standing punches
-           (signs talk), airborne punches and everything with the mod off
-           pass through untouched. */
-        {
-            const unsigned short held =
-                *(unsigned short *)(data_0209f49c + 0);
-            const unsigned short pressed =
-                *(unsigned short *)(data_0209f49e + 0);
-            const int spd = *(int *)(c + 0x98);
-            static int dive_t, dive_on, dive_spd;
-            if (!menu_on && !front_on && (pressed & 1) &&
-                (held & 0x800) && (spd > (8 << 12) || spd < -(8 << 12)) &&
-                *(unsigned char *)(c + 0x6de) == 0 &&
-                *(unsigned char *)(c + 0x706) == 0 &&
-                sm64ds::mods::mod_enabled("sm64_movement")) {
-                /* jump for me (ROM picks the record), fresh single, and
-                   remember the entry speed + arm the ride. Punch is
-                   consumed; jump goes out as held + edge for exactly this
-                   frame (the input block rebuilds both words next frame). */
-                *(unsigned short *)(data_0209f49c + 0) = (unsigned short)
-                    ((held | 2u) & (unsigned short)~1u);
-                *(unsigned short *)(data_0209f49e + 0) = (unsigned short)
-                    ((pressed | 2u) & (unsigned short)~1u);
-                *(unsigned short *)(c + 0x6a8) = 0;
-                dive_t = 6;
-                dive_on = 0;
-                dive_spd = spd;
-                fprintf(stderr, "[mod] sm64 dive\n");
-            }
-            /* ride: while the dive is airborne, hold entry speed exactly
-               (N64 preserves momentum; the ROM would bleed it down) and
-               flatten the rise to +20u (N64's dive hop -- the ROM's jump
-               arc is taller). Falling is untouched. Landing clears. */
-            if (dive_t > 0) {
-                --dive_t;
-                if (*(unsigned char *)(c + 0x6de) != 0) {
-                    dive_on = 1;
-                    dive_t = 0;
+                   These bits used to fold into `btn` here, but `btn` is
+                   stored into data_0209f49c ABOVE the actor tick, and that
+                   store is overwritten twice inside Stage::Behavior before
+                   func_02009e70 ever reads it (port_frame_ctrl_prime copies
+                   the ROM's own Ctrl record over it at the head, and
+                   port_frame_ctrl_publish copies it again after
+                   Stage::CheckInput runs). host_btn_to_raw_keys' banner above
+                   says why they have no raw source. So they ride in
+                   g_fc_cam_rot instead and are merged inside
+                   port_frame_ctrl_publish, at the instant
+                   Stage::CheckCameraInput merges the cartridge's own arrows. */
+                const unsigned cam_bit_right = (cam_turn > 0) ? 0x100u : 0x200u;
+                const unsigned cam_bit_left  = (cam_turn > 0) ? 0x200u : 0x100u;
+                if (key_live('Q')) cam_rot |= cam_bit_left;
+                if (key_live('E')) cam_rot |= cam_bit_right;
+                if (key_live('C')) btn |= 0x4000;
+                if (stick_rx < -10000) cam_rot |= cam_bit_left;
+                if (stick_rx > 10000) cam_rot |= cam_bit_right;
+                if (pad_live) {
+                    if (pad.buttons & 0x0100) cam_rot |= cam_bit_left;   /* LB */
+                    if (pad.buttons & 0x0200) cam_rot |= cam_bit_right;  /* RB */
                 }
+                /* orbit probe: hold one of func_02009e70's own rotate bits
+                   from frame 20 -- the camera's heading and the angle it
+                   publishes must both move, and W must keep walking away
+                   from the lens. Deliberately the raw bit and not
+                   cam_bit_right: this probes the ROM's reader, so it must
+                   not move when a player's binding preference does. */
+                if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20)
+                    cam_rot |= 0x100;
             }
-            if (dive_on) {
-                if (*(unsigned char *)(c + 0x6de) != 0) {
-                    *(int *)(c + 0x98) = dive_spd;
-                    if (*(int *)(c + 0xa8) > 81920)
-                        *(int *)(c + 0xa8) = 81920;
-                } else {
-                    dive_on = 0;
-                }
+            if (menu_on) btn = 0;   /* enter/A belong to the menu, not to him */
+            g_fc_cam_rot = menu_on ? 0 : cam_rot;
+            /* TEMPORARY: fold the scripted probe's A/B into the button word so
+               StartTalk's b==0 gate (data_0209f49e & 3) sees the press, and the
+               camera-rotate readers do not (mask to bits 0-1). SM64DS_PROBE_INPUT. */
+            if (!menu_on)
+                btn |= (unsigned short)(port_input_probe_bits(
+                    port_rom_frame_checked(frame, "input-probe-bits")) & 0x3);
+            /* run mg16 lane MPBTN: the button half of the published key word,
+               stashed HERE because this is the first line where btn is final
+               (bindings, run-mode AUTO, the selftest probes, the menu's zero,
+               the scripted probe's A/B -- all folded). Taken from the host
+               state and never from a record, so the fan-out cannot feed the
+               wire back into itself; comms_publish_pad below in this frame
+               ORs it with the d-pad stash. The full raw probe word rides
+               along so a scripted crouch (R) or run (Y) crosses the wire in a
+               headless proof exactly like a held key. Named rather than
+               inlined (run link100, lane INPUTRAW) because the pad-mirror
+               store just below wants this SAME value: the mirror and the
+               comms stash must agree bit for bit. */
+            const unsigned short port_raw_bt_bits_for_mirror = (unsigned short)(
+                host_btn_to_raw_keys(btn) |
+                (menu_on ? 0 : port_input_probe_bits(
+                    port_rom_frame_checked(frame, "input-probe-raw"))));
+            port_raw_btn_stash(port_raw_bt_bits_for_mirror);
+            /* THE PAD MIRROR (run link100, lane INPUTRAW; moved here from
+               right after `raw`'s four direction bits were computed, a few
+               hundred lines up). That earlier site only ever had the
+               direction bits to publish, and PadData (data_020a0e58) is the
+               cartridge's ENTIRE raw source -- Stage::CheckInput's mode-0
+               remap (romdata.c's data_02075650 table) reads nothing else --
+               so the eight button bits (A/B/X/Y, Start, Select, L/R) had no
+               raw source and could never reach a Ctrl reader. Publishing the
+               direction bits OR'd with the host's own button word
+               (port_raw_bt_bits_for_mirror above, the same value just handed
+               to port_raw_btn_stash) lets the ROM's own CheckInput do the
+               translation it was always going to do anyway.
+
+               raw_prev / edge now track the COMBINED word (raw_all), not
+               just the directions, so the pressed halfword is the edge of a
+               real button too. Nothing reads the mirror between the old site
+               and here except port_input_probe_apply (a few hundred lines
+               up, gated on SM64DS_PROBE_INPUT) and the game tick far below
+               both: port_input_probe_apply's own OR is now overwritten
+               rather than relied on, which is harmless because
+               port_raw_bt_bits_for_mirror already folds the same
+               port_input_probe_bits() call in above, so a scripted press
+               still reaches raw_all this frame. */
+            const unsigned short raw_all =
+                (unsigned short)(port_raw_dir_bits() | port_raw_bt_bits_for_mirror);
+            if (!(port::comms_transport() && comms_fanout_on())) {
+                /* THE LOCAL SLOT, not always slot 0. PadData strides 4 bytes per
+                   player ({u16 held, u16 pressed}); on the child data_0209f250 is
+                   1, so the local pad must land in PadData[1] or it drives the
+                   HOST's character (the ghost) and never the child's own body.
+                   Single player keeps data_0209f250 == 0, so this is unchanged
+                   there. Adventure runs with the fan-out off, which is why this
+                   direct store is the one that reaches the game. */
+                const int lo = (int)data_0209f250 * 4;
+                *(unsigned short *)((char *)data_020a0e58 + lo + 0) = raw_all;
+                const unsigned short edge =
+                    (unsigned short)(raw_all & (unsigned short)~g_pad_mirror_prev);
+                *(unsigned short *)((char *)data_020a0e58 + lo + 2) = edge;
+                /* ---- AND THE SPLIT SYMBOL, EVERY FRAME (run link100, lane
+                   FRAME2) -------------------------------------------------
+                   data_020a0e5a is PadData[i].pressed -- the SAME halfword the
+                   store above just wrote, at data_020a0e58 + i*4 + 2 -- and
+                   hal/auto_bss.cpp gives it separate host storage. Two ROM
+                   readers use the split spelling rather than the record:
+                   IsButtonInputValid (src/IsButtonInputValid.c) and
+                   Stage::Behavior's own pause trigger
+                   (src/_ZN5Stage8BehaviorEv.cpp:205, `data_020a0e5a + pi * 4`).
+
+                   NOTHING WROTE IT PER FRAME before lane FRAME2.
+                   hal/message_pump.cpp assigns it while a message box is up
+                   and says why -- the box could not be dismissed otherwise --
+                   and hal/input_probe.cpp ORs a scripted edge into it.
+                   Outside those two it stayed at whatever was last OR-ed in,
+                   forever. Two things followed, and _ZTV5Stage slot 6 is
+                   what made both visible: a real key press never reached it
+                   at all, so the ROM's own pause trigger could not fire from
+                   the keyboard; and one SM64DS_PROBE_INPUT press LATCHED
+                   (port/tools/stage_pause_proof.py rung 5).
+
+                   The store is an ASSIGNMENT of the same edge, at the same
+                   instant, which is exactly what the aliasing does on
+                   hardware. Lane INPUTRAW moved this store to run AFTER
+                   port_input_probe_apply, which is harmless rather than a
+                   regression: raw_all already folds port_input_probe_bits()
+                   in above, so a scripted press still arrives in this same
+                   store and still lasts exactly one frame; the probe's own
+                   OR just above is now overwritten, not relied on.
+                   hal/message_pump.cpp's own publish is unchanged and still
+                   runs later in the frame. */
+                *(unsigned short *)((char *)data_020a0e5a + lo) = edge;
             }
+            g_pad_mirror_prev = raw_all;
+            /* ---- THE THIRD BUTTON WRITER, AND THE ONE HIS HANDS FOUND ------
+             *
+             * Run mg16 lane MP4, second field re-test. This is the LEVEL path's
+             * copy of the publish the scene path does further up, and it was
+             * left ungated when that one was gated. It runs AFTER the
+             * per-player Ctrl fan below, so every frame it overwrote slot 0's
+             * button words -- the ones the fan had just filled from the comms
+             * records -- with THIS console's local buttons.
+             *
+             * Both of his surviving symptoms are this one line:
+             *
+             *   PUNCHING ON THE CHILD MADE MARIO PUNCH. Mario is slot 0, the
+             *   matched state code reads its buttons as
+             *   `data_0209f49c + data_020a0e40 * 0x18` with data_020a0e40 set
+             *   to that actor's mPlayerNo, so on the child Mario correctly read
+             *   slot 0 -- and slot 0 was holding the CHILD's own buttons
+             *   because of this store.
+             *
+             *   AND THE HOST'S CROUCH NEVER CROSSED. The fan delivers the
+             *   host's buttons into slot 0 on the child, and this overwrote
+             *   them a few thousand instructions later. The stick crossed the
+             *   whole time, which is why rungP3 was green: the stick fields are
+             *   written by the fan and nothing clobbers them.
+             *
+             * THE ROM'S SIDE WAS CORRECT THROUGHOUT. Every matched reader
+             * indexes by data_020a0e40 * 0x18 -- St_Jump_Main:34,
+             * St_Shell_Main:95, St_Spin_Main:28, func_ov002_020ca940:35 -- and
+             * hal_call_state_fn runs inside Player::Behavior's window where
+             * data_020a0e40 is that actor's own slot. The wrong turn was
+             * entirely on the port's write side, in three places, of which this
+             * was the third.
+             *
+             * Gated exactly like the other two: with a transport up and the
+             * ROM's fan-out driving, the local buttons reach this console's own
+             * slot the ROM's way -- key register, local record, wire, fan-out,
+             * Stage::CheckInput, the per-player fan -- and this store must not
+             * put them anywhere else. */
+            if (!(port::comms_transport() && comms_fanout_on())) {
+                /* THE LOCAL SLOT, at the 0x18 Ctrl stride, so the child's buttons
+                   reach slot 1 rather than the host's slot 0. Single player keeps
+                   data_0209f250 == 0. */
+                const int lo = (int)data_0209f250 * 0x18;
+                *(unsigned short *)((char *)data_0209f49c + lo) = btn;
+                *(unsigned short *)((char *)data_0209f49e + lo) =
+                    (unsigned short)(btn & (unsigned short)~btn_was);
+            }
+            btn_was = btn;
         }
 
         /* ...and the bottom screen's half of the same record: the camera
@@ -4412,90 +11599,6 @@ int main(void)
             prev_pos[1] = *(int *)(c + 0x60);
             prev_pos[2] = *(int *)(c + 0x64);
         }
-        /* FIXED TIMESTEP -- the sim's clock, and the whole of the "don't
-           speed up" guarantee. Game logic advances in 1/30s chunks of REAL
-           time no matter how fast the presents run:
-           - mode 0 (30): the Sleep pace below holds ~30 presents/s and each
-             present runs exactly one tick (the classic path, untouched).
-           - mode 1 (uncapped): presents run free; the accumulator runs
-             0..3 ticks a present so the sim still advances at 30Hz.
-           - mode 2 (smooth): same as uncapped, plus the render-phase lerp
-             after the toast block interpolates the player's position/yaw
-             between the last two ticks.
-           Paused (menu/front): no ticks and the accumulator clears, so
-           unpausing never dumps catch-up ticks. Selftest: exactly one tick
-           a frame and no lerp, so headless runs stay frame-deterministic. */
-        static LARGE_INTEGER step_qpf, step_last;
-        static double step_acc;
-        static int ip_prev[3], ip_cur[3];
-        static short ip_prev_yaw, ip_cur_yaw;
-        static int ip_armed, ip_pending;
-        int sim_ticks = 0;
-        {
-            if (!step_qpf.QuadPart) QueryPerformanceFrequency(&step_qpf);
-            LARGE_INTEGER step_now;
-            QueryPerformanceCounter(&step_now);
-            double dt = step_last.QuadPart ?
-                (double)(step_now.QuadPart - step_last.QuadPart) /
-                (double)step_qpf.QuadPart : 0.0;
-            step_last = step_now;
-            if (dt < 0.0) dt = 0.0;
-            if (dt > 0.25) dt = 0.25;
-            /* a lerp left live by the previous present must never leak
-               into a tick: restore the true post-tick state first, in
-               every mode, before anything ticks. */
-            if (ip_pending) {
-                *(int *)(c + 0x5c) = ip_cur[0];
-                *(int *)(c + 0x60) = ip_cur[1];
-                *(int *)(c + 0x64) = ip_cur[2];
-                *(short *)(c + 0x8e) = ip_cur_yaw;
-                ip_pending = 0;
-            }
-            if (menu_on || front_on) {
-                game_ticked = 0;
-                step_acc = 0.0;
-                ip_armed = 0;
-            } else if (selftest || g_fps_mode == 0) {
-                sim_ticks = 1;
-                game_ticked = 1;
-                step_acc = 0.0;
-            } else {
-                step_acc += dt;
-                if (step_acc < 0.0) step_acc = 0.0;
-                if (step_acc > 0.25) step_acc = 0.25;
-                sim_ticks = (int)(step_acc * 30.0);
-                /* capped: heavy lag slows the sim down instead of
-                   spiralling to catch up. */
-                if (sim_ticks > 3) sim_ticks = 3;
-                step_acc -= sim_ticks / 30.0;
-                if (step_acc < 0.0) step_acc = 0.0;
-                game_ticked = sim_ticks > 0;
-            }
-            g_interp_t = step_acc > 0.0 ? (float)(step_acc * 30.0) : 0.0f;
-            if (g_interp_t > 1.0f) g_interp_t = 1.0f;
-            /* snapshot the tick window's start state for the render lerp.
-               The end state is captured after the mod hooks in the apply
-               block below, so clamps land inside the interpolation. */
-            if (!selftest && g_fps_mode == 2 && !menu_on && !front_on) {
-                if (sim_ticks > 0) {
-                    ip_prev[0] = *(int *)(c + 0x5c);
-                    ip_prev[1] = *(int *)(c + 0x60);
-                    ip_prev[2] = *(int *)(c + 0x64);
-                    ip_prev_yaw = *(short *)(c + 0x8e);
-                }
-            } else {
-                ip_armed = 0;
-            }
-            for (int ti = 0; ti < sim_ticks; ++ti) {
-                if (boot_spawns) {
-                    port_actor_tick();
-                } else if (*(void **)(c + 0x370)) {
-                    hal_player_behavior(player);
-                } else {
-                    hal_player_st_wait_main(player);
-                }
-            }
-        }
 
         /* until the first ChangeState seats the current-state pointer,
            tick the wait state directly (the smoke's exact flow); Behavior
@@ -4526,148 +11629,2021 @@ int main(void)
            the init pass for anything spawned since last frame, then behaviour
            in priority order -- which reaches him through the same
            func_02043288 the harness used to call by hand. */
-        /* THE TICK RAN ABOVE, once, in the fixed-timestep dispatcher -- this
-           used to be a second dispatch site, which double-ticked the sim.
-           Everything below reads that tick's result. Pausing still means
-           the frame simply does not advance the game: nothing moves, nothing
-           spawns, nothing decides, while rendering carries on so the picture
-           stays live. (The view matrix in play is the one Camera::Render
-           published, in the ROM's own scene units; Actor::BeforeBehavior
-           reads exactly those three words to place every actor.) */
+        /* THE MENU'S PAUSE IS HERE, and this is the whole of it: skip the
+           tick. Not a flag every actor has to respect and not a time scale --
+           the frame simply does not advance the game, so nothing can drift
+           while a person reads. Everything downstream still runs, so the
+           picture stays live and the camera can still be moved around a
+           frozen scene. */
+        /* SM64DS_TREE_DROP=x,y,z[,frame] -- drop Mario onto a tree canopy.
+           SM64DS_SPAWN cannot do this: it places him before the level's
+           entrance sequence runs, and the entrance step handler never
+           finishes from up a tree, so he just hangs in St_LevelEnter. The
+           teleport has to land AFTER the entrance has handed him to St_Walk,
+           which on castle grounds is about frame 12. Tree positions come out
+           of SM64DS_TREE_PROBE=1 (all 21 are variant 4). */
+        {
+            static int td = -1, tx, ty, tz, tf;
+            if (td < 0) {
+                const char *e = getenv("SM64DS_TREE_DROP");
+                td = 0;
+                if (e) {
+                    tf = 60;
+                    if (sscanf(e, "%d,%d,%d,%d", &tx, &ty, &tz, &tf) >= 3)
+                        td = 1;
+                }
+            }
+            if (td && frame == tf) {
+                *(int *)(c + 0x5c) = tx << 12;
+                *(int *)(c + 0x60) = ty << 12;
+                *(int *)(c + 0x64) = tz << 12;
+                *(int *)(c + 0xa4) = 0;   /* straight down, no carried speed */
+                *(int *)(c + 0xa8) = 0;
+                *(int *)(c + 0xac) = 0;
+                fprintf(stderr, "[tree] drop at frame %d -> (%d,%d,%d)\n",
+                        tf, tx, ty, tz);
+            }
+        }
+        /* SM64DS_FORCE_STATE=squish[,frame] -- the CRUSH probe. The only
+           writers of Player mScale are the two crush states, and the only
+           way into one in normal play is a crusher actor landing on the
+           player. Rather than script a level with a Whomp in it, call the
+           ROM's own entry the way those actors do. Default frame 60: late
+           enough that the entrance sequence has handed him to St_Walk and he
+           is standing on the ground, which is the first gate. */
+        {
+            static int sq = -1, sqf = 60;
+            if (sq < 0) {
+                const char *e = getenv("SM64DS_FORCE_STATE");
+                sq = 0;
+                if (e && !strncmp(e, "squish", 6)) {
+                    sq = 1;
+                    if (e[6] == ',') sqf = atoi(e + 7);
+                }
+            }
+            static int sq_done = 0;
+            if (sq && !sq_done && frame >= sqf) {
+                /* RETRY EVERY FRAME UNTIL IT TAKES. Unk_020c6a10's first
+                   gate is mClsnFlags & 1 (Player.h +0x6e9, the ground bit),
+                   and whether a given frame has it set depends on where the
+                   walk probe happens to be in its stride. Retrying is how a
+                   crusher behaves anyway -- it tests the player every frame
+                   it is in contact -- and it keeps the probe from measuring
+                   a refusal it could have avoided by asking one frame
+                   later. */
+                int r = _ZN6Player12Unk_020c6a10Ej(player, 1);
+                if (r || frame == sqf || frame == sqf + 30)
+                    fprintf(stderr, "[squish] frame %d Unk_020c6a10(1) -> %d"
+                            "  clsn=%02x g2=%d scale=(%d,%d,%d) state=%p\n",
+                            frame, r, *(unsigned char *)(c + 0x6e9),
+                            func_ov002_020d82f0(c),
+                            *(int *)(c + 0x80), *(int *)(c + 0x84),
+                            *(int *)(c + 0x88), *(void **)(c + 0x370));
+                if (r) sq_done = frame;
+            }
+            if (sq && sq_done && frame >= sq_done && frame <= sq_done + 45)
+                fprintf(stderr, "[squish] f%03d scaleY=%d state=%p step=%u"
+                        " timer=%u\n", frame, *(int *)(c + 0x84),
+                        *(void **)(c + 0x370),
+                        *(unsigned char *)(c + 0x6e3),
+                        *(unsigned short *)(c + 0x6a6));
+        }
+        /* SM64DS_FORCE_STATE=walljump -- the walljump crash probe.
+           Tango walljumped in the live game and the process died with no
+           fault-probe dump, because St_WallJump_Main dispatches the
+           per-character airborne-gravity function out of the sinit-built
+           table data_ov002_0211073c and (unlike St_Jump_Main) called row[0]
+           RAW. row[0] is a DS code address, so on the host that is a jump
+           into the mounted ov002 data image.
+           Reproducing it needs no wall: put the Player in ST_WALL_JUMP and
+           hold him airborne, and Behavior runs St_WallJump_Main straight
+           into the dispatch. The table is dumped once so the run records
+           which character row it went through. */
+        {
+            static int force_wj = -1;
+            if (force_wj < 0) {
+                const char *fs = getenv("SM64DS_FORCE_STATE");
+                force_wj = (fs && !strcmp(fs, "walljump")) ? 1 : 0;
+                if (force_wj) {
+                    fprintf(stderr, "[wj] data_ov002_0211073c after sinit "
+                            "(4 per-character rows):\n");
+                    for (int r = 0; r < 4; ++r) {
+                        int w0 = data_ov002_0211073c[r * 2];
+                        int v  = data_ov002_0211073c[r * 2 + 1];
+                        fprintf(stderr, "[wj]   idx %d: word0=0x%08x "
+                                "word1=0x%08x -> %s, this+0x%x\n", r,
+                                (unsigned)w0, (unsigned)v,
+                                (v & 1) ? "VIRTUAL (vtable byte offset)"
+                                        : "direct DS code address",
+                                (unsigned)(v >> 1));
+                    }
+                    fprintf(stderr, "[wj] player param1 (character idx) = %d\n",
+                            *(int *)(c + 0x008));
+                }
+            }
+            /* SM64DS_FORCE_STATE=climb -- the TREE probe. Landing on a tree
+               puts Mario in ST_CLIMB (data_ov002_021106dc), whose Init, Main
+               and Cleanup are all unhosted, so the mapper no-ops all three:
+               the anim never starts (freeze), the physics outside the state
+               keeps integrating (slide), and a later consumer reads what
+               Init never seated. Forcing the state is how that is measured
+               without having to make him actually grab a trunk. */
+            {
+                static int force_cl = -1;
+                if (force_cl < 0) {
+                    const char *fs = getenv("SM64DS_FORCE_STATE");
+                    force_cl = (fs && !strcmp(fs, "climb")) ? 1 : 0;
+                }
+                if (force_cl && frame == 10) {
+                    /* Seat Player+0x37c with a REAL tree cylinder first --
+                       that is what the grab (func_ov002_020caf98) does before
+                       it changes state, and St_Climb_Init dereferences it
+                       through vtable slot 2 (GetPos) to snap him to the
+                       trunk. Tree::InitResources embeds the
+                       CylinderClsnWithPos at node+0x0c and links the nodes
+                       at +0x48; all 21 castle trees are on variant list 4. */
+                    int *node = (int *)(size_t)data_ov002_02110a48[4];
+                    if (node) {
+                        *(void **)(c + 0x37c) = (char *)node + 0x0c;
+                        fprintf(stderr, "[climb] seated +0x37c = tree "
+                                "cylinder %p (node %p)\n",
+                                (void *)((char *)node + 0x0c), (void *)node);
+                    } else {
+                        fprintf(stderr, "[climb] NO tree cylinders on list 4 "
+                                "-- is the level booted?\n");
+                    }
+                    /* Grab him at a run. A real grab happens with speed on
+                       the clock and St_Climb_Init is what zeroes it; leaving
+                       it set is the whole of the slide, so put a known value
+                       in rather than depending on what frame 10 happened to
+                       be doing. */
+                    *(int *)(c + 0x98) = 0x8000;   /* 8 units/frame */
+                    fprintf(stderr, "[climb] frame 10: ChangeState -> "
+                            "ST_CLIMB (%p)\n", (void *)data_ov002_021106dc);
+                    _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                        data_ov002_021106dc);
+                }
+                /* The SLIDE is measurable: St_Climb_Init is what zeroes the
+                   horizontal speed at +0x98/+0x9c/+0xa8 and the anim at
+                   +0x6e3. With Init no-op'd he keeps the speed he grabbed at
+                   and a state whose Main does nothing, which is exactly the
+                   freeze-then-slide. */
+                if (force_cl && frame >= 10 && frame <= 40 &&
+                    (frame % 10) == 0)
+                    fprintf(stderr, "[climb] frame %3d  horzSpeed=%d "
+                            "vertSpeed=%d pos=(%d,%d,%d) step=%u anim=%u\n",
+                            frame, *(int *)(c + 0x98), *(int *)(c + 0xa8),
+                            *(int *)(c + 0x5c) >> 12, *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0x64) >> 12,
+                            *(unsigned char *)(c + 0x6e3),
+                            *(unsigned char *)(c + 0x6e5));
+            }
+            /* SM64DS_FORCE_STATE=ledgehang -- the HEDGE MAZE probe. Landing
+               on a hedge edge puts Mario in ST_LEDGE_HANG
+               (data_ov002_0210ffec) and every half of it used to be
+               unhosted, so the mapper no-op'd Main once a frame forever:
+               "unhosted state fn 0x020d0a44".
+               The real trigger is func_ov002_020d0580 -- airborne, falling,
+               and func_ov002_020d0178's raycast pair agrees there is a
+               ledge -- and it seats mStateStep=1 before it changes state.
+               Forcing it reproduces the hang without needing a hedge under
+               the selftest's feet, the same way the climb probe does.
+               What the state needs seated is what the grab would have left
+               behind: the heading facing INTO the wall (+0x8e, which
+               func_ov002_020d0178 writes as atan2(normal) + 0x8000), the
+               grab point (+0x5c/+0x60/+0x64, snapped to the ledge top), and
+               mStateStep=1 so Init picks the hang-idle anim 0x21 rather
+               than the grab-impact 0x22. He also has to be OFF the ground:
+               St_LedgeHang_Main lets go on the spot if mGroundY (+0x644) is
+               within 0x28000 of him, which on flat castle grounds it is. */
+            {
+                static int force_lh = -1;
+                if (force_lh < 0) {
+                    const char *fs = getenv("SM64DS_FORCE_STATE");
+                    force_lh = (fs && !strcmp(fs, "ledgehang")) ? 1 : 0;
+                }
+                if (force_lh && frame == 10) {
+                    /* Lift him to a plausible hedge top so the ground is a
+                       real distance below, and put speed on the clock. A
+                       real grab happens mid-fall; St_LedgeHang_Init is what
+                       zeroes +0x98 and +0xa8, so leaving them set is the
+                       whole of the slide. */
+                    *(int *)(c + 0x60) += 600 << 12;
+                    *(int *)(c + 0x98) = 0x8000;    /* 8 units/frame */
+                    *(int *)(c + 0xa8) = -0x4000;   /* falling */
+                    *(unsigned char *)(c + 0x6de) = 1;   /* airborne */
+                    *(unsigned char *)(c + 0x6e3) = 1;   /* what the trigger sets */
+                    /* Poison the two fields Init alone seats, so "Init never
+                       ran" is readable rather than inferred. */
+                    *(unsigned short *)(c + 0x6a6) = 0xbeef;
+                    *(unsigned char *)(c + 0x6e6) = 0xcd;
+                    fprintf(stderr, "[lh] frame 10: ChangeState -> "
+                            "ST_LEDGE_HANG (%p)  Init=0x020d0c54 "
+                            "Main=0x020d0a44 Cleanup=0x020d092c\n",
+                            (void *)data_ov002_0210ffec);
+                    _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                        data_ov002_0210ffec);
+                }
+                /* St_LedgeHang_Main's FIRST exit is "mIsAirborne != 0 ->
+                   func_ov002_020d0948 -> ST_FALL", and with no real hedge
+                   under the probe the collision sets airborne again the
+                   frame after Init clears it, so the hang ends immediately.
+                   That is the state behaving correctly -- nothing to hang
+                   on, so let go -- but it measures the let-go path instead
+                   of the hang. Holding the flag keeps the hang itself on
+                   screen for the length of the probe, the same device the
+                   walljump probe uses in reverse just below (it PINS
+                   airborne to keep St_WallJump_Main past ITS ground bail).
+                   SM64DS_LH_LETGO=1 removes the hold and measures the drop
+                   instead. */
+                if (force_lh && frame >= 10 && !getenv("SM64DS_LH_LETGO"))
+                    *(unsigned char *)(c + 0x6de) = 0;
+                /* 45 frames of hang. Every number here is one Init seats or
+                   Main advances: anim id lives at +0x63c as (id << 2), the
+                   speeds Init zeroes at +0x98/+0xa8, mIsAirborne at +0x6de,
+                   mStateWaitTimer at +0x6a6 (Init writes 2) and unk_6e6 at
+                   +0x6e6 (Init writes 0). Unhosted, the poison survives and
+                   the anim never changes. */
+                if (force_lh && frame >= 10 && frame <= 55 &&
+                    (frame % 5) == 0)
+                    fprintf(stderr, "[lh] frame %3d  anim=0x%02x horz=%d "
+                            "vert=%d air=%u step=%u wait=0x%04x unk6e6=0x%02x "
+                            "pos=(%d,%d,%d) groundY=%d\n",
+                            frame, *(unsigned *)(c + 0x63c) >> 2,
+                            *(int *)(c + 0x98), *(int *)(c + 0xa8),
+                            *(unsigned char *)(c + 0x6de),
+                            *(unsigned char *)(c + 0x6e3),
+                            *(unsigned short *)(c + 0x6a6),
+                            *(unsigned char *)(c + 0x6e6),
+                            *(int *)(c + 0x5c) >> 12, *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0x64) >> 12,
+                            *(int *)(c + 0x644) >> 12);
+                if (force_lh && frame == 56) {
+                    fprintf(stderr, "[lh] 45 frames of hang survived, no "
+                            "fault\n");
+                    exit(0);
+                }
+            }
+            if (force_wj && frame == 10) {
+                /* SM64DS_FORCE_CHAR=<0-3> picks the row: 0/2 (Mario, Wario)
+                   are hosted, 1/3 (Luigi, Yoshi) are not and have to come
+                   out as the mapper's loud no-op, not a wild jump.
+                   NOT a character change, and not the one to copy: it pokes
+                   param1 raw on purpose, leaving the anim archive, the globals
+                   and the head where they were, because the probe wants the
+                   gravity row and nothing else. The real swap is
+                   port_player_set_character (F4, the menu row,
+                   SM64DS_CHARACTER, SM64DS_SWITCH). */
+                const char *fc = getenv("SM64DS_FORCE_CHAR");
+                if (fc) {
+                    *(int *)(c + 0x008) = atoi(fc);
+                    fprintf(stderr, "[wj] forced character idx = %d\n",
+                            atoi(fc));
+                }
+                fprintf(stderr, "[wj] frame 10: ChangeState -> ST_WALL_JUMP "
+                        "(%p)\n", (void *)data_ov002_021103dc);
+                _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                    data_ov002_021103dc);
+            }
+            /* St_WallJump_Main bails to St_Fall the moment he is grounded,
+               and the dispatch sits past that check -- so hold him airborne
+               for the length of the probe. */
+            if (force_wj && frame >= 10) *(unsigned char *)(c + 0x6de) = 1;
+
+            /* SM64DS_FORCE_STATE=swing -- the Wario CARRY-AND-SPIN probe. The
+               entry gate func_ov002_020d9dcc puts the carrier into
+               ST_SWINGPLAYER (data_ov002_02110604) when the active versus slot
+               is Wario (char index 2, cap OR plain). St_SwingPlayer_Init is
+               hosted and sets the held partner's PIN bit
+               *(u32 *)(mHeldObj + 0xb0) |= 0x800, which ONLY
+               St_SwingPlayer_Cleanup clears. St_SwingPlayer_Main was a MATCHING
+               FLOOR left unhosted, so hal_call_state_fn no-ops it: mStateStep
+               never leaves 0, the state never reaches the throw phase, never
+               ChangeState's out, so Cleanup never runs -- the partner stays
+               pinned (STUCK) and the carrier keeps an mAngleYSpeed nothing
+               consumes (the SLIDE). Forcing the state reproduces both without
+               two networked players and a real grab. */
+            {
+                static int force_sw = -1;
+                static unsigned char swing_victim[0x100];
+                static int swing_cleared = 0;
+                if (force_sw < 0) {
+                    const char *fs = getenv("SM64DS_FORCE_STATE");
+                    force_sw = (fs && !strcmp(fs, "swing")) ? 1 : 0;
+                }
+                if (force_sw && frame == 10) {
+                    /* Stand in a held partner: a zeroed object whose +0xb0 flag
+                       word we can watch. The non-versus spin path only ever
+                       touches the partner at +0xb0 (Init sets the pin, Cleanup
+                       clears it), so a scratch object is faithful for the pin
+                       observation. */
+                    for (unsigned i = 0; i < sizeof swing_victim; ++i)
+                        swing_victim[i] = 0;
+                    *(void **)(c + 0x358) = swing_victim;   /* mHeldObj */
+                    fprintf(stderr, "[swing] frame 10: mHeldObj = %p  "
+                            "ChangeState -> ST_SWINGPLAYER (%p)\n",
+                            (void *)swing_victim,
+                            (void *)data_ov002_02110604);
+                    _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                        data_ov002_02110604);
+                    /* Init has now run. Put a known spin on the clock -- a real
+                       grab-at-angle leaves mAngleYSpeed nonzero, and it is the
+                       value the dead Main never winds down. This is the SLIDE
+                       made measurable, the device the climb probe uses on
+                       +0x98. */
+                    *(short *)(c + 0x69c) = 0x1000;          /* mAngleYSpeed */
+                    fprintf(stderr, "[swing] after Init: step=%u pin=0x%03x "
+                            "aspd=%d\n", *(unsigned char *)(c + 0x6e3),
+                            *(unsigned int *)(swing_victim + 0xb0) & 0x800,
+                            *(short *)(c + 0x69c));
+                }
+                /* frame 40: raise the versus RELEASE signal, the ROM's own
+                   spin-exit -- case 1 of St_SwingPlayer_Main checks
+                   data_0209f49e[idx] & 1 first and, on a partner not already
+                   flagged, throws it (func_ov002_020d9c70) and detaches it
+                   (func_ov002_020da95c clears the pin and nulls mHeldObj),
+                   then steps to the throw-recover anim whose finish
+                   ChangeState's out and runs Cleanup. This is the signal the
+                   versus logic raises when the spin should end; forcing it is
+                   how the exit is driven headlessly. With Main no-op'd (the
+                   bug) this bit does nothing, because nothing reads it. */
+                if (force_sw && frame == 40) {
+                    unsigned idx = data_020a0e40[0];
+                    *(unsigned short *)(&data_0209f49e[idx * 0x18]) |= 1;
+                    fprintf(stderr, "[swing] frame 40: raised versus release "
+                            "flag (slot %u) -- spin should now wind out\n", idx);
+                }
+                if (force_sw && frame > 10 && !swing_cleared &&
+                    (*(unsigned int *)(swing_victim + 0xb0) & 0x800) == 0) {
+                    swing_cleared = 1;
+                    fprintf(stderr, "[swing] frame %3d: pin bit CLEARED, "
+                            "partner released (state exited -> Cleanup)\n",
+                            frame);
+                }
+                if (force_sw && frame >= 10 && frame <= 150 &&
+                    (frame % 10) == 0)
+                    fprintf(stderr, "[swing] frame %3d  step=%u pin=0x%03x "
+                            "aspd=%d timer=%u\n", frame,
+                            *(unsigned char *)(c + 0x6e3),
+                            *(unsigned int *)(swing_victim + 0xb0) & 0x800,
+                            *(short *)(c + 0x69c),
+                            *(unsigned short *)(c + 0x6a4));
+                if (force_sw && frame == 151) {
+                    unsigned pin =
+                        *(unsigned int *)(swing_victim + 0xb0) & 0x800;
+                    fprintf(stderr, "[swing] final: step=%u pin=%s aspd=%d\n",
+                            *(unsigned char *)(c + 0x6e3),
+                            pin ? "STUCK SET (victim still pinned)"
+                                : "cleared (victim released)",
+                            *(short *)(c + 0x69c));
+                    exit(0);
+                }
+            }
+        }
+        /* SM64DS_LOOP_PROBE=<frame>[,<soundId>]: the gate-31 loose end, the
+           level-change looping-sound reap. At <frame> it starts a looping sound
+           through the game's own Sound::PlayLong (the walk/slide states that
+           would start one depend on collision geometry the selftest does not
+           reach, so this drives the same function at the player directly). The
+           handle lands in data_0209b53c and the per-frame reaper keeps it alive
+           while the probe keeps refreshing it; when SM64DS_LEVEL_CYCLE fires,
+           func_02011974 -- the Scene::BeforeCleanupResources reap -- runs in the
+           teardown and empties the table. The probe reports the live count each
+           frame so the drop from 1 to 0 across the change is visible. */
+        if (selftest) {
+            static int lp_frame = -2, lp_sound = 3, lp_handle;
+            if (lp_frame < -1) {
+                const char *e = getenv("SM64DS_LOOP_PROBE");
+                lp_frame = -1;
+                if (e) {
+                    const char *comma = strchr(e, 44);
+                    lp_frame = atoi(e);
+                    if (comma) lp_sound = atoi(comma + 1);
+                }
+            }
+            if (lp_frame >= 0 && frame >= lp_frame) {
+                /* refresh every frame from the start frame on, the way an actor
+                   holding a loop does: pass the handle back so PlayLong finds it
+                   and marks it refreshed rather than starting a second sound.
+                   Exactly one handle stays live. */
+                lp_handle = (int)port_course_loop_start((unsigned)lp_handle,
+                                                        (unsigned)lp_sound);
+                if (frame % 30 == 0 || frame == lp_frame)
+                    fprintf(stderr, "[loop-probe] f%d handle %d, live %d\n",
+                            frame, lp_handle, port_course_loop_live());
+            }
+        }
+        /* SM64DS_LEVEL_CYCLE=<n>[,<period>]: run the whole handoff n times
+           without a person at the keyboard. Each cycle calls the GAME'S OWN
+           ExitLevel(), which is SetNextLevel(1) plus the character wipe and
+           the one the star-get and death paths both end in; on the castle
+           grounds that is a RE-ENTRY -- level 1 entrance 0xd, the castle
+           door -- and a re-entry exercises every line a change to a different
+           level would, because nothing in the teardown or the boot is
+           conditional on the id being different. Two cycles is the test the
+           gate is about: run it twice and the heap and the census have to
+           come back to the same numbers.
+           SM64DS_LEVEL_SELECT=<row> instead drives the debug level select's
+           own row list, which is how a level the mount stream has landed gets
+           entered from the game's own table. */
+        if (selftest) {
+            static int cyc_n = -1, cyc_period, cyc_done, sel_row = -1;
+            if (cyc_n < 0) {
+                const char *e = getenv("SM64DS_LEVEL_CYCLE");
+                cyc_n = 0;
+                cyc_period = 60;
+                if (e) {
+                    const char *comma = strchr(e, 44);
+                    cyc_n = atoi(e);
+                    if (comma) cyc_period = atoi(comma + 1);
+                    if (cyc_period < 2) cyc_period = 2;
+                }
+                e = getenv("SM64DS_LEVEL_SELECT");
+                sel_row = e ? atoi(e) : -1;
+            }
+            if (cyc_done < cyc_n && frame == cyc_period * (cyc_done + 1)) {
+                ++cyc_done;
+                printf("[cycle] %d of %d at frame %d: heap free %u, "
+                       "actors %d" "\n", cyc_done, cyc_n, frame,
+                       port_level_heap_free_bytes(), port_actor_live_count());
+                if (sel_row >= 0)
+                    port_title_select(sel_row);
+                else
+                    ExitLevel();
+            }
+            /* SM64DS_WARP_SEQ=<lvl>@<frame>[,<lvl>@<frame>...]: a scripted warp
+               chain for the level-teardown gates. At each listed frame it drives
+               the game's own LoadLevelNoReturn(level, 0, 1, 1) -- the same call
+               the debug select ends in -- so the change poll tears the current
+               level down and boots the next. Entrance 0 is every level's default
+               spawn. Nothing here writes the handoff words by hand. */
+            {
+                static const char *seq = 0;
+                static int seq_read;
+                if (!seq_read) { seq = getenv("SM64DS_WARP_SEQ"); seq_read = 1; }
+                if (seq) {
+                    const char *p = seq;
+                    while (*p) {
+                        int lv = atoi(p);
+                        const char *at = strchr(p, 64 /* '@' */);
+                        int fr = at ? atoi(at + 1) : -1;
+                        if (fr == frame) {
+                            printf("[warpseq] frame %d: warp to level %d "
+                                   "(heap free %u, actors %d)\n", frame, lv,
+                                   port_level_heap_free_bytes(),
+                                   port_actor_live_count());
+                            LoadLevelNoReturn(lv, 0, 1, 1);
+                        }
+                        const char *comma = strchr(p, 44 /* ',' */);
+                        if (!comma) break;
+                        p = comma + 1;
+                    }
+                }
+            }
+            /* SM64DS_MENU_WARP_TEST=<row>[,<frame>]: the interactive shape
+               of the same select, headless. SM64DS_MENU=1 boots with the
+               menu open (game tick paused); at the frame this fires the
+               MENU_LEVEL enter branch verbatim -- select then close -- which
+               is the sequence the 2026-08-05 session ran when the warp came
+               out as a castle grounds re-entry while SM64DS_LEVEL_SELECT
+               kept passing. */
+            static int mw_row = -2, mw_frame;
+            if (mw_row < -1) {
+                const char *e = getenv("SM64DS_MENU_WARP_TEST");
+                mw_row = -1; mw_frame = 60;
+                if (e) {
+                    const char *comma = strchr(e, 44);
+                    mw_row = atoi(e);
+                    if (comma) mw_frame = atoi(comma + 1);
+                }
+            }
+            if (mw_row >= 0 && frame == mw_frame) {
+                fprintf(stderr, "[mwtest] f%d menu-shaped select of row %d "
+                        "(menu_on=%d)\n", frame, mw_row, menu_on);
+                if (port_title_select(mw_row)) {
+                    menu_on = 0;
+                    fprintf(stderr, "[menu] closed for the level handoff\n");
+                }
+            }
+
+            /* SM64DS_SELFTEST_OOB=<frame>: the fell-out-of-the-world death,
+               headless. At <frame> put the player into ST_DEAD_PIT
+               (data_ov002_02110124) with mStateStep==1, which is the exact state
+               and step the game reaches when Mario drops below the level's kill
+               plane: St_DeadPit_Init's case 1 calls HitDeathPlane, which through
+               SetNextLevel writes the re-entry request the level-change poll
+               honours the same frame. So this rides the real path -- death,
+               teardown, reload -- and the frames after <frame> are the re-entry
+               the reported crash happens on. Runs the ROM's own code; nothing
+               here writes the handoff words by hand. */
+            static int oob_frame = -1, oob_fired;
+            if (oob_frame < 0) {
+                const char *e = getenv("SM64DS_SELFTEST_OOB");
+                oob_frame = e ? atoi(e) : 0;
+            }
+            if (oob_frame > 0 && frame == oob_frame && !oob_fired && player) {
+                oob_fired = 1;
+                *(unsigned char *)(c + 0x6e3) = 1;   /* mStateStep = 1 */
+                fprintf(stderr, "[oob] f%d ChangeState -> ST_DEAD_PIT (%p), "
+                        "step 1: the ROM's HitDeathPlane path\n", frame,
+                        (void *)data_ov002_02110124);
+                _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                    data_ov002_02110124);
+                fprintf(stderr, "[oob] after HitDeathPlane: next sublevel %d "
+                        "entrance %d reason %d\n", (int)port_course_next_sublevel(),
+                        (int)data_0209f268, (int)data_0209f26c);
+            }
+
+            /* ---- THE EXIT ARMS (run link100, lane EXITS1) ------------------
+
+               Every gate this run has proves how a course is ENTERED. These
+               three prove how one is LEFT, which is code no direct boot and no
+               warp-in ever reaches.
+
+               SM64DS_VOID_DROP=<frame>[,<y>] drops the Player straight down to
+               y (default -31000) at his own x/z with no carried speed, and
+               NOTHING ELSE. From there the CARTRIDGE decides: Player::Behavior
+               runs func_ov002_020c5d60 (ov002 0x020c5d60) every frame, whose
+               whole test is
+
+                   player y >= 0xf8ad0000  ->  return          (-29952.0)
+                   IsState(ST_SWIM_...)    ->  return
+                   mStateFlags2 |= 0x400; func_ov002_020c5dec(this, 1)
+
+               and func_ov002_020c5dec puts him in ST_DEAD_PIT with step 1,
+               where St_DeadPit_Init case 1 calls HitDeathPlane(2) (0 if he is
+               standing on surface type 5). So nothing here writes a state: the
+               difference between this and SM64DS_SELFTEST_OOB above is that
+               OOB writes the state and the step by hand, and this drives the
+               cartridge's own test and lets it write them. Both are kept --
+               OOB proves the second half (the teardown and the re-entry) on a
+               level with no void at all, this one proves the first half too.
+
+               THE DEFAULT IS BELOW THE PLANE ON PURPOSE. -29000 was measured
+               first and is 952 units ABOVE it: the level takes the player back
+               to its own entrance on the next frame with no death, no life and
+               no level change (measured on 6, 7, 22 and 28, run link100 lane
+               EXITS1), and a run that reads that as "the death plane does
+               nothing" has measured the wrong side of the test. The plane is
+               the only term, so any y below -29952 does it.
+               SM64DS_VOID_DROP=<x>,<y>,<z>[,<frame>] is the same arm with the
+               position spelled out, for stepping off a named ledge.
+
+               SM64DS_STAR_PROBE=1 dumps the level's PowerStar actors (class
+               178) with their positions and states once the level is up.
+               SM64DS_STAR_DROP=#<n>[,<frame>[,<hold>]] puts the Player at the
+               n-th of them and HOLDS him there for <hold> frames (default 60),
+               because one frame on a star is a coin toss. It writes the
+               position and nothing else: the star's own
+               PowerStar::Behavior collision fires the collect, the star-get
+               sequence, the save and the exit to the castle, all of it the
+               cartridge's own. The dump's state column is why the index
+               matters -- a course's act-1 star sits in state 4 or 8, a VS
+               arena's four table stars park in state 9 and collect nothing.
+
+               SM64DS_EXIT_WATCH=1 prints one line whenever any word of the
+               leaving-a-course machinery moves: the level, the health, the
+               lives, the star total, the three staged next-level words and the
+               player's state and step. It writes nothing. It is how a run says
+               WHICH half of an exit stopped, instead of only that the process
+               lived. Inert unset, all four. */
+            {
+                static int vd_read, vd_on, vd_abs, vd_fired;
+                static int vd_frame = 60, vd_x, vd_y = -31000, vd_z;
+                if (!vd_read) {
+                    vd_read = 1;
+                    const char *e = getenv("SM64DS_VOID_DROP");
+                    if (e) {
+                        int a = 0, b = 0, cc = 0, d = 0;
+                        const int n = sscanf(e, "%d,%d,%d,%d", &a, &b, &cc, &d);
+                        if (n >= 3) {
+                            vd_abs = 1; vd_x = a; vd_y = b; vd_z = cc;
+                            if (n >= 4) vd_frame = d;
+                        } else if (n >= 1) {
+                            vd_frame = a;
+                            if (n >= 2) vd_y = b;
+                        }
+                        vd_on = n >= 1;
+                    }
+                }
+                if (vd_on && !vd_fired && frame == vd_frame && player) {
+                    vd_fired = 1;
+                    if (vd_abs) {
+                        *(int *)(c + 0x5c) = vd_x << 12;
+                        *(int *)(c + 0x64) = vd_z << 12;
+                    }
+                    *(int *)(c + 0x60) = vd_y << 12;
+                    *(int *)(c + 0xa4) = 0;   /* no carried speed, as TREE_DROP */
+                    *(int *)(c + 0xa8) = 0;
+                    *(int *)(c + 0xac) = 0;
+                    fprintf(stderr, "[void] f%d drop to (%d,%d,%d); the plane "
+                            "func_ov002_020c5d60 tests is -29952 and the "
+                            "level's own is player+0x644 = %d\n", frame,
+                            *(int *)(c + 0x5c) >> 12, vd_y,
+                            *(int *)(c + 0x64) >> 12,
+                            *(int *)(c + 0x644) >> 12);
+                }
+                if (vd_on && vd_fired && frame <= vd_frame + 200)
+                    fprintf(stderr, "[void] f%d y=%d vy=%d state=%p step=%u\n",
+                            frame, *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0xa8) >> 12, *(void **)(c + 0x370),
+                            (unsigned)*(unsigned char *)(c + 0x6e3));
+            }
+
+            {
+                static int sp_read, sp_on, sp_dumped, sd_fired;
+                static int sd_idx = -1, sd_frame = 60, sd_hold = 60;
+                if (!sp_read) {
+                    sp_read = 1;
+                    sp_on = getenv("SM64DS_STAR_PROBE") != 0;
+                    const char *e = getenv("SM64DS_STAR_DROP");
+                    if (e) {
+                        const char *p = (*e == '#') ? e + 1 : e;
+                        sd_idx = atoi(p);
+                        const char *comma = strchr(e, ',');
+                        if (comma) {
+                            sd_frame = atoi(comma + 1);
+                            const char *c2 = strchr(comma + 1, ',');
+                            if (c2) sd_hold = atoi(c2 + 1);
+                        }
+                    }
+                }
+                if ((sp_on || sd_idx >= 0) && !sp_dumped && frame == 30) {
+                    int n = 0;
+                    sp_dumped = 1;
+                    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+                         node = (int *)(size_t)node[1]) {
+                        char *o = (char *)(size_t)node[2];
+                        if (!o || *(unsigned short *)(o + 0xc) != 178)
+                            continue;
+                        fprintf(stderr, "[star] %2d at (%d,%d,%d) state %d "
+                                "param1 %08x\n", n, *(int *)(o + 0x5c) >> 12,
+                                *(int *)(o + 0x60) >> 12,
+                                *(int *)(o + 0x64) >> 12,
+                                *(int *)(o + 0x440), *(unsigned *)(o + 8));
+                        ++n;
+                    }
+                    fprintf(stderr, "[star] %d PowerStar actor(s) on this "
+                            "level at frame %d\n", n, frame);
+                }
+                if (sd_idx >= 0 && frame >= sd_frame &&
+                    frame <= sd_frame + sd_hold && player) {
+                    int n = 0;
+                    char *star = 0;
+                    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+                         node = (int *)(size_t)node[1]) {
+                        char *o = (char *)(size_t)node[2];
+                        if (!o || *(unsigned short *)(o + 0xc) != 178)
+                            continue;
+                        if (n++ == sd_idx) { star = o; break; }
+                    }
+                    if (!star) {
+                        if (!sd_fired)
+                            fprintf(stderr, "[star] f%d no PowerStar #%d on "
+                                    "this level (%d seen)\n", frame, sd_idx, n);
+                    } else {
+                        /* HELD, not placed once. One frame on the star is a
+                           coin toss: the teleport leaves him falling, and
+                           whether the star's own sphere test sees him depends
+                           on where in its own state the star is that frame.
+                           Twelve courses read as "the star does not collect"
+                           on a single-frame placement and collect on this one.
+                           It is still the star's collision that decides; this
+                           writes a position and a zero speed, which is what
+                           standing under a star is. */
+                        *(int *)(c + 0x5c) = *(int *)(star + 0x5c);
+                        *(int *)(c + 0x60) = *(int *)(star + 0x60);
+                        *(int *)(c + 0x64) = *(int *)(star + 0x64);
+                        *(int *)(c + 0xa4) = 0;
+                        *(int *)(c + 0xa8) = 0;
+                        *(int *)(c + 0xac) = 0;
+                        if (!sd_fired)
+                            fprintf(stderr, "[star] f%d player held on "
+                                    "PowerStar #%d at (%d,%d,%d) state %d for "
+                                    "%d frames -- the star's own collision "
+                                    "takes it from here\n", frame, sd_idx,
+                                    *(int *)(star + 0x5c) >> 12,
+                                    *(int *)(star + 0x60) >> 12,
+                                    *(int *)(star + 0x64) >> 12,
+                                    *(int *)(star + 0x440), sd_hold);
+                    }
+                    sd_fired = 1;
+                }
+            }
+
+            /* The pause menu's own words, for the third exit. PS_Update
+               (src/_ZN5Stage9PS_UpdateEv.cpp) runs on data_0209f248, takes its
+               next sub-state from data_0209f1ec, and RETURNS OUT OF THE WHOLE
+               FUNCTION at the top while data_0209f22c is nonzero, so a menu
+               that never answers a tap says which of the three it is. */
+            {
+                static int ew = -1;
+                static unsigned long long ew_last = ~0ull;
+                if (ew < 0) ew = getenv("SM64DS_EXIT_WATCH") ? 1 : 0;
+                if (ew) {
+                    const int lvl = (int)data_0209f2f8;
+                    const int hp = port_course_health();
+                    const int lives = (int)data_0209f2f4[0];
+                    const int stars = (int)NumStars();
+                    const int nsub = port_course_next_sublevel();
+                    const int ent = (int)data_0209f268;
+                    const int why = (int)data_0209f26c;
+                    const int latched = (int)data_0209f2fc[0];
+                    const unsigned step = *(unsigned char *)(c + 0x6e3);
+                    void *st = *(void **)(c + 0x370);
+                    const int pz = data_0209f2c4[0];
+                    const int psub = data_0209f248[0];
+                    const int pnext = data_0209f1ec[0];
+                    const int pcool = data_0209f22c[0] |
+                                      (data_0209f22c[1] << 8);
+                    const int pbtn = data_0209f2b4[0];
+                    unsigned long long key =
+                        ((unsigned long long)(unsigned)(size_t)st << 32) ^
+                        ((unsigned long long)(unsigned)lvl << 24) ^
+                        ((unsigned long long)(unsigned)hp << 20) ^
+                        ((unsigned long long)(unsigned)lives << 16) ^
+                        ((unsigned long long)(unsigned)stars << 12) ^
+                        ((unsigned long long)(unsigned)nsub << 8) ^
+                        ((unsigned long long)(unsigned)ent << 4) ^
+                        ((unsigned long long)(unsigned)(why * 16 + latched)) ^
+                        ((unsigned long long)step << 40) ^
+                        ((unsigned long long)(unsigned)
+                            (((pz * 16 + psub) * 16 + pnext) * 16 + pbtn) << 44)
+                        ^ (unsigned long long)(unsigned)(pcool != 0);
+                    if (key != ew_last) {
+                        ew_last = key;
+                        fprintf(stderr, "[exitwatch] f%d level=%d hp=%d "
+                                "lives=%d stars=%d next-sublevel=%d entrance=%d"
+                                " why=%d latched=%d state=%p step=%u "
+                                "hpword=%04x,%04x,%04x,%04x local=%d "
+                                "pause=%d sub=%d next=%d cool=%d buttons=%d\n",
+                                frame, lvl, hp, lives, stars, nsub, ent, why,
+                                latched, st, step,
+                                (unsigned short)data_02092144[0],
+                                (unsigned short)data_02092144[1],
+                                (unsigned short)data_02092144[2],
+                                (unsigned short)data_02092144[3],
+                                (int)data_0209f250,
+                                pz, psub, pnext, pcool, pbtn);
+                    }
+                    /* THE ARRIVAL READ-OUT. [exitwatch] prints only when a word
+                       CHANGES, so a player who cannot move prints nothing and a
+                       row cannot tell "he is standing still" from "he is frozen".
+                       This is the position itself, on a fixed cadence, so
+                       bootab's exit arm can assert that the player MOVED after
+                       the level change instead of only that the change happened.
+                       Reads only, and only with SM64DS_EXIT_WATCH set. */
+                    if ((frame % 30) == 0)
+                        fprintf(stderr, "[exitpos] f%d level=%d pos=(%d,%d,%d)\n",
+                                frame, lvl,
+                                *(int *)(c + 0x5c) >> 12,
+                                *(int *)(c + 0x60) >> 12,
+                                *(int *)(c + 0x64) >> 12);
+                }
+            }
+
+            /* ---- SM64DS_EXIT_PROBE / SM64DS_EXIT_ENTER (see the top of the
+               file). The dump waits for the level to be up; the entry is the
+               two frames a walk into the painting produces. Once it has
+               fired, one line a frame says whether the Player still has
+               control and what the exit's pull counter is doing, which is
+               the whole of the soft lock in two numbers. */
+            static int ex_dumped, ex_idx = -2, ex_frame, ex_fired;
+            if (ex_idx == -2) {
+                const char *e = getenv("SM64DS_EXIT_ENTER");
+                ex_idx = -1;
+                if (e) {
+                    ex_frame = 60;
+                    sscanf(e, "%d,%d", &ex_idx, &ex_frame);
+                }
+            }
+            if (!ex_dumped && frame == 30 &&
+                (getenv("SM64DS_EXIT_PROBE") || ex_idx >= 0)) {
+                ex_dumped = 1;
+                port_exit_dump();
+                /* Camera state pointer is +0x138 and the flags word is +0x154.
+                   Bit 0x10 of that word is the lock Camera::LookAtExit sets
+                   after its own ChangeState, and Camera::ChangeState refuses
+                   every later state change while it is set. */
+                fprintf(stderr, "[exit] camera states: boot %p, follow "
+                        "(func_0200d5c0) %p, look-at-exit %p; camera is in "
+                        "%p flags %08x\n",
+                        (void *)data_0209b008, (void *)data_0209b078,
+                        (void *)data_0209b0f8,
+                        data_0209f318 ? *(void **)((char *)data_0209f318
+                                                   + 0x138) : 0,
+                        data_0209f318 ? *(unsigned *)((char *)data_0209f318
+                                                      + 0x154) : 0);
+            }
+            /* Three writes. The PRIME, two frames early, puts him on the near
+               side but OUTSIDE the box in x: the exit's Behavior records his
+               z (its +0x88) without the box test passing, so the teleport in
+               from wherever he spawned cannot itself read as a crossing --
+               without it the first reading is a spurious entry and every
+               number after it has a warp in it that a walk does not.
+               Then the near side inside the box, EX_SETTLE frames for the
+               game's own collision to land him on the floor there, then one
+               stride past the plane, which is the trigger.
+               A floor hole needs no push: he falls through its plane on his
+               own during the settle, which is the real way in, so the last
+               write is skipped once he has already been taken over. */
+            enum { EX_SETTLE = 12 };
+            if (ex_idx >= 0 && player &&
+                (frame == ex_frame - 2 || frame == ex_frame ||
+                 frame == ex_frame + EX_SETTLE)) {
+                char *ex = port_exit_nth(ex_idx);
+                const int taken = *(unsigned char *)(c + 0x6f6) != 0;
+                if (ex && !(frame == ex_frame + EX_SETTLE && taken)) {
+                    /* +-0x30000 is 48 units, about one walking stride, so the
+                       last two writes straddle the plane the way a stride
+                       does. */
+                    port_exit_place(ex, c, frame == ex_frame + EX_SETTLE
+                                               ? -0x30000 : 0x30000,
+                                    frame == ex_frame - 2);
+                    ex_fired = 1;
+                    fprintf(stderr, "[exit] f%d placed %s -> world "
+                            "(%d,%d,%d)\n", frame,
+                            frame == ex_frame - 2 ? "beside the box (prime)"
+                            : frame == ex_frame ? "in front of the plane"
+                                                : "one stride past the plane",
+                            *(int *)(c + 0x5c) >> 12,
+                            *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0x64) >> 12);
+                }
+            }
+            if (ex_fired && player) {
+                char *ex = port_exit_nth(ex_idx);
+                int local[3] = {0, 0, 0};
+                if (ex)
+                    MulVec3Mat4x3(c + 0x5c, ex + 0xd4, local);
+                int evy = 0, tw = 0;
+                const int blend = port_fader_blend_state(&evy, &tw);
+                fprintf(stderr, "[exit-watch] f%d pos(%d,%d,%d) localz %d "
+                        "ctrl_disabled %u nocontrol %u kind %u state %p "
+                        "step %u | exit pull %d lastz %d | pending %d | "
+                        "screen %s\n",
+                        frame, *(int *)(c + 0x5c) >> 12,
+                        *(int *)(c + 0x60) >> 12, *(int *)(c + 0x64) >> 12,
+                        local[2] >> 12,
+                        *(unsigned char *)(c + 0x6f6),
+                        *(unsigned char *)(c + 0x709),
+                        *(unsigned char *)(c + 0x70a),
+                        *(void **)(c + 0x370), *(unsigned char *)(c + 0x6e3),
+                        ex ? *(int *)(ex + 0x98) >> 12 : 0,
+                        ex ? *(int *)(ex + 0x88) >> 12 : 0,
+                        (int)data_02092110,
+                        !blend ? "clear" : evy >= 16
+                            ? (tw ? "COVERED white" : "COVERED black")
+                            : (tw ? "fading white" : "fading black"));
+                if (data_0209f318)
+                    fprintf(stderr, "[exit-cam] f%d state %p flags %08x%s\n",
+                            frame, *(void **)((char *)data_0209f318 + 0x138),
+                            *(unsigned *)((char *)data_0209f318 + 0x154),
+                            (*(unsigned *)((char *)data_0209f318 + 0x154)
+                             & 0x10) ? "  LOCKED (LookAtExit)" : "");
+            }
+
+            /* ---- SM64DS_DOOR_PROBE / SM64DS_DOOR_DROP (the arm's whole
+               reading is in its banner beside port_door_place). Placed where
+               the exit arm is placed, before port_actor_tick, so the mark
+               written here is the one Door::Behavior reads this same frame. */
+            static int dr_parsed, dr_mode, dr_idx, dr_frame = 60, dr_dist = 60;
+            static int dr_x, dr_y, dr_z, dr_yaw, dr_dumped, dr_side = 1;
+            static int dr_started, dr_fired;
+            if (!dr_parsed) {
+                const char *e = getenv("SM64DS_DOOR_DROP");
+                dr_parsed = 1;
+                if (e && *e == 35) {          /* '#' -- the n-th door form */
+                    if (sscanf(e + 1, "%d,%d,%d", &dr_idx, &dr_frame,
+                               &dr_dist) >= 1)
+                        dr_mode = 1;
+                } else if (e) {
+                    if (sscanf(e, "%d,%d,%d,%d,%d", &dr_x, &dr_y, &dr_z,
+                               &dr_yaw, &dr_frame) >= 4)
+                        dr_mode = 2;
+                }
+                if (dr_dist <= 0) dr_dist = 60;
+            }
+            if (!dr_dumped && frame == 30 &&
+                (getenv("SM64DS_DOOR_PROBE") || dr_mode)) {
+                dr_dumped = 1;
+                port_door_dump();
+            }
+            if (dr_mode && player && frame >= dr_frame && !dr_fired) {
+                char *dr = dr_mode == 1 ? port_door_nth(dr_idx) : 0;
+                if (dr_mode == 1 && !dr_started && dr) {
+                    /* KEEP HIM ON THE SIDE HE IS ALREADY ON. The door's own
+                       +0x88 is his local z as of the last Door::Behavior, and
+                       the far side of a castle door is usually inside the
+                       wall. */
+                    dr_side = *(int *)(dr + 0x88) < 0 ? -1 : 1;
+                }
+                if (dr_mode == 1 && dr) {
+                    port_door_place(dr, c, dr_side, dr_dist);
+                    g_door_hold = 1;
+                } else if (dr_mode == 2) {
+                    *(int *)(c + 0x5c) = dr_x << 12;
+                    *(int *)(c + 0x60) = dr_y << 12;
+                    *(int *)(c + 0x64) = dr_z << 12;
+                    *(short *)(c + 0x8e) = (short)dr_yaw;
+                    *(int *)(c + 0xa4) = 0;
+                    *(int *)(c + 0xa8) = 0;
+                    *(int *)(c + 0xac) = 0;
+                    *(int *)(c + 0x98) = 0;
+                    g_door_hold = 1;
+                }
+                if (!dr_started && (dr || dr_mode == 2)) {
+                    dr_started = frame;
+                    fprintf(stderr, "[door] f%d arm on: mode %d door %d "
+                            "side %d dist %d -> player (%d,%d,%d) yaw %04x\n",
+                            frame, dr_mode, dr_idx, dr_side, dr_dist,
+                            *(int *)(c + 0x5c) >> 12,
+                            *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0x64) >> 12,
+                            (unsigned short)*(short *)(c + 0x8e));
+                }
+                if (!dr_started && frame == dr_frame)
+                    fprintf(stderr, "[door] f%d arm found no door %d; "
+                            "SM64DS_DOOR_PROBE=1 lists them\n", frame, dr_idx);
+                /* Give up holding after eight seconds rather than pinning him
+                   there for the whole run: a door that has not taken him by
+                   then is a finding, not a slow one. */
+                if (dr_started && frame > dr_started + 240) {
+                    dr_fired = 2;
+                    g_door_hold = 0;
+                    fprintf(stderr, "[door] f%d arm timed out after 240 "
+                            "frames on the mark, releasing\n", frame);
+                }
+            }
+            if (dr_mode && !dr_fired) {
+                char *op = port_door_opening();
+                if (op) {
+                    dr_fired = 1;
+                    g_door_hold = 0;
+                    fprintf(stderr, "[door-open] f%d door at (%d,%d,%d) node "
+                            "%s | player state %p step %u nocontrol %u "
+                            "ctrl_disabled %u\n", frame,
+                            *(int *)(op + 0x5c) >> 12,
+                            *(int *)(op + 0x60) >> 12,
+                            *(int *)(op + 0x64) >> 12,
+                            port_door_node_name(*(void **)(op + 0x140)),
+                            *(void **)(c + 0x370),
+                            *(unsigned char *)(c + 0x6e3),
+                            *(unsigned char *)(c + 0x709),
+                            *(unsigned char *)(c + 0x6f6));
+                }
+            }
+        }
+
+        /* ---- THE LEVEL HANDOFF (gate 31) -------------------------------
+           Where Scene::SpawnIfNecessary sits in func_020197b8: phase 3, after
+           input and before func_02044120's own phases. Anything that ran this
+           frame -- the debug menu's level row, its exit row, a warp pipe, a
+           death -- has already written data_02092110 through the game's own
+           LoadLevel, and this is the frame it is honoured on.
+
+           EVERY POINTER main() HOLDS INTO THE LEVEL IS STALE AFTERWARDS. The
+           Player was destroyed with everything else and the entrance spawned
+           a new one; the Stage survives (hal/level_change.cpp says why) but
+           its model is a fresh load. Re-seating them here rather than at the
+           top of the frame is deliberate: the change runs after the frame's
+           input has been taken and before anything reads the world, so no
+           half of one frame ever sees two different levels. */
+        /* THE SCENE FADE GATE. When a title-select armed a scene fade
+           (Scene::StartSceneFade), hold the boot until the fade has COVERED the
+           screen, so the old level is gone behind white before the new one
+           loads and the pop is hidden. Without a scene fade -- the ExitLevel,
+           death and warp-pipe paths -- the change applies the frame it is
+           pending, as before. */
+        int scene_fade = 0, scene_id = -1;
+        if (port_scene_fade_pending(&scene_id)) {
+            int evy = 0, tw = 0;
+            int covered = port_fader_blend_state(&evy, &tw) && evy >= 16;
+            scene_fade = covered ? 2 : 1;   /* 1 = still fading, 2 = covered */
+        }
+        if (!menu_on && boot_spawns && port_level_change_pending() &&
+            scene_fade != 1) {
+            if (port_level_change_poll()) {
+                /* the level is up behind the cover: fade back IN and drop the
+                   scene request. Reveal with the SAME colour the cover used
+                   (white, 0x7fff) but the reverse direction, so the panel
+                   un-whitens to the new level rather than flashing to black. */
+                if (scene_fade == 2) {
+                    port_fader_start_color(16, 0, 0x7fff);
+                    port_scene_fade_clear();
+                    fprintf(stderr, "[fade] scene %d: covered, level booted, "
+                            "fading in\n", scene_id);
+                }
+                /* run mg16 lane MP3: THE LOCAL SLOT, not slot 0. The
+                   render loop below assumes `player` IS
+                   data_0209f394[data_0209f250]; it skips that index and draws
+                   `player` separately. Re-seating this to slot 0 after a level
+                   change breaks that on any console whose slot is not 0: slot
+                   0 gets submitted twice and the local player is never drawn
+                   at all. */
+                {
+                    int me2 = (int)data_0209f250;
+                    if (me2 < 0 || me2 >= kPortMaxPlayers
+                            || !data_0209f394[me2]) me2 = 0;   /* run vs16 */
+                    player = data_0209f394[me2];
+                }
+                if (!player) {
+                    fprintf(stderr, "[lvl] the new level spawned no player\n");
+                    return 3;
+                }
+                c = (char *)player;
+                /* the character state was read off the boot's Player; across
+                   a warp the entrance spawned a fresh one (ExitLevel wipes
+                   the save byte too), so read it back with everything else */
+                g_character = *(unsigned char *)(c + 0x6d9) & 3;
+                g_character_pending = g_character;
+                cam = data_0209f318;
+                level_shift = 0;
+                if (real_boot) {
+                    /* the level-change boot loads the model too, same move as
+                       the first boot above: port_stage_boot_body calls
+                       Stage::LoadModel ahead of the object pass. A call here
+                       would be the second rebase of the same buffer, because
+                       this file's LoadFile handle table hands the same
+                       filePtr back inside one level. */
+                    void *bmd = *(void **)(level_model + 0x04);
+                    level_shift = bmd ? *(int *)bmd : 0;
+                    _ZN5Stage10LoadSkyboxEv(stage);
+                }
+                an_pivot_live = 0;        /* do not ease the camera across it */
+                if (cam_mode != CAM_DS && cam) fc_seed(cam);
+                printf("[lvl] re-seated: player %p camera %p scaleShift %d, "
+                       "heap free %u\n", player, cam, level_shift,
+                       port_level_heap_free_bytes());
+                /* nothing else in this frame: the new level takes its first
+                   tick from the next one, the way a spawned scene does */
+                game_ticked = 0;
+            }
+        }
+
+        /* GATE 35 PROBES. SM64DS_COURSE_PROBE=<what>[,<frame>] fires one of
+           the course-loop entry points at a frame and lets the game's own
+           code carry it from there. Everything here is a CALL into
+           hal/star_flow.cpp or matched src; nothing writes player state
+           except the coin probe's stand-in Actor, which only needs a position
+           for the chime to be placed at.
+
+             coin   Actor::GivePlayerCoins -- counter, health, chime, popup
+             hurt   Player::Hurt kind 1 (one wedge)
+             hurt2  Player::Hurt kind 2 (the knock-down)
+             drown  Heal(-0x100) a frame at a time until he is empty
+             death  the full chain: hurt to zero, then KillPlayer
+             star   the collect and the course-clear handoff
+
+           They run AFTER the entrance has finished with him (the default
+           frame is 40) because Player::Hurt's ChangeState is refused while
+           St_LevelEnter owns the state machine. */
+        /* SM64DS_SND_PROBE=N: count sounding voices and running sequence
+           players every N frames. This is the one part of the gate that
+           cannot be checked by hash, so it is checked by census. */
+        {
+            static int sp = -1;
+            if (sp < 0) {
+                const char *e = getenv("SM64DS_SND_PROBE");
+                sp = e ? atoi(e) : 0;
+            }
+            if (sp > 0 && frame % sp == 0) {
+                char when[32];
+                snprintf(when, sizeof when, "frame %d", frame);
+                port_course_sound_probe(when);
+            }
+        }
+
+        {
+            static int cp_read, cp_frame = 40, cp_done;
+            static char cp_what[16];
+            if (!cp_read) {
+                cp_read = 1;
+                const char *e = getenv("SM64DS_COURSE_PROBE");
+                if (e) {
+                    const char *comma = strchr(e, ',');
+                    size_t n = comma ? (size_t)(comma - e) : strlen(e);
+                    if (n > sizeof cp_what - 1) n = sizeof cp_what - 1;
+                    memcpy(cp_what, e, n);
+                    cp_what[n] = 0;
+                    if (comma) cp_frame = atoi(comma + 1);
+                }
+            }
+            if (cp_what[0] && frame >= cp_frame && !cp_done) {
+                const int done_after = 90;
+                if (frame == cp_frame) {
+                    /* snapshot the three next-level words BEFORE anything can
+                       move them, so "the handoff fired" is a change and not a
+                       non-zero (data_02092110 boots with the ROM's own 0xff) */
+                    port_course_arm_watch();
+                    fprintf(stderr, "[course] probe '%s' at frame %d: "
+                            "hp=%d coins=%d next-sublevel=%d\n", cp_what,
+                            frame, port_course_health(), port_course_coins(),
+                            port_course_next_sublevel());
+                }
+                if (!strcmp(cp_what, "coin")) {
+                    if (frame == cp_frame) {
+                        /* the stand-in for the coin ACTOR: GivePlayerCoins
+                           reads exactly one thing off it, Actor+0x74, and
+                           that is mCamSpacePos -- CAMERA-SPACE, not world.
+                           Sound::Play's 3D path measures it straight against
+                           the distance limit and derives the pan from its x,
+                           so a world position there reads as thousands of
+                           units away and the chime is culled without a word.
+                           Actor::BeforeBehavior fills it for every actor on
+                           the processing lists, which is why a real coin
+                           needs nothing extra; the stand-in is not on them,
+                           so it borrows the player's. */
+                        static char coin_actor[0x80];
+                        memcpy(coin_actor + 0x74, c + 0x74, 12);
+                        port_give_player_coins(coin_actor, player, 1, 0);
+                        fprintf(stderr, "[coin] one yellow -> coins=%d hp=%d\n",
+                                port_course_coins(), port_course_health());
+                        port_give_player_coins(coin_actor, player, 1, 2);
+                        fprintf(stderr, "[coin] one blue   -> coins=%d hp=%d\n",
+                                port_course_coins(), port_course_health());
+                        cp_done = 1;
+                    }
+                } else if (!strcmp(cp_what, "hurt") ||
+                           !strcmp(cp_what, "hurt2")) {
+                    if (frame == cp_frame) {
+                        port_course_hurt(player, cp_what[4] == '2' ? 2 : 1);
+                        cp_done = 1;
+                    }
+                } else if (!strcmp(cp_what, "drown")) {
+                    /* one HP a frame, which is faster than the water damage
+                       tick but the same call the water state makes */
+                    if (port_course_health() > 0)
+                        fprintf(stderr, "[drown] f%d hp=%d\n", frame,
+                                port_course_drown_tick(player, 0x100));
+                    else {
+                        fprintf(stderr, "[drown] empty at frame %d, "
+                                "state=%p\n", frame, *(void **)(c + 0x370));
+                        cp_done = 1;
+                    }
+                } else if (!strcmp(cp_what, "death")) {
+                    /* REAL damage, repeated, not a drain: the state
+                       transition that matters is the one Player::Hurt makes
+                       itself. func_ov002_020d91e0 answers "is he dead now"
+                       and only on 1 does Hurt change to data_ov002_0211010c,
+                       the DEAD state -- so hurting him to zero is the only
+                       way to see that branch taken. Every 8 frames, because
+                       Hurt is refused while the hurt state's invulnerability
+                       is still up. */
+                    static int empty_at = -1;
+                    if (port_course_health() > 0) {
+                        if (port_course_can_hurt(player))
+                            port_course_hurt(player, 2);
+                    } else {
+                        if (empty_at < 0) {
+                            empty_at = frame;
+                            fprintf(stderr, "[death] hp reached 0 at frame "
+                                    "%d, state=%p -- waiting for the ROM's "
+                                    "own St_DeadHit_Main -> KillPlayer\n",
+                                    frame, *(void **)(c + 0x370));
+                        }
+                        if (frame % 20 == 0)
+                            fprintf(stderr, "[death] f%d dead-state=%d "
+                                    "hud-hp=%d work=%u\n", frame,
+                                    port_course_in_dead_state(player),
+                                    port_course_hud_health(),
+                                    *(unsigned char *)(c + 0x6e5));
+                        if (port_course_handoff_fired()) {
+                            fprintf(stderr, "[death] the ROM fired the "
+                                    "handoff itself at frame %d: next "
+                                    "sublevel %d\n", frame,
+                                    port_course_next_sublevel());
+                            port_course_respawn(player);
+                            fprintf(stderr, "[respawn] hp=%d\n",
+                                    port_course_health());
+                            cp_done = 1;
+                        } else if (frame > empty_at + done_after * 3) {
+                            fprintf(stderr, "[death] the ROM had not fired it "
+                                    "after %d frames -- calling KillPlayer "
+                                    "directly so the handoff itself is still "
+                                    "shown\n", done_after * 3);
+                            port_course_kill();
+                            port_course_respawn(player);
+                            fprintf(stderr, "[respawn] hp=%d state=%p\n",
+                                    port_course_health(),
+                                    *(void **)(c + 0x370));
+                            cp_done = 1;
+                        }
+                    }
+                } else if (!strcmp(cp_what, "deathloop")) {
+                    /* THE DEATH-RESPAWN REPRODUCTION, and the reason it is not
+                       the `death` verb above: that one calls
+                       port_course_respawn() the moment the handoff fires --
+                       which is at the level-change REQUEST, before the
+                       re-entry boot -- and port_course_respawn force-writes
+                       0x880 into the health word (hal/star_flow.cpp). So it
+                       hands the next level a healthy player whether or not the
+                       GAME can restore one, and comes out clean either way.
+                       Reproducing the infinite death loop with it gives a
+                       false negative.
+
+                       This verb hurts to zero with Player::Hurt exactly as
+                       `death` does and then fakes NOTHING: the ROM's own
+                       St_DeadHit_Main -> KillPlayer -> SetNextLevel(2) carries
+                       it, the harness's normal level-change poll boots the
+                       destination, and the game is left to restore the player
+                       from its own level-enter step (src/actors/Player.cpp
+                       :29, gated on the latched entry reason). It never sets
+                       cp_done, so it keeps reporting across the re-entry and a
+                       loop shows up as repeated changes rather than silence. */
+                    static int dl_empty_at = -1;
+                    if (port_course_health() > 0 && dl_empty_at < 0) {
+                        if (port_course_can_hurt(player))
+                            port_course_hurt(player, 2);
+                    } else {
+                        if (dl_empty_at < 0) {
+                            dl_empty_at = frame;
+                            fprintf(stderr, "[deathloop] hp reached 0 at frame "
+                                    "%d -- handing off to the ROM, nothing "
+                                    "faked from here\n", frame);
+                        }
+                        if (frame % 20 == 0)
+                            fprintf(stderr, "[deathloop] f%d level=%d hp=%d "
+                                    "lives=%d entry-reason=%d dead-state=%d\n",
+                                    frame, (int)data_0209f2f8,
+                                    port_course_health(),
+                                    (int)data_0209f2f4[0],
+                                    (int)data_0209f2fc[0],
+                                    port_course_in_dead_state(player));
+                    }
+                } else if (!strcmp(cp_what, "star")) {
+                    if (frame == cp_frame) {
+                        port_star_collect(0);
+                        cp_done = 1;
+                    }
+                } else if (!strcmp(cp_what, "starbox")) {
+                    /* THE MILESTONE-STAR BOX, driven organically.
+                       port_star_collect ends in ExitLevel -> SetNextLevel(1),
+                       so the hub is re-entered with reason 1. Once the boot
+                       latches that reason into data_0209f2fc, the level-enter
+                       step func_ov002_020c71e0:21 can take its
+                       `data_0209f2fc[0] == 1` branch for the first time and
+                       call func_ov002_020c6e14, the 1st/3rd/8th/12th/30th/50th
+                       /80th-star message. Every callee is linked, but nothing
+                       had ever reached it, because the gate always read 0.
+
+                       Observed through data_0209d660, the message-active flag,
+                       rather than by instrumenting game code. Never sets
+                       cp_done: the point is what happens AFTER the exit. */
+                    static int sb_fired = -1;
+                    if (frame == cp_frame)
+                        port_star_collect(0);
+                    if (frame > cp_frame) {
+                        if (sb_fired < 0 && data_0209d660 != 0) {
+                            sb_fired = frame;
+                            fprintf(stderr, "[starbox] MESSAGE BOX OPEN at "
+                                    "frame %d: stars=%d entry-reason=%d "
+                                    "level=%d\n", frame, (int)NumStars(),
+                                    (int)data_0209f2fc[0], (int)data_0209f2f8);
+                        }
+                        if (frame % 60 == 0)
+                            fprintf(stderr, "[starbox] f%d level=%d stars=%d "
+                                    "entry-reason=%d msg-active=%d "
+                                    "(box-opened-at=%d)\n", frame,
+                                    (int)data_0209f2f8, (int)NumStars(),
+                                    (int)data_0209f2fc[0],
+                                    (int)data_0209d660, sb_fired);
+                    }
+                } else if (!strcmp(cp_what, "kuppa")) {
+                    /* STAR1 repro: launch the REAL star-get camera kuppa script
+                       (func_0200ee8c -> RunKuppaScript, sets data_0209fc48) and
+                       watch the input gate. On a build that never advances the
+                       script (ProcessKuppaScript not driven per frame) fc48 and
+                       the b274 cursor stay frozen, Stage::CheckInput zeroes the
+                       Ctrl block every frame, and the stick copy bridge carries
+                       the zero (mag/pos frozen) while direct-written buttons stay
+                       live. The [fNNN] line above shows pos/spd/st/mag; this line
+                       shows why. Never cp_done: log to the frame limit. */
+                    if (frame == cp_frame) {
+                        data_0209f224 = 0;      /* star 0's camera setting */
+                        func_0200ee8c(-1);      /* launch the star camera script */
+                        fprintf(stderr, "[kuppa] launched at frame %d: "
+                                "fc48=%d f2d8=%d b274=%d\n", frame,
+                                data_0209fc48, (int)data_0209f2d8,
+                                (int)data_0209b274);
+                    }
+                    /* End of the cutscene, the restore half of the proof. The
+                       real star-get reaches EndKuppaScript through the completing
+                       script/no-control sequence -- which the ProcessKuppaScript
+                       tick added below is what lets the script advance toward at
+                       all (frozen on base, live on the fix). Calling it here at a
+                       fixed frame stands in for that completion so one run shows
+                       the whole arc: walk -> star cutscene freezes the stick ->
+                       cutscene ends -> stick and walk resume. */
+                    if (frame == cp_frame + 80) {
+                        EndKuppaScript();
+                        fprintf(stderr, "[kuppa] EndKuppaScript() at frame %d: "
+                                "fc48=%d f2d8=%d\n", frame, data_0209fc48,
+                                (int)data_0209f2d8);
+                    }
+                    fprintf(stderr, "[kuppa] f%d fc48=%d b274=%d f2d8=%d "
+                            "caa0bit=%d mag=%d\n", frame, data_0209fc48,
+                            (int)data_0209b274, (int)data_0209f2d8,
+                            (data_0209caa0[2] & 0x80) ? 1 : 0,
+                            (int)*(short *)(data_0209f4a0 + 0));
+                } else if (!strcmp(cp_what, "stardance")) {
+                    /* STAR1 repro: drive the REAL normal-star no-control dance
+                       (kind 1, the value func_ov002_020e73ac returns for star 0;
+                       offset 0x186, as the PowerStar collect handler
+                       func_ov002_020e8ef0 passes). Watch the full lifecycle:
+                       mIsControlDisabled (Player+0x6f6), mNoCtrlKind (+0x70a),
+                       the state pointer (+0x370), the cutscene flag
+                       data_0209fc48, its cursor, and the stick magnitude that
+                       reaches the walk core. On base the camera script latches
+                       fc48; the fix advances it. [fNNN] shows pos/spd. */
+                    extern int _ZN6Player17SetNoControlStateEhih(
+                        void *self, unsigned char a, int b, unsigned char cc);
+                    if (frame == cp_frame) {
+                        int r = _ZN6Player17SetNoControlStateEhih(player, 1,
+                                                                 0x186, 0);
+                        fprintf(stderr, "[dance] SetNoControlState(1,0x186,0) "
+                                "-> %d at frame %d\n", r, frame);
+                    }
+                    fprintf(stderr, "[dance] f%d icd=%d nck=%d st=%08x fc48=%d "
+                            "b274=%d mag=%d\n", frame,
+                            (int)*(unsigned char *)(c + 0x6f6),
+                            (int)*(unsigned char *)(c + 0x70a),
+                            *(void **)(c + 0x370) ? *(unsigned *)*(void **)(c + 0x370) : 0u,
+                            data_0209fc48, (int)data_0209b274,
+                            (int)*(short *)(data_0209f4a0 + 0));
+                } else if (frame == cp_frame) {
+                    fprintf(stderr, "[course] unknown probe '%s'\n", cp_what);
+                    cp_done = 1;
+                }
+            }
+        }
+
+        /* Stage::Behavior's LAST statement, and it goes HERE rather than at the
+           end of the port's behaviour phase. The ROM's own text is
+
+               if ((u8)(data_0209f294 | (data_0209f2c4 | data_0209f20c)) == 0)
+                   if ((data_0209b454 & ~0x20000000) == 0)
+                       ShadowModel::CleanAll();
+
+           and the port holds all four of those globals at 0 for this boot
+           (hal/level_boot.cpp seeds them beside the camera state), so writing
+           the guard out would only be repeating a constant.
+
+           WHY BEFORE THE ACTOR TICK. The three ShadowModel TUs describe a
+           freeze protocol between them: InitModel refuses to link a node while
+           data_0209ceec is set, RenderAll SETS it as its last act, CleanAll
+           CLEARS it. So a frame's registrations can only happen after that
+           frame's CleanAll and before its RenderAll, and the registrations are
+           made from actors' own Behavior methods (SignPost::Behavior and
+           ArrowSignRight::Behavior are the two matched examples). On the ROM
+           that works because the Stage ticks at the head of the behaviour list
+           -- its spawn record at 0x0209213c carries behaviour priority 3
+           against the hundreds other classes use. The port's equivalent of
+           "before every other actor's Behavior" is right here, above
+           port_actor_tick. Putting it at the end of the phase instead would
+           empty the list the actors had just filled, and once ov001 mounts
+           that would be shadows that never draw.
+
+           real_boot rather than boot_spawns because the Stage exists on the
+           no-spawn boot too; menu_on because the ROM does not reach
+           Stage::Behavior at all on a paused frame.
+
+           AND ITS SIBLING IS SEATED BELOW, THE WALL DOWN AT LAST (run linkw
+           wave 5, lane w5-d). Stage::Render's ShadowModel::RenderAll sits
+           between RenderModel and RenderModelTransparent below, and the
+           two-layer history is why the ordering HERE matters and why a green
+           run alone never proved anything.
+
+           Layer one, wave 3: seated, and walk_window took an access
+           violation on frame 1:
+
+             FAULT code c0000005 at +0x000893c8 accessing 00000000
+               stack[03] +0x000892b1
+
+           +0x893c8 is eight bytes into func_02046120 and +0x892b1 is inside
+           RenderAll, i.e. `int n = self->sub->count` with self null, where
+           self is the list node's `data` (its ModelComponents at +0x08).
+           That was the InitCylinder stub leaving nodes empty; wave 4's first
+           half fixed the chain and the fault with it.
+
+           Layer two, wave 4: seated again, ran clean, drew WRONG. ntr then
+           rasterized POLYGON_ATTR mode-3 (shadow) polygons as ordinary
+           translucent geometry -- gx.cpp decoded only cull and alpha from
+           that register -- so RenderAll painted the shadow VOLUME itself as
+           a visible column under the actor (Tango's cone, tallest mid-jump
+           because scale.y carries the drop height). The w4a review reverted
+           the seat and queued the raster work.
+
+           That work landed this wave: gx.cpp carries a per-pixel stencil
+           bit and polygon-ID buffer and GBATEK's two-step shadow protocol
+           (mask ID 0 stencils depth-fail pixels; draw ID nonzero blends
+           where the stencil is set, the depth test passes and the IDs
+           differ). The volume no longer draws; its intersection with the
+           ground does.
+
+           Why the list is not empty, for the record: Butterfly::Behavior
+           calls the matched Actor::DropShadowRadHeight every frame on this
+           level (the boot census spawns butterflies), which calls
+           ShadowModel::InitModel for real, so real nodes ride the list from
+           frame 1 and RenderAll has real work the moment it is called.
+
+           WHAT A GREEN RUN DOES NOT PROVE, still. Seating RenderAll with
+           this CleanAll call moved to the END of the behaviour phase also
+           runs clean -- but only because the list is force-emptied after
+           the actors fill it and before RenderAll reads it, which is the
+           wrong order and draws no shadows at all. That is why CleanAll
+           stays here, above the tick, and why the seat is held to pixels
+           and triangles rather than exit codes: SM64DS_SHADOW_TRIS=1 prints
+           what the seat submits per frame (see the call site). */
+        /* RETIRED BY THE SLOT-6 SEAT (run link100, lane FRAME), and everything
+           the block above argues is why it CAN be retired rather than why it
+           cannot. ShadowModel's freeze protocol is unchanged -- InitModel
+           refuses while data_0209ceec is set, RenderAll SETS it, CleanAll
+           CLEARS it, so a frame's registrations can only happen after that
+           frame's CleanAll and before its RenderAll -- and the ROM satisfies it
+           the way it always did: this call is Stage::Behavior's LAST statement,
+           and the Stage's own spawn record (arm9 0x0209213c) carries behaviour
+           priority 3 against the hundreds every other class uses, so
+           Stage::Behavior is the FIRST body phase 3 runs. "Above
+           port_actor_tick" was this file's rendering of "before every other
+           actor's Behavior"; "the head of the behaviour list" is the ROM's own,
+           and on this tree they are the same position in the frame.
+
+           THE ROM'S GUARD COMES BACK WITH IT, which is the half the
+           transcription had to drop. The ROM's call sits inside
+
+               if ((u8)(data_0209f294 | (data_0209f2c4 | data_0209f20c)) == 0)
+                   if ((data_0209b454 & ~0x20000000) == 0)
+                       ShadowModel::CleanAll();
+
+           and the note above is explicit that the port held all four of those
+           words at 0 for the boot it shipped, so writing the guard out "would
+           only be repeating a constant". They are not held at 0 any more:
+           data_0209f2c4 is the pause state and slot 6 is what starts writing
+           it. A paused frame now keeps its shadow list instead of emptying it,
+           which is the ROM's answer.
+
+           NOT AN ARGUMENT -- A RUNG. port/tools/stage_pause_proof.py rung 2
+           reads the behaviour list in walk order out of SM64DS_TRACE_LISTS and
+           fails unless the Stage is the first node on it. */
+        /* STAR1: Stage::Behavior:112 -- advance the running cutscene/kuppa
+           script one frame. The port transcribes Stage::Behavior statement by
+           statement and this one was missing. Without it a script launched by
+           the star-get (func_0200ee8c -> RunKuppaScript, which seats
+           data_0209fc48 and calls ProcessKuppaScript exactly ONCE) never
+           advanced: ProcessKuppaScript's own frame cursor data_0209b274 froze,
+           the script never reached its end so EndKuppaScript never ran, and
+           data_0209fc48 stayed latched. Stage::CheckInput then zeroed the whole
+           Ctrl block every frame, the stick copy-bridge carried the zero
+           (mDesiredAngleY/mag = 0, no walk) while the directly-written button
+           word kept jump/kick alive -- the reported "can't move after a star,
+           can still jump/kick/change levels". ProcessKuppaScript early-returns
+           when data_0209fc48 == 0, so it is free off a cutscene and leaves every
+           script-free selftest byte-identical. Gated to the game tick like the
+           ROM, which does not run Stage::Behavior on a paused frame.
+           SM64DS_NO_KUPPA_TICK=1 restores the old behaviour on this binary.
+
+           AND THIS IS THE ONE THE SEAT COULD NOT SURVIVE (run link100, lane
+           FRAME). port/stage_lifecycle_map.txt section 12b sized all four
+           transcribed Stage::Behavior statements against a slot-6 seat and
+           three of them are idempotent or benign; this one is not. The script
+           VM advances one step per call, so leaving this line beside the ROM's
+           own Stage::Behavior:112 would run every cutscene in the game at
+           double speed -- and nothing about that shows up in an exit code or a
+           final position. It is retired here, the ROM's body makes the call,
+           and port/tools/stage_pause_proof.py rung 4 counts the calls per frame
+           on the opening cutscene rather than trusting this comment.
+
+           SM64DS_NO_KUPPA_TICK IS RETIRED WITH IT and deliberately not
+           re-implemented as a gate on the ROM's call. It existed to put the
+           pre-fix program back on the same binary while the fix was a host
+           line; the fix is now the ROM's own statement, and a switch that skips
+           one statement inside a matched body is not something this file can
+           honestly offer. */
+        /* The intro-seen bit's EDGE, reported once when it moves. The opening's
+           completion bar asks that flags2 bit 7 ends SET and that the PORT
+           never sets it -- the write is the ROM's own, src/func_ov085_0212d5dc
+           .cpp:51, LakituBro's last opening state. A boot-time read cannot show
+           that: on the reload boot the bit is still clear, because the flight's
+           ending state runs during the level that follows. Read next to the
+           cutscene tick because that is the thing whose end sets it. Inert
+           unless SM64DS_INTRO_WATCH (hal/level_boot.cpp). */
+        port_intro_bit_edge();
+        /* THE F5 MENU-PAUSE ADJUDICATION (run link100, boot plan rung D4, lane
+           R3D). Lane R3CFIX called this seam a DESIGN BLOCKER for running
+           func_02044120 whole: the F5 debug menu pauses the game tick and keeps
+           rendering, and one whole call to the ROM's actor frame has no seam
+           for that. The ruling, and its measurement, are here because this line
+           and the render below it ARE the shape being ruled on.
+
+           WHAT DEPENDS ON "TICK PAUSED, RENDER CONTINUES", measured rather than
+           supposed: NOTHING IN THE GATE. port/tools/battery.py sets neither
+           SM64DS_MENU nor SM64DS_MENU_AT on any of its 87 rows, and none of the
+           eight proofs opens this menu -- port/tools/stage_pause_proof.py is
+           about the ROM'S OWN pause (START, data_0209f2c4, Stage::Behavior's
+           PS_Init/PS_Update) and reaches this file only through
+           SM64DS_PAUSE_WATCH and SM64DS_TRACE_LISTS, which do not touch
+           menu_on. The only readers of SM64DS_MENU_AT in the tree are four rows
+           of port/tools/wide_sweep.py (coursehud, one HUD row, vshud,
+           vstimeup), a screenshot sweep that is not in the gate, and
+           port/tools/star_repro.py, which SCRUBS SM64DS_MENU from the child's
+           environment. So both candidate shapes keep every proof green and the
+           measurement does not decide it. Faithfulness does.
+
+           THE RULING: UNDER RUNG D5's SM64DS_ROM_LOOP THE MENU FREEZES THE
+           WHOLE FRAME -- the ROM's loop simply does not turn while it is up.
+           The other candidate was to ride the ROM's own freeze mask
+           data_0209b454/data_0209b464, and it is refused for a reason that is
+           not taste: lane R3CFIX measured that mask gating SLOT 6 ONLY, so
+           under it the Stage would stop and every other actor would carry on
+           ticking. That is not what this menu does today and it is not a pause;
+           it would turn a debug freeze into a partial simulation, which is a
+           worse thing to hand a person reading the world through it.
+
+           WHAT CHANGES FOR THE USER OF F5, said plainly: with SM64DS_ROM_LOOP
+           on, opening the menu freezes the picture as well as the world. The
+           last rendered frame stays on screen, the menu is drawn over it, and
+           the host side of the phase-7 wait keeps pumping messages and
+           presenting, so the menu still takes input and still closes. Today the
+           world freezes and the picture keeps being redrawn. Losing the redraw
+           is acceptable for a developer tool on a cartridge that has no such
+           menu at all; if a row ever needs the live redraw back it needs the
+           host loop, which SM64DS_ROM_LOOP=0 is.
+
+           NOTHING BELOW MOVES IN THIS RUNG. The line under this comment is the
+           host loop's, unchanged, and it stays the host loop's behaviour on
+           both sides of rung D5's knob. */
+        if (menu_on) {
+            game_ticked = 0;
+        } else if (boot_spawns) {
+            /* Nothing to undo before the tick any more. The view matrix is
+               the one Camera::Render published, in the ROM's own scene units,
+               and Actor::BeforeBehavior reads exactly those three words to
+               place every actor for the Clipper. */
+            /* THE CHARACTER INTRO CUTSCENE IS NOT HOSTED, so hold its id at 0
+               every tick rather than once at startup -- the level-enter sets it
+               AFTER the Player exists, which is why clearing it at spawn did
+               nothing. func_ov002_020c4188 is that cutscene and it is built on
+               the Message box the port does not have; with the message guarded
+               to a no-op it just faults one step further along, on the object
+               the message was supposed to have made. Yoshi enters it every run
+               (Mario never does, Luigi and Wario survive 300 frames without
+               it), so this is the difference between Yoshi being playable and
+               not. Zero means the state machine returns on its first line. */
+            if (*(unsigned char *)(c + 0x71e) && !getenv("SM64DS_INTRO_CUTSCENE")) {
+                static int said;
+                if (!said) {
+                    said = 1;
+                    fprintf(stderr, "[char] intro cutscene %u suppressed "
+                            "(not hosted)\n",
+                            (unsigned)*(unsigned char *)(c + 0x71e));
+                }
+                *(unsigned char *)(c + 0x71e) = 0;
+            }
+            /* THE SAVE-PROMPT FLAG, and this line is a stand-in for
+               Stage::LC_Update's own clear (its case-6 arm ends with
+               data_0209f20c = 0). A star-return landing's last entrance step
+               (func_ov002_020c7350, and _020c6fe4's arm) sets the flag to
+               open the "do you want to save?" prompt, and on the ROM the
+               Stage -- whose Scene-class BeforeBehavior is not gated by it --
+               drives that prompt and clears it. The port does not tick the
+               Stage's LC machinery, so a set flag would gate
+               Actor::BeforeBehavior for every actor forever: the player
+               finishes the landing jig and the world freezes one frame before
+               step 2 (the 2026-08-07 warp-freeze session). Clearing it here,
+               before the tick, is that one statement and nothing else; the
+               prompt it would have opened is not hosted. Retiring this is the
+               same named job as the +0x13 stand-in in stage_bridges.cpp: run
+               the Stage as an actor and let LC_Update own its flag. */
+            if (data_0209f20c[0]) {
+                static int said_lc;
+                if (!said_lc) {
+                    said_lc = 1;
+                    fprintf(stderr, "[lc] save-prompt flag cleared "
+                            "(Stage::LC_Update stand-in; prompt not hosted)\n");
+                }
+                data_0209f20c[0] = 0;
+            }
+            /* TEMPORARY: arm the buddy's talk detection before the actor tick so
+               his state-0 main runs the real StartTalk. SM64DS_BUDDY_TRIGGER. */
+            port_input_probe_buddy_trigger(frame);
+            /* TEMPORARY: arm the star's touch detection before the actor tick so
+               PowerStar state 4's own gate runs the real collect handler this
+               same frame. SM64DS_STAR_TRIGGER. */
+            port_input_probe_star_trigger(frame);
+            /* TEMPORARY: KING OF THE STAR drop, runs the ROM hurt->drop on the
+               holder so the one star transfers on the field. SM64DS_VS_KING_DROP. */
+            port_input_probe_king_drop(frame);
+            /* TEMPORARY: arm the wing feather's collect word the same way, so
+               the block's own feather hands out wings through the ROM's
+               Behavior. SM64DS_FEATHER_TRIGGER. */
+            port_input_probe_feather_trigger(frame);
+            port_stage0_vs_score(frame);       /* STAGE 0: SM64DS_VS_SCORE */
+            port_stage0_vs_timer(frame);       /* STAGE 0: SM64DS_VS_SCORE */
+            port_stage0_vs_breakall(frame);    /* STAGE 0: SM64DS_VS_BREAKALL */
+            port_vs_hud_probe(frame);          /* TEMPORARY: SM64DS_VS_HUD */
+            port_input_probe_sign_trigger(frame);   /* TEMPORARY: SM64DS_SIGN_TRIGGER */
+            port_probe_alcheck();
+            port_probe_sign_yaw();
+            port_probe_chomp(frame);
+            port_probe_rabbit_trigger(frame);  /* TEMPORARY: SM64DS_RABBIT_TRIGGER */
+            port_probe_yoshi_swallow(frame);   /* TEMPORARY: SM64DS_YOSHI_SWALLOW */
+            port_probe_key_spawn(frame);       /* TEMPORARY: SM64DS_KEY_SPAWN_AT */
+            port_probe_klepto_spawn(frame);    /* test fixture: SM64DS_KLEPTO_SPAWN_AT */
+            port_probe_vs_overlap(frame);      /* test fixture: SM64DS_VS_OVERLAP_AT */
+            /* THE MERCY WINDOW, read before the actor tick so the line for
+               frame N is the state the tick is about to make its hit decision
+               on. SM64DS_VS_MERCY / SM64DS_MERCY_HIT. */
+            port_probe_vs_mercy(frame);        /* TEMPORARY: SM64DS_VS_MERCY */
+            port_probe_mercy_hit(frame);       /* TEMPORARY: SM64DS_MERCY_HIT */
+            /* THE MATCH-OVER PLAY HOLD, immediately before the actor phases so
+               the pads the tick is about to read are the held ones. Inert until
+               a VS match has been won; see hal/star_flow.cpp for why this holds
+               the input rather than skipping the tick the way the debug menu
+               does (the comms exchange lives inside the tick). */
+            port_vs_match_end_hold();
+            {
+                const double rb_t = rb_probe_mode() ? rb_now_ms() : 0.0;
+                port_actor_tick();
+                if (rb_probe_mode()) rb_note(RB_ACTOR_TICK, rb_now_ms() - rb_t);
+            }
+            port_vs_stars_probe(frame);        /* TEMPORARY: SM64DS_VS_STARS */
+            /* SM64DS_DOOR_PROBE's per-frame line, HERE rather than beside the
+               arm's placement above, because the door-local columns it reads
+               are written by func_ov100_02145370 inside the Door::Behavior
+               that port_actor_tick has just run. Above the tick they would be
+               one frame stale. */
+            if (port_door_watch_on())
+                port_door_watch(frame, c);
+        } else if (*(void **)(c + 0x370)) {
+            hal_player_behavior(player);
+        } else {
+            hal_player_st_wait_main(player);
+        }
+        /* THE BRIDGE RUNS INSIDE THE TICK NOW, and this comment is the
+           correction to where it first landed. Retiring the transcription put
+           the fan-out and the analog override HERE, past port_actor_tick, on
+           the reasoning that they have to see the record Stage::CheckInput
+           writes and CheckInput is inside the tick now. Both halves of that are
+           true and the placement was still wrong, because it asks the wrong
+           question: not "when is the record written" but "when is it READ".
+
+           src/_ZN6Player8BehaviorEv.cpp:170 reads its stick angle as
+               *(s16 *)((char *)&data_0209f4a6 + data_020a0e40 * stride)
+           and Player::Behavior runs INSIDE port_actor_tick, after the Stage.
+           A fan-out below the tick therefore hands every actor LAST frame's
+           stick -- a one-frame input lag on every walk in the game, which no
+           exit code and no final position at 120 frames would have shown.
+
+           SO IT RUNS WHERE THE ROM'S OWN WRITE LANDS. On the cartridge there
+           are no split arrays at all: Stage::Behavior fills the Ctrl block at
+           data_0209f498 and every actor after it in the behaviour walk reads
+           that block directly at its 0x18 stride. The split arrays are the
+           port's own bridge around undersized host globals, so the faithful
+           place for them is exactly the instant the ROM's write finishes --
+           after Stage::Behavior returns and before any other actor's Behavior.
+           hal/stage_frame.cpp's slot-6 thunk calls port_frame_ctrl_publish()
+           there. It is a host bridge at a ROM boundary, which is what a bridge
+           is for; it is not a call the ROM makes and it moves nothing of the
+           ROM's.
+
+           WHAT IS LEFT HERE IS THE HARNESS'S OWN FRAME. Three of this file's
+           frames never dispatch slot 6 -- the debug menu holds the tick, and
+           the two no-spawn dev-rig arms above call a Player body directly with
+           no Stage on any list. The DS has no such frame, so on the ROM
+           "Stage::Behavior did not run" and "the input record is stale" never
+           come apart. They can here. The counter in hal/stage_frame.cpp is the
+           exact test -- the slot-6 thunk increments it, so it cannot disagree
+           with what ran -- and these two calls happen on precisely the frames
+           the ROM's own body did not make them. */
+        {
+            static unsigned frame_beh_seen;
+            const unsigned frame_beh_now = port_stage_behavior_calls();
+            if (frame_beh_now == frame_beh_seen) {
+                _ZN5Stage10CheckInputEv();
+                port_frame_ctrl_publish();
+            }
+            frame_beh_seen = frame_beh_now;
+        }
+        /* ADVENTURE GHOSTS: hold every remote body in the disable-interaction
+           state, HERE because it must land AFTER the actor phases above --
+           Player::ChangeState re-arms all three fields on every transition, so
+           the hold is re-asserted each frame right after the behaviour that
+           could have cleared it and before the collision the next frame reads
+           it. No-op unless adventure-ghost mode is on; the local body is never
+           touched. */
+        port_adventure_ghost_hold();
+        /* the M1 proof reads the ghost's three flags right after the hold set
+           them, and drives one wire snapshot into the ghost. Inert unless
+           SM64DS_ADVENTURE_PROBE is set. */
+        port_adventure_probe(frame);
+        /* the M2 proof drives TWO ghosts with level-tagged snapshots and asserts
+           the same-level filter and the spawn/despawn transitions. Inert unless
+           SM64DS_ADVENTURE_PRESENCE is set. */
+        port_adventure_presence_probe(frame);
+        /* PARTY: the render boundary (a party body solid+colliding vs a
+           non-party ghost translucent+pass-through) and party-body liveness.
+           Reads the render pass's own per-slot record (set just below in the
+           player draw loop) and the hold's collision state. Inert unless
+           SM64DS_PARTY_PROBE or SM64DS_PARTY_DIAG is set. */
+        port_party_probe(frame);
+        /* THE FRAME CLOCK, func_020197b8 phase 6 (hal/fader_wipes.cpp): after
+           the actor phases the branch above ran, before the render below. ONE
+           PHASE EARLY against the ROM, which steps it at phase 6 -- after phase
+           5, and so after its phase 2 fade advance -- where this sits before
+           port_fader_advance. Nothing between the two reads the word, so no
+           linked reader can tell; the banner carries the argument. Gated on
+           game_ticked -- the ROM has no pause, so a frozen frame holding its
+           blinks still is this port's decision and the same one port_actor_tick
+           makes. hal/scene_boot.cpp's port_scene_tick calls it at the matching
+           point on the scene path. Read that file's banner before moving it:
+           every blink in the game hangs off this one counter. */
+        if (game_ticked)
+            port_frame_clock_tick();
+        /* PHASE 2's HEAD, the graphics block's word 0 (hal/scene_boot.cpp).
+           The ROM's func_02019390 dispatches it before the fade advances below,
+           and slot 23 -- the stylus stroke test -- has no other dispatch site in
+           the game. GATED ON THE TICK, unlike the fade under it: a fade must
+           keep moving while the debug menu holds the world still, and a stylus
+           stroke must not be accepted by a paused game.
+
+           IT CANNOT REACH ANYTHING ON THIS PATH TODAY and it is here anyway.
+           The seated blocks are the minigame block and the title block, both
+           installed on the scene path, so on a level the registry check misses
+           and this returns 1 without dispatching. Leaving the level loop
+           without the beat is the same half-wiring that cost 384 its stylus. */
+        if (game_ticked)
+            port_graph_block_word0();
+        /* THE FADE STEPS HERE, and it steps every frame -- even with the menu
+           open and the game tick skipped -- because a fade transition must not
+           freeze while it is on screen. This is func_02018ec0's job in the
+           ROM's own frame (phase 2, func_02019390): advance the fader currently
+           in motion (data_0209d4b0) by one frame, which writes the 2D blend
+           register the compositor below reads. */
+        port_fader_advance();
+        /* THE DISPLAY SCAN-OUT, and with it IRQ 2. The DS raises the HBlank
+           edge once per scanline while the picture is drawn; the ROM's
+           dWipe_c motion path is built on it and nothing on the host used to
+           raise it. Here, beside the fade step, because both are the ROM's
+           own frame phase 2 and because everything below this point is the
+           host rasteriser rather than game code. Costs nothing on a frame
+           with no mask-2 handler registered: the gate is five loads.
+           SM64DS_IRQ2_OFF=1 puts the old behaviour back on this same binary.
+           See port/irq2_map.txt. */
+        ntr::rt_scanout_frame();
+        /* THE MESSAGE-BOX PROBE (temporary), then THE PUMP. SM64DS_PROBE_MESSAGE
+           opens a dialogue box a few seconds in so the pipeline is checkable
+           without a real in-world caller (the sign's read-state Main is
+           unmatched and held in a parallel lane). Fire once at frame 90 (3s at
+           30fps), after the player exists and his St_Wait/Walk state is settled
+           so ShowMessage2's state guard admits the talk. */
+        {
+            const int probe_id = port_probe_message_id();
+            if (probe_id >= 0 && frame == 90) {
+                static int fired;
+                if (!fired) { fired = 1; port_probe_message_fire(player, probe_id); }
+            }
+        }
+        /* THE PUMP: Stage::UpdateMessage's dialogue arm, run every frame the way
+           Stage::Behavior runs it on the ROM. Advances Message::UpdateWindow +
+           Message::Update, which writes engine A's box registers that the
+           compositor below reads. Stepped here, after the player tick that can
+           open the box (St_Talk_Main -> func_0201f32c) and beside the fader.
+
+           BOTH ARMS ARE RETIRED FROM THIS FILE (run link100, lane FRAME), and
+           the comment above already said where they belong: "run every frame
+           the way Stage::Behavior runs it on the ROM". _ZTV5Stage slot 6 holds
+           that function now, so the two calls that used to stand here are made
+           from inside it -- one statement, one branch on data_0209f2d8, exactly
+           as the ROM writes it.
+
+             THE PUMP. Stage::Behavior spells ?UpdateMessage@Stage@@SAXXZ; the
+             matched TU src/_ZN5Stage13UpdateMessageEv.cpp spells the method
+             non-static AND defines its own four empty Message/SaveData leaves,
+             so linking it would tick nothing. hal/stage_frame.cpp's face points
+             that name at port_message_pump, which IS UpdateMessage's body
+             calling the REAL matched Message methods. Nothing about the pump
+             changed; only who calls it.
+
+             IT MOVES ONE PHASE EARLIER IN THE FRAME AND THAT IS THE ROM'S
+             ANSWER, not an accident of where the face landed. This file stepped
+             the pump AFTER the player tick so a box opened by St_Talk_Main
+             advanced the same frame. The Stage ticks at the HEAD of the
+             behaviour list on the DS, so on hardware a box opened by the player
+             is first advanced on the NEXT frame. One frame of box-open
+             animation, in the direction of the cartridge.
+
+             THE VS COUNTDOWN. Same statement, other branch. hal/star_flow.cpp
+             keeps port_vs_countdown_tick's body and its derivation of seq 0x4d;
+             it is no longer called from the frame, because the ROM's own block
+             does the same decrements and leaving both in would run the
+             countdown at double rate.
+
+           TWO THINGS THE ROM'S BLOCK DOES NOT DO, and they are this lane's
+           declared cost rather than a silence. Both are inside the VS mode
+           (data_0209f2d8 == 1) and neither is reachable on any adventure frame:
+
+             THE READINESS CENSUS IS FOUR-WIDE. The ROM counts ready players
+             over `for (i = 0; i < 4; i++)` and starts the countdown at
+             `cnt >= data_0209fc50`. port_vs_countdown_tick widened that census
+             to data_0209fc50 for the 16-player mod, so a match seated above
+             four now waits on a census that can never reach its own required
+             count. A VS lane owns this; it is a mod's own seeded value
+             (seat_vs_countdown's data_0209fc50) against the cartridge's
+             four-slot loop, and neither this file nor a Stage seat is the place
+             to reconcile them.
+
+             LUIGI INFECTION'S STEP-ASIDE IS GONE. port_vs_countdown_tick opened
+             with `if (port_luigi_enabled()) return;` so the mod could own the
+             whole countdown. The ROM's block has no such line, so with that
+             mode armed the native ~2s countdown now runs underneath the mod's
+             stretched 5s one. THE MODE STILL WORKS: port_luigi_countdown_drive
+             just below writes data_0209f2bc and data_0209f304 from the host
+             frame counter every frame, unguarded and deliberately so ("they are
+             the world, they are pure functions of the frame"), which lands
+             after the tick and overwrites whatever the ROM's block decremented.
+             What leaks through is EFFECTS the stomp cannot take back: the ROM's
+             own beeps and its Sound::LoadAndSetMusic_Layer1(0x4d) fire on the
+             cartridge's schedule as well as the mod's. Audible, not structural,
+             and named here so the next VS lane does not have to find it. */
+        /* LUIGI INFECTION START COUNTDOWN, update half (host-frame deterministic).
+           When the mode is armed it owns the whole VS countdown -- the state, the
+           stretched ~5s cadence, the beeps/music and the tagger pick at the end.
+           port_vs_countdown_tick just stepped aside for it. Inert otherwise. */
+        port_luigi_countdown_drive(frame);
+        /* AND THE TAIL OF THAT SAME BLOCK. Stage::Behavior's countdown and its
+           end-of-match test are statements of one function, so they are ticked
+           from one place, in the ROM's own order -- the countdown first, which
+           is what the ROM's line numbers say. Self-guarded on the mode the same
+           way, so an adventure frame reaches one compare and returns. The quit
+           goes out through the window's own WM_QUIT escape rather than an
+           exit() from inside the frame, so the run ends the way closing the
+           window ends it: the pump returns 0 from main and every atexit the
+           process installed still runs. */
+        if (port_vs_match_end_poll(frame))
+            W.PostQuitMessage_(0);
+        port_input_probe_trace_msg(frame);   /* TEMPORARY: SM64DS_TRACE_MSG */
+        port_input_probe_trace_cannon(frame);/* TEMPORARY: SM64DS_TRACE_CANNON */
+        port_probe_rabbit_key(frame);        /* TEMPORARY: SM64DS_TRACE_RABBITKEY */
         /* the real boot seats the path table, so the tracking's own binding
            stands -- except where the port's unfilled floor record invents
            one the level cannot produce (hal/level_boot.cpp) */
         if (real_boot)
             port_stage_path_guard(player);
-        /* MOD HOOKS, post-tick so the game's own Behavior runs first and
-           these only adjust its result for one frame (no compounding):
-           - jump: on the exact edge frame, scale a fresh positive rise
-             once. Only when leaving the ground (was grounded, now rising).
-           - arena: small-map clamp around the spawn. A soft circle --
-             position pulled back inside, velocity kept, so it reads as a
-             fence rather than a teleport. */
-        if (game_ticked) {
-            if (g_jump_edge && g_jump_pct != 100) {
-                int *vy = (int *)(c + 0xa8);
-                if (*vy > 0) {
-                    *vy = (int)(((long long)*vy * g_jump_pct) / 100);
-                    if (g_jump_pct > 100)
-                        fprintf(stderr, "[mod] jump boost %d%% vy=%d\n",
-                                g_jump_pct, *vy);
+        /* ---- SM64DS_PAUSE_WATCH: the pause state and the terms of the gate
+           that opens it (run link100, lane FRAME).
+           ---------------------------------------------------------------------
+           _ZTV5Stage slot 6 is what made this observable at all. Stage::Behavior
+           carries the pause TRIGGER in its last block, and until the ROM's body
+           ran there was nothing to watch: data_0209f2c4 sat at 0 for the whole
+           process and START did nothing.
+
+           WHAT IS PRINTED, and why each field is here rather than only the
+           answer. The line reports data_0209f2c4 -- the pause state itself, 0
+           for running, 1 the frame PS_Init seats it -- and beside it the five
+           terms of the ROM's own gate, so a run where START does NOT open the
+           menu says WHICH term refused rather than only that it refused:
+
+             f2c4   the pause state (the answer)
+             seen   data_0209caa0[2] & 0x80, the opening-seen bit. In adventure
+                    mode the trigger's inner gate is
+                        (VS && data_0209fc68 == 0) || (data_0209caa0[2] & 0x80)
+                    and on the CARTRIDGE exactly one write sets that bit --
+                    src/func_ov085_0212d5dc.cpp:51, LakituBro's last opening
+                    state.
+                    ON THIS PORT IT IS ALREADY SET ON EVERY LEVEL ENTRY, and a
+                    reader who takes the sentence above as the whole story will
+                    misread every line this block prints. hal/level_boot.cpp
+                    (the `intro_seen` block, `data_0209caa0[8] |= 0x80`) sets it
+                    across every boot that is not a title-bridge crossing into a
+                    fresh file and not the second half of an opening, and its
+                    own banner gives the three reasons -- StartIntroCutscene's
+                    gate, HUD::Behavior and HUD::Render (the whole bottom screen
+                    returns early without it), and Player::InitResources' voice
+                    bank. So a level selftest boots with seen=1 from frame 0 and
+                    the pause is STATE-legal here; what refuses a scripted START
+                    is one of the terms below it or the button combination
+                    itself. port/tools/stage_pause_proof.py rung 5 is the
+                    measurement of that, and it used to assert the opposite.
+             msg    data_0209d660, a message box is up
+             fade   data_0209d4b0, a fader is in motion
+             trio   data_0209f294 | data_0209f2c4 | data_0209f20c
+             held   the local player's PadData held word, so a scripted START
+                    can be seen arriving
+
+           port/tools/stage_pause_proof.py reads these lines; it is inert with
+           the variable unset. */
+        {
+            static int pw = -1;
+            if (pw < 0) {
+                const char *v = getenv("SM64DS_PAUSE_WATCH");
+                pw = v ? atoi(v) : 0;
+                if (v && pw == 0) pw = 1;      /* "=1", "=on", anything */
+            }
+            /* SM64DS_PAUSE_WATCH=2 IS A TEST FIXTURE AND IS NAMED ONE -- AND
+               ON A LEVEL SELFTEST IT IS A NO-OP, WHICH IT NOW SAYS.
+               (run link100, lane FRAME2: the correction.) What stood here was
+
+                 "A level selftest boots straight into the level with a fresh
+                  save block, so the bit is clear and the ROM refuses to pause
+                  ... Mode 2 sets it once."
+
+               and the first half is false on this port. hal/level_boot.cpp's
+               intro_seen block sets data_0209caa0[8] |= 0x80 -- the same word,
+               the same bit -- on every level entry that is not a title-bridge
+               crossing into a fresh file, for the three reasons its own banner
+               gives. Measured: every [pause] line of a level-1 selftest, from
+               f0, reads seen=1 with this mode OFF.
+
+               The mode stays, because the ONE entry the port leaves the bit
+               clear on is real (the opening's own boot), and a proof that wants
+               the pause open on that entry needs it. It now reports whether it
+               actually did anything, so a log can never again be read as
+               evidence that the bit was clear beforehand. Scaffolding of the
+               same class as SM64DS_FORCE_ANALOG and SM64DS_SYNC_FORCE_V1: it is
+               never on in a shipped run and never on in the battery. */
+            if (pw >= 2) {
+                static int seeded;
+                if (!seeded) {
+                    seeded = 1;
+                    const int was = (data_0209caa0[2] & 0x80) ? 1 : 0;
+                    data_0209caa0[2] |= 0x80;
+                    fprintf(stderr, "[pause] fixture: data_0209caa0[2] |= 0x80 "
+                            "(the opening-seen bit) -- it was %s\n",
+                            was ? "ALREADY SET by the level boot "
+                                  "(hal/level_boot.cpp intro_seen); this "
+                                  "fixture changed nothing"
+                                : "CLEAR; the fixture is what set it");
                 }
             }
-            if (g_arena && boot_spawns) {
-                /* small arena: 1200-unit radius around the spawn point.
-                   The castle bridge spawn is the centre; the moat, lawn
-                   edges and outer wall stay out of reach, which is the
-                   whole point of the tighter coop pit. */
-                const long long dxa = (long long)*(int *)(c + 0x5c) -
-                                      ((long long)spawn_x << 12);
-                const long long dza = (long long)*(int *)(c + 0x64) -
-                                      ((long long)spawn_z << 12);
-                const long long r2 = dxa * dxa + dza * dza;
-                const long long R = (long long)1200 << 12;
-                if (r2 > R * R) {
-                    const double r = sqrt((double)r2);
-                    const double k = (double)R / r;
-                    *(int *)(c + 0x5c) =
-                        (int)(((long long)spawn_x << 12) + dxa * k);
-                    *(int *)(c + 0x64) =
-                        (int)(((long long)spawn_z << 12) + dza * k);
+            if (pw) {
+                /* the LOCAL player index. data_020a0e40 is declared as an
+                   array here (line 648), so the value is [0]; taking the
+                   symbol itself gives the address, which is what the first
+                   version of this line did and it read PadData at a megabyte
+                   past the end. */
+                const unsigned pi = (unsigned)data_020a0e40[0];
+                static int said_stage;
+                if (!said_stage) {
+                    said_stage = 1;
+                    /* the Stage's own object, so a proof can match it against
+                       the first node SM64DS_TRACE_LISTS prints on the
+                       behaviour list -- which is what licenses retiring the
+                       freeze-mask latch and the CleanAll hoist */
+                    fprintf(stderr, "[pause] stage actor=%p\n", (void *)stage);
                 }
-            }
-        }
-        g_jump_edge = 0;
-        /* interaction toasts: small CoopDX-style feedback for systems that
-           otherwise read as dead (deep water needs strokes, doors need
-           unloaded interiors, sign text auto-advances). Detection always
-           runs (the flight recorder shows what the player saw); only the
-           draw is gated out of selftest BMPs. */
-        if (game_ticked) {
-            void *pst = *(void **)(c + 0x370);
-            const unsigned staddr = pst ? *(unsigned *)pst : 0u;
-            /* swim entry: mIsUnderwater rising edge */
-            {
-                static int was_wet;
-                const int wet = *(unsigned char *)(c + 0x706) != 0;
-                if (wet && !was_wet)
-                    toast("Swimming: mash %s to stroke",
-                          key_name(g_key_jump));
-                was_wet = wet;
-            }
-            /* talk entry */
-            {
-                static unsigned last_st;
-                if (staddr == 0x020c4bd8 && last_st != 0x020c4bd8)
-                    toast("Talking...");
-                last_st = staddr;
-            }
-            /* sign/talk text id (only while talking) */
-            {
-                static int last_msg = -2;
-                if (g_last_msg_id != last_msg) {
-                    last_msg = g_last_msg_id;
-                    if (staddr == 0x020c4bd8 || staddr == 0x020c48e0)
-                        toast("Says message #%d (text not hosted)",
-                              g_last_msg_id);
-                }
-            }
-            /* pushing a door: OnWall against a DOOR actor */
-            if (staddr == 0x020cf714 || staddr == 0x020cfa90) {
-                static unsigned long long last_door;
-                static int door_told;
-                if (!door_told || g_frame_no > last_door + 600) {
-                    const int px = *(int *)(c + 0x5c),
-                              pz = *(int *)(c + 0x64);
-                    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
-                         node = (int *)(size_t)node[1]) {
-                        char *o = (char *)(size_t)node[2];
-                        if (!o || *(unsigned short *)(o + 0xc) != 353)
-                            continue;
-                        const long long dx =
-                            (long long)*(int *)(o + 0x5c) - px;
-                        const long long dz =
-                            (long long)*(int *)(o + 0x64) - pz;
-                        const long long rr =
-                            (long long)800 << 12;
-                        if (dx * dx + dz * dz < rr * rr) {
-                            last_door = g_frame_no;
-                            door_told = 1;
-                            toast("Locked: interiors aren't in this build");
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        /* SMOOTH RENDER LERP (fps mode 2 only). The hooks above ran on the
-           true post-tick state; now blend the player's position/yaw toward
-           it for this present. The next frame restores the true state
-           before ticking (see the dispatcher), so the sim never sees these
-           blended values. Yaw wraps the short way round. */
-        if (!selftest && g_fps_mode == 2 && !menu_on && !front_on) {
-            if (game_ticked) {
-                ip_cur[0] = *(int *)(c + 0x5c);
-                ip_cur[1] = *(int *)(c + 0x60);
-                ip_cur[2] = *(int *)(c + 0x64);
-                ip_cur_yaw = *(short *)(c + 0x8e);
-                ip_armed = 1;
-            }
-            if (ip_armed) {
-                const float t = g_interp_t;
-                *(int *)(c + 0x5c) =
-                    (int)((1.0f - t) * ip_prev[0] + t * ip_cur[0]);
-                *(int *)(c + 0x60) =
-                    (int)((1.0f - t) * ip_prev[1] + t * ip_cur[1]);
-                *(int *)(c + 0x64) =
-                    (int)((1.0f - t) * ip_prev[2] + t * ip_cur[2]);
-                const int dyaw = (short)(ip_cur_yaw - ip_prev_yaw);
-                *(short *)(c + 0x8e) =
-                    (short)(ip_prev_yaw + (int)(dyaw * t));
-                ip_pending = 1;
+                fprintf(stderr,
+                        "[pause] f%d f2c4=%d seen=%d msg=%d fade=%d trio=%d "
+                        "held=%04x\n", frame, (int)data_0209f2c4[0],
+                        (data_0209caa0[2] & 0x80) ? 1 : 0,
+                        (int)data_0209d660, data_0209d4b0[0] ? 1 : 0,
+                        (int)(data_0209f294[0] | data_0209f2c4[0] |
+                              data_0209f20c[0]),
+                        (unsigned)*(unsigned short *)((char *)data_020a0e58 +
+                                                      pi * 4));
             }
         }
         ph_end(PH_INPUT, t_phase);
+        /* THE DECEL CURVE. One line per frame after the tick, so the speed
+           printed is the one this frame's physics produced. dv is the change
+           since last frame -- the per-frame brake rate, which is the number
+           the DS comparison is actually about. The trailing fields are the
+           inputs to the branch that picks that rate: the slip class, the
+           brake rate 020bf56c hands back for it, the skid flag at +0x6e0,
+           the no-input latch at +0x6ac and the metal/underwater flag. */
+        if (decel_probe && !decel_stopped) {
+            static int prev_spd = 0, prev_px = 0, prev_pz = 0;
+            const int spd = *(int *)(c + 0x98);
+            const int cls = func_ov002_020c031c(c);
+            const int px = *(int *)(c + 0x5c), pz = *(int *)(c + 0x64);
+            /* step is what the speed scalar was WORTH in world units this
+               frame. If step and spd ever disagree the bug is downstream of
+               the integrator, in whatever turns heading+speed into motion. */
+            const double dxf = (px - prev_px) / 4096.0,
+                         dzf = (pz - prev_pz) / 4096.0;
+            fprintf(stderr,
+                    "[decel] f%-4d spd %8d (%7.3f)  dv %7d  step %6.3f  "
+                    "cls %d brake %6d  top %6d  6e0 %d 6ac %d 703 %d 6ed %2d "
+                    "6e5 %2d  ang %04x->%04x\n",
+                    frame, spd, spd / 4096.0, spd - prev_spd,
+                    frame ? sqrt(dxf * dxf + dzf * dzf) : 0.0, cls,
+                    func_ov002_020bf56c(c, 0x2000),
+                    Player_ScaleByCharFactor(c, 0x28000),
+                    *(unsigned char *)(c + 0x6e0),
+                    *(unsigned short *)(c + 0x6ac),
+                    *(unsigned char *)(c + 0x703),
+                    *(unsigned char *)(c + 0x6ed),
+                    *(unsigned char *)(c + 0x6e5),
+                    (unsigned short)*(short *)(c + 0x94),
+                    (unsigned short)*(short *)(c + 0x6d2));
+            prev_px = px; prev_pz = pz;
+            if (decel_probe == 1 && frame > DECEL_RELEASE && spd == 0) {
+                fprintf(stderr, "[decel] stopped at frame %d (%d frames "
+                        "after release)\n", frame, frame - DECEL_RELEASE);
+                decel_stopped = 1;
+            }
+            prev_spd = spd;
+        }
         if (selftest && frame == 0)
             fprintf(stderr, "[w] ticked\n");
         /* the camera's own frame: Behavior runs the state machine and
@@ -4678,27 +13654,174 @@ int main(void)
            published angle never moves and Mario walks relative to a stale
            heading. */
         ph_begin(&t_phase);
+        /* STAR1 fly-around, the cutscene-camera gate. While a cutscene script
+           is running (data_0209fc48 != 0) the kuppa script feeds camera
+           commands to Camera::Behavior and the actor publishes its own
+           script-driven view (data_0209b3ec) and heading. In real play the
+           default rig is CAM_ANALOG, which re-pushes its OWN view matrix
+           (fc_push_view, below) and heading (*data_020a1050 = fc_yaw, below)
+           every frame -- overwriting exactly what the script just published, so
+           the fly-around runs but never shows. CAM_DS writes neither, which is
+           why the fly-around is already visible there. So while fc48 is latched
+           the rig stands down on both writes and the actor's own view/heading
+           present; when EndKuppaScript clears fc48 back to 0 the rig resumes
+           exactly as before. The gate is a no-op off a cutscene (fc48 == 0), so
+           every script-free frame -- every selftest, all normal walking -- is
+           byte-identical to base. SM64DS_NO_CUTSCENE_CAM=1 forces the old
+           always-rig behaviour for the A/B. */
+        static int no_cutscene_cam = -1;
+        if (no_cutscene_cam < 0)
+            no_cutscene_cam = getenv("SM64DS_NO_CUTSCENE_CAM") ? 1 : 0;
+        const int cutscene_cam = !no_cutscene_cam && data_0209fc48 != 0;
         /* the analog rig's pivot is stepped here, after the tick moved Mario
-           and before anything reads it (sm64 shares the pinned pivot) */
-        if (cam_mode == CAM_ANALOG || cam_mode == CAM_SM64) an_step_pivot(c);
+           and before anything reads it */
+        if (cam_mode == CAM_ANALOG && !rb_replaying()) an_step_pivot(c);
         if (real_camera) {
             hal_camera_behavior(cam);
             /* THE ONE THING THE RIG OVERRIDES BESIDES THE VIEW: the heading
                the walk steers by. Camera::Behavior has just put its own into
-               the local comms record; in analog, sm64 and freecam the rig's
+               the local comms record; in analog and in freecam the rig's
                heading goes in instead, so "forward" is away from the lens the
                player is actually looking through. The echo below is what
                copies it into the record GetAngleToCamera reads, so this has to
                land between the two -- and it is one halfword either way, the
-               same single write the freecam always did. */
-            if (cam_mode != CAM_DS) *(short *)data_020a1050 = fc_yaw;
-            func_0203e0ac();
+               same single write the freecam always did. During a cutscene
+               (cutscene_cam) the rig stands down so the actor's own heading --
+               the one Camera::Behavior just wrote from the script -- survives
+               into the echo below. */
+            if (cam_mode != CAM_DS && !cutscene_cam)
+                *(short *)data_020a1050 = fc_yaw;
+            /* run mg16 lane MP3: THE ROM'S OWN DISPATCHER, LINKED.
+               src/func_0203df40.c fills the local comms record from the pad and
+               the touch panel and then switches on the role byte: 1 and 2 reach
+               src/func_0203ea5c.c, the real lockstep; 3 reaches Download Play;
+               0 and anything else reach func_0203e0ac, the solo cascade this
+               line used to call directly.
+
+               MP2 had a hosted transcription here (hal/comms_lockstep.cpp) and
+               an `if (!tick()) func_0203e0ac();` around it, because
+               func_0203ea5c was in no slice. Both are gone: the role-0 arm is
+               INSIDE func_0203df40's own switch, so calling it here as well
+               would run the solo cascade twice on every single-player frame.
+
+               WITH NO TRANSPORT INSTALLED NOTHING CHANGES. data_020a0f04 comes
+               up 0 and only a transport moves it, so the switch takes its
+               default arm and func_0203e0ac runs exactly as it always has --
+               now reached through the ROM's own dispatcher rather than around
+               it. That is the whole point, and rung 1 is what proves it.
+
+               ORDERING: comms_publish_pad below is what makes :31 of that TU
+               read a real pad, and it must land before this call and before the
+               fan-out. See THE STUCK CONTROLLER in hal/comms_conductor.cpp.
+
+               BOTH HALVES of the host pad go in: the d-pad stash and the
+               button stash (run mg16 lane MPBTN). Publishing only the first
+               is what made every session's key word a d-pad nibble and every
+               button dead once the direct Ctrl stores were gated. */
+            port::comms_publish_pad(port_raw_pad_bits() | port_raw_btn_bits());
+            { const double t_rb = rb_replaying() ? ovl_now_ms() : 0;
+            func_0203df40();
+            if (rb_replaying()) rb_replay_phase(6, ovl_now_ms() - t_rb); }
+            /* run mg16 lane MP4: one frame of the state-sync layer, AFTER the
+               conductor. Call position is the contract's ordering rule made
+               structural: func_0203df40 above has already put this frame's
+               input record on the wire, so aux can never delay the thing the
+               lockstep blocks on. No-op unless SM64DS_SYNC=1 and the transport
+               reports contract v2. */
+            { const double t_rb = rb_replaying() ? ovl_now_ms() : 0;
+            port::sync_tick();
+            if (rb_replaying()) rb_replay_phase(7, ovl_now_ms() - t_rb); }
+            /* ADVENTURE GHOSTS: ease every ghost toward its latest snapshot,
+               HERE -- after sync_tick has recorded this frame's target and after
+               the actor tick advanced the body under its own physics -- so the
+               rendered position is the smooth follower value and the ROM drift is
+               overridden. No-op outside adventure mode. */
+            port_adventure_ghost_follow();
+            /* lane VOICE: one frame of proximity voice chat, immediately
+               after the sync layer and for the same structural reason -- the
+               input record is already on the wire, so a voice datagram cannot
+               get in front of the thing the lockstep blocks on. It reads game
+               state (two player positions) and writes none, so it cannot
+               affect the simulation whatever it does. Returns on its first
+               line unless settings.json turned VoiceEnabled on, which is off
+               by default. */
+            port::voice_tick();
+            /* run mg16 lane MP3: the VS probe, read out of the game's own
+               per-slot actor array. Here rather than at the report site
+               because it must run whether or not SM64DS_COMMS_REPORT is on:
+               rungs 9 to 11 are about ACTORS, and a single-instance two-player
+               run has no comms report to hang off. Silent unless
+               SM64DS_VS_PROBE is set. */
+            port::vs_probe(frame);
+            /* run mg15 lane MP1: the ROM's OWN steps 0x16 and 0x17, right
+               where src/func_020197b8.c runs them -- immediately after the
+               comms tick that filled the four records. func_0203bb60 turns
+               those four into TouchInfo[4] and func_0203bc7c turns them into
+               PadData[4], which is where every stylus and button read in the
+               game comes from.
+
+               ON WHENEVER A TRANSPORT IS UP (port::comms_fanout_active, banner
+               in hal/comms_conductor.cpp): a session that skips these two
+               steps is two solo sims sharing a wire nobody reads, which is
+               what the first live two-window test was. With no transport and
+               no override this stays off and the direct stores drive, which
+               is the path MP1's byte-identical solo proof stands on.
+
+               It is a REAL call site and not a linker directive, which is the
+               standard port/hal/w8a_stage_faces.cpp set after a review found
+               eleven TUs of directive-manufactured linkage: something has to
+               actually call the body for it to count as linked. */
+            {
+                const int fan_now = comms_fanout_on();
+                if (fan_now)
+                    port::comms_fanout();
+                /* THE REPORT IS NOT INSIDE THE FAN-OUT GATE, deliberately. It
+                   used to be, which meant the one configuration where the
+                   input exchange is broken -- fanout forced off with a
+                   session up -- was exactly the configuration the instrument
+                   went dark in. The readout prints in both states and names
+                   the state, so a log from the broken shape says so instead
+                   of saying nothing. */
+                if (comms_fanout_report()) {
+                    fprintf(stderr, "[comms:level] fanout=%s\n",
+                            fan_now ? "on"
+                                    : "OFF (direct slot-0 stores driving; "
+                                      "the records below reach no reader)");
+                    port::comms_report("level");
+                    /* run mg16 lane MP2: the carrier's own half of the same
+                       readout. Silent when no transport is installed, so an
+                       MP1-era SM64DS_COMMS_REPORT run prints what it always
+                       printed. */
+                    if (port::comms_transport()) {
+                        /* run mg16 lane MP3: the lockstep's own counters are
+                           GONE, and that is a real cost of linking the real
+                           thing rather than an oversight. MP2 counted ticks,
+                           rounds, timeouts, spins and peer_updates from inside
+                           its transcription. Those live inside
+                           src/func_0203ea5c.c now -- the spin loop, the bound,
+                           the per-slot unpack -- and instrumenting them would
+                           mean editing a byte-matched TU, which this repo does
+                           not do. What survives is what the SEAM can see:
+                           comms_report's exchanges/rounds count real calls
+                           through func_020406b4, and the carrier's own
+                           counters are unaffected. Saying which numbers went
+                           away is more useful than quietly printing fewer. */
+                        port::comms_loopback_report("level");
+                        /* run mg16 lane MP4: the sync layer's own counters,
+                           beside the carrier's. Silent-ish when the layer is
+                           off (it prints enabled=no), which is what lets rung
+                           SY4 assert the off path stays quiet on the SOLO run
+                           where no report is requested at all. */
+                        port::sync_report("level");
+                    }
+                }
+            }
             if (trace_cam)
                 fprintf(stderr,
                         "[cam-in] f%03d rx=%6d ry=%6d fc=%d yaw=%04x "
                         "pitch=%04x dist=%d held=%04x edge=%04x fl=%08x "
                         "a17c=%04x a186=%04x a19e=%04x turn=%u wall=%u "
-                        "pub=%04x\n",
+                        "pub=%04x mario=%04x\n",
                         frame, stick_rx, stick_ry, cam_mode,
                         (unsigned short)fc_yaw, (unsigned short)fc_pitch,
                         fc_dist >> 12,
@@ -4710,7 +13833,15 @@ int main(void)
                         (unsigned short)*(short *)((char *)cam + 0x19e),
                         *(unsigned short *)((char *)cam + 0x1a0),
                         *(unsigned char *)((char *)cam + 0x1a6),
-                        (unsigned short)*(short *)((char *)data_020a1164));
+                        (unsigned short)*(short *)((char *)data_020a1164),
+                        /* Mario's own facing. Paired with `pub` this is what
+                           says which world direction is SCREEN-right: the
+                           walk is camera-relative, so facing minus pub is the
+                           stick direction the game resolved, and its offset
+                           from the straight-ahead 0x8000 has the sign of the
+                           side being pushed. Nothing reads it, it just makes
+                           the camera binding measurable without a screenshot. */
+                        (unsigned short)*(short *)(c + 0x8e));
         }
         ph_end(PH_CAMERA, t_phase);
         /* no speed clamp: the accel tables get real input-mode data now
@@ -4732,7 +13863,12 @@ int main(void)
             fprintf(stderr,
                     "[f%03d] pos=(%.1f,%.1f,%.1f) spd=%d st=%08x mag=%d "
                     "body=%u anim(len=%u fl=%u cur=%.1f) bones=%08x path=%x\n",
-                    frame, *(int *)(c + 0x5c) / 4096.0f,
+                    /* R3a: tail2_states_proof's opening gate reads this line's
+                       frame number, so it is the ROM's now. It prints the same
+                       digits: the accessor is cross-checked against `frame` on
+                       this very call. */
+                    port_rom_frame_checked(frame, "opening-gate"),
+                    *(int *)(c + 0x5c) / 4096.0f,
                     *(int *)(c + 0x60) / 4096.0f,
                     *(int *)(c + 0x64) / 4096.0f, *(int *)(c + 0x98),
                     st ? *(unsigned *)st : 0u, *(short *)(data_0209f4a0 + 0),
@@ -4819,6 +13955,37 @@ int main(void)
                 rec_btn = btn_;
                 rec_raw = raw_;
             }
+            /* THE OWN SEAT, when it is not slot 0. The [in] line above reads
+               slot 0 only, which on a session CHILD is the host's record --
+               so a child whose own seat went dead logged a perfectly lively
+               [in] stream, and today's intake chased the wrong console for
+               it. Same change trigger, own slot named.
+
+               HONESTLY: a dead own seat is still an ABSENCE here, not a flat
+               line. This is change-triggered, so a seat that never moves
+               prints once and then nothing, exactly like a seat that was
+               never read. What it buys is that the absence is now ATTRIBUTED
+               -- the [in:own] line names the slot it is about, so a silent
+               child is distinguishable from a child whose host record was
+               lively. A true flat line would need a heartbeat on a timer,
+               which is a bigger change than this one and not made here. */
+            {
+                static unsigned short rec_btn_own, rec_raw_own;
+                const int own = data_020a0f10[0];
+                if (own != 0) {
+                    unsigned short btn_o = *(unsigned short *)
+                        (data_0209f49c + own * 0x18);
+                    unsigned short raw_o = *(unsigned short *)
+                        ((char *)data_020a0e58 + own * 4);
+                    if (btn_o != rec_btn_own || raw_o != rec_raw_own) {
+                        fprintf(stderr,
+                                "[in:own] f%d slot=%d btn=%04x raw=%04x\n",
+                                rec_f, own, btn_o, raw_o);
+                        rec_btn_own = btn_o;
+                        rec_raw_own = raw_o;
+                    }
+                }
+            }
             if ((rec_f % 30) == 0)
                 fprintf(stderr, "[fx] f%d pos=(%.1f,%.1f,%.1f) camang=%d\n",
                         rec_f, *(int *)(c + 0x5c) / 4096.0f,
@@ -4901,7 +14068,7 @@ int main(void)
                     *(int *)(c + 0x60) = gy;
                     if (*(int *)(c + 0xa8) < 0)
                         *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
-                    _ZN12WithMeshClsn13SetGroundFlagEv(c + 0x380);
+                    _ZN10dBgCh_Actr13SetGroundFlagEv(c + 0x380);
                     /* landing signal: St_Jump/Fall exit on this byte;
                        the real WithMeshClsn tracking will own it once
                        the continuous update runs on host */
@@ -5008,11 +14175,17 @@ int main(void)
                    *(int *)(c + 0x80), *(int *)(c + 0x84), *(int *)(c + 0x88));
             ntr::gx_reset();
             if (real_boot) {
-                /* Stage::Render's own order: the opaque pass, then the
-                   translucent one. Both are the same Model drawn twice with
+                /* Stage::Render's own order: the skybox, then the opaque
+                   pass, then the translucent one. The skybox is the +0x9bc
+                   Model glued to the camera eye (hal/stage_bridges.cpp); the
+                   two model passes are the same Model drawn twice with
                    inverse visibility masks -- the moat water only exists in
-                   the second. (ShadowModel::RenderAll sits between them on the
-                   ROM; the port's shadows are still the actors' own.) */
+                   the second. (ShadowModel::RenderAll sits between them on
+                   the ROM and in the frame loop below; this one-shot probe
+                   re-render leaves it out on purpose -- RenderAll sets the
+                   freeze flag and rewrites material attrs, so it runs once
+                   per frame, at its seat.) */
+                port_stage_render_skybox(stage);
                 port_stage_render_model(stage);
                 port_stage_render_model_transparent(stage);
             } else {
@@ -5098,6 +14271,15 @@ int main(void)
             ntr::gx_enable_lights(0x1);
         }
         float dbg_eye[3] = {0, 0, 0}, dbg_at[3] = {0, 0, 0};
+        /* THE SLOT-9 MARK, taken HERE and not inside the camera arm below.
+           _ZTV5Stage slot 9 dispatches from inside the actor render bucket,
+           which is in the `real_camera` arm only -- so on a debug-camera frame
+           the Stage does not render and the transcription has to. Marking
+           inside that arm would leave the mark stale on exactly those frames,
+           stage9_rendered() would read TRUE from some earlier frame's dispatch,
+           and the level would not be drawn at all. One line above both arms is
+           the whole fix. */
+        stage9_mark();
         if (real_camera) {
             /* THE CAMERA'S OWN FRAME. Render builds the projection from
                the mode preset (PerspectiveW_ -> MTX_LOAD_4x4) and the view
@@ -5106,11 +14288,6 @@ int main(void)
                Model::Render composes every model matrix with data_0209b3ec
                in software, so THAT is where the camera reaches the raster,
                not the GX position stack. */
-            /* widescreen hor+ on the DS path too: the camera reads its
-               aspect from cam+0xf8 every Render, so parking 16:9 there (it
-               is re-seated from presets by Behavior when it cares) widens
-               the hardware framing the same way the rig path does. */
-            if (g_widescreen) *(int *)((char *)cam + 0xf8) = (16 << 12) / 9;
             hal_camera_render(cam);
             /* the rig's view goes on top of the camera's own, not instead of
                it: Render still seeds the Clipper, writes CLEAR_COLOR and
@@ -5118,37 +14295,125 @@ int main(void)
                the projection and the view matrix from its own eye. Nothing
                downstream can tell the difference -- it is the same three ROM
                calls, with different numbers.
-                ANALOG and SM64 orbit Mario (the eased pivot); FREECAM orbits
-                the Camera actor's own look-at, which is what made it free
-                of him. */
-            if (cam_mode != CAM_DS) {
+               ANALOG orbits Mario (the eased pivot); FREECAM orbits the Camera
+               actor's own look-at, which is what made it free of him.
+               During a cutscene (cutscene_cam) the rig does NOT reload the
+               view: hal_camera_render has just parked the script-driven view in
+               data_0209b3ec, and leaving it there is what makes the star-get
+               fly-around visible instead of overwritten. */
+            if (cam_mode != CAM_DS && !cutscene_cam) {
                 int fceye[3];
-                const int *pivot = (cam_mode == CAM_ANALOG ||
-                                    cam_mode == CAM_SM64)
+                const int *pivot = cam_mode == CAM_ANALOG
                                        ? an_pivot
                                        : (const int *)((char *)cam + 0x80);
                 fc_eye(pivot, fceye);
                 fc_push_view(cam, fceye, pivot);
             }
-            /* THE ACTOR RENDER BUCKET GOES HERE, and the reason is the shim
-               immediately below. Processing list 5 is the game's own render
-               pass -- func_0204322c over slots 9/10/11, in render-priority
-               order -- and everything on it is ROM code working in SCENE
-               units: Tree::Render clips its cylinders through the Clipper
-               with data_0209b3ec as it stands and writes scene-unit
-               translations into its Models. The shim converts that same view
+            /* WIDESCREEN: widen the object-cull frustum to match the Hor+ 3D
+               field, AFTER the camera Render just seeded the global Clipper
+               (func_0200d954 -> Func_020156DC) and BEFORE the actor buckets test
+               it, so ambient actors at the new side margins are no longer culled
+               as off-screen. Host-side, gated on the RUNTIME toggle now (not the
+               compile tier): with widescreen off the clipper is left exactly as
+               the ROM seeded it. See hal_camera_widen_frustum in
+               hal/camera_bridges.cpp. */
+            if (ntr::widescreen)
+                hal_camera_widen_frustum();
+            /* THE ACTOR RENDER BUCKET GOES HERE. Processing list 5 is the
+               game's own render pass -- func_0204322c over slots 9/10/11, in
+               render-priority order -- and everything on it is ROM code working
+               in SCENE units: Tree::Render clips its cylinders through the
+               Clipper with data_0209b3ec as it stands and writes scene-unit
+               translations into its Models. The raster is z-buffered, so
+               drawing the actors ahead of the level model costs nothing.
+
+               THE REASON THIS BANNER USED TO GIVE IS STALE, and saying so is
+               the point (run link100, lane FRAME2). It read: "the reason is the
+               shim immediately below ... the shim converts that same view
                matrix for the port's own world-unit models. So the bucket runs
                BEFORE the conversion and the harness's two draws after it, and
-               each side gets the matrix it was written against. The raster is
-               z-buffered, so drawing the actors ahead of the level model
-               costs nothing.
+               each side gets the matrix it was written against." There is no
+               conversion below any more. The block that follows this one says
+               so in its own first line -- "THE VIEW MATRIX IS USED AS THE ROM
+               PRODUCED IT ... The R6 shim that scaled this row by 8 for the
+               harness's world-unit models is gone" -- and every model matrix in
+               the frame is scene units now. What this position still buys is
+               DRAW ORDER and nothing else: opaque geometry is free either way,
+               and the order that is not free is the translucent one (see the
+               particle note below, which loses every particle if it is
+               submitted ahead of the level).
+
+               IT MATTERS TO _ZTV5Stage SLOT 9, which is why it is corrected
+               here rather than left. Stage::Render dispatches from INSIDE this
+               bucket, and the stale paragraph made that look like a matrix
+               problem. It is not; it is the same problem slot 6 had. See
+               port/stage_lifecycle_map.txt section 12c.
                SM64DS_NO_ACTORS=1 takes the bucket out for the A/B. */
             static int no_actors = -1;
             if (no_actors < 0) no_actors = getenv("SM64DS_NO_ACTORS") ? 1 : 0;
+            /* ONE CONSEQUENCE OF THE SLOT-9 SEAT WORTH SAYING OUT LOUD HERE:
+               SM64DS_NO_ACTORS=1 now takes the LEVEL out with the bucket,
+               because the Stage renders from the bucket the same as every
+               other actor does. That is what the cartridge does; the banner
+               above calls this position "draw order and nothing else" and this
+               is the order. The mark itself is taken further up, outside the
+               camera arms -- see stage9_mark's own call site. */
             if (boot_spawns && !no_actors) {
                 size_t before = 0, after = 0;
                 if (selftest) ntr::gx_polygons(before);
+                /* the tick-only re-sim (hal/rollback.cpp): a replayed frame
+                   skips the actors' Render bodies; status/ROLLBACK_SHIP.md
+                   has the audit that says they write nothing a tick reads */
+                if (rb_skip_actor_render()) port_actor_render_replay();
+                else
                 port_actor_render();
+                /* THE PARTICLE SIMULATION GOES HERE, which is where
+                   Stage::Render drives it. The SUBMISSION does not: it belongs
+                   after the level, where Stage::GraphCallback1 runs it, and it
+                   is called from there (port_particle_render, below the level
+                   pass). Drawing translucent particles ahead of the opaque
+                   level loses them all to the ground drawn over them. */
+                /* SM64DS_SWITCH=<0..3> drives the cap-block character change
+                   from a headless run, at frame 90, so the live path has a
+                   regression probe instead of only being reachable by hand
+                   through the F5 row. */
+                {
+                    static int sw = -2;
+                    if (sw == -2) {
+                        const char *s = getenv("SM64DS_SWITCH");
+                        sw = s ? atoi(s) : -1;
+                    }
+                    if (sw >= 0 && frame == 90) {
+                        fprintf(stderr, "[char] SM64DS_SWITCH becoming %s\n",
+                                CHAR_NAME[sw & 3]);
+                        port_player_set_character(c, sw);
+                        g_character = g_character_pending = sw & 3;
+                    }
+                }
+                /* SM64DS_VS_CHARS: the game side of VS character selection. Each
+                   VS slot's chosen character is applied here, once, at the same
+                   frame the SM64DS_SWITCH probe above fires, through the proven
+                   door path -- but per slot (data_0209f394[i]) rather than only
+                   the local body. VS-scoped and one-shot inside; inert with no
+                   SM64DS_VS_CHARS (the all-Yoshi arena is byte-unchanged). This
+                   is the seam the lobby character picker feeds. */
+                port_vs_apply_chars(frame);
+                /* LUIGI INFECTION START COUNTDOWN, render half: draw the ROM's
+                   own READY? banner + red 3-2-1 + START over the arena while the
+                   countdown runs. The tagger pick moved to countdown end (the
+                   drive above, beside port_vs_countdown_tick); this is the draw,
+                   placed after the actors so its sprites join the VS timer's
+                   engine-A OAM batch. Inert with no SM64DS_VS_LUIGI_INFECTION. */
+                port_luigi_countdown_render();
+                port_luigi_hittest(frame);
+                /* Stage::Render's Particle::SysTracker::Update statement
+                   (arm9 reloc 0x0202b930). RETIRED by the slot-9 seat -- the
+                   ROM's own body makes that call, at its own place in its own
+                   order, which is BEFORE func_020391f0 rather than after the
+                   whole bucket. Kept as the fallback for the three Stage-less
+                   frames and the A/B control. */
+                if (!stage9_rendered())
+                    port_particle_frame();
                 if (selftest) {
                     const ntr::GxTriangle *at = ntr::gx_polygons(after);
                     if (frame == 0 || getenv("SM64DS_TRACE_ACTOR_TRIS")) {
@@ -5173,15 +14438,12 @@ int main(void)
                                  ++i)
                                 printf("         tri (%.1f,%.1f,%.4f) "
                                        "(%.1f,%.1f,%.4f) (%.1f,%.1f,%.4f) "
-                                       "tex %p %dx%d cull %u alpha %u "
-                                       "rgb %08x/%08x/%08x\n",
+                                       "tex %p %dx%d cull %u alpha %u\n",
                                        at[i].v[0].x, at[i].v[0].y, at[i].v[0].z,
                                        at[i].v[1].x, at[i].v[1].y, at[i].v[1].z,
                                        at[i].v[2].x, at[i].v[2].y, at[i].v[2].z,
                                        (const void *)at[i].tex, at[i].tw,
-                                       at[i].th, at[i].cull, at[i].alpha,
-                                       at[i].v[0].color, at[i].v[1].color,
-                                       at[i].v[2].color);
+                                       at[i].th, at[i].cull, at[i].alpha);
                     }
                 }
             }
@@ -5337,29 +14599,260 @@ int main(void)
             ntr::gx_enable_lights(0x1);
             push_camera(dbg_eye, dbg_at);
         }
+        /* THE NAME TAGS' TRANSFORM, taken HERE and not at draw time. Both
+           camera arms above have pushed by now and nothing has drawn a 2D
+           layer yet, so this is the last moment the live projection is the
+           frame's 3D one. See the banner in tests/nametag.h. */
+        nt_stash_view();
+
         static int no_level = -1;
         if (no_level < 0) no_level = getenv("SM64DS_NO_LEVEL") ? 1 : 0;
+        /* THE WHOLE BLOCK BELOW IS RETIRED (run link100, lane RENDER9). Five of
+           Stage::Render's statements were transcribed here -- the skybox, the
+           BTA advance, RenderModel, ShadowModel::RenderAll and
+           RenderModelTransparent -- and _ZTV5Stage slot 9 now runs the ROM's
+           own body, which makes all five calls itself, in the ROM's own order,
+           from inside the actor render bucket above. The `real_boot` arm
+           therefore runs only when the Stage did NOT render this frame; the
+           `else` arm is the harness's own non-ROM level draw and is untouched,
+           because there is no Stage on those frames to render anything.
+           port/stage_lifecycle_map.txt section 18 is the accounting. */
         if (!no_level) {
-            if (real_boot) {
-                /* Stage::Render's own order: the opaque pass, then the
-                   translucent one. Both are the same Model drawn twice with
+            if (real_boot && !stage9_rendered()) {
+                /* Stage::Render's own order: the skybox, then the opaque
+                   pass, then the translucent one. The skybox is the +0x9bc
+                   Model glued to the camera eye (hal/stage_bridges.cpp); the
+                   two model passes are the same Model drawn twice with
                    inverse visibility masks -- the moat water only exists in
-                   the second. (ShadowModel::RenderAll sits between them on the
-                   ROM; the port's shadows are still the actors' own.) */
-                port_stage_render_model(stage);
-                port_stage_render_model_transparent(stage);
-            } else {
-                hal_render_model(level_model, level_shift);
+                   the second. (ShadowModel::RenderAll sits between them, on
+                   the ROM and here.) */
+                if (!rb_skip_render())
+                    port_stage_render_skybox(stage);
+                /* Stage::Render's first block, in its place in the order:
+                   advance the shown areas' BTA texture animations (the
+                   waterfall), which RenderModel below then applies. */
+                {
+                    const double rb_t = rb_probe_mode() ? rb_now_ms() : 0.0;
+                    port_stage_advance_anims(stage);
+                    if (rb_probe_mode()) rb_note(RB_ANIMS, rb_now_ms() - rb_t);
+                }
+                if (!rb_skip_render())
+                    port_stage_render_model(stage);
+                /* ShadowModel::RenderAll, in its place in Stage::Render's own
+                   order: after the opaque model pass, before the transparent
+                   one. The shadows are drawn onto the ground the pass above
+                   just laid down, and the moat water in the pass below goes
+                   over them. The ntr side of this call is real now: the two
+                   mode-3 material passes RenderAll runs per node stencil the
+                   volume against the depth buffer instead of painting it
+                   (the wave-4 cone; see the CleanAll block above for the
+                   full history).
+
+                   SM64DS_SHADOW_TRIS=1 prints what this call submits, which
+                   is the only honest way to see it work: the walk selftest
+                   holds its canonical position whether shadows draw or not,
+                   so an exit code says nothing about them. The count is read
+                   off the geometry engine's own polygon list, the same probe
+                   the [actors] and [fx] lines use. */
+                {
+                    static int sh_tr = -1;
+                    if (sh_tr < 0) sh_tr = getenv("SM64DS_SHADOW_TRIS") ? 1 : 0;
+                    size_t sh_before = 0, sh_after = 0;
+                    if (sh_tr) ntr::gx_polygons(sh_before);
+                    if (!rb_skip_render())
+                        ShadowModel::RenderAll();
+                    if (sh_tr) {
+                        const ntr::GxTriangle *st2 = ntr::gx_polygons(sh_after);
+                        float mnx = 1e30f, mxx = -1e30f, mny = 1e30f,
+                              mxy = -1e30f;
+                        for (size_t i = sh_before; i < sh_after; ++i)
+                            for (int v = 0; v < 3; ++v) {
+                                if (st2[i].v[v].x < mnx) mnx = st2[i].v[v].x;
+                                if (st2[i].v[v].x > mxx) mxx = st2[i].v[v].x;
+                                if (st2[i].v[v].y < mny) mny = st2[i].v[v].y;
+                                if (st2[i].v[v].y > mxy) mxy = st2[i].v[v].y;
+                            }
+                        printf("[shadow] frame %d: %zu triangles", frame,
+                               sh_after - sh_before);
+                        if (sh_after != sh_before)
+                            printf(", screen x[%.0f..%.0f] y[%.0f..%.0f]",
+                                   mnx, mxx, mny, mxy);
+                        printf("\n");
+                    }
+                }
+                if (!rb_skip_render())
+                    port_stage_render_model_transparent(stage);
+            } else if (!real_boot) {
+                /* `else if (!real_boot)` and not a bare `else`: the arm above
+                   now declines on a real-boot frame whose Stage already
+                   rendered, and that frame must NOT fall through to the
+                   harness's own model draw -- it would draw the level a second
+                   time, in world units, over the ROM's. */
+                if (!rb_skip_render())
+                    hal_render_model(level_model, level_shift);
             }
         }
+        /* Stage::Render's collision beat, kept in its place in the order:
+           after the transparent pass, CylinderClsn::Process consumes the list
+           the behaviour phase threaded onto data_0209cee8 -- the overlap
+           pushbacks, and the notify chain that hands a grabbable cylinder to
+           the Player (slice_gate10, the tree-grab block).
+
+           RETIRED BY THE SLOT-9 SEAT, AND THIS ONE CHANGES WHICH BODY RUNS.
+           Stage::Render calls CylinderClsn::Process(), which resolves to
+           ?Process@dCc_c@@SAXXZ -- the MATCHED body, in the link on
+           port/slice_gate33.txt. The call below is the ROM-SHAPED HOST COPY
+           (port/unmatched/CylinderClsn_Process.cpp), which existed because the
+           matched body dispatched GetPos through MSVC's folded destructor slot
+           and freed a cylinder on the first pass. Section 17 of
+           port/stage_lifecycle_map.txt fixed that skew four headers wide and
+           said turning the switch over was a separate lane's measurement; this
+           is that measurement, and section 18 carries what it said. The host
+           copy stays for the Stage-less frames and the A/B control. */
+        if (boot_spawns && !stage9_rendered()) {
+            const double rb_t = rb_probe_mode() ? rb_now_ms() : 0.0;
+            port_cylinder_clsn_process();
+            if (rb_probe_mode()) rb_note(RB_CYL, rb_now_ms() - rb_t);
+        }
+        /* Stage::Render:125, the very next statement: the cap-visibility
+           manager. func_ov001_020aaf40 walks the three cap registries and
+           decides which cap of each type is currently showing -- it is the
+           only writer of the +0x1b bit 1 that WaterfallMist::Behavior reads
+           before it stops writing unk_3ff, and unk_3ff == 1 is what
+           WaterfallMist::Render returns on. Without this line every CAP in
+           every VS arena is alive, positioned and invisible (status/VSMAP.md,
+           "THE CAPS DO NOT DRAW"; status/CAPSHOW.md for this seat).
+
+           UNCONDITIONAL, like the ROM's. The mode test is inside the function
+           (src/func_ov001_020aaf40.c:50): data_0209f2d8 == 1 runs the VS
+           manager func_ov001_020aa420, anything else the single-console pair
+           func_ov001_020aadac / func_ov001_020aaa54. Guarding it here on VS
+           would host a function the cartridge does not have. Its own first
+           statement is `if (data_ov001_020ad620 != 0)`, and every list it
+           walks is empty on a level that registers no cap, so a level with no
+           caps pays three null loads.
+
+           boot_spawns because the registries are filled from the actors'
+           own InitResources (func_ov001_020ab228), and a no-spawn boot has
+           none -- the same reason the line above it carries the guard.
+           SM64DS_NO_CAP_MANAGER=1 restores the pre-seat behaviour on this
+           binary, which is what the before/after probe pair is captured
+           with.
+
+           RETIRED BY THE SLOT-9 SEAT (run link100, lane RENDER9): the ROM's own
+           Stage::Render makes this call, unconditionally, as its own statement
+           125. Kept here for the Stage-less frames and the A/B control, which
+           is also the only state SM64DS_NO_CAP_MANAGER can still act in -- with
+           the seat live the ROM's call is not gated on a host env, exactly as
+           the paragraph above says a guard on VS would not have been. */
+        static int no_cap_mgr = -1;
+        if (no_cap_mgr < 0)
+            no_cap_mgr = getenv("SM64DS_NO_CAP_MANAGER") ? 1 : 0;
+        if (boot_spawns && !no_cap_mgr && !stage9_rendered())
+            func_ov001_020aaf40();
         /* phase 1, which is where func_02044120 ends: the scene tree's own
            housekeeping -- priority re-sorts, parent flag propagation, and the
            deferred list insertions for anything that spawned mid-phase. */
-        if (boot_spawns)
+        if (boot_spawns) {
+            const double rb_t = rb_probe_mode() ? rb_now_ms() : 0.0;
             port_actor_scene_pass();
+            if (rb_probe_mode()) rb_note(RB_SCENEPASS, rb_now_ms() - rb_t);
+        }
         size_t tris_before = 0;
         if (selftest) ntr::gx_polygons(tris_before);
-        hal_render_player_world(player);
+        /* run mg16 lane MP3: DRAW EVERY PLAYER, not just the local one.
+           This line drew data_0209f394[0] and nothing else, which was correct
+           while the port asserted there was exactly one player. With a second
+           one spawned it is the difference between a player who is there and a
+           player who is INVISIBLE: slot 1 collides, is pushed, moves and casts
+           no pixels, so a capture of the frame shows one character and the
+           owner is asked to judge a picture the second player is missing from.
+           The local player keeps drawing last, so nothing about his own
+           submission order changes. */
+        for (int pi = (int)data_0209f21c - 1; pi >= 0; --pi) {
+            if (pi == (int)data_0209f250) continue;   /* drawn below, as before */
+            /* ADVENTURE co-op (M2): a ghost is DRAWN only for a peer present in
+               this console's level. A peer in another level (or gone quiet) is
+               despawned -- skipped here, so it casts no pixels -- exactly as the
+               follower and the name tag skip it on the same predicate. VS and
+               solo do not consult it (the gate is the mode), so their per-slot
+               draw is byte-unchanged. */
+            /* PARTY: a party member is a shared-world body -- always drawn,
+               even when no broadcast presence snapshot has arrived for it (a
+               party rides the rollback sim, not the ghost broadcast). Only
+               NON-party remotes are gated on adventure presence. */
+            if (port::adventure_ghost_mode() && !port_party_member(pi) &&
+                !port_adventure_peer_visible(pi))
+                continue;
+            /* port/rollback: a replayed frame draws nobody's pixels
+               (tick-only re-sim, hal/rollback.cpp rb_skip_render); the DET
+               rung proves the player's DRAW writes nothing a tick reads.
+               But the map0 DET rung found one call inside the draw that is
+               NOT render-private: hal_player_texseq_tick (the eye-blink
+               material flag on the shared character head model). That
+               still has to run every tick, replayed or not -- see the
+               comment on hal_player_texseq_tick, hal/player_bridges.cpp. */
+            if (rb_skip_render()) {
+                if (void *other = data_0209f394[pi])
+                    hal_player_texseq_tick(other);
+                continue;
+            }
+            if (void *other = data_0209f394[pi])
+                hal_render_player_world(other);
+        }
+        if (!rb_skip_render())
+            hal_render_player_world(player);
+        else
+            hal_player_texseq_tick(player);
+        /* Stage::GraphCallback1: the particle submission, last, after every
+           opaque draw in the frame. The billboards carry their own absolute
+           position matrix so nothing above this line has to be preserved for
+           them; what they need is to be the last thing the raster sees. */
+        static int fx_no_actors = -1;
+        if (fx_no_actors < 0)
+            fx_no_actors = getenv("SM64DS_NO_ACTORS") ? 1 : 0;
+        if (boot_spawns && !fx_no_actors) {
+            size_t fx_before = 0, fx_after = 0;
+            static int fx_tr = -1;
+            if (fx_tr < 0) fx_tr = getenv("SM64DS_FX_TRACE") ? 1 : 0;
+            if (fx_tr) ntr::gx_polygons(fx_before);
+            {
+                const double rb_t = rb_probe_mode() ? rb_now_ms() : 0.0;
+                /* port/rollback: the particle submission RUNS in a replayed
+                   frame. It is not render-only: the DET rung on VS map 0
+                   showed a 16-bit countdown per 0x78-byte particle entry
+                   advanced here (8 skipped renders, 8 steps short), so it
+                   belongs with the Stage::Render spans the tick-only re-sim
+                   keeps, not with the pixel work it drops. */
+                port_particle_render();
+                if (rb_probe_mode()) rb_note(RB_PARTICLE, rb_now_ms() - rb_t);
+            }
+            if (fx_tr) {
+                const ntr::GxTriangle *ft = ntr::gx_polygons(fx_after);
+                if (fx_after != fx_before) {
+                    int sys = 0, par = 0;
+                    port_particle_counts(&sys, &par);
+                    float mnx = 1e30f, mxx = -1e30f, mny = 1e30f,
+                          mxy = -1e30f, mnz = 1e30f, mxz = -1e30f;
+                    for (size_t i = fx_before; i < fx_after; ++i)
+                        for (int v = 0; v < 3; ++v) {
+                            float X = ft[i].v[v].x, Y = ft[i].v[v].y,
+                                  Z = ft[i].v[v].z;
+                            if (X < mnx) mnx = X;
+                            if (X > mxx) mxx = X;
+                            if (Y < mny) mny = Y;
+                            if (Y > mxy) mxy = Y;
+                            if (Z < mnz) mnz = Z;
+                            if (Z > mxz) mxz = Z;
+                        }
+                    printf("[fx] frame %d: %zu triangles from %d particles in "
+                           "%d systems, screen x[%.0f..%.0f] y[%.0f..%.0f] "
+                           "z[%.3f..%.3f]\n",
+                           frame, fx_after - fx_before, par, sys,
+                           mnx, mxx, mny, mxy, mnz, mxz);
+                }
+            }
+        }
         ph_end(PH_SUBMIT, t_phase);
         if (selftest) {
             size_t tn = 0;
@@ -5375,7 +14868,7 @@ int main(void)
             fprintf(stderr,
                     "[w] mario screen box x[%.0f..%.0f] y[%.0f..%.0f] "
                     "(center %d,%d) eye(%.1f,%.1f,%.1f) at(%.1f,%.1f,%.1f)\n",
-                    mnx, mxx, mny, mxy, ntr::SCREEN_W / 2, ntr::SCREEN_H / 2,
+                    mnx, mxx, mny, mxy, ntr::active_w / 2, ntr::active_h / 2,
                     dbg_eye[0], dbg_eye[1], dbg_eye[2], dbg_at[0], dbg_at[1],
                     dbg_at[2]);
         }
@@ -5385,21 +14878,118 @@ int main(void)
         ph_begin(&t_phase);
         /* clear: build one row, memcpy the rest (0xFF101820 is not a
            repeating byte pattern, so memset cannot do it directly) */
-        for (int x = 0; x < ntr::SCREEN_W; ++x) fb.px[0][x] = 0xFF101820u;
-        for (int y = 1; y < ntr::SCREEN_H; ++y)
-            memcpy(fb.px[y], fb.px[0], ntr::SCREEN_W * sizeof(fb.px[0][0]));
+        /* port/rollback: a replayed frame presents nothing, so the clear, the
+           raster, the engine-A composite, the fade and the overlays below
+           all stand down with it (rb_skip_render); they write host pixels
+           only, and they were a third of a replayed frame's cost */
+        if (!rb_skip_render()) {
+        for (int x = 0; x < ntr::active_w; ++x) fb.px[0][x] = 0xFF101820u;
+        for (int y = 1; y < ntr::active_h; ++y)
+            memcpy(fb.px[y], fb.px[0], ntr::active_w * sizeof(fb.px[0][0]));
+        }
+        /* the rollback probe's re-run skips the rasteriser (SM64DS_ROLLBACK_DET_SKIP) */
+        if (!rb_resim_skip_render() && !rb_skip_render())
         ntr::gx_render(fb);
+        /* ENGINE-A 2D OVER 3D. The top screen is engine A: its 2D BGs and OBJ
+           layer composite over the 3D frame in hardware. The dialogue box lives
+           there (BG3 + the cursor OBJ), so raster engine A's 2D and write only
+           the covered pixels over the 3D framebuffer. Before the fade composite,
+           so the box dims with the master-brightness blend the same as the DS. */
+        if (!rb_skip_render())
+            port_message_composite_engine_a(&fb);
         ph_end(PH_RASTER, t_phase);
         /* Bottom of the DS 2D frame: upload the shadows the game filled,
            rasterise engine B, and drop it into the corner at 1:1 DS pixels.
            With the panel toggled off this writes nothing. Before the overlay,
            so F3 text stays readable over the panel. */
-        hal_sub_screen_present(&fb.px[0][0], ntr::SCREEN_W, ntr::SCREEN_H);
+        if (!rb_skip_render())
+        hal_sub_screen_present(&fb.px[0][0], ntr::active_w, ntr::active_h);
+
+        /* THE FADE COMPOSITE, ENGINE A'S. The DS colour-special-effects unit's
+           brightness modes (BLDCNT mode 2 or 3 plus BLDY) darken or brighten
+           the whole of an engine's 2D panel after the scene is drawn. IT IS PER
+           ENGINE: 0x4000050/0x4000054 is engine A's and only engine A's, and
+           0x4001050/0x4001054 is engine B's. `fb` is engine A's framebuffer, so
+           this loop is engine A's blend and nothing else; engine B's is applied
+           where engine B's picture is composed (hal/sub_screen.cpp passes
+           port_fader_blend_state_sub into ppu_compose_stacked). This used to
+           claim it covered both screens, which was true only because every fade
+           the fader drives writes both engines the same values -- ov007's
+           opening writes them differently and that is where it showed.
+           Composited after the sub-screen present but before the host debug
+           overlay, because the overlay is not game content and must stay
+           readable through a fade. port_fader_advance wrote those registers
+           this frame; read them back and do the same fade over the finished
+           framebuffer. EVY is the 0..16 coefficient: fade-to-black is
+           rgb*(1 - evy/16), fade-to-white is rgb + (255-rgb)*evy/16, both per
+           channel, which is exactly the DS blend math (16/16 = full).
+
+           THE CORNER-INSET PANEL IS INSIDE `fb` WHEN THIS RUNS and therefore
+           takes engine A's blend. That is unchanged and deliberate: the inset is
+           a host convenience, not an LCD, and reproducing it exactly keeps a
+           layout change a layout change. The STACKED layout is the one where
+           both halves are real DS screens, and there each half now carries its
+           own engine's blend. */
+        {
+            int evy = 0, toWhite = 0;
+            if (!rb_skip_render() && port_fader_blend_state(&evy, &toWhite)) {
+                if (evy > 16) evy = 16;
+                for (int y = 0; y < ntr::active_h; ++y) {
+                    uint32_t *row = fb.px[y];
+                    for (int x = 0; x < ntr::active_w; ++x) {
+                        uint32_t p = row[x];
+                        int r = (p >> 16) & 0xff, g = (p >> 8) & 0xff,
+                            b = p & 0xff;
+                        if (toWhite) {
+                            r += ((255 - r) * evy) >> 4;
+                            g += ((255 - g) * evy) >> 4;
+                            b += ((255 - b) * evy) >> 4;
+                        } else {
+                            r -= (r * evy) >> 4;
+                            g -= (g * evy) >> 4;
+                            b -= (b * evy) >> 4;
+                        }
+                        row[x] = 0xFF000000u | ((uint32_t)r << 16) |
+                                 ((uint32_t)g << 8) | (uint32_t)b;
+                    }
+                }
+            }
+        }
+
+        /* THE STACKED IMAGE IS BUILT HERE, ahead of the overlays, and that is
+           this lane's one change to the order. Every line ABOVE this one that
+           writes a pixel writes it into fb -- the raster, the engine-A
+           composite, the fade -- so the compose still reads a finished frame
+           and composes exactly the picture it composed before.
+
+           WHAT MOVED, AND WHY. The F3 overlay, the F5 menu and the save-state
+           toast used to be painted into fb and copied up with it. fb is ENGINE
+           A's framebuffer, and since ppu_compose_stacked started honouring
+           POWCNT1 bit 15 engine A is not always the top screen: the four
+           dScMgD3DBase_c scenes toggle the bit every frame and Snowball Slalom
+           clears it for the whole minigame, so the overlays flashed between the
+           halves on one and sat on the bottom screen on the other. They are
+           host UI, they belong to a SCREEN, and they now paint on the composed
+           image's upper half -- which is the upper physical LCD whichever
+           engine is feeding it.
+
+           THE INSET LAYOUT IS UNCHANGED: `stacked` is 0, the surface is fb, and
+           every line below is the line that was here. THE SELFTEST DUMP IS
+           UNCHANGED TOO on every run that has an overlay to lose, because it
+           has none: no tool in port/tools sets SM64DS_OVERLAY or SM64DS_MENU,
+           and the toast needs a save-state keypress. What a stacked run with
+           SM64DS_OVERLAY=1 loses is the overlay inside the 512x384 fb BMP; it
+           is in the STACKED capture instead, which is the picture that run is
+           actually presenting. */
+        uint32_t *stack_img = stacked
+                ? hal_sub_screen_stacked_image(&fb.px[0][0]) : 0;
+        const OvlSurface surf =
+            stacked ? ovl_surface_stacked(stack_img, fb) : ovl_surface(fb);
 
         /* THE OVERLAY GOES HERE: after the raster owns the frame and before
            the blit hands it to GDI, so it is in the pixels rather than over
            the window, and the selftest BMP carries it. */
-        if (g_overlay_on) {
+        if (g_overlay_on && !rb_skip_render()) {
             OvlStats os;
             size_t tn = 0;
             int actors = 0;
@@ -5407,7 +14997,7 @@ int main(void)
             for (int *node = (int *)(size_t)data_020a4b78[0];
                  node && actors < 4096; node = (int *)(size_t)node[1])
                 if (node[2]) ++actors;
-            if (W.GetProcessMemoryInfo_ && (ovl_frames % 30) == 0) {
+            if (W.GetProcessMemoryInfo_ && (frame % 30) == 0) {
                 PortMemCounters pmc;
                 pmc.cb = sizeof pmc;
                 if (W.GetProcessMemoryInfo_(GetCurrentProcess(), &pmc,
@@ -5422,26 +15012,58 @@ int main(void)
             os.cam_name = cam_mode_name(cam_mode);
             os.mem_kb = ovl_mem_kb;
             os.menu_paused = !game_ticked;
-            ovl_draw(fb, os);
+            ovl_draw(surf, os);
         }
-        if (menu_on) menu_draw(fb);
-        if (front_on) front_draw(fb);
-        /* HUD extras stay out of selftest BMPs (deterministic pixels),
-           except menu-shot mode, whose whole point is the picture */
-        if (!selftest || getenv("SM64DS_SELFTEST_MENU")) {
-            toast_draw(fb);
-            chat_draw(fb);
-            if (!selftest) fps_draw(fb, ovl_fps);
-            else fps_draw(fb, 138.0);
+        /* THE NAME TAGS, before the menu and the banner so a menu the player
+           opened still sits over them. Returns immediately outside a VS match,
+           which is why no adventure selftest BMP moves. */
+        if (!rb_skip_render()) {
+        nt_draw(surf);
+        if (menu_on) menu_draw(surf);
         }
-        ++g_frame_no;
+        /* THE WINNER, once a VS match is over. Centred, over everything, for
+           the whole grace window before the process closes -- which is what
+           makes closing acceptable: nobody's window disappears without being
+           told who won. Host overlay on purpose: this is the port's own voice
+           and must not be mistakable for the cartridge's results screen
+           (hal/star_flow.cpp says why that screen is out of reach from inside
+           a match). */
+        {
+            char wb[96];
+            if (!rb_skip_render() && port_vs_match_end_banner(wb, (int)sizeof wb)) {
+                const int tw = (int)strlen(wb) * OVL_ADVANCE * OVL_SCALE;
+                const int wx = (ntr::active_w - tw) / 2;
+                const int wy = ntr::active_h / 2 - OVL_LINE;
+                ovl_shade(surf, wx - 6 * OVL_SCALE, wy - 4 * OVL_SCALE,
+                          tw + 12 * OVL_SCALE, OVL_LINE + 8 * OVL_SCALE);
+                ovl_text(surf, wx, wy, wb, 0xFFFFE060u);
+            }
+        }
+        /* the save-state toast, over everything, bottom-left; at file scope
+           now so the windowed scene loop can show the menu's refusals too */
+        if (!rb_skip_render())
+            toast_draw(surf);
+
+        if (stacked && !rb_skip_render())
+            stack_present_arm(stack_img, hwnd);
 
         ph_begin(&t_phase);
-        W.StretchDIBits_(hdc, 0, 0, win_client_w, win_client_h,
-                      0, 0, ntr::SCREEN_W, ntr::SCREEN_H, fb.px, &bi,
-                      DIB_RGB_COLORS, SRCCOPY);
+        if (!rb_resim_skip_render() && !rb_skip_render())
+        present();
         ph_end(PH_BLIT, t_phase);
         ph_end(PH_FRAME, t_frame);
+        rb_frame_body_end();
+        if (rb_probe_mode()) {
+            rb_note(RB_PH_INPUT,  g_clk.raw[PH_INPUT]);
+            rb_note(RB_PH_CAMERA, g_clk.raw[PH_CAMERA]);
+            rb_note(RB_PH_SUBMIT, g_clk.raw[PH_SUBMIT]);
+            rb_note(RB_PH_RASTER, g_clk.raw[PH_RASTER]);
+            rb_note(RB_PH_BLIT,   g_clk.raw[PH_BLIT]);
+            rb_note(RB_PH_FRAME,  g_clk.raw[PH_FRAME]);
+        }
+        if (rb_replaying()) {
+            for (int p = 0; p < PH_COUNT; ++p) rb_replay_phase(p, g_clk.raw[p]);
+        }
         /* present-to-present rate, and the GAME TICK rate beside it -- the two
            diverge whenever a tick is skipped, which is what the debug menu's
            pause does. Both smoothed the same way the phase times are. */
@@ -5457,38 +15079,193 @@ int main(void)
             }
             ovl_last_present = now;
         }
-        /* SM64DS_TRACE_RATE=1: about once a second, log present fps beside
-           game tick rate -- the proof that uncapped/smooth modes hold 30Hz
-           sim speed while presenting faster. */
-        {
-            static double rate_last;
-            const double rnow = ovl_now_ms();
-            if (getenv("SM64DS_TRACE_RATE")) {
-                if (rate_last == 0.0) rate_last = rnow;
-                if (rnow - rate_last >= 1000.0) {
-                    rate_last = rnow;
-                    fprintf(stderr, "[rate] fps=%.1f tps=%.1f mode=%d%s\n",
-                            ovl_fps, ovl_tps, g_fps_mode,
-                            g_vsync ? " vsync" : "");
-                }
-            }
-        }
-        ++ovl_frames;
         /* the click flag is true for exactly the frame it landed on; the hold
            in g_mouse_left_down is what outlives it */
         g_mouse_click_new = 0;
+        /* SM64DS_JUMP_PROBE=1: the per-frame cost line the jump-hitch
+           investigation runs on. PH_FRAME's RAW time (not the smoothed one
+           the overlay draws), the file loads this frame and what they cost,
+           and the Player word that says whether the frame changed animation
+           at all: +0x63c is SetAnim's cached (id << 2). A hitch attributable
+           to the animation load has to show its milliseconds on the frame
+           +0x63c changes. */
+        if (selftest && getenv("SM64DS_JUMP_PROBE")) {
+            static unsigned long pl, pm, pb;
+            static double pms;
+            static unsigned prev_anim = 0xffffffffu;
+            const unsigned anim = *(unsigned *)(c + 0x63c);
+            /* the ModelAnim the animation actually landed on: Animation sits
+               at +0x50 of it (numFramesAndFlags 0x54, currFrame 0x58, speed
+               0x5c) and the BCA file pointer at 0x60 */
+            char *ma = ((char **)(c + 0xdc))
+                       [_ZNK6Player14GetBodyModelIDEjb(c, *(unsigned *)(c + 8)
+                                                          & 0xff, 0)];
+            printf("[jp] f%-4d frame=%6.3f in=%5.2f cam=%5.2f sub=%5.2f "
+                   "ras=%5.2f blit=%5.2f loads=%lu miss=%lu "
+                   "bytes=%lu fs=%6.3f anim=%u%s "
+                   "cf=%8.3f nff=%08x spd=%d file=%p y=%d\n",
+                   frame, g_clk.raw[PH_FRAME], g_clk.raw[PH_INPUT],
+                   g_clk.raw[PH_CAMERA], g_clk.raw[PH_SUBMIT],
+                   g_clk.raw[PH_RASTER], g_clk.raw[PH_BLIT],
+                   port_fs_loads - pl,
+                   port_fs_load_miss - pm, port_fs_bytes - pb,
+                   port_fs_ms - pms, anim >> 2,
+                   anim != prev_anim ? " CHANGED" : "",
+                   ma ? *(int *)(ma + 0x58) / 4096.0 : 0.0,
+                   ma ? *(unsigned *)(ma + 0x54) : 0u,
+                   ma ? *(int *)(ma + 0x5c) : 0,
+                   ma ? *(void **)(ma + 0x60) : (void *)0,
+                   *(int *)(c + 0x60) >> 12);
+            pl = port_fs_loads; pm = port_fs_load_miss; pb = port_fs_bytes;
+            pms = port_fs_ms;   prev_anim = anim;
+        }
+        /* SM64DS_BONE_PROBE=1: the per-frame BONE ROTATION dump the long-jump
+           leg-twist investigation runs on, and its detector.
+
+           The animated bone records are ModelComponents::bones -- Model+0x08
+           is the components block and its +0x08 is the array, stride 0x34,
+           the same reading func_020453c0 walks it with. The three rotation
+           components sit at +0x1a/+0x1c/+0x1e as the 12-bit binary angle the
+           keyframe interpolator produced, shifted up four (func_0204547c's
+           `<< 4`), so a half turn is 0x8000 and the useful unit is the
+           12-bit one.
+
+           A limb that twists reads as a component moving nearly half a turn
+           between two frames. Real animation never does that, so the probe
+           prints, per frame, the largest SHORTEST-PATH frame-to-frame delta
+           across every bone and names the bone and axis it belongs to. =1
+           prints only the maximum; =2 prints every bone every frame; =3 adds
+           the reference check below.
+
+           WHAT IT MEASURED (2026-08-05): the long-jump leg twist is NOT the
+           rotation interpolation going the long way around. =3 recomputes
+           every bone's rotation from the raw keyframes with an unambiguous
+           shortest-path lerp written out longhand and compares it against
+           what func_020456a0 produced. Across five movement probes
+           (LONGJUMP, JUMPSPAM, DASHJUMP, TURN, IDLE) at 299 frames each,
+           48 components a frame:
+
+               71,760 checks, 0 mismatches
+
+           Every wrap case the long jump hits is handled correctly. The
+           flight crosses the |lo-hi| >= 0x800 threshold five times -- bone 9
+           axis 0 at frames 63, 68 and 82, bone 12 axis 0 at frame 66 -- and
+           each one comes back the short way, e.g. lo=826 hi=-1288 is a direct
+           2114 and an interpolated 1982. The trig table func_02045178 and
+           func_02048234 index is the complete 4096-entry one, and both
+           matrix builders are matched source in gate 4b.
+
+           So whatever the twist is, it is downstream of the angles. This
+           probe rules out the interpolation and nothing else. */
+        if (selftest && getenv("SM64DS_BONE_PROBE")) {
+            static short prev[128][3];
+            static int seeded;
+            const int verbose = atoi(getenv("SM64DS_BONE_PROBE")) >= 2;
+            char *ma = ((char **)(c + 0xdc))
+                       [_ZNK6Player14GetBodyModelIDEjb(c, *(unsigned *)(c + 8)
+                                                          & 0xff, 0)];
+            char *bones = ma ? *(char **)(ma + 0x08 + 0x08) : 0;
+            char *bmd = ma ? *(char **)(ma + 0x08) : 0;
+            int nb = bmd ? *(int *)(bmd + 4) : 0;
+            if (nb > 128) nb = 128;
+            if (bones && nb > 0) {
+                int worst = 0, wb = -1, wa = -1, cur[3];
+                for (int b = 0; b < nb; ++b) {
+                    for (int a = 0; a < 3; ++a) {
+                        /* back down to the 12-bit angle the tables hold */
+                        cur[a] = (*(unsigned short *)(bones + b * 0x34 +
+                                                      0x1a + a * 2)) >> 4;
+                        int d = cur[a] - prev[b][a];
+                        if (d >= 0x800) d -= 0x1000;   /* shortest path */
+                        if (d < -0x800) d += 0x1000;
+                        if (seeded && (d > worst || -d > worst)) {
+                            worst = d < 0 ? -d : d;
+                            wb = b; wa = a;
+                        }
+                        prev[b][a] = (short)cur[a];
+                    }
+                    if (verbose)
+                        printf("[bone] f%-4d b%-3d rot=(%4d,%4d,%4d)\n",
+                               frame, b, cur[0], cur[1], cur[2]);
+                }
+                if (seeded)
+                    printf("[bone] f%-4d nb=%d maxdelta=%4d bone=%d axis=%d "
+                           "st=%08x\n", frame, nb, worst, wb, wa,
+                           *(void **)(c + 0x370)
+                               ? **(unsigned **)(c + 0x370) : 0u);
+                /* =3 also prints the two KEYFRAMES the rotation interpolator
+                   is between for the worst bone this frame, which is what
+                   says whether a big step is the data or the interpolation.
+                   BCA layout: +0x02 frame count, +0x0c the rotation table,
+                   +0x14 the per-bone descriptor array at 0x24 stride, whose
+                   rotation triple is (shift, flag, table index) at +0x0c,
+                   +0x10 and +0x14. func_020456a0 wraps when |lo-hi| >= 0x800,
+                   so a step pair whose implied |lo-hi| crosses that and did
+                   NOT come back short is the bug. */
+                if (seeded && atoi(getenv("SM64DS_BONE_PROBE")) >= 3) {
+                    char *bca = *(char **)(ma + 0x60);
+                    short *rot = bca ? *(short **)(bca + 0x0c) : 0;
+                    char *sb = bca ? *(char **)(bca + 0x14) : 0;
+                    int v = bca ? *(unsigned short *)(bca + 2) : 0;
+                    int idx = (int)((unsigned)(*(int *)(ma + 0x58) << 4) >> 16);
+                    int bad = 0, wraps = 0;
+                    for (int b = 0; sb && rot && b < nb; ++b) {
+                        for (int a = 0; a < 3; ++a) {
+                            char *src = sb + b * 0x24;
+                            int sh = (unsigned char)src[0x0c + a * 4];
+                            int fl = (unsigned char)src[0x0d + a * 4];
+                            int off = *(unsigned short *)(src + 0x0e + a * 4);
+                            const short *t = rot + off;
+                            int want;
+                            /* the reference: the same table walk, with an
+                               unambiguous shortest-path lerp written out */
+                            if (fl == 0)            want = (unsigned short)t[0];
+                            else if (sh == 0)       want = (unsigned short)t[idx];
+                            else {
+                                int base = ((v - 1) >> sh) << sh;
+                                int i = idx >> sh;
+                                if (idx >= base)
+                                    want = (unsigned short)t[i + (idx - base)];
+                                else {
+                                    int frac = idx - (i << sh);
+                                    int lo = t[i] & 0xfff, hi = t[i + 1] & 0xfff;
+                                    int d = hi - lo;
+                                    if (d > 0x800)  d -= 0x1000;
+                                    if (d < -0x800) d += 0x1000;
+                                    if (d >= 0x800 || d <= -0x800) ++wraps;
+                                    want = frac == 0 ? lo
+                                         : lo + (d * frac >> sh);
+                                }
+                            }
+                            want &= 0xfff;
+                            int got = (*(unsigned short *)(bones + b * 0x34 +
+                                                           0x1a + a * 2)) >> 4;
+                            int e = got - want;
+                            if (e > 0x800)  e -= 0x1000;
+                            if (e < -0x800) e += 0x1000;
+                            /* one unit of slack: the ROM rounds its lerp by
+                               truncation on the product, the reference by
+                               truncation on the delta */
+                            if (e > 1 || e < -1) {
+                                ++bad;
+                                printf("[bkf] f%-4d b%d ax%d shift=%d idx=%d "
+                                       "lo=%d hi=%d want=%d got=%d err=%d\n",
+                                       frame, b, a, sh, idx,
+                                       (int)t[idx >> sh] & 0xfff,
+                                       (int)t[(idx >> sh) + 1] & 0xfff,
+                                       want, got, e);
+                            }
+                        }
+                    }
+                    printf("[bref] f%-4d checked=%d mismatched=%d\n",
+                           frame, nb * 3, bad);
+                }
+                seeded = 1;
+            }
+        }
         if (selftest && (frame % 10) == 0)
             printf("[y] frame %d y=%d units %.1f\n", frame,
                    *(int *)(c + 0x60), *(int *)(c + 0x60) / 4096.0f);
-        /* SM64DS_TRACE_HOLD=1: per-frame held-actor slot + swim substate.
-           Diagnosing the swim-stroke crash that reads c+0x358. */
-        if (getenv("SM64DS_TRACE_HOLD")) {
-            void *pst = *(void **)(c + 0x370);
-            printf("[hold] f%d sub=%u t6a4=%u hold=%p st=%08x spd=%d\n",
-                   frame, *(unsigned char *)(c + 0x6e3),
-                   *(unsigned short *)(c + 0x6a4), *(void **)(c + 0x358),
-                   pst ? *(unsigned *)pst : 0u, *(int *)(c + 0x98));
-        }
         /* SM64DS_DUMP_FROM/TO: per-frame BMPs across a window, for
            watching an animation play (or fail to) */
         {
@@ -5500,38 +15277,144 @@ int main(void)
                 if (df) dump_from = atoi(df);
                 if (dt) dump_to = atoi(dt);
             }
-            if (selftest && dump_from >= 0 && frame >= dump_from &&
-                frame <= dump_to) {
-                char nm[64];
-                snprintf(nm, sizeof nm, "walk_frame_%03d.bmp", frame);
-                ntr::ppu_write_bmp(nm, fb);
+            if (selftest && dump_from >= 0) {
+                const int rf = port_rom_frame_checked(frame, "dump-window");
+                if (rf >= dump_from && rf <= dump_to) {
+                    char nm[64];
+                    snprintf(nm, sizeof nm, "walk_frame_%03d.bmp", rf);
+                    ntr::ppu_write_bmp(nm, fb);
+                }
             }
         }
-        /* Sound page: master switch, plus mute when the window is not
-           foreground. Skipping the tick starves waveOut, which goes
-           silent on its own once the queued buffers run out. */
-        {
-            int audible = g_sound_on;
-            if (audible && g_mute_unfocused && W.GetForegroundWindow_)
-                audible = W.GetForegroundWindow_() == hwnd;
-            if (audible)
-                sdat_host_tick();   /* hosted ARM7: drain queue, feed mixer */
-        }
-        sm64ds::lobby::poll();   /* host accept / line pump / reconnect */
-        g_lobby_state = sm64ds::lobby::role();   /* menus mirror the transport */
-        {
-            /* headless lobby proof: send once a peer is really connected.
-               (roster fills on WELCOME/HELLO, so peer_count > 0 means the
-               handshake finished -- role alone would fire while connecting) */
-            static int lobby_chat_sent;
-            const char *lc = getenv("SM64DS_LOBBY_CHAT");
-            if (lc && !lobby_chat_sent &&
-                sm64ds::lobby::peer_count() > 0) {
-                sm64ds::lobby::send_chat(g_username, lc);
-                lobby_chat_sent = 1;
+        /* RUNG E2, DUTY 1 (lane R3E): THE SOUND FRAME IS PHASE 9's POSITION.
+           func_020197b8 runs its sound phase AFTER phase 7's wait --
+           func_020197b8.c:57-65 is the wait, the flag's drop, phase 0x15, the
+           data_0209d514 gate, and only then `data_0209d50c = 9` and its two
+           calls. The hosted ARM7 tick is this port's stand-in for that phase
+           (out/R3D/d5_reconciliation.txt lists it among the host duties with no
+           ROM phase of their own, to be carried by the pump at phase 7), and
+           here, one statement above the frame boundary, it ran BEFORE the swap
+           and before the wait. Under SM64DS_ROM_LOOP it runs at the ROM's
+           point, at the foot of this body below the wait. With the knob off --
+           or with SM64DS_R3E_SOUND_PHASE9=0, which is what separates this rung
+           from E1 on one binary -- it stays exactly here and nothing on the
+           shipped path moves. */
+        if (!(port_rom_loop_enabled() && r3e_sound_at_phase9()))
+        { const double t_snd = ovl_now_ms();
+        sdat_host_tick();   /* hosted ARM7: drain the sound queue, feed the mixer */
+        rb_frame_sound_ms(ovl_now_ms() - t_snd); }
+        /* THE FRAME BOUNDARY. Everything this frame -- tick, render, present --
+           is done, and nothing of the next frame has started, so an editor's
+           object move or staged warp lands on a world that is not half-updated.
+           A no-op when the channel is not armed. */
+        if (!rb_replaying()) editor_channel_drain();
+        /* ROLLBACK NETCODE (hal/rollback.cpp): snapshot this frame's world,
+           and if the wire has contradicted a round already played, restore
+           that round's world, rewind `frame` and re-run to the present. */
+        const int rb_frame_was = frame;
+        rb_frame_end(&frame, selftest);
+        /* the rollback feasibility probe: snapshot timing and the restore-and-
+           re-run determinism check, at the same boundary. It may rewind
+           `frame` for the re-run. Inert without its env knobs. */
+        rb_probe_frame_end(&frame, selftest);
+        /* the one place the host counter legitimately moves on its own; the
+           ROM's frame number is re-anchored with it rather than tripping the
+           cross-check. Inert unless rollback mode is on. */
+        if (frame != rb_frame_was) port_rom_frame_rewind(frame);
+        /* THE ROM'S PHASE 6, func_020197b8.c:49-50: `data_0209d50c = 6` and the
+           frame step. Here because this is the frame boundary -- the frame's
+           work is done and nothing of the next has started -- which is where
+           the ROM's loop runs it. The second statement's blink half stays in
+           hal/fader_wipes.cpp at its own point under its own tick gate; this
+           file does not move it. Under R3d this call is func_020197b8's line. */
+        port_rom_frame_phase6();
+        /* THE ROM'S OWN SWAP, at the ROM's own point: func_020197b8.c runs
+           phase 6's two statements, then IRQ::DisableIRQs(1), then
+           func_020190b8(), then the phase-7 wait. The IRQ bracket is rung
+           B1's, not this one's; the call is this one's. Nothing on the level
+           path reads data_0209d464 (the only readers in the tree are the
+           ov006 minigame body _ZN14dScMgD3DBase_c8OnKickedEv and its D3D twin), so what
+           this adds to a level frame is exactly one geometry command that
+           the engine now sees -- and before this rung did not: src/
+           func_020190b8.c built PLAIN put its store in the mapped I/O window
+           and SM64DS_MTX_BALANCE printed 'SWAP_BUFFERS ... STORED, NEVER
+           EXECUTED' (lane R3CFIX2, status/R3CFIX2.md 18:22). */
+        func_020190b8();
+        ntr::gx_swap_apply();
+        /* func_020197b8.c:53 -- the flag goes up here, between the swap and
+           the wait. The ROM raises it inside IRQ::DisableIRQs(1)/EnableIRQs
+           (:51 and :54); this host has no interrupt to race with at this
+           point -- the VBlank handler is dispatched by nothing (see the
+           banner) -- so the bracket is left out rather than faked. */
+        data_0209d4f0[0] = 1;
+        ++frame;   /* counts in live mode too -- the [cam-in]-style live
+                      diagnostics carry a real frame number */
+        /* SM64DS_MENU_AT: arm the freeze once the named frame is reached. It
+           is tested with >= and not == because the rollback boundary just
+           above may REWIND `frame` and re-run, so an equality test can be
+           stepped over and never fire. Latching on >= cannot be missed, and
+           setting menu_on when it is already set is a no-op. */
+        if (menu_at >= 0 &&
+            port_rom_frame_checked(frame, "menu-at") >= menu_at) menu_on = 1;
+        /* fault_probe.h: crash.txt/exit.txt context. The ROM's frame number,
+           and this is the ONE reader that runs on every frame of every run, so
+           the cross-check below it is what makes a green row a proof that the
+           two counters agreed on all of it. */
+        port_last_frame = port_rom_frame_checked(frame, "fault-context");
+        /* the frame's stdout, one write; the setvbuf note above is why */
+        fflush(stdout);
+        /* SM64DS_COMMS_STOP_ROUND=R (run rel0215 lane LAGDELAY): under a
+           selftest, end the run once this window has COMPLETED R lockstep
+           rounds, whichever comes first with the frame budget. A wide session
+           whose windows each stop on their own frame budget tears down at
+           different rounds, and the last one to four hashed frames of the
+           window that stops first can carry state no other window ever
+           computed (status/LAGDELAY.md, P5). Stopping every window at one
+           agreed round removes that question instead of trimming around it.
+           Solo runs never complete a round, so the knob is inert there. */
+        int stop_round_hit = 0;
+        if (selftest && stop_round) {
+            const port::CommsReadout cr = port::comms_readout();
+            if (cr.rounds >= stop_round) {
+                stop_round_hit = 1;
+                fprintf(stderr, "[comms:level] SM64DS_COMMS_STOP_ROUND: "
+                        "completed round %llu (agreed stop %llu) at frame %d; "
+                        "ending the selftest at the agreed round rather than "
+                        "this window's own frame budget\n",
+                        (unsigned long long)cr.rounds,
+                        (unsigned long long)stop_round,
+                        port_rom_frame_checked(frame, "comms-stop-round"));
+                /* AND HOLD THE SEAT OPEN WHILE THE OTHERS FINISH. The first
+                   run of the stop-round sweep stopped every window at round
+                   900 and three of six pairings still disagreed on the LAST
+                   frame: a window that exits sends BYE, a peer that has not
+                   yet hashed its own last frame processes that BYE inside it
+                   (the live mask drops, the departed player's actor changes),
+                   and its final hash carries a departure no other window saw
+                   at that frame. That is also what the per-frame-budget
+                   "teardown effect" was. So a window that reached the agreed
+                   round keeps its transport alive and serviced, without
+                   sending anything new, for a grace long enough for every
+                   peer to compute the same last frame -- then leaves. */
+                const char *gr = getenv("SM64DS_COMMS_STOP_GRACE_MS");
+                const int grace_ms = gr ? atoi(gr) : 3000;
+                const port::CommsTransport *t = port::comms_transport();
+                if (t && grace_ms > 0) {
+                    const DWORD t0 = GetTickCount();
+                    while ((int)(GetTickCount() - t0) < grace_ms) {
+                        t->poll();
+                        Sleep(2);
+                    }
+                    fprintf(stderr, "[comms:level] SM64DS_COMMS_STOP_ROUND: "
+                            "held the seat %d ms after the agreed round so "
+                            "every peer could hash the same last frame before "
+                            "this end's BYE\n", grace_ms);
+                }
             }
         }
-        if (selftest && ++frame >= selftest) {
+        if (selftest &&
+            (port_rom_frame_checked(frame, "selftest-exit") >= selftest ||
+             stop_round_hit)) {
             for (int k = 0; k < g_amb_n; ++k) {
                 char *o = (char *)g_amb[k].o;
                 int moved = *(int *)(o + 0x5c) != g_amb[k].p0[0] ||
@@ -5552,38 +15435,312 @@ int main(void)
                spawner adds four) on top of the boot's numbers */
             if (boot_spawns)
                 port_actor_census();
+            port_bob_spawn_report();
+            /* THE IMAGE LAYOUT THIS BMP WAS PRODUCED AT. The hosted-DS span is
+               the linker's .dsstate section (hal/dsstate_seg.h), and its base
+               moves whenever anything placed before it in the image changes
+               size. A selftest BMP that differs between two builds is only
+               comparable against a run whose span matches, so the span is part
+               of the run's identity and is printed beside the dump. */
+            fprintf(stderr, "[layout] dsstate=%p..%p\n",
+                    (void *)&dsstate_lo, (void *)&dsstate_hi);
             ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
-            printf("selftest: %d frames, pos=(%d, %d, %d)\n", frame,
+            /* SM64DS_PRESENT_BENCH: the two StretchDIBits scalers timed on
+               this very frame and written out as two BMPs. Nothing at all
+               without the variable, so every existing selftest is unchanged.
+               After the dump, so the picture it measures is the picture the
+               dump carries. */
+            present_bench(fb);
+            /* the other half of the boot's [heap] line: what the run itself
+               spent out of the ROM's 0x3b000.
+
+               READ IT CAREFULLY -- the obvious reading is wrong, and the port
+               shipped on the wrong reading for four waves. A number that keeps
+               falling across frame counts is a leak, yes. But a number that
+               STOPS falling is not automatically the game living inside its
+               budget: it is equally the shape of frees that never come back to
+               THIS allocator. Wave 6 measured exactly that. The castle boot sat
+               flat at 182600 free while 31 actors died on the opening frames,
+               and flat was the symptom -- every one of those frees was being
+               linked into the DEFAULT heap's free list by a dropped argument in
+               hal/cxxname_bridge.cpp (see the Memory_Deallocate banner there).
+               With the argument restored the same boot reads 25212 bytes
+               higher and the free node grows on every death.
+
+               So: falling means a leak, flat means EITHER a steady state OR a
+               leak into somewhere else, and only a free-list walk tells the two
+               apart. w2c.md's "flat at 182600, no leak" is the reading this
+               paragraph exists to retire. */
+            if (data_020a0eac_c)
+                fprintf(stderr, "[heap] %u free after %d frames\n",
+                        _ZN22ExpandingHeapAllocator10MemoryLeftEv(
+                            *(void **)((char *)data_020a0eac_c + 0x14)),
+                        port_rom_frame_checked(frame, "heap-line"));
+            printf("selftest: %d frames, pos=(%d, %d, %d)\n",
+                   port_rom_frame_checked(frame, "selftest-summary"),
                    *(int *)(c + 0x5c), *(int *)(c + 0x60), *(int *)(c + 0x64));
-            return 0;
+            /* R3a: the frame account this run ends on -- how many reads went
+               through the ROM's frame state, and the measured gap between its
+               phase-6 step count and the blink clock's. One line per run so a
+               battery row's log can be grepped for it. */
+            port_rom_frame_report();
+            {   /* THE RUNG'S OWN LINE (R3b, step BSWAP). The duty is the
+                   ROM's end-of-frame swap, it now runs from src/
+                   func_020190b8.c at this loop's frame foot, and the count
+                   is what the geometry engine actually EXECUTED -- not what
+                   a plain store latched in the mapped window. */
+                unsigned req = 0, app = 0, ret = 0, pend = 0, par = 0;
+                ntr::gx_swap_counts(req, app, ret, pend, par);
+                fprintf(stderr, "[r3b] BSWAP: the ROM's end-of-frame swap "
+                        "runs from src/func_020190b8.c at the level loop's "
+                        "frame foot (func_020197b8.c:52) -- %u SWAP_BUFFERS "
+                        "executed, %u applied at the boundary, %u retired by "
+                        "a gx_reset, %u still pending, param %08x, over %d "
+                        "frames\n", req, app, ret, pend, par,
+                        port_rom_frame());
+                fflush(stderr);
+            }
+            {   /* THE RUNG'S OWN LINE (R3b, step B1), and it is a
+                   MEASUREMENT rather than a claim: the flag is raised and
+                   dropped on every frame of this run, and these counters
+                   say what -- if anything -- downstream of it moved. */
+                fprintf(stderr, "[r3b] B1: the ROM's wait flag "
+                        "data_0209d4f0 is raised at this loop's frame foot "
+                        "and dropped after the pace (func_020197b8.c:53 and "
+                        ":56), %d times over this run; it reads %u at exit\n",
+                        port_rom_frame(), (unsigned)data_0209d4f0[0]);
+                port::thread_sched_report("r3b-b1");
+            }
+            {   /* run link100, lane DET4: the [thr] line above only ever
+                   carries IRQ::VBlankHandler's own dispatch, through this
+                   loop's halt. These are the two OTHER ROM IRQ handler
+                   dispatches in the linked set, tied to this run's frame
+                   count -- see hal/os_thread.cpp's and ntr/rt.cpp's own
+                   atexit reports for what "dispatches" and "modeask" mean. */
+                unsigned long long pv_disp = 0, pv_ask = 0;
+                unsigned long long hb_disp = 0, hb_win = 0, hb_ask = 0;
+                port::pump_vblank_counts(&pv_disp, &pv_ask);
+                ntr::rt_hblank_counters(&hb_disp, &hb_win);
+                ntr::rt_hblank_modeask(&hb_ask);
+                fprintf(stderr, "[det4] pump_vblank dispatches=%llu "
+                        "modeask=%llu | hblank dispatches=%llu modeask=%llu "
+                        "-- over %d frames\n",
+                        pv_disp, pv_ask, hb_disp, hb_ask, port_rom_frame());
+                fflush(stderr);
+            }
+            fprintf(stderr, "[r3b] B2: the pacer runs from "
+                    "port_host_frame_pump, the one function step 1b of "
+                    "CP15::WaitForInterrupt calls under R3d -- %llu turns over "
+                    "%d frames, all of them from this loop (the [thr] line "
+                    "above says framepump=0, so the wait took none of them)\n",
+                    g_frame_pump_turns, port_rom_frame());
+            fprintf(stderr, "[r3d] D1/D2 probe: phase 7 went through the ROM's "
+                    "own wait (CP15::WaitForInterrupt) %d times over %d frames; "
+                    "the [thr] line above carries what those turns produced -- "
+                    "halts, vbl_dispatch (rung D1, the VBlank edge) and "
+                    "framepump (rung D2, the frame's duties)\n",
+                    r3d_wait_probe_taken, port_rom_frame());
+            fprintf(stderr, "[r3d] SLEEP probe: phase 7 went through the ROM's "
+                    "own sleep (OS_SleepThread(data_0209d500) -> the idle "
+                    "thread -> the wait) %d times over %d frames; a completed "
+                    "circuit shows halts and vbl_dispatch ABOVE that count "
+                    "(the idle loop waits more than once per wake) and "
+                    "vbl_wakes at least %d, which is the ROM's own frame "
+                    "pacing running for the first time on this path\n",
+                    r3d_sleep_probe_taken, port_rom_frame(),
+                    r3d_sleep_probe_taken);
+            {   /* RUNG E1's own line (lane R3E). With the knob off it reads
+                   zero sleeps, which is what makes a green battery row with the
+                   knob off a statement that this rung changed nothing on the
+                   shipped path. */
+                r3e_census("exit");
+                fprintf(stderr, "[r3e] E1: phase 7 was the ROM's own sleep on "
+                        "%d of %d frames (SM64DS_ROM_LOOP)\n",
+                        r3e_rom_loop_sleeps, port_rom_frame());
+                fprintf(stderr, "[r3e] E2 duty 1: the sound frame ran at phase "
+                        "9's position (after the wait) on %d of %d frames "
+                        "(SM64DS_R3E_SOUND_PHASE9)\n",
+                        r3e_sound_moved, port_rom_frame());
+            }
+            /* THE RUN ENDS HERE, AND IT ENDS WITH exit() (rung R3b, step B8).
+
+               It was `return 0` out of main, which is a shape only a HOST loop
+               can offer: func_020197b8 is `do { ... } while (1)` and CANNOT
+               return, so under rung R3d there is no frame loop left to return
+               out of and no main left below it to return to. The exit has to be
+               something the ROM's own loop can reach from the middle of a
+               frame, and that is exit().
+
+               IT IS THE SAME PROGRAM TODAY, and that is checkable rather than
+               asserted: main declares no automatic object with a destructor
+               (this file is C-shaped throughout), the loop is the last
+               statement in main so nothing follows the old `return`, and exit()
+               runs the atexit handlers and the static destructors that a return
+               from main runs -- SM64DS_MTX_BALANCE's report is registered that
+               way and still prints. The two flushes are the ones the old path
+               got from the CRT and are made explicit here because an exit from
+               inside a frame is a place a reader will ask about.
+
+               The selftest's exit CODE is unchanged at 0, which is what every
+               battery row and every proof reads. */
+            fprintf(stderr, "[r3b] B8: the run ends with exit(0) from inside "
+                    "the frame, not a return out of main -- func_020197b8 is a "
+                    "do-while(1) and cannot return, so this is the only exit "
+                    "shape rung R3d can reach; %d frames ran\n",
+                    port_rom_frame());
+            fflush(stdout);
+            fflush(stderr);
+            exit(0);
         }
-        /* pace to 30: SM64DS game logic runs at 30fps (the DS panel
-           scans 60 but gameplay ticks every other vblank). Ticking the
-           game's per-frame constants at 60Hz doubled every speed --
-           the "jump too fast, weird gravity" report. Sleep only the
-           remainder of the 33.3ms budget. fps mode 0 sleeps here; modes 1
-           (uncapped) and 2 (smooth) skip the sleep and hold 30Hz sim speed
-           with the fixed-timestep accumulator instead. */
+        /* THE PACE. Stage::InitResources writes data_0208ee44 = 2 for a 3D
+           level, so frame_pace's budget here is the same 33.3ms this block
+           used to hardcode -- the "jump too fast, weird gravity" report stays
+           fixed and the number it was fixed with is unchanged. What moves is
+           that the constant is now the game's own word rather than the host's
+           guess, which is what the scene loop needed. A selftest stays
+           UNPACED: it is the deterministic comparator run and a sleep in it
+           only makes the battery slower. THE REPORT IS NOT SKIPPED WITH IT --
+           an unpaced frame period is the frame's raw cost, which is the one
+           number the online-lockstep work needs; see frame_stat. And
+           SM64DS_PACE_SELFTEST=1 puts the pace back on a selftest, which is
+           the only way to measure an online session the way a player runs
+           one; see port_pace_selftest. */
+        /* rung R3b step B2: the pacer, at the point it always ran, through the
+           one function step 1 of the ROM's wait will call under R3d.
+
+           SM64DS_R3D_WAIT_PROBE=N (rungs D1 and D2, lane R3D) takes phase 7
+           through the ROM'S OWN WAIT on the first N frames of the run instead
+           of calling the pump directly. That is exactly what rung D5's handover
+           does on EVERY frame -- func_020197b8 sleeps at phase 7 and the VBlank
+           is what ends the frame -- so it lets the two halves the handover needs
+           be measured on a binary the handover has not been made on yet:
+           vbl_dispatch on the [thr] line says the edge is real (D1) and
+           framepump says the wait ran the frame's own duties (D2).
+
+           DEFAULT OFF, and that is the other half of each rung's proof: unset,
+           this line is what it was, the wait is entered zero times and a plain
+           level run still reports halts=0 framepump=0. One stated difference on
+           a probe frame: the pacer is the pump's, so a probe frame taken before
+           rung D2 installs the pump skips frame_stat and the pace -- which is
+           what makes framepump=0 there a measurement rather than a formality.
+           A selftest is unpaced anyway. */
         {
-            static LARGE_INTEGER qpf, last;
-            LARGE_INTEGER now;
-            if (!qpf.QuadPart) QueryPerformanceFrequency(&qpf);
-            QueryPerformanceCounter(&now);
-            if (!selftest && last.QuadPart && g_fps_mode == 0) {
-                const double el =
-                    (now.QuadPart - last.QuadPart) * 1000.0 / qpf.QuadPart;
-                if (el < 33.3) Sleep((DWORD)(33.3 - el));
-                if (getenv("SM64DS_TRACE_PACE")) {
-                    LARGE_INTEGER a2;
-                    QueryPerformanceCounter(&a2);
-                    fprintf(stderr, "[pace] work=%.2f asked=%d slept=%.2f\n",
-                            el, (int)(33.3 - el),
-                            (a2.QuadPart - now.QuadPart) * 1000.0 / qpf.QuadPart);
+            static int probe_init;
+            if (!probe_init) {
+                probe_init = 1;
+                if (const char *e = getenv("SM64DS_R3D_WAIT_PROBE")) {
+                    r3d_wait_probe_left = atoi(e);
+                    if (r3d_wait_probe_left < 0) r3d_wait_probe_left = 0;
+                    fprintf(stderr, "[r3d] SM64DS_R3D_WAIT_PROBE=%d: phase 7 "
+                            "goes through the ROM's own wait "
+                            "(CP15::WaitForInterrupt) on the first %d frames of "
+                            "this loop\n",
+                            r3d_wait_probe_left, r3d_wait_probe_left);
+                }
+                if (const char *e = getenv("SM64DS_R3D_SLEEP_PROBE")) {
+                    r3d_sleep_probe_left = atoi(e);
+                    if (r3d_sleep_probe_left < 0) r3d_sleep_probe_left = 0;
+                    fprintf(stderr, "[r3d] SM64DS_R3D_SLEEP_PROBE=%d: phase 7 "
+                            "goes through the ROM's own SLEEP "
+                            "(func_0201a4bc's OS_SleepThread(data_0209d500), "
+                            "onto the idle thread's wait) on the first %d "
+                            "frames of this loop\n",
+                            r3d_sleep_probe_left, r3d_sleep_probe_left);
                 }
             }
-            QueryPerformanceCounter(&last);
         }
-        /* vsync: DwmFlush blocks until the next vblank if dwmapi is available */
-        if (W.DwmFlush_) W.DwmFlush_();
+        if (r3d_sleep_probe_left > 0 || r3d_wait_probe_left > 0 ||
+            port_rom_loop_enabled())
+            r3e_census("the first probed or ROM-loop frame foot");
+        r3e_heap_watch("the frame foot");
+        if (r3d_sleep_probe_left > 0) {
+            /* func_0201a4bc's whole body, at func_020197b8's phase-7 point.
+               The flag data_0209d4f0 is already up (it was raised at the frame
+               foot above, rung R3b step B1), which is the gate the handler's
+               wake tests, so this is the ROM's own condition and not a fixture. */
+            --r3d_sleep_probe_left;
+            ++r3d_sleep_probe_taken;
+            OS_SleepThread((unsigned short *)data_0209d500);
+        } else if (r3d_wait_probe_left > 0) {
+            --r3d_wait_probe_left;
+            ++r3d_wait_probe_taken;
+            _ZN4CP1516WaitForInterruptEv();
+        } else if (port_rom_loop_enabled()) {
+            /* RUNG E1. func_0201a4bc's whole body at func_020197b8's phase-7
+               point, on every frame. The flag data_0209d4f0 the handler's wake
+               tests is already up -- raised at the frame foot above, rung R3b
+               step B1 -- so this is the ROM's own condition and not a fixture. */
+            ++r3e_rom_loop_sleeps;
+            r3e_heap_watch("the frame foot, before the ROM's sleep");
+            /* AND THE RADIO STANDS DOWN FOR A RE-SIMULATED FRAME (run link100,
+               lane DET). This sleep is the ONE place a replayed frame reaches
+               the host halt, and the halt's step 1 is hal/comms_conductor.cpp's
+               pump: a transport poll, an ARM7 turn that posts a queued WM reply
+               (which the ROM answers with the next WM command, walking
+               data_020a89b0's ten-slot queue) and, on a connected session, up
+               to a VBlank of wall time. None of that is the frame's simulation
+               -- it is the outside world, and this frame's share of it already
+               happened when the frame was first played. hal/rollback.cpp
+               already stands the rasteriser and the present down for the same
+               reason; this is the radio's half of that rule, and without it the
+               DET rung's restore+retick reads DSSTATE-DIFFERS on
+               data_020a89b0+0xc in every window. Suspended around the sleep and
+               not around the whole frame, because the frame body's own comms
+               work is served from the rollback record and never reaches here. */
+            const int det_resim = rb_replaying();
+            if (det_resim) port_thread_pump_suspend(1);
+            port_thread_frame_wait_begin();
+            OS_SleepThread((unsigned short *)data_0209d500);
+            if (det_resim) port_thread_pump_suspend(0);
+            r3e_heap_watch("the frame foot, after the ROM's sleep");
+        } else {
+            port_host_frame_pump(0);
+        }
+        /* func_020197b8.c:56 -- and down the instant the wait returns. The
+           pace above IS this loop's wait: it is the sleep that ends the
+           frame, which is what phase 7 is. Under R3d the flag's two writes
+           are func_020197b8's own lines and this pair goes. */
+        data_0209d4f0[0] = 0;
+        /* THE FRAME BOUNDARY'S OWN WORDS (run link100, lane DET2). One shot,
+           late enough in the run to be steady state, taken at exactly the point
+           src/func_020197b8.c:58-59 sits -- after phase 7's wait and after the
+           flag's drop -- and reporting the words that line reads:
+
+               if ((*(int*)(data_0209ee90 + 0x108) & 0x10) == 0)
+                   data_0209d514 = 0;
+
+           THIS LOOP DOES NOT TRANSCRIBE THAT LINE and func_020197b8 is not the
+           function running the frame, so the ROM's own zeroing of the VBlank
+           count never happens here: the only thing that puts data_0209d514
+           back is IRQ::VBlankHandler's own reset at
+           src/_ZN3IRQ13VBlankHandlerEv.cpp:18, one statement after the wake. So
+           this line is the direct reading of whether that reset lands inside
+           the frame it belongs to (d514 = 0 at the boundary, which is what a
+           cartridge shows) or one frame late (d514 = the divider). */
+        if (port_rom_loop_enabled() && !det2_boundary_done &&
+            port_rom_frame() >= 250) {
+            det2_boundary_done = 1;
+            const int gate = data_0209ee90[0x108 / 4];
+            fprintf(stderr,
+                    "[det2] frame-loop words at func_020197b8.c:58, frame %d: "
+                    "data_0209d514=%d data_0208ee44=%d data_0209d500=%04x "
+                    "*(data_0209ee90+0x108)=%08x &0x10=%d -- the ROM's line "
+                    "would %s\n",
+                    port_rom_frame(), *(const int *)data_0209d514,
+                    data_0208ee44,
+                    (unsigned)(data_0209d500[0] | (data_0209d500[1] << 8)),
+                    (unsigned)gate, (gate & 0x10) ? 1 : 0,
+                    (gate & 0x10) ? "leave data_0209d514 alone"
+                                  : "zero data_0209d514");
+            fflush(stderr);
+        }
+        /* RUNG E2, DUTY 1: phase 9, at the ROM's own point -- after the wait
+           and after the flag's drop, which is func_020197b8.c:66-68. */
+        if (port_rom_loop_enabled() && r3e_sound_at_phase9()) {
+            const double t_snd = ovl_now_ms();
+            sdat_host_tick();
+            rb_frame_sound_ms(ovl_now_ms() - t_snd);
+            ++r3e_sound_moved;
+        }
     }
 }

@@ -1,0 +1,113 @@
+# Gate 50: the castle interior's PAINTING (daPicGate_c, actor 307), ov080.
+#
+# Six paintings on level 2's object table, all printed as skipped (- 307 x6)
+# until this gate. The class is an ordinary 31-slot Actor subclass whose seven
+# own methods are matched src (InitResources 0x02126ca0, CleanupResources
+# -- of which InitResources/Behavior/Render are HELD OUT since 2026-08-08:
+# their per-mode PMF dispatch is the incomplete-class case MSVC widens, so
+# they are host copies in port/unmatched/Painting_Dispatch.cpp (the door's
+# treatment). CleanupResources and OnPendingDestroy still compile from src.
+# 0x02126bfc, Behavior 0x02126c60, Render 0x02126c20, OnPendingDestroy
+# 0x02126c1c, D1 0x02125404, D0 0x02125428) plus the closure they reach.
+#
+# THE PAINTING DISPATCHES A POINTER-TO-MEMBER. InitResources reads
+# data_ov080_02128628[mi] (mi = (flags>>0xd)&3) as a {function, delta} record,
+# calls it as (self->*pmf)(), and stores &data_ov080_02128628[mi] at self+0x1a4;
+# Behavior reads +0x8 off that pointer and Render +0x10, so a painting at index
+# mi runs the run {init=[mi], behavior=[mi+1], render=[mi+2]}. The twelve records
+# are built by __sinit_ov080_02127b2c out of source statics whose function words
+# carry DS code addresses, so hal/actor_overlays.cpp seats host bodies over the
+# statics before the copy -- the butterfly/rabbit treatment, all twelve deltas
+# zero (a complete class, the smallest mwcc PMF), so no host copy of the three
+# dispatchers is needed.
+#
+# ONE STATE FUNCTION IS UNMATCHED. Record index 5's function is
+# func_ov080_021261f4 (0x2f8 bytes, no src, not in nearmiss) -- the render half
+# a painting with mi=3 would run. The seat installed a loud trap over it, the
+# rabbit's 0x0212b8dc treatment: measured, no level-2 painting reaches it (all
+# six run 300 frames fault-free), and a painting that did would abort by name
+# rather than jump into the overlay image.
+#
+# THE TRAP IS RETIRED (run link100 wave 17, lane PAINT5). A painting DID reach
+# it the moment a level change stopped entering every level at entrance record
+# 0: level 37's exit to level 4 entrance 9 is entry mode 0x08, coming out of a
+# painting, and the trap aborted the process. The cell now dispatches a HOST
+# TRANSCRIPTION, port/unmatched/Painting_StateRender_021261f4.cpp -- the 0x2f8
+# bytes statement for statement out of extracted/overlays/overlay_0080.bin at
+# base 0x02123740, every callee already linked, every ROM address range in the
+# margin. It is not a byte match and does not claim to be one; when a match
+# lands in src/ the file retires and src/func_ov080_021261f4.c joins the list
+# below. The function stays named here because it is still unmatched code.
+
+# ---- the seven own vtable slots plus their closure (28 funcs) --------------
+src/_ZN8PaintingD1Ev.cpp
+# _ZN8PaintingD0Ev.c (D0, slot 17) is EXCLUDED: its recovered src spells the
+# vtable and heap through decl_common's generic VT/HEAP externs, which would
+# collide across classes. hal/actor_classes_painting.cpp hosts the deleting
+# destructor as a thunk (D1 + Memory::Deallocate), the BrickBlock treatment.
+src/func_ov080_02125460.c
+src/func_ov080_0212555c.c
+src/func_ov080_02125630.cpp
+src/func_ov080_021256f8.c
+src/func_ov080_02125940.c
+src/func_ov080_02125af0.c
+src/func_ov080_02125bb0.c
+src/func_ov080_02125cd4.c
+src/func_ov080_02125d08.c
+src/func_ov080_02125d64.c
+src/func_ov080_02125de0.c
+src/func_ov080_02125f00.c
+src/func_ov080_02125fd0.c
+src/func_ov080_02126120.c
+src/func_ov080_02126124.c
+src/func_ov080_021264ec.c
+src/func_ov080_021265ec.c
+src/func_ov080_0212677c.c
+src/func_ov080_021269b8.c
+src/func_ov080_02126a54.c
+src/_ZN8Painting16CleanupResourcesEv.cpp
+src/_ZN8Painting16OnPendingDestroyEv.cpp
+src/d_a_pic_gate.c
+
+# ---- two shared Actor tail methods the painting inherits (slots 19, 29) ----
+# The painting overrides neither, so its vtable slots 19/29 hold the base
+# Actor::OnTurnIntoEgg (a tail-call veneer to KillAndTrackInDeathTable, already
+# linked at gate 16) and Actor::OnAimedAtWithEgg (returns a constant radius).
+# The enemy classes never needed these because each overrides both with its
+# own; the painting is the first hosted class to inherit the Actor defaults.
+src/_ZN8dActor_c13OnTurnIntoEggER6Player.cpp
+src/_ZN8dActor_c16OnAimedAtWithEggEv.cpp
+# ---- the third Actor tail method, slot 30 ---------------------------------
+# Actor::OnAimedAtWithEggReturnVec (arm9 0x020100dc). This is the ROM word in
+# slot 30 of EVERY Actor-width vtable the port fills except Whomp's -- read out
+# of config/<module>/relocs.txt at vtable+30*4 for all 178 resolvable host
+# vtables, one exception (ov079 0x02123b54, already seated). It byte-matches on
+# 1.2/base, 1.2/sp2 and 1.2/sp2p3 with strict relocs and was simply never in a
+# slice, so 85 of the 86 fills trapped the slot instead -- and slot 30 is the
+# one a thrown Yoshi egg dispatches on its target every frame of its flight.
+# The sret thunk that reaches it is hal/actor_slot30_seat.cpp.
+src/_ZN8dActor_c25OnAimedAtWithEggReturnVecEv.cpp
+
+# ---- the three static initialisers -----------------------------------------
+# __sinit_ov080_02127b2c builds the twelve-record dispatch table; the other two
+# construct the SharedFilePtrs the InitResources loads through.
+src/__sinit_ov080_021278c0.c
+src/__sinit_ov080_02127a60.c
+src/__sinit_ov080_02127b2c.c
+
+# ---- arm9 closure the painting reaches, not linked by an earlier gate ------
+# SharedFilePtr resolve/load (func_0201787c) and the two texture-copy helpers
+# the model loader calls (func_02045a50 compress-copy, func_02045ad8 short
+# copy). All matched src.
+#
+# The THREE SharedFilePtr-construct veneers the sinits use -- func_020178cc,
+# func_020178b4 and the func_02017a9c/ae4 pair -- are NOT here: they are
+# one-argument ARM tail-call veneers that carry the fileID through r1, a
+# ride-through the C decl never names and MSVC x86 cannot reproduce (the fileID
+# is dropped and the SharedFilePtr gets a stack-leftover host pointer as its id
+# -- measured: "fs fileID 0xf11c matches no archive range"). They are hosted in
+# hal/cxx_aliases.cpp beside func_02017acc, which the ride-through catalog
+# already carried for the other two sinits.
+src/func_0201787c.c
+src/func_02045a50.c
+src/func_02045ad8.c

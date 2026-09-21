@@ -1,0 +1,199 @@
+# ov001 per-symbol mount: THE HUD'S SPRITE TEMPLATES.
+#
+# HUD::RenderCoinCount and its siblings draw through tables the decomp names
+# func_020ab948 / func_020ab9c8 / func_020aba70 / func_020abad0 / func_020abad8
+# -- addresses dsd could not attribute, because ov000 and ov001 share the base
+# 0x020aa420 and the decompiler picked the wrong one. ov000 holds FILENAME
+# STRINGS at those addresses ("data/player/...", "snd_drop_leg.bca"); ov001
+# holds OamAttr records. config names every one of them in ov001:
+#
+#     func_020ab948  OAM::LIFE_ICONS     func_020abad0  OAM::POWER_STAR
+#     func_020ab9c8  OAM::TIMES          func_020abad8  OAM::COIN
+#     func_020aba70  OAM::NUMBERS
+#
+# OAM::NUMBERS and OAM::LIFE_ICONS are POINTER TABLES into this same block --
+# NUMBERS is ten pointers at 0x020aba68 down to 0x020aba20, one per digit -- so
+# the whole run is mounted together and ovdata's own pointer pass rewrites them
+# to host addresses. That is why this is the entire 0x020ab800..0x020abb00
+# span and not the five symbols the linker asked for.
+#
+# hal/sub_actors.cpp carries the func_* -> OAM:: aliases; both names are data
+# at the same address, so each alias is exact.
+
+_ZN3OAM13MM_MARIO_ICONE _ZN3OAM19MM_MARIO_W_CAP_ICONE _ZN3OAM19MM_MARIO_L_CAP_ICONE
+_ZN3OAM20MM_MARIO_NO_CAP_ICONE _ZN3OAM13MM_LUIGI_ICONE _ZN3OAM19MM_LUIGI_W_CAP_ICONE
+_ZN3OAM19MM_LUIGI_M_CAP_ICONE _ZN3OAM20MM_LUIGI_NO_CAP_ICONE _ZN3OAM13MM_WARIO_ICONE
+_ZN3OAM20MM_WARIO_NO_CAP_ICONE _ZN3OAM19MM_WARIO_L_CAP_ICONE _ZN3OAM19MM_WARIO_M_CAP_ICONE
+_ZN3OAM13MM_YOSHI_ICONE _ZN3OAM19MM_YOSHI_L_CAP_ICONE _ZN3OAM19MM_YOSHI_M_CAP_ICONE
+_ZN3OAM19MM_YOSHI_W_CAP_ICONE data_ov001_020ab938 data_ov001_020ab940
+_ZN3OAM10LIFE_ICONSE data_ov001_020ab958 data_ov001_020ab968
+data_ov001_020ab988 data_ov001_020ab9a8 _ZN3OAM5TIMESE
+data_ov001_020ab9d0 data_ov001_020ab9d8 data_ov001_020ab9e0
+data_ov001_020ab9e8 data_ov001_020ab9f0 data_ov001_020ab9f8
+data_ov001_020aba00 data_ov001_020aba08 data_ov001_020aba10
+data_ov001_020aba18 data_ov001_020aba20 data_ov001_020aba28
+data_ov001_020aba30 data_ov001_020aba38 data_ov001_020aba40
+data_ov001_020aba48 data_ov001_020aba50 data_ov001_020aba58
+data_ov001_020aba60 data_ov001_020aba68 _ZN3OAM7NUMBERSE
+_ZN3OAM16SMALL_STAR_EMPTYE data_ov001_020abac8 _ZN3OAM10POWER_STARE
+_ZN3OAM4COINE data_ov001_020abae0 data_ov001_020abae8
+data_ov001_020abaf0 data_ov001_020abaf8
+# gate 33 reads these as the CAP's particle helpers' globals; gate 32 reads
+# them as the cap tier's own storage (CapEnemy, ov001's archive slots). Two
+# streams found the same five symbols independently, so they are listed once.
+#
+# run link60 lane SL0 adds the two that come BEFORE the four already here:
+# data_ov001_020ad620 and data_ov001_020ad624. They are the last two names
+# func_ov001_020ab2e4 wants, and func_ov001_020ab2e4 is on Stage::
+# InitResources' own closure -- so these two rows are two of slot 0's
+# twenty-eight. Both are kind:bss 4-byte words
+# (config/arm9/overlays/ov001/symbols.txt:148-149) and they sit immediately
+# below 0x628/0x62c/0x630/0x634, which means the six are one contiguous BSS
+# run of the same object and were only ever split because two gates reached
+# different halves of it.
+data_ov001_020ad470 data_ov001_020ad620 data_ov001_020ad624 data_ov001_020ad628 data_ov001_020ad62c data_ov001_020ad630 data_ov001_020ad634
+
+# ---------------------------------------------------------------------------
+# run linkw wave 3 (lane w3-a): THE SHADOW TEMPLATES.
+#
+# The two shadow template BMDs are static .data in this overlay, and until now
+# every byte of them was a HOLE. That is worth stating precisely, because the
+# port did not read garbage here -- it read ZEROS, and for a different reason
+# than three separate source comments claimed.
+#
+# --pack pads the space between two named symbols with a ZEROED gap array, and
+# data_ov001_020ad470 (8 bytes) and data_ov001_020ad628 are both on the line
+# above. So 0x020ad478..0x020ad628 -- 432 bytes holding BOTH templates, both
+# their bones and both their materials -- was emitted as one zero-filled pad.
+# That is the "the real body parses a zero stub" that hal/actor_class_faces.cpp
+# and hal/cxxname_bridge.cpp describe: not absent bytes, PRESENT ZERO bytes.
+#
+# THE CUBOID CHAIN IS LIVE. src/_ZN11ShadowModel10InitCuboidEv.cpp is seated
+# this wave and its body is SetFile(&data_020ad524, 1, -1), so every symbol
+# below is storage the matched code genuinely reaches. Each was found by
+# following relocs.txt out of the template, not by taking a span, and each is
+# sized by its own next-symbol delta (config/arm9/overlays/ov001/symbols.txt).
+# Verified against the raw image (extracted/overlays/overlay_0001.bin, 12800
+# bytes = base 0x020aa420 .. .data end 0x020ad620, which is the whole file --
+# the yaml's code_size 8032 is the COMPRESSED length and sizes nothing here):
+#
+#   data_ov001_020ad524  0x3c  the cuboid BMD_File. numBones 1, numMaterials 1,
+#                              numTextures 0, numPalettes 0 -- a flat untextured
+#                              quad, which is what a drop shadow is.
+#     +0x08 -> 0x020ad59c        bones      data_ov001_020ad59c  0x40
+#     +0x10 -> 0x020ab618        unk_10     data_ov001_020ab618  0x08
+#     +0x28 -> 0x020ad4f4        materials  data_ov001_020ad4f4  0x30
+#     +0x2c -> 0x020ad644        unk_2c     data_ov001_020ad644  bss, 4
+#   the bone at 0x020ad59c reaches three more:
+#     +0x04 -> 0x020ad4a8        data_ov001_020ad4a8  0x0c
+#     +0x34 -> 0x020ab5fc        materialIds  data_ov001_020ab5fc  0x04
+#     +0x38 -> 0x020ab5f8        data_ov001_020ab5f8  0x04
+#   the material at 0x020ad4f4 reaches one more:
+#     +0x00 -> 0x020ad49c        data_ov001_020ad49c  0x0c   (shared with the
+#                                cylinder material -- listed once)
+#
+# The material's flags word at +0x24 reads 0x001f0080 in the ROM, which is the
+# record func_02046120 rewrites (0x30 stride, &= 0xc0ffff0f, opacity into
+# bits 16..20). The bytes and the code agree, which is the check that the
+# addresses above are the shadow's and not a neighbour's.
+#
+# WHY THE 0x020ab5f8 SYMBOLS ARE NAMED RATHER THAN LEFT TO THE GAP PASS.
+# delinks.txt puts .text at 0x020aa420..0x020ab5f8 and .data at 0x020ab800, so
+# these four sit in the unclassified hole between the two. They ARE inside
+# ovdata's packed DATA_WIN (which starts at .text end), so the transitive gap
+# pass would have covered them as port_ov001_gap_* blocks. Named is better:
+# make_covering prefers a named symbol over a gap block, and a named symbol is
+# sized by its own delta instead of the gap pass's max(t+0x18, next).
+data_ov001_020ab5f8 data_ov001_020ab5fc data_ov001_020ab618
+data_ov001_020ad49c data_ov001_020ad4a8 data_ov001_020ad4f4
+data_ov001_020ad524 data_ov001_020ad59c data_ov001_020ad644
+
+# THE CYLINDER CHAIN IS MOUNTED AND NOT YET REFERENCED. READ THIS BEFORE
+# ASSUMING IT IS LIVE.
+#
+# Same shape as the cuboid, one address over: BMD 0x020ad560 (0x3c), bone
+# 0x020ad5dc (0x44), material 0x020ad4c4 (0x30), unk_10 0x020ab610 (0x08),
+# unk_2c 0x020ad640 (bss), bone+0x04 0x020ad4b4 (0x10), materialIds
+# 0x020ab608 (0x04), bone+0x38 0x020ab60c (0x04), and the same shared
+# 0x020ad49c the cuboid material points at.
+#
+# Nothing reads these bytes today. src/_ZN11ShadowModel12InitCylinderEv.cpp
+# spells its template `data_020ad560`, and that NAME is still a host zero
+# array in hal/actor_vtables.cpp:485 -- so the matched body, if it were seated,
+# would read the host zeros and never touch this mount. Lane w3-a owns neither
+# that file nor the two host stubs that keep the matched body out of the image
+# (hal/player_bridges.cpp:806, hal/bob_enemy_bridges.cpp:153), so the cylinder
+# seat is reported blocked rather than forced.
+#
+# They are mounted anyway for one honest reason: --pack would otherwise emit
+# this run as the zero gap described at the top of this block, and the ROM
+# object these bytes belong to is the same run as the cuboid's (the two bones
+# are adjacent, 0x020ad59c..0x5dc..0x620, and the two materials are adjacent
+# at 0x020ad4c4..0x4f4..0x524). Mounting the whole run is what the header of
+# this file already argues for the HUD templates. The handoff is three lines,
+# and it is written out in port/slice_w1l1.txt under LANE w3-a.
+data_ov001_020ab608 data_ov001_020ab60c data_ov001_020ab610
+data_ov001_020ad4b4 data_ov001_020ad4c4 data_ov001_020ad560
+data_ov001_020ad5dc data_ov001_020ad640
+
+# ---------------------------------------------------------------------------
+# run linkw wave 4 (lane w4-e): THE BOUNCING ARROW'S SPRITE TEMPLATE.
+#
+# Stage::RenderBouncingArrows draws from an OamAttr list at 0x020abd88, which
+# is past the 0x020ab800..0x020abb00 run at the top of this file. config names
+# it -- config/arm9/overlays/ov001/symbols.txt:111 reads
+#
+#     _ZN3OAM14BOUNCING_ARROWE kind:data(any) addr:0x020abd88 ambiguous
+#
+# -- the same `ambiguous` shape as the five HUD tables, and for the same
+# reason: ov000 and ov001 share base 0x020aa420, so dsd could not attribute
+# the address, and config/arm9/overlays/ov000/symbols.txt:282 carries the
+# ov000 misattribution as data_ov000_020abd88. That is lane w3-c's finding and
+# it re-checks: this is a PORT change, not a config change.
+#
+# THE EXTENT IS 16 BYTES AND THE ROM AGREES WITH CONFIG ABOUT IT. That is the
+# part worth checking rather than assuming, because OAM::Render is handed this
+# pointer and WALKS it -- a short mount is the unbounded-walk failure the
+# cross-mount pointer pass in port/CMakeLists.txt describes. Read out of
+# extracted/overlays/overlay_0001.bin (base 0x020aa420, 12800 bytes):
+#
+#   OamAttr is { u32 a01; u16 a2; u16 a3; }, 8 bytes, and OAM::Render returns
+#   on a3 == 0xffff after handling that entry.
+#     0x020abd88  a01=41f800f4 a2=1080 a3=0000
+#     0x020abd90  a01=01f84004 a2=10a2 a3=ffff   <- terminator
+#   so the list is exactly two entries and ends at 0x020abd98, which is where
+#   the next config symbol starts. The next-symbol delta this mount is sized
+#   by and the ROM's own terminator land on the same byte.
+#
+# 0x020abd98 is NOT taken with it: it reads 020abf20 / 020abdd8 / 020ac078 /
+# 020abda8, a pointer table into this overlay and a different object.
+#
+# NOT YET REFERENCED, and read this before assuming it is live. The matched
+# body src/_ZN5Stage20RenderBouncingArrowsEv.cpp spells the template
+# func_020abd88 and is not on any slice walk_window reads; the port's own
+# stand-in in hal/sub_actors.cpp defines the same C symbol today. Seating the
+# matched body needs that stub deleted and the func_020abd88 alternatename
+# added beside it, both in hal/sub_actors.cpp, which is not this lane's file.
+# The measurement and the handoff are in port/slice_w1l5.txt under LANE w4-e.
+_ZN3OAM14BOUNCING_ARROWE
+
+# run link60 (lane S1, the scene boot spine): TEN MORE OAM SPRITE TEMPLATES,
+# the ones dScStarSel_c::Render (src/_ZN12dScStarSel_c6RenderEv.cpp) emits the star
+# grid, the course thumbnails and the character row through. Same overlay, same
+# treatment, and the same reason the sixteen above are here.
+#
+# WHY THEY ARE ov001'S AND NOT ov000'S. dsd tags every relocation into this
+# window "overlays(0,1)" because ov000 (0x020aa420 .. 0x020bf4e0) and ov001
+# (0x020aa420 .. 0x020ad660) share a base. Co-residency settles it: ov000's
+# span COVERS ov003's whole window (0x020ad660 .. 0x020b18a0), so ov000 and
+# ov003 can never be loaded together, while ov001's footprint ends exactly at
+# ov003's base. The overlay a star-select render can reach is ov001.
+#
+# THE ov003 SOURCE SPELLS THEM AS FUNCTIONS -- `extern void *func_020abb18[]`
+# and so on -- which is a decomp-side naming defect, not a second symbol: no
+# func_020ab* exists in any config. hal/scene_boot.cpp aliases each spelling
+# onto the address's real name, the "propagate renames BY ADDRESS" rule.
+data_ov001_020abb18 data_ov001_020abb34 data_ov001_020abb54
+data_ov001_020abb74 data_ov001_020abb94 data_ov001_020abbb4
+data_ov001_020abbf4 data_ov001_020abcb4 data_ov001_020abd78
+data_ov001_020abd80

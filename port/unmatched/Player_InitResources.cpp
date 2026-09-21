@@ -1,3 +1,18 @@
+// ===========================================================================
+// RETIRED -- THIS FILE IS NOT IN ANY BUILD. Run linkw wave 6, lane w6-C item 3.
+//
+// The condition the header below set ("retires when inline-asm excision lands
+// in hostgen") HAPPENED: hostgen gained ASM_EXCISION and the MATCHED source
+// _ZN6Player13InitResourcesEv now hosts itself, driven from
+// HOSTABI_RETIRE_SYMS in port/CMakeLists.txt (it needs --extern-data, which a
+// slice line cannot carry, which is why it is not a slice line). The slice
+// entry in slice_gate10.txt is commented out.
+//
+// Kept, not deleted, because it is the readable record of which one asm block
+// was substituted and why -- but nothing below this banner is compiled, and
+// nothing here should be treated as describing the current build.
+// ===========================================================================
+//
 // HOST COPY of src/_ZN6Player13InitResourcesEv.cpp -- one inline ARM
 // asm block (a 20-byte zero loop, kept as asm in src/ purely for the
 // byte match) substituted with its C semantics. Everything else is
@@ -10,6 +25,7 @@
 // -O4,p (only stack u8[N]={0} does); small asm block reproduces it.
 // Also: pin data_0209f2d8 in local `d` so ==2 keeps r1 bool (preserves r0);
 // decl order td,tx,tz + load order for RaycastGround pos regs.
+#include "hal/dsstate_seg.h"
 typedef signed char s8;
 typedef unsigned char u8;
 typedef short s16;
@@ -29,21 +45,26 @@ extern "C" {
     void* func_02073470(int a, int b, int c, void* d, void* e);
     void* _ZN6Memory13operator_new2Ej(unsigned int sz);
     void func_ov002_020e63a4(void* p);
-    void _ZN12WithMeshClsn4InitEP5Actor5Fix12IiES3_P10Vector3_16S5_(void* thiz, void* actor, int a, int b, void* v1, void* v2);
+    void _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(void* thiz, void* actor, int a, int b, void* v1, void* v2);
     void func_02035644(void* p, int a);
     void func_ov002_020d6368(void* p);
     void LoadSilverStarAndNumber(void);
     int _ZN8SaveData16HasPlayerLostCapEv(void);
     void func_02013a00(void);
     void func_ov002_020c7dd0(void* p, int a);
-    void _ZN13RaycastGroundC1Ev(void* p);
-    void _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(void* p, void* v, void* a);
-    void _ZN4BgCh19StartDetectingWaterEv(void* p);
+    void _ZN9dBgCh_GndC1Ev(void* p);
+    void _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(void* p, void* v, void* a);
+    void _ZN5dBgCh19StartDetectingWaterEv(void* p);
     int StartWithFarCamera(void);
-    void _ZN13RaycastGroundD1Ev(void* p);
-    void func_020072c0(void);
+    void _ZN9dBgCh_GndD1Ev(void* p);
+    void _ZN7Vector3D1Ev(void);
     void func_0203d384(void);
 
+/* The definitions below are hosted DS globals (the player's resource and
+   spawn latches), so they go in the section the save state captures. A
+   restore that left these behind would keep the pre-save player-init state
+   alive underneath a restored world. See hal/dsstate_seg.h. */
+DSSTATE_BEGIN
     u8 data_0209f2d8;
     s8 data_0209f2f8;
     u8 data_0209f254;
@@ -57,8 +78,16 @@ extern "C" {
     u8 data_0209f250;
     u8 data_0209f2fc;
     int data_0209212c;
-    u8 data_0209211c;
+    /* NOT A DEFINITION. data_0209211c is SetNextLevel's return-to-level
+       latch, real arm9 .data that the ROM ships as -1, and romdata.py
+       carries it. Defining it here made it host storage starting at zero,
+       and the first ExitLevel() read that as "return to level 0" and asked
+       for a level the castle grounds never sends anyone to. Also s8 rather
+       than u8: every other TU reads it signed, and -1 is its whole "no
+       recorded return point" value. This TU only ever writes 2. */
+    extern s8 data_0209211c;
     u8 data_0209f200;
+DSSTATE_END
 }
 
 struct V3 { int x, y, z; };
@@ -121,7 +150,7 @@ Ld0:
     func_ov002_020e5948(c);
     if (changed != 0) func_ov002_020beabc(c);
     IR_MARK("pool");
-    *(void**)(c + 0x578) = func_02073470(0x32, 0xc, 8, (void*)func_0203d384, (void*)func_020072c0);
+    *(void**)(c + 0x578) = func_02073470(0x32, 0xc, 8, (void*)func_0203d384, (void*)_ZN7Vector3D1Ev);
     *(void**)(c + 0x57c) = _ZN6Memory13operator_new2Ej(0x32);
     *(void**)(c + 0x588) = _ZN6Memory13operator_new2Ej(0x14);
     q = *(u8**)(c + 0x588);
@@ -134,7 +163,7 @@ Ld0:
     *(int*)(c + 0x88) = 0x1000;
     func_ov002_020e63a4(c);
     IR_MARK("meshclsn");
-    _ZN12WithMeshClsn4InitEP5Actor5Fix12IiES3_P10Vector3_16S5_(c + 0x380, c, 0x32000, 0x32000, c + 0x92, c + 0x8c);
+    _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(c + 0x380, c, 0x32000, 0x32000, c + 0x92, c + 0x8c);
     func_02035644(c + 0x380, 0x28000);
     *(int*)(c + 0xa0) = -0x4b000;
     *(int*)(c + 0x53c) = *(int*)(c + 0x5c);
@@ -167,7 +196,7 @@ Ld0:
     }
     func_ov002_020c7dd0(c, n8);
     IR_MARK("raycast");
-    _ZN13RaycastGroundC1Ev(rc);
+    _ZN9dBgCh_GndC1Ev(rc);
     tz = *(int*)(c + 0x64);
     tx = *(int*)(c + 0x5c);
     td = data_0209212c;
@@ -175,16 +204,16 @@ Ld0:
     pos.y = td;
     pos.z = tz;
     *(int*)(rc + 0x4c) = td * 2;
-    _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(rc, &pos, c);
+    _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(rc, &pos, c);
     IR_MARK("water");
-    _ZN4BgCh19StartDetectingWaterEv(rc);
+    _ZN5dBgCh19StartDetectingWaterEv(rc);
     if (data_0209f2f8 == 0x1d) {
         data_0209211c = 2;
         data_0209f200 = 0xe;
     }
     if (StartWithFarCamera() != 0) *(u8*)(c + 0x715) = 1;
     *(int*)(c + 0x684) = *(int*)(c + 0x60);
-    _ZN13RaycastGroundD1Ev(rc);
+    _ZN9dBgCh_GndD1Ev(rc);
     IR_MARK("done");
     return 1;
 }

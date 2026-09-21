@@ -17,14 +17,32 @@
 #include "ntr/gx.h"
 
 #include <cstring>
+#include "hal/dsstate_seg.h"
 
 // ---------------------------------------------------------------------------
 // Interrupt control. The ARM originals set/clear the CPSR I bit and return the
 // previous masked state (0x80 = was disabled).
 // ---------------------------------------------------------------------------
 
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mrs/msr on
+//   the CPSR I bit. See the Interrupt control block above.
 extern "C" unsigned int _ZN3IRQ7DisableEv(void) { return ntr::rt_irq_disable(); }
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mrs/msr on
+//   the CPSR I bit. See the Interrupt control block above.
+//   TAG ADDED, run link100 wave 14, lane SHADOWS3. The ruling is its
+//   neighbours' and always was; what was missing is the tag ITSELF, because
+//   linkage.py binds a reason to the FIRST code line under it and the line
+//   above took this one's. src/_ZN3IRQ6EnableEv.cpp is four ARM instructions
+//   (mrs r0,cpsr / bic r1,r0,#0x80 / msr cpsr_c,r1 / and r0,r0,#0x80) inside
+//   an `asm` block, and no x86 front end assembles them, so there is no seat
+//   to take here at any point in the future -- it is a permanent exception,
+//   not owed work. The line above this file at 340..347 already NAMED this row
+//   as the same omission ("the sibling on line 30 ... is the same shape and the
+//   same omission, but it is in neither closure, so this lane names it rather
+//   than taking it"); this lane takes it.
 extern "C" unsigned int _ZN3IRQ6EnableEv(void) { return ntr::rt_irq_enable(); }
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mrs/msr on
+//   the CPSR I bit. See the Interrupt control block above.
 extern "C" unsigned int _ZN3IRQ7RestoreEj(unsigned int prev) {
     return ntr::rt_irq_restore(prev);
 }
@@ -98,6 +116,8 @@ void copy_words(const uint32_t *src, uint32_t *dst, int n) {
 // C linkage: in this port the decomp's .c files compile as C TUs (hostgen
 // wraps its transformed copies in extern "C"), so the copy primitives must
 // carry C names.
+// PORT_HOST_ABI: ARM asm primitive (ldmia/stmia) AND the GXFIFO-address seam
+//                (0x04000400 routes to gx_write_fifo, not a memory store).
 extern "C" void Copy36Bytes(int *src, int *dst) {
     copy_words(reinterpret_cast<const uint32_t *>(src), reinterpret_cast<uint32_t *>(dst), 9);
 }
@@ -105,6 +125,7 @@ extern "C" void Copy36Bytes(int *src, int *dst) {
 // stmia WITHOUT writeback: twelve words through the same port address. Only
 // ever used against the FIFO; for a memory destination the DS semantics would
 // overwrite the same three words four times, so a memory dst is a bug here.
+// PORT_HOST_ABI: ARM asm primitive AND the GXFIFO-address seam (0x04000400).
 extern "C" void Copy48BytesFixed(int *src, int *dst) {
     if (reinterpret_cast<uintptr_t>(dst) == 0x04000400u) {
         for (int i = 0; i < 12; ++i) ntr::gx_write_fifo(static_cast<uint32_t>(src[i]));
@@ -115,6 +136,11 @@ extern "C" void Copy48BytesFixed(int *src, int *dst) {
 
 // The FIFO flush primitive: 32 no-writeback stmia of four zeroed registers,
 // 128 NOP command words that push any partially-packed command through.
+// PORT_HOST_ABI: hand-asm primitive (banner-marked in src/), a raw stmia
+// loop into the GXFIFO port; the ntr layer models the flush, not the
+// instruction stream. Tag added at the wave-3 close after a Scene seat gave
+// it its first caller and the untagged body surfaced as the queue's only
+// regression.
 extern "C" void func_020553c0(unsigned addr) {
     if (addr == 0x04000400u)
         for (int i = 0; i < 128; ++i) ntr::gx_write_fifo(0);
@@ -132,41 +158,159 @@ extern "C" void func_020553c0(unsigned addr) {
 // ---------------------------------------------------------------------------
 
 extern "C" {
-// storage for the game's DMA bookkeeping (BSS on the DS)
+// storage for the game's DMA bookkeeping (BSS on the DS). These two are the
+// only DS globals this host library owns, and they are real save state rather
+// than host bookkeeping: the callback table holds the handlers the game itself
+// registered through func_02056e98. Everything else in this file (the window,
+// frame pacing, the IE stand-in below) deliberately stays out of the capture.
+// See hal/dsstate_seg.h.
+DSSTATE_BEGIN
 int data_020a6460[8];                                   /* GX-DMA state */
 struct { unsigned handler, active, arg; } data_020a60c4[8]; /* per-channel cbs */
+DSSTATE_END
 }
 
 namespace {
 unsigned g_ie;                      // IE word stand-in
 void (*g_gxfifo_handler)(void);     // handler for mask 0x200000
+void (*g_hblank_handler)(void);     // handler for mask 0x2, the HBlank edge
+void (*g_vblank_handler)(void);     // handler for mask 0x1, the VBlank edge
+
+// The two DS registers the HBlank gate reads. Both are ordinary latches in the
+// mapped I/O window (ntr/mmio.h mechanism 1), written by the ROM's own arming
+// code: IME by _ZN7dWipe_c14SetForwardTimeEj's save/restore bracket, DISPSTAT bit 4 by
+// func_02053c10.
+constexpr uintptr_t REG_IME = 0x04000208u;
+constexpr uintptr_t REG_DISPSTAT = 0x04000004u;
+constexpr unsigned DISPSTAT_HBLANK_IRQ_ENABLE = 0x10u;
 }  // namespace
 
+// PORT_HOST_ABI: src walks the DS IRQ vector tables (data_02099fe4,
+//   data_020a60c4); the host models the handlers it dispatches.
 extern "C" void *_ZN3IRQ13GetIRQHandlerEj(unsigned mask) {
-    return mask == 0x200000u ? reinterpret_cast<void *>(g_gxfifo_handler) : nullptr;
+    if (mask == 0x200000u) return reinterpret_cast<void *>(g_gxfifo_handler);
+    if (mask == ntr::IRQ_HBLANK) return reinterpret_cast<void *>(g_hblank_handler);
+    if (mask == ntr::IRQ_VBLANK) return reinterpret_cast<void *>(g_vblank_handler);
+    return nullptr;
 }
+// PORT_HOST_ABI: src walks the DS IRQ vector tables (data_02099fe4,
+//   data_020a60c4); the host models the handlers it dispatches.
+//
+// THREE MASKS ARE MODELLED. Mask 0x200000 is the geometry FIFO, delivered
+// synthetically from DMAStartTransfer below. Mask 2 is HBlank: the dWipe_c
+// setters install func_0202f2c4 on it and the scanline sweep in rt.cpp
+// delivers it. Every other mask is still dropped on the floor, deliberately --
+// a handler this layer never raises is better stored nowhere than stored and
+// silently never run.
+//
+// MASK 1 IS THE THIRD, AND IT IS RUN link100 BOOT-PLAN RUNG D1 (lane R3D).
+// src/func_0201a4e4.c:14 -- which hal/boot_os.cpp:627 already calls at boot --
+// registers src/_ZN3IRQ13VBlankHandlerEv.cpp on mask 1, and until this line that
+// registration went on the floor: the handler was LINKED (walk_window.map
+// 0001:00280570) and dispatched by nobody, so the ROM's own end-of-frame wake
+//     if (data_0209d514 >= data_0208ee44 && data_0209d4f0 != 0)
+//         OS_WakeupThread(&data_0209d500);
+// could not fire even after rung R3b (lane R3B) started raising that flag.
+// hal/boot2_thread.cpp's CP15::WaitForInterrupt step 2 is the LOOKUP; this is
+// the STORE. Together they make the VBlank edge real, which is the half of the
+// handover (rung D5) that has to be true before func_020197b8 can sleep at its
+// own phase 7 and be woken by its own interrupt.
+//
+// IT IS ZERO GAIN AND, ON TODAY'S BINARY, ZERO CHANGE: lane R3B measured
+// halts=0 over a 300-frame level run, so nothing enters the wait on the level
+// path and nothing looks the mask up. port::pump_vblank (hal/os_thread.cpp:66)
+// is the one other reader and no shipped target installs it -- comms_conductor
+// installs conductor_pump instead. The probe under SM64DS_R3D_WAIT_PROBE in
+// tests/walk_window.cpp is what makes the edge OBSERVABLE rather than assumed.
 extern "C" void _ZN3IRQ13SetIRQHandlerEjPFvvE(unsigned mask, void (*h)(void)) {
     if (mask == 0x200000u) g_gxfifo_handler = h;
+    else if (mask == ntr::IRQ_HBLANK) g_hblank_handler = h;
+    else if (mask == ntr::IRQ_VBLANK) g_vblank_handler = h;
 }
+
+namespace ntr {
+
+// The five gates the DS applies before an HBlank IRQ reaches the handler,
+// reported one bit each so a closed gate can be NAMED rather than guessed at.
+// All five have a ROM writer on this path, which is what makes the disarm
+// work: func_0202fb30 clears IE bit 1, clears DISPSTAT bit 4 and nulls the
+// handler, and any one of the three closes this.
+unsigned rt_hblank_gates() {
+    unsigned g = 0;
+    if (g_hblank_handler) g |= HBLANK_GATE_HANDLER;
+    if (g_ie & IRQ_HBLANK) g |= HBLANK_GATE_IE;
+    if (!rt_irq_masked()) g |= HBLANK_GATE_CPSR;
+    if (*reinterpret_cast<volatile uint16_t *>(REG_IME) & 1u) g |= HBLANK_GATE_IME;
+    if (*reinterpret_cast<volatile uint16_t *>(REG_DISPSTAT) &
+        DISPSTAT_HBLANK_IRQ_ENABLE)
+        g |= HBLANK_GATE_DISPSTAT;
+    return g;
+}
+
+bool rt_hblank_armed() { return rt_hblank_gates() == HBLANK_GATE_ALL; }
+
+void rt_hblank_dispatch() { g_hblank_handler(); }
+
+}  // namespace ntr
+// PORT_HOST_ABI: src pokes the DS interrupt registers (IME 0x4000208, IE
+//   0x4000210); the host keeps the IE word stand-in above.
 extern "C" unsigned _ZN3IRQ10EnableIRQsEj(unsigned mask) {
     const unsigned prev = g_ie;
     g_ie |= mask;
     return prev;
 }
+// PORT_HOST_ABI: src pokes the DS interrupt registers (IME 0x4000208, IE
+//   0x4000210); the host keeps the IE word stand-in above.
 extern "C" unsigned _ZN3IRQ11DisableIRQsEj(unsigned mask) {
     const unsigned prev = g_ie;
     g_ie &= ~mask;
     return prev;
 }
+// PORT_HOST_ABI: src pokes the DS interrupt registers (IME 0x4000208, IF
+//   0x4000214), which the ntr layer does not model.
 extern "C" void _ZN3IRQ15ClearInterruptsEj(unsigned) {}
 
 // DMA to the FIFO is the display-list path (func_0205a290). ctrl bit 30 is
 // IRQ-on-complete (the final chunk); a GXFIFO-destined chunk without it relies
 // on the half-empty IRQ to pump the next chunk.
+// PORT_HOST_ABI: src pokes DS DMA registers (REG_DMA_BASE); the host models the
+//                FIFO seam and synthesises the completion IRQ instead.
 extern "C" void DMAStartTransfer(int ch, int src, int dst, int ctrl) {
     const int words = ctrl & 0x1FFFFF;
+    /* CONTROL BIT 24 IS DMA_CONTROL_SRC_FIXED: the source address does NOT
+       advance, so the transfer REPEATS one word. That is what a FILL is, and
+       it is what DMASyncFillTransfer asks for.
+       Ignoring it made every fill a memcpy FROM THE SOURCE ADDRESS ONWARDS,
+       and on this hardware model the source it is handed is the mapped MMIO
+       window at 0x040000EC -- so a fill walked the live I/O registers into
+       its destination instead of clearing it.
+       On the title that destination is the two OAM shadow buffers, every
+       frame, and the 3D geometry-port latches landed in entries 64..127. All
+       three of the owner's visual complaints are that one memcpy:
+         * the bottom-screen star correct on half the frames and MASSIVE and
+           rotated 90 degrees on the others -- garbage attr0 rotation/scale
+           and double-size bits, alternating with the buffer swap;
+         * identical corruption top-left of BOTH screens -- same source
+           address feeding both engines;
+         * random glitched LETTERS there on the attract's Yoshi switch --
+           garbage attr2 tile index pointing into the swapped character sheet.
+       Four other live callers (func_02053c40, func_020554bc, func_020616e8
+       and the title's own path) were doing the same MMIO memcpy; honouring
+       the bit heals all of them, because it is the primitive that was wrong
+       rather than any one caller. */
+    if (ctrl & 0x01000000) {
+        const uint32_t v =
+            *reinterpret_cast<const uint32_t *>(static_cast<uintptr_t>(src));
+        uint32_t *d = reinterpret_cast<uint32_t *>(static_cast<uintptr_t>(dst));
+        if (static_cast<uintptr_t>(dst) == GXFIFO) {
+            for (int i = 0; i < words; ++i) ntr::gx_write_fifo(v);
+        } else {
+            for (int i = 0; i < words; ++i) d[i] = v;
+        }
+    } else {
     copy_words(reinterpret_cast<const uint32_t *>(static_cast<uintptr_t>(src)),
                reinterpret_cast<uint32_t *>(static_cast<uintptr_t>(dst)), words);
+    }
     if (static_cast<uintptr_t>(dst) == 0x04000400u) {
         if (ctrl & 0x40000000) {
             const unsigned h = data_020a60c4[ch & 7].handler;
@@ -180,12 +324,55 @@ extern "C" void DMAStartTransfer(int ch, int src, int dst, int ctrl) {
 // ---------------------------------------------------------------------------
 // CP15 cache maintenance. The host has coherent memory, so these are no-ops --
 // but they must still exist, because the decomp calls them around every DMA.
+//
+// EVERY ONE OF THESE HAS A MATCHED src TU AND ONLY THE LINKED ONES ARE QUEUE
+// ROWS, which is why the tags below look scattered rather than uniform.
+// port/tools/linkage.py only sees a definition once /OPT:REF keeps it, so an
+// untagged sibling here is dormant and not forgiven: the day a slice reaches
+// it, it surfaces as an UNDOCUMENTED SHADOW and wants the same one-line ruling
+// the tagged ones carry. Run link60 lane PC2 hit exactly that. Its new arm9
+// chain (func_ov007_020b2bd4 -> func_02044efc / func_02045ef8) linked
+// _ZN4CP1514FlushDataCacheEv for the first time, the queue went 557 to 558 and
+// SHADOWS 43 to 44, and the answer was the tag and not a code change: the
+// matched TU is an `asm` block of mcr p15 instructions, which is DS hardware
+// the ntr layer does not model, so the host definition IS the faithful
+// stand-in.
 // ---------------------------------------------------------------------------
 
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
+//   cache maintenance, a cache-flush primitive the host runtime necessarily
+//   owns. See the CP15 block above -- host memory is coherent.
 extern "C" void _ZN4CP1514FlushDataCacheEv(void) {}
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
+//   cache maintenance. See the CP15 block above -- host memory is coherent.
 extern "C" void _ZN4CP1514FlushDataCacheEjj(unsigned int, unsigned int) {}
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): the whole ROM
+//   body is `mov r0, #0; mcr p15, 0, r0, c7, c10, 4; bx lr` -- drain the write
+//   buffer. See the CP15 block above -- host memory is coherent, and a 32-bit
+//   x86 MSVC cannot assemble an ARM coprocessor move in any case.
+//   The tag was simply missing: both its neighbours in this block carry one and
+//   this line did not, so linkage.py counted it an UNDOCUMENTED SHADOW -- work
+//   owed -- when it is the same permanent exception they are. Found by the
+//   func_0203df40 / func_0203ea5c census (run link100, lane DF40); it is the
+//   one row of that census whose disposition was a missing ruling rather than a
+//   missing body. The sibling on line 30, _ZN3IRQ6EnableEv, is the same shape
+//   and the same omission, but it is in neither closure, so this lane names it
+//   rather than taking it.
 extern "C" void _ZN4CP1516DrainWriteBufferEv(void) {}
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
+//   cache maintenance. See the CP15 block above -- host memory is coherent.
 extern "C" void _ZN4CP1519InvalidateDataCacheEjj(unsigned int, unsigned int) {}
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
+//   cache maintenance. See the CP15 block above -- host memory is coherent.
+//   TAG ADDED, run link100 wave 14, lane SHADOWS3, for the reason the
+//   DrainWriteBuffer note above gives about its own missing tag: the reason on
+//   the line above binds to InvalidateDataCache and stops there, so this row
+//   read as an UNDOCUMENTED SHADOW when it is the same permanent exception its
+//   two neighbours are. src/_ZN4CP1526InvalidateInstructionCacheEjj.cpp is a
+//   five-instruction `mcr p15, 0, r0, c7, c5, 1` loop; no x86 front end
+//   assembles a coprocessor access, so no seat exists to be owed.
 extern "C" void _ZN4CP1526InvalidateInstructionCacheEjj(unsigned int, unsigned int) {}
 extern "C" void _ZN4CP1527FlushAndInvalidateDataCacheEv(void) {}
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
+//   cache maintenance. See the CP15 block above -- host memory is coherent.
 extern "C" void _ZN4CP1527FlushAndInvalidateDataCacheEjj(unsigned int, unsigned int) {}

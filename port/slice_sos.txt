@@ -1,0 +1,213 @@
+# Lane SOS of run mg6: dScMgBomroom_c, the "Sort or 'Splode" minigame.
+#
+# actor id 0x172 (scene 370), spawn symbol dScMgBomroom_c_classInit (0x020d9574),
+# SpawnInfo 0x0213badc, vtable data_ov006_0213bbb4, RTTI "14dScMgBomroom_c" at
+# 0x0213bb38. Every one of those was derived from the ROM by this lane rather
+# than taken from the handover, by the mechanical route
+# port/mg_fanout_costs.txt section 3 prescribes: the doubled-id word
+# 0x01720172 occurs EXACTLY ONCE in extracted/overlays/overlay_0006.bin (base
+# 0x020bfec0), at 0x0213bae0, which puts the eight-byte SpawnInfo record at
+# 0x0213badc with the factory in the word before it. The factory's own load
+# relocation confirms the table:
+#
+#     config/arm9/overlays/ov006/relocs.txt
+#     from:0x020d95a0 kind:load to:0x0213bbb4 module:overlay(6)
+#
+# and 0x020d95a0 is the literal pool of dScMgBomroom_c_classInit (0x020d9574,
+# size 0x30).
+#
+# THE SPAWN SYMBOL SAYS SortOrSplode AND THE CLASS SAYS Bomroom, AND BOTH ARE
+# THE ROM'S. That is curling's MgShuffleShell / dScMgCurling_c shape exactly,
+# and the class name is the one this seat's files are named after, per the rule
+# lane MG1 set. "Bomroom" is the bomb room; the localised name is the sorting
+# game.
+#
+# THE WIDTH IS 36 AND IT WAS CHECKED THREE WAYS, port/mg_fanout_costs.txt
+# section 11's checks, because twelve of the widths in that file's section 3
+# table were phantoms:
+#   1. SPAN. config/arm9/overlays/ov006/symbols.txt puts the next symbol
+#      (data_ov006_0213bc44) exactly 0x90 bytes past the vtable, so 36 words is
+#      an upper bound and a 37th slot cannot exist inside the table.
+#   2. TERMINAL SLOT. Slot 35 holds 0x020ad660, the word every dScMgBase_c-
+#      derived table holds there.
+#   3. WHAT THE WORD PAST IT IS. Index 36 reads 0x00000001 -- the first word of
+#      data_ov006_0213bc44, an address in no module. It is the same value
+#      0x16b's phantom slot holds, which is the case section 11 warns is
+#      easiest to wave through: a word that looks like nothing in particular
+#      is not evidence either way, and checks 1 and 2 are the ones that decide.
+#
+# SIX OVERRIDES, FIVE MARKERS, ZERO nosrc, which the fan-out table predicts and
+# a fresh word-for-word diff against dScMgBase_c's own table
+# (data_ov004_020bc0c0, read out of extracted/overlays/overlay_0004.bin at base
+# 0x020ad660) confirms: slots 0, 6, 9, 16, 17 and 18 differ and no other slot
+# does. All five marker bodies were disassembled out of the shipped overlay
+# image and ruled REAL_DECOMP before anything was seated;
+# port/tools/inferred_stub_adjudicated.txt carries the per-body evidence.
+#
+# THE HIERARCHY IS TWO DEEP. Slot 16 (D2, _ZN14dScMgBomroom_cD1Ev) and slot 17
+# (D0, _ZN14dScMgBomroom_cD0Ev) both store data_ov006_0213bbb4 into [this] and then
+# call _ZN11dScMgBase_cD2Ev with nothing in between -- read off the ROM, not off
+# src -- so the seat fills ONE derived table plus the shared base one, the way
+# curling's and dScMgCoin_c's do, and not the three 0x169 needed.
+#
+# THE FACTORY NEEDS NO DISPLACEMENT RULING, and it is worth saying because
+# 0x169's did. src/d_s_mg_bomroom.c calls _ZN11dScMgBase_cC2Ev(p) WITH its
+# argument, where src/actors/dScMgCup_c.cpp calls the same base constructor
+# with none and rides r0 through. That callee dereferences on its first
+# statement and then writes three vtable words through the pointer, so the
+# difference is a wild write versus a correct one. This factory is on the
+# correct side of it and is a plain slice line. Verified against the ROM at
+# 0x020d9574 (0x30 bytes) during this lane's adjudication pass: allocation size
+# 0x6300 = 25344, matching src.
+#
+# HOW THIS LIST WAS DERIVED. A relocation closure from TWO roots, the SpawnInfo
+# record and the class's own overlay constructor __sinit_ov006_0212fd48, which
+# is the correction port/mg_fanout_costs.txt section 1 makes to a SpawnInfo-only
+# walk. Module residency enforced (main + itcm + ov001 + ov004 + ov006), lane
+# CCN's walker re-pointed at this tree:
+#
+#     SpawnInfo root only      ov006  29 fn   ov004  93 fn   arm9 591 fn
+#     + its own .init root     ov006  82 fn   ov004 157 fn   arm9 604 fn
+#
+# THE CONSTRUCTOR IS THE ONE THAT BRACKETS THE SpawnInfo, which is how it was
+# identified: __sinit_ov006_0212fd48 copies 33 pairs whose source addresses run
+# 0x0213b9ec..0x0213baf4, and 0x0213badc sits INSIDE that span without being
+# one of them. So this class is another instance of section 4's sweep hazard --
+# a lane that swept the address range instead of reading the constructor would
+# have found a phantom "pair" {0x020d9574, 0x01720172} with a nonzero
+# adjustment, which is the class's own SpawnInfo.
+#
+# THE arm9 AND ov004 FRAMEWORK HALVES ARE NOT REPEATED HERE. port/slice_mg1.txt
+# already lists the ov004 framework, the thirty-five overlay constructors and
+# the arm9 waves under them; CMake appends both lists to the same targets and
+# dedupes identical absolute paths. Only the delta is below.
+#
+# THE ov004 DELTA IS ZERO, AND THAT IS A MEASUREMENT. The closure reaches
+# fourteen ov004 TUs that are in no build target, and every one of the fourteen
+# is deliberately excluded because MG1/MG2/BASESET host-copied it:
+#     func_ov004_020add88  _020adf2c  _020b31b4  _020b321c  _020b3278
+#     _020b8714  _020b8778   the pointer-to-member group (MG2)
+#     _ZN11dScMgBase_c25OnAimedAtWithEggReturnVecEv  _020af094                       MgBase_DeclConflict
+#     _ZN11dScMgBase_c19BeforeInitResourcesEv                                  MgBase_Slot1
+#     _ZN11dScMgBase_c21AfterCleanupResourcesEj  _020b7460                       BASESET
+#     func_ov004_020b2cb8                                  MgBase_LangTable
+#     _ZN10dMgState_c8SetStateEi                                  the framework's PMF
+#                                                          state setter
+# Adding a line for any of them would put a second definition in the link.
+#
+# THE TWO HARD FLOORS ARE CLOSED (run mg7, lane L370). Both were named in
+# config/arm9/overlays/ov006/symbols.txt with no delink block and no src file;
+# both now have one, and both are active lines in this list:
+#     func_ov006_020d7c4c  0x230  STATE slot 5 of data_ov006_02141730, the bomb
+#                                 free-flight state: move along the heading
+#                                 through data_02082214, then bounce inside
+#                                 whichever of the two boxes the +0x696 flag
+#                                 selects. BYTE-MATCHED at mwccarm 1.2/base,
+#                                 1.2/sp2 and 1.2/sp2p3 with strict relocs.
+#                                 The func_ov006_020e1854 precedent, finished.
+#     func_ov006_020d8408  0x4fc  the one callee of func_ov006_020d8ff4, which
+#                                 is state slot 2 of data_ov006_021416e0: the
+#                                 bomb spawner, a thirteen-step difficulty
+#                                 ladder off the spawn count at +0x62d8 driving
+#                                 how many bombs are released, in what pattern,
+#                                 and how long until the next wave. Decompiled
+#                                 NONMATCHING -- register allocation and
+#                                 scheduling residue only, logic verified
+#                                 against the ROM instruction for instruction,
+#                                 and the file's banner carries the full
+#                                 accounting. The trap that stood for it in
+#                                 unmatched/MgBomroom_Traps.cpp is DELETED.
+#
+# THE SECOND FLOOR COST A LINKED FUNCTION AS WELL AS A BODY, and closing it
+# pays that back. This list had 72 active lines against a +71 linkage delta,
+# because the one TU /OPT:REF dropped was src/actors/dScMgBomroom_c.cpp: every
+# relocation that reaches 0x020d66c4 anywhere in ov006 comes from inside
+# func_ov006_020d8408 (five call sites, 0x020d86e8, _8768, _8794, _8814,
+# _8884), so with that body undecompiled the TU had no caller in the build. It
+# was left in the list rather than removed, on the stated expectation that it
+# would link itself the day 0x020d8408 landed. It has. The list is now 74
+# active lines -- the original 72 plus the two closed floors -- and the
+# expected linkage delta is the full 74: +71 measured on mg6, +1 for
+# func_ov006_020d66c4 finally acquiring a caller, +2 for the new bodies.
+#
+# THE FLOOR ALSO PINNED THE STATE MACHINE, which was the bigger consequence.
+# Slot 0 sets the top-level index at +0x62d0 to 1 and the game walked to 2 and
+# stayed there, because state 2 (func_ov006_020d8ff4) calls 0x020d8408 and that
+# body is what advances the index. Measured on mg6: 1200 frames of scene 370
+# left the index at 2 with the trap entered 1152 times, so four of the five
+# top-level states were unreachable on any headless run -- including state 3,
+# the open-coded dispatcher. With the spawner seated the machine advances
+# unaided. hal/scene_mg_bomroom.cpp's SM64DS_SOS_STATE probe is kept anyway,
+# because an unaided run reaches a state when the game decides to and pinning
+# is how each state gets exercised on purpose.
+#
+# SEVEN TUs ARE HOST-COPIED AND ARE COMMENTED OUT BELOW, and this class is the
+# first seat to carry ALL THREE of the shapes port/mg_fanout_costs.txt section
+# 4 enumerates in one closure:
+#   * six name a member-pointer type and a source sweep for the member-pointer
+#     operator finds them;
+#   * one, func_ov006_020d8f98, OPEN-CODES the ARM Itanium sequence in plain
+#     ints inside extern "C", so it emits no unresolvable symbol AND has no
+#     member-pointer spelling for a sweep to match. Neither prescribed detector
+#     sees it. It was found by reading the source of every table's consumer,
+#     and it is convicted by the run: hal/scene_mg_bomroom.cpp's census reports
+#     its dispatches separately for exactly that reason.
+# Their bodies are in port/unmatched/MgBomroom_StateDispatch.cpp, each verbatim
+# but for the table declaration and the dispatch site.
+
+# ---- ov006: the class's own closure, minus the seven host copies -----------
+src/d_s_mg_bomroom.c
+src/actors/dScMgBomroom_c.cpp
+src/_ZN14dScMgBomroom_cD1Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN14dScMgBomroom_cD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN14dScMgBomroom_cD0Ev.cpp
+src/func_ov006_020d5ab0.cpp
+src/func_ov006_020d5b00.c
+src/func_ov006_020d5b10.c
+src/func_ov006_020d5c60.c
+src/func_ov006_020d5c88.c
+src/func_ov006_020d5d08.c
+src/func_ov006_020d5d90.c
+src/func_ov006_020d5dd4.c
+src/func_ov006_020d5dfc.cpp
+src/func_ov006_020d5e1c.c
+src/func_ov006_020d5e3c.c
+src/func_ov006_020d5e5c.c
+# HOST-COPIED (SOS): src/actors/dScMgBomroom_c.cpp -- table data_ov006_02141660, arity 1 (constant 0), member-pointer typed through an Entry wrapper
+# HOST-COPIED (SOS): src/actors/dScMgBomroom_c.cpp -- table data_ov006_021416c0, arity 1, member-pointer typed
+# HOST-COPIED (SOS): src/actors/dScMgBomroom_c.cpp -- table data_ov006_02141680, arity 1, member-pointer typed
+# HOST-COPIED (SOS): src/actors/dScMgBomroom_c.cpp -- table data_ov006_02141708, arity 1, member-pointer typed through an Entry wrapper; ALSO state slot 6 of 02141730
+src/func_ov006_020d7c4c.cpp
+src/func_ov006_020d7e7c.c
+src/func_ov006_020d7edc.c
+src/func_ov006_020d7f5c.c
+src/func_ov006_020d816c.c
+src/func_ov006_020d8324.c
+# HOST-COPIED (SOS): src/func_ov006_020d836c.cpp -- table data_ov006_02141730, arity 1, member-pointer typed
+# HOST-COPIED (SCENES2, run link100 wave 10 round 2): src/func_ov006_020d8408.c is
+# REPLACED by port/unmatched/MgBomroom_Slot8408.c on the row below. Its line 202
+# calls the two-parameter func_ov006_020d66c4 through a one-parameter cast, which
+# is an ARM argument riding through r1 that the host never pushes; the callee then
+# indexes the scene object by stack garbage and scene 370 dies at
+# func_ov006_020d66c4+0xc. The host copy is the src TU with that one call spelled
+# with both arguments and nothing else changed; its header carries the
+# disassembly at 0x020d86e8 and the sed line that reproduces it. Taking BOTH rows
+# would be a duplicate symbol, so the src row is deliberately absent.
+port/unmatched/MgBomroom_Slot8408.c
+src/func_ov006_020d8904.c
+src/func_ov006_020d893c.c
+src/func_ov006_020d89c4.c
+src/func_ov006_020d8af8.c
+src/func_ov006_020d8c88.c
+src/func_ov006_020d8cc4.cpp
+src/func_ov006_020d8d84.c
+src/func_ov006_020d8f34.c
+# HOST-COPIED (SOS): src/func_ov006_020d8f98.cpp -- table data_ov006_021416a0, arity 0, OPEN-CODED IN INTS; neither the link nor a member-pointer source sweep can see it. ALSO state slot 3 of 021416e0
+src/func_ov006_020d8ff4.c
+src/func_ov006_020d9020.c
+src/func_ov006_020d904c.c
+src/func_ov006_020d907c.c
+src/_ZN14dScMgBomroom_c13OnYoshiTryEatEi.cpp
+src/_ZN14dScMgBomroom_c6RenderEv.cpp
+# HOST-COPIED (SOS): src/_ZN14dScMgBomroom_c8BehaviorEv.cpp -- table data_ov006_021416e0, arity 0, member-pointer typed; VTABLE SLOT 6, Behavior
+src/_ZN14dScMgBomroom_c13InitResourcesEv.cpp

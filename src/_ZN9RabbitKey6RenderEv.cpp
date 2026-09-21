@@ -27,16 +27,18 @@ struct Obj {
     void* unk188;         /* 0x188 */
 };
 
+extern "C" {
 extern void func_ov085_0212d2b8(struct Obj* self);
+}
 
 int RabbitKey::Render()
 {
     if (((struct Obj*)this)->unk188 == (void*)&data_ov085_0213072c) {
-        *(s16*)(((long long)(int)((char*)&unk_08e))) += 0x500;
+        *(s16*)((char*)&mAngleY) += 0x500;
     }
     func_ov085_0212d2b8(((struct Obj*)this));
     {
-        struct Sub* s = (struct Sub*)(((long long)(int)((char*)&mModel)));
+        struct Sub* s = (struct Sub*)((char*)&mModel);
         s->vt->fn14(s, 0);
     }
     return 1;

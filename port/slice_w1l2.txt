@@ -1,0 +1,205 @@
+# slice_w1l2.txt -- lane-owned slice for the linkage campaign (run linkw).
+# One matched src TU per line, path relative to the repo root, comments with #.
+# THIS FILE HAS ONE OWNER (lane l2); other lanes never touch it, which is what
+# keeps five parallel seat lanes out of CMakeLists.txt and each other.
+#
+# WHAT A LINE HERE BUYS, AND WHAT IT DOES NOT. Adding a TU compiles it and
+# hands it to the linker, but the link runs with /OPT:REF (Release, no
+# /DEBUG), so an object nothing references is dropped again before the map is
+# written and the TU does not count as linked. Measured on this branch:
+# src/func_02058158.c added on its own built its .obj, linked clean, and left
+# linkage.py at 3881. Every line below therefore arrives with a reference
+# edge in one of this lane's hal files -- a vtable slot the ROM's own table
+# names, or the face a linked caller already calls.
+
+# ---- the Heap BASE class -------------------------------------------------
+# _ZTV4Heap (data_02099d90) slots 0 and 1, seated in hal/lk4_eh_dtor_seat.cpp.
+# config/arm9/relocs.txt names both bodies at those two words:
+#   from:0x02099d90 to:0x0203ca44 _ZN4HeapD1Ev
+#   from:0x02099d94 to:0x0203ca20 _ZN4HeapD0Ev
+src/_ZN4HeapD1Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN4HeapD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN4HeapD0Ev.cpp
+# Heap::Allocate(unsigned) at 0x0203c28c, the body behind the flat name gate
+# 4b's func_0203cc0c calls. The converting face is in hal/lk4_eh_dtor_seat.cpp;
+# hal/heap_vtable.cpp keeps its old host copy as an alternatename fallback for
+# the ten targets that carry gate 4b without this slice.
+src/_ZN4Heap8AllocateEj.cpp
+
+# ==== WAVE 2, LANE w2-b ====================================================
+# The reader below resolves every line against the REPO ROOT, so this file can
+# also carry the lane's own host source. That is deliberate: it is the one
+# wiring point this lane owns, and it keeps the seat out of CMakeLists.txt.
+port/hal/w2_dtor_heads.cpp
+
+# ---- _ZTV12CylinderClsn (arm9 0x0208e6ec) slots 0 and 1 -------------------
+# Reference edge: hal_seat_w2_dtor_heads in port/hal/w2_dtor_heads.cpp, which
+# writes the two words config/arm9/relocs.txt puts there:
+#   from:0x0208e6ec to:0x020150a8 _ZN5dCc_cD1Ev
+#   from:0x0208e6f0 to:0x0201507c _ZN5dCc_cD0Ev
+# The D1 body writes 0x0208e6ec as the object's own vptr, which is what fixes
+# the index convention. Storage is hal/cxx_aliases.cpp and no fill in the tree
+# ever wrote a slot in it.
+src/_ZN5dCc_cD1Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN5dCc_cD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN5dCc_cD0Ev.cpp
+
+# ==== WAVE 3, LANE w3-b ====================================================
+# ---- _ZTV8dScene_c (arm9 0x02092680) slot 1, and the chain behind it ---------
+# Reference edge: hal_seat_w2_dtor_heads writes the word config/arm9/relocs.txt
+# puts at base+4:
+#   from:0x02092684 to:0x0202e638 _ZN8dScene_c19BeforeInitResourcesEv
+# Storage is `void *_ZTV8dScene_c[20]` in hal/stage_bridges.cpp; no fill in the
+# tree writes a slot of it, and the src/ TUs that name the table (28 mention it,
+# 28 store, 0 write a slot -- re-measured for the wave-4 slot-7 seat, which
+# CORRECTS the "25 store" this line carried from the w3-b review) only store
+# its ADDRESS as a transient vptr. The sweep is written out in the seat's own
+# comment. What blocked this head in wave 2 was data_0209f1e4, the DS BSS word
+# Scene::ResetFadersAndSound clears; hal/auto_bss.cpp hosts it now.
+src/_ZN8dScene_c19BeforeInitResourcesEv.cpp
+# the two faces the head calls
+src/_ZN8dScene_c19ResetFadersAndSoundEv.cpp
+src/_ZN8dScene_c20Initialise3dGraphicsEv.cpp
+# Scene::Initialise3dGraphics' own callees. The global Initialise3dGraphics(int)
+# is listed in slice_gate36.txt, but that list is INERT: CMakeLists.txt builds
+# SLICE36_SOURCES and then never adds it to a target, so the TU was not even
+# compiled, let alone linked. It is listed here so the head's call resolves. If
+# gate 36 is ever wired to a target, drop this line rather than carrying both.
+src/Initialise3dGraphics.cpp
+src/func_0205583c.c
+src/func_020554bc.c
+src/func_020556d0.c
+src/_ZN3G3X13SetClearColorEtiiib.cpp
+# and theirs: the geometry-engine reset helpers and the DMA/matrix primitives.
+#
+# TWO OF THE CALLEES ARE NOT LINES HERE, and both would be duplicate symbols:
+#   func_02055780, the reset func_0205583c opens with, is a GATE 4A symbol.
+#     Those touch MMIO textually, so CMakeLists.txt builds them from a
+#     hostgen-emitted copy under the build tree instead of from src/; adding
+#     the src/ line as well is LNK2005 (measured: "_func_02055780 already
+#     defined in func_02055780.c.obj"). Nothing referenced the hostgen copy
+#     before this chain, so it was dropped by /OPT:REF and this is still the
+#     edge that pulls it in.
+#   func_020553c0, the FIFO flush func_02055780 itself calls, is a HAND-ASM
+#     PRIMITIVE (32 identical stmia to a command port) and does not compile as
+#     C at all -- MSVC gives C2054 on the `asm` block. port/ntr/runtime.cpp
+#     SHOULD carry it as a documented host-ABI exception; the tag was
+#     missing until the wave-3 close added it (ntr/runtime.cpp).
+src/func_02055464.c
+src/func_02055490.c
+src/func_0205a064.c
+src/DMASyncFillTransfer.c
+
+# ---- _ZTV8dScene_c slots 10, 16 and 17 --------------------------------------
+# The same table, the same three re-proven conditions, three more of the ROM's
+# own words:
+#   from:0x020926a8 to:0x0202e3a4 _ZN8dScene_c12BeforeRenderEv
+#   from:0x020926c0 to:0x0202e140 _ZN8dScene_cD1Ev
+#   from:0x020926c4 to:0x0202e170 _ZN8dScene_cD0Ev
+# These three and slot 1 are the four whose matched bodies take the receiver as
+# an ordinary first argument and whose callees are already C-named in the map,
+# so no face and no adapter has to be invented for them. The other six unlinked
+# slots of this table are blocked on hal/method_faces.cpp, which this lane does
+# not own -- the reasons are in the seat file's group 4.
+src/_ZN8dScene_c12BeforeRenderEv.cpp
+src/_ZN8dScene_cD1Ev.cpp
+src/_ZN8dScene_cD0Ev.cpp
+
+# ==== WAVE 4, LANE w4-d ====================================================
+# ---- _ZTV8dScene_c slot 7, and the eight TUs behind it -----------------------
+# Reference edge: hal_seat_w2_dtor_heads writes the word config/arm9/relocs.txt
+# puts at base+0x1c:
+#   from:0x0209269c to:0x0202e3d4 _ZN8dScene_c14BeforeBehaviorEv
+# and config/arm9/symbols.txt puts _ZN8dScene_c14BeforeBehaviorEv
+# kind:function(arm,size=0x1fc) at 0x0202e3d4. (0x0209269c - 0x02092680)/4 = 7.
+# Same storage, same three re-proven conditions as slots 1/10/16/17 -- the
+# sweep is re-run in the seat's own comment, not carried from wave 3.
+#
+# THE HEAD ITSELF. Its receiver arrives as an ordinary first argument
+# (`int _ZN8dScene_c14BeforeBehaviorEv(char *self)` inside extern "C"), so slot 7
+# takes the same ecx->arg adapter the other four use and needs no face of its
+# own.
+src/_ZN8dScene_c14BeforeBehaviorEv.cpp
+# the pause branch: func_02023544 resets sound and the two mode bytes, and its
+# own callees func_02011c8c / GetSoundMode / SetSoundMode are already linked.
+src/func_02023544.c
+src/func_0202fd2c.c
+src/func_0202ed48.c
+# and func_0202ed48's two: the record writer and the IRQ-side teardown. The
+# second one stores to 0x4000208 / 0x4000000 / 0x4001000 textually, which is
+# the shape gate 4a hostgens -- but it is NOT a gate-4a symbol (CMakeLists.txt
+# GATE4A_SYMS lists nine and this is not one of them), and those addresses are
+# real committed pages in the host: port/ntr/io.cpp reserves the DS I/O region
+# at its own address, which is why hal/message_pump.cpp already writes
+# *(vu32*)0x4000000 straight. So it compiles and links from src/ unchanged.
+src/func_0202ed14.c
+src/func_0202fb30.c
+# the processing-list walk behind the pause-bit branch. Its two callees
+# (func_0203b358, func_0203b394) are already in the map. Linking it is what
+# retires hal/stage_bridges.cpp's stand-in for that one statement -- see the
+# note at stage_bridges.cpp:204, which names this exact function as the
+# blocker. NOT retired by this lane: the stand-in stays until the Stage takes
+# its processing-list seat, because nothing dispatches slot 7 yet.
+src/func_020431c4.c
+# FaderBrightness::SetForwardTime, reached by its Itanium C name from the head.
+# The face is in hal/method_faces.cpp with its checklist and its one recorded
+# hazard. This line is safe against the gate-1 slice, which also lists this TU:
+# slice_gate1.txt feeds SLICE_SOURCES, and the only target that carries that is
+# `smoke`, which carries no slice_w1l2 line. The three targets that DO carry
+# this file (walk_window, walk_window_hires, smoke_player) carry no gate-1
+# line, so there is no second object and no LNK2005.
+src/engine/fader/_ZN15FaderBrightness14SetForwardTimeEj.cpp
+#
+# NOT LINES HERE, and each for a measured reason:
+#   _ZN15FaderBrightness7IsAtEndEv is already linked (slice_w1l3.txt seats it
+#     for hal/fader_wipes.cpp); only its C name was missing, so it gets a face
+#     and no slice line.
+#   ActorBase::BeforeBehavior, ActorBase::MarkForDestruction and
+#     Scene::StartSceneFade were already in walk_window.map before this batch.
+#   func_02023498, the one TU that writes data_0209f1e0 non-zero, is NOT added.
+#     Nothing references it, so a line would be a /OPT:REF no-op -- and it is
+#     also the reason the head's whole first branch is dead in the port, which
+#     two comments (hal/auto_bss.cpp and hal/method_faces.cpp) depend on.
+
+# ---- _ZTV8dScene_c slots 4, 8 and 11 -----------------------------------------
+# Three of the four faces wave 3 left blocked in hal/method_faces.cpp, which
+# this lane owns this wave. The ROM's own three words:
+#   from:0x02092690 to:0x0202e5f0 _ZN8dScene_c22BeforeCleanupResourcesEv
+#   from:0x020926a0 to:0x0202e3c8 _ZN8dScene_c13AfterBehaviorEj
+#   from:0x020926ac to:0x0202e398 _ZN8dScene_c11AfterRenderEj
+# (0x10/4 = 4, 0x20/4 = 8, 0x2c/4 = 11.)
+#
+# Slot 4 is the straightforward one: the body passes its own receiver and only
+# the C-linkage name of its base call was undefined. Its other two references
+# (func_02011974 and data_0209b53c) were already resolved.
+src/_ZN8dScene_c22BeforeCleanupResourcesEv.cpp
+# Slots 8 and 11 are the ROM's TAIL VENEERS, and they are here because their
+# callees turned out to be empty -- `ret 4`, three bytes, no receiver read and
+# no argument read, folded onto one address by /OPT:ICF. The dropped receiver
+# the veneers' void() shape implies therefore cannot be wrong the way
+# method_faces.cpp's failure mode 2 means. The two listings and the reading are
+# beside the tagged definitions in that file.
+src/_ZN8dScene_c13AfterBehaviorEj.cpp
+src/_ZN8dScene_c11AfterRenderEj.cpp
+#
+# SLOT 2 IS RULED OUT, and this is the listing that rules it out rather than a
+# judgement call. Scene::AfterInitResources is the same veneer shape, but its
+# callee is not empty:
+#   ?AfterInitResources@dBase_c@@UAEXI@Z:
+#     cmp   dword ptr [ebp+8],1                reads the ARGUMENT
+#     mov   esi,ecx / call ?MarkForDestruction@fBase_c@@QAEXXZ
+#                                              reads the RECEIVER
+#     push  dword ptr [ebp+8] / mov ecx,esi
+#     call  ?AfterInitResources@fBase_c@@UAEXI@Z
+# so a dropped-receiver definition would run MarkForDestruction on whatever
+# ecx held. That is the crash half of failure mode 2, not the silent half, and
+# there is no side-channel-free way to hand it the two values the ROM rides
+# through in r0/r1. Blocked, and the reason is now measured.
+#
+# SLOT 5 STAYS OUT, re-confirmed rather than carried: config/arm9/symbols.txt
+# puts data_02092660 at 0x02092660 kind:data(any), and
+# src/_ZN8dScene_c21AfterCleanupResourcesEj.cpp DEFINES it at namespace scope
+# inside extern "C" -- a definition, not a tentative one -- so the symbol lands
+# in ordinary .bss, outside .dsstate, and dsstate_guard rejects it. Hosting it
+# in hal/auto_bss.cpp would be a second definition. The fix is in src/, which
+# is read-only for every lane in this campaign.

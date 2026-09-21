@@ -1,0 +1,651 @@
+ov002: what is left unlinked, and what each class of it is waiting on
+=====================================================================
+
+Run linkw wave C, lane cat-ov002, worktree branch cat-ov002 off 459f21a07.
+Every number below was read out of this worktree's own build:
+
+    baseline   4888 / 11243 linked, battery ALL GREEN, exe 702f3357...
+    after      4892 / 11243 linked, battery ALL GREEN, exe c13bbec7...
+    ov002      1528 matched TUs, 1123 -> 1127 linked, 405 -> 401 unlinked
+
+WHAT LINKED, AND WHY THOSE FOUR
+-------------------------------
+Gate 204 seated slot 17 -- the deleting destructor -- on four classes the port
+already fills: Coin, HealingHeart, the Cap and PushBlock. Three of them were on
+bw_trap17 and PushBlock had the member chain typed out by hand in a host thunk.
+The bodies were matched, flat C, unmarked and fully closed; what they lacked was
+a reference edge, and the ROM's own vtable word is the honest place for one.
+See slice_gate204.txt for the derivation.
+
+That gate supersedes port/slice_w1l1.txt section (2), which declines slot-17
+seats -- Coin's by name -- on the grounds that the trap is a diagnostic and
+seating it buys a double free. The distinction w1l1 does not draw is that
+bw_trap17 declines SOFT into the quarantine net while the Player's ps_trap
+aborts HARD, and that the binary-wide slot-17 dispatch count is measurably
+zero. The going-forward rule, with the measurement and its positive control,
+is written out at the bottom of slice_gate204.txt. Cite that one, not both.
+
+HOW THE REMAINING 401 SPLIT
+---------------------------
+Method: a TU's ROM address comes from config/arm9/overlays/ov002/symbols.txt;
+every ov002 relocation whose `to:` is that address and whose `from:` lands
+inside a data object is a table word; a table is HOSTED when a port/hal or
+port/unmatched file declares it as an array or names it as data_ov002_*; a
+pointer-to-member object is one whose cxx_aliases spelling carries the `@@3P8`
+member-function mangling.
+
+THE BUCKETS ARE ORDERED AND EACH TU IS COUNTED ONCE, so the counts are only
+reproducible next to the order. It is, first match wins:
+
+     1  host copy defining the Itanium name
+     2  host copy defining the MSVC-mangled name
+     3  inferred-stub marker
+     4  MSVC-method form (the source defines Class::Method, not a C body)
+     5  word in a hosted vtable
+     6  word in a pointer-to-member record
+     7  word in a vtable the port does not host
+     8  nothing above -- a plain callee
+
+A TU can qualify for several. _ZN4CoinD1Ev is both an MSVC-method form and a
+hosted vtable word, and lands in 4 because 4 is the binding constraint: no
+slice line reaches a body MSVC will not compile against the host seams. Read a
+bucket as "the first thing that has to change", not as "the only thing true of
+it".
+
+  167  vtable slot on an UNSEATED class
+   97  plain callee -- no vtable word names it; it links when its caller does
+   48  MSVC-method form (a real C++ method or destructor, not a C body)
+   29  HOST-COPY, Itanium name -- already in linkage.py's replacement queue
+   28  INFERRED-STUB -- the ratchet holds it out
+   14  mwcc PMF record -- needs a states seat
+   10  hosted vtable slot, blocked on one placeholder binding
+    7  HOST-COPY, MSVC name -- INVISIBLE to linkage.py's queue
+    1  hosted vtable slot, seatable (Player D0; deliberately trapped, below)
+
+THE THREE FINDINGS WORTH CARRYING FORWARD
+-----------------------------------------
+
+1. THE ov002 VTABLE-TAIL FRONTIER IS INFERRED-STUB BODIES, NOT PORT WIRING.
+
+   Two seats in hal/actor_classes.cpp record their own tail slots as ready
+   follow-ups: SIGN_POST's header says slots 21/22/27/31 are "matched in src and
+   in no slice", and BLACK_BRICK_BLOCK's says slot 23 "stays on ac_trap23 only
+   because its real body is not sliced yet -- seating it is a follow-up".
+
+   Every one of those six bodies -- _ZN8SignPost15OnGroundPoundedER8dActor_c, 020bb23c, 020bb374,
+   020bb3b8, 020b3788, 020b36dc -- carries the `recovered from vtable slot
+   identity` marker, so seating any of them fails port/tools/
+   inferred_stub_guard.py. So does every other unlinked ov002 body the ROM's own
+   words put in a hosted table's tail. The follow-up those comments describe is
+   not a slice line; it is decompiling six guessed bodies.
+
+   A SECOND CORRECTION TO THE SAME COMMENT. BLACK_BRICK_BLOCK's header rules
+   slot 22 blocked because its body reaches slot 31 through `fn(c)`, a cdecl
+   call, while the seated slot 31 is __fastcall -- and rules slot 23 unblocked
+   because its DISPATCHER is now thiscall. Slot 23's BODY has the same defect as
+   slot 22's: src/_ZN13BigBrickBlock11OnAttacked2ER8dActor_c.cpp declares
+   `struct Vt { int dummy[0x7c/4]; void (*fn)(void*); }` and calls
+   `(*(struct Vt**)c)->fn(c)`, which MSVC emits as a cdecl call through a
+   function pointer onto the __fastcall bbb_kill at slot 31. Seating slot 23 as
+   the comment suggests would introduce exactly the bug the comment attributes
+   to slot 22. Slots 24 (020b36dc) and 27 (020b36b4) use a C++ virtual call and
+   would be convention-clean -- they are held out only by the marker.
+
+2. linkage.py's REPLACEMENT QUEUE CANNOT SEE HOST COPIES THAT DEFINE ONLY THE
+   MSVC-MANGLED NAME.
+
+   The queue matches a map symbol against the set of matched TU stems, and a
+   stem is an Itanium name. A host copy that compiles a real C++ method defines
+   `?Behavior@Player@@UAEHXZ`, which is not any TU's stem, so the pair is never
+   examined. Ten ov002 matched TUs are shadowed that way today:
+
+     _ZN3HUD13InitResourcesEv          HUD_InitResources.cpp
+     _ZN6Player11ChangeStateERNS_5StateE   reverse_bridges.cpp
+     _ZN6Player12St_Jump_MainEv        Player_St_Jump_Main.cpp
+     _ZN6Player12St_Swim_MainEv        method_faces.cpp -> Player_SwimMain.cpp
+     _ZN6Player16CleanupResourcesEv    Player_CleanupResources.cpp
+     _ZN6Player16St_WallJump_MainEv    Player_St_WallJump_Main.cpp
+     _ZN6Player17St_NoControl_InitEv   Player_St_NoControl_Init.cpp
+     _ZN6Player8BehaviorEv             Player_Behavior.cpp
+     _ZN16dPathLiftActor_c12BaseBehaviorEv      PathLift_StateDispatch.cpp
+     _ZN9OneUpLogo13InitResourcesEv    OneUpLogo_InitResources.cpp
+
+   Each host file's header documents a real host-ABI reason (the mwcc
+   pointer-to-member dispatch over DS code words, the TextureSequence::Prepare
+   argsweep seam, the GetHealth receiver seam), so these are exceptions rather
+   than work.
+
+   THREE OF THE TEN ARE ALREADY IN THE QUEUE, and the queue is not as blind as
+   a first read of this list suggests. ChangeState, St_Swim_Main and
+   CleanupResources each have a companion host object that ALSO defines the
+   Itanium spelling -- Player_ChangeState.cpp, Player_SwimMain.cpp and
+   method_faces.cpp respectively, all three visible in walk_window.map -- so
+   the queue sees them by name and, each being PORT_HOST_ABI tagged, files them
+   under EXCEPTIONS. That is the queue working.
+
+   SEVEN are absent from all three columns, and seven is the actionable number
+   for a demangling fix. It is the same seven this file's own bucket table
+   counts under "HOST-COPY, MSVC name".
+
+   PORT_HOST_ABI TAGS ARE NOT THE MISSING PIECE, and an earlier draft of this
+   file said they were. The tag is not rare in these files: method_faces.cpp
+   carries seven, PathLift_StateDispatch.cpp carries two, and one of those two
+   sits directly above BaseBehavior. It is inert there only because MSVC
+   inlined the forwarder and /OPT:REF dropped the external, which is the
+   folded-away-face case method_faces.cpp's own header warns about at length.
+   So the gap is the queue's name matching, not missing documentation: tagging
+   the other seven changes nothing while a tag is only consulted for a symbol
+   the queue already asked about. The fix is to make the queue demangle, or to
+   have each host copy also carry the Itanium spelling the way the three above
+   do.
+
+3. func_ov002_020bd664's POINTER-TO-MEMBER TABLE IS LIVE AND UNSEATED.
+   UNPROVEN AT RUNTIME -- stated as a shape read off the source and the map,
+   not as an observed fault.
+
+   src/func_ov002_020bd664.cpp is linked (slice_gate10) and reached from
+   src/func_0200e5ac.c, which is also linked. It builds a 14-entry array of
+   mwcc pointers-to-member out of data_ov002_0210a054 .. 0x0210a534 and calls
+   `(self->*table[p[6]])(p + 7, a2, a3)`. Those fourteen objects are mounted
+   ov002 data whose first word is a DS code address, and MSVC's
+   single-inheritance member pointer is that one word, so the call goes to a DS
+   address inside the mapped overlay image. That is the same shape as the
+   walljump crash port/unmatched/Player_St_WallJump_Main.cpp was written
+   against; no port_*_states_seat covers this table.
+
+   The fourteen bodies those records name are all in the unlinked set
+   (func_ov002_020bccfc, 020bcd18, 020bcd38, 020bd20c, 020bd250, 020bd354,
+   020bd3a0, 020bd438, 020bd45c, 020bd480, 020bd4ac, 020bd4c8, 020bd4e0,
+   020bd600), so a seat over this table both closes a latent wild call and
+   links fourteen TUs. It was not taken here: it needs the SignPost/Coin
+   states-seat treatment with per-record byte checks, and it sits next to the
+   level object loader, which is another lane's file this wave.
+
+WHAT IS ONE BINDING AWAY
+------------------------
+Five classes have a trapped slot 17, a matched flat-C D0 body, and every callee
+already linked. The only blocker is that the body spells its own vtable as the
+bare placeholder `VT`, which cxx_aliases binds ONCE, to data_ov002_021081e4.
+Each needs one per-source COMPILE_DEFINITIONS line, which belongs to the actors
+lane this wave. `HEAP` needs nothing -- it is already bound to data_020a0eac,
+which is what all five want.
+
+    src/_ZN10BrickBlockD0Ev.cpp            VT=_ZTV10BrickBlock
+    src/game/actors/d_a_ch_scene.cpp           VT=_ZTV11daChScene_c
+    src/game/actors/d_a_obj_waterfall.cpp    VT=_ZTV16daObjWaterfall_c
+    src/game/actors/d_a_set_se.cpp   VT=_ZTV9daSetSE_c
+    src/_ZN8MugenBgmD0Ev.cpp               VT=_ZTV8MugenBgm
+
+Two more want a host object rather than a -D: src/_ZN10StarSwitchD0Ev.cpp and
+src/game/actors/d_a_obj_cannon_shutter.cpp both store _ZTV10dBgActor_c, the shared base table,
+which nothing in the port defines. Their own class tables are already aliased
+(daObjSwitch_c, daObjCannonShutter_c); dBgActor_c is a real second table and
+wants a mount, not an alias onto one of theirs.
+
+WHAT IS DELIBERATELY LEFT ALONE
+-------------------------------
+_ZN6PlayerD0Ev is the one hosted slot with a clean body and no binding problem,
+and it stays unlinked on purpose. hal/level_boot.cpp seats slot 17 of
+data_ov002_0210a83c on ps_trap and says why: the ROM's teardown never dispatches
+the deleting form, so a call arriving there means something reached the Player
+through `delete`, "which is a bug worth an abort rather than a double free".
+
+This is the same reasoning gate 204 supersedes for the three soft traps, and it
+survives here for the reason the new rule turns on: ps_trap calls std::abort(),
+so it is a live misuse detector rather than a bounded decline into the
+quarantine net. Losing it costs the first-failure stop; losing a bw_trap17
+costs a diagnostic for a call site the sweep proves does not exist. Lane l5
+made this call before and it stands. +1 on the headline is not worth the trade;
+anyone who wants it should reverse the rule deliberately rather than notice the
+inconsistency and close it the easy way.
+
+THE PLAYER STATE MACHINE, ANSWERED FOR THE COORDINATOR
+------------------------------------------------------
+Five St_ bodies are in the ov002 unlinked remainder. None is a switch case that
+was never wired and none is a state no selftest enters:
+
+  St_Jump_Main, St_WallJump_Main, St_NoControl_Init
+      hal/player_states.inc HAS the case and it calls the MSVC method; the
+      method is defined by the host copy in port/unmatched, so the matched TU
+      would be a duplicate definition. Blocker: the per-character PMF rows hold
+      DS code words and the matched source calls them as plain function
+      pointers.
+  St_Swim_Main
+      same, one level further out: method_faces.cpp defines the MSVC method as
+      a face onto the Itanium name and port/unmatched/Player_SwimMain.cpp
+      defines that, PORT_HOST_ABI tagged for the GetHealth receiver seam.
+  _ZN6Player18St_LevelEnter_MainEv
+      on slice_gate10.txt and /OPT:REF-stripped. The port does not route
+      through this name at all: player_states.inc case 0x020c6f3c calls
+      func_ov002_020c6f3c, because the community Player symbol at that address
+      is the one the port distrusts. A naming question, coordinator-routed, not
+      a wiring gap.
+
+The remaining 167-in-unseated-classes half is also, in part, a naming problem
+rather than a port one. InvisiblePole, InvisibleSecret, Seaweed, WaterfallMist
+and PoppingLavaBubbles all carry config names that belong to a DIFFERENT ROM
+class than the actor the port seats -- hal/actor_classes_bob_world.cpp derives
+the shift by address at its head. So e.g. the seven _ZN13InvisiblePole* TUs are
+not the class the port fills as INVISIBLE_POLE, and they will link when the
+class they really belong to is mounted, not before.
+
+
+================================================================================
+VS MULTIPLAYER: WHAT ov002 STILL OWES (run mg16, lane MP3)
+================================================================================
+
+MP3 linked the ROM's multiplayer conductor and got two Player actors into one
+world, driven by two processes, physically colliding. Two things it went looking
+for in ov002 and did NOT find are recorded here rather than only in a lane's
+status file, because this is where the next person will look.
+
+1. THE VS STAR-STEAL LOGIC IS LOCATED. ANSWERED, AND THE OLD ANSWER WAS WRONG.
+   This entry used to read "NOT LOCATED", with the caveat that the search had
+   been by symbol name and by reading the hit path rather than by tracing the
+   star count backwards from its writer. Somebody did the trace: run vsdec lane
+   SS, review-hardened, and the corrected verdict is theirs. MP3's caveat was
+   the right one -- the backwards trace is exactly what settled it.
+
+   WHY THE OLD SEARCH MISSED IT: the steal is not in the collision handler at
+   all. The drop fires on the VICTIM side inside the Player damage states, and
+   the attacker never "takes" anything -- a dropped star becomes a free-standing
+   PowerStar actor that anyone can collect. func_ov002_020d869c was read
+   correctly; it simply is not on this path.
+
+   THE STATE is data_0209f310[], the per-player carried-star array (dual
+   purpose: the VS star count and carried silver stars). The HUD reads it in
+   _ZN3HUD15RenderStarCountEv.cpp:53-57, gated on data_0209f2d8 == 1.
+
+   TWO WRITERS, not one:
+     GiveVsStars @ 0x0202a5ac (0x18 bytes) is the only DELTA mutator
+       (data_0209f310[idx] += delta), byte-verified from arm9_dec.bin.
+     _ZN5Stage13InitResourcesEv @ 0x0202cc0c (literal pool 0x0202d564) zeroes
+       the array per player at stage load, across the same data_0209f21c count.
+       That is where a fresh VS match resets its scores.
+
+   SUM AND WIN: NumVsStarsObtained @ 0x0202a55c sums across data_0209f21c
+   players; the win test is NumVsStarsObtained() == 5, at func_ov002_020ea420.c
+   :24 and _ZN9PowerStar13InitResourcesEv.cpp:177 -- the only two relocs to that
+   address land in exactly those two ranges.
+
+   THE COMPLETE GiveVsStars CALLER SET is six arm_calls, all ov002: 0x020d9524
+   (drop), 0x020e90e4 (collect), 0x020e96f0 (toss landing, +1 at timer 0x1e),
+   0x020e9e44 and 0x020e9eb8 (animation phases 1 and 5, +1 each), 0x020ea33c
+   (-1 when the carrier dies without a valid drop).
+
+   DROP is func_ov002_020d94cc @ 0x020d94cc (0x188): the victim must have a star
+   (data_0209f310[slot] > 0), GiveVsStars(victim, -1), then spawn actor 0xb2
+   (STAR, 178) when data_0209f2d8 == 1, else 0xb3 (SILVER_STAR, 179). Called
+   from three Player damage states -- St_Hurt_Main, St_DeadHit_Main,
+   St_HurtWater_Init -- sharing one gate on (mStateStep & 0xf0) being 0 or 0x10.
+   mHurtDamage != 0 additionally gates TWO of the three; St_DeadHit_Main has NO
+   mHurtDamage test. (Both of those are the review's corrections to the worker's
+   first reading: the worker claimed one writer and a uniform mHurtDamage gate.)
+
+   COLLECT -- the "steal" -- is func_ov002_020e8ef0 @ 0x020e8ef0 (0x41c), the
+   PowerStar collect handler. Its VS branch (line ~104) calls
+   GiveVsStars(toucher, +1); the solo branch sets Event bit 0x1e instead.
+
+   EVERY FUNCTION IN THE DROP/COLLECT/DELTA CHAIN IS ALREADY MATCHED AND
+   ENROLLED COMPLETE. VS scoring needs no new decomp to work in the port; the
+   chain goes live wherever data_0209f2d8 == 1 with real players. Reference
+   census: 15 relocs to 0x0209f310 (ov002 x10, arm9 x3, ov075 x2), 13 of them
+   into enrolled-complete sources; the arm9 0x0202d564 one lands in
+   Stage::InitResources, which is NONMATCHING and a terminal floor, and the
+   ov075 0x0211658c one lands in the func_ov075_0211621c near-miss.
+
+   PORT-SIDE FOLLOW-UP, DONE: run rel0215 lane prop15 span-checked how this
+   tree hosts data_0209f310. See section "THE data_0209f310 SPAN CHECK" below.
+
+2. THE PER-PLAYER Ctrl SPLIT SYMBOLS DO NOT CAP THE GAME AT TWO PLAYERS. THEY
+   DID, and this entry is the record of the cap being lifted -- by run mg16
+   lane MP3 -- and then of this entry itself being wrong for a while afterwards.
+   Read the correction before quoting the diagnosis.
+
+   WHAT IS TRUE. data_0209f498 is Ctrl[4], stride 0x18, and dsd names several
+   interior addresses of it as separate symbols: f49c held (+4), f49e pressed
+   (+6), f4a0 mag (+8), f4a2 nx (+0xa), f4a4 ny (+0xc), f4a6 ang (+0xe), f4a8
+   tx (+0x10), f4ac touching (+0x14), f4ae mode (+0x16). That is why
+   Player::Behavior reads its stick angle as
+   `&data_0209f4a6 + data_020a0e40 * 0x18`.
+
+   WHAT WAS THE CAP. The port hosted the split names as int[8] -- 32 bytes --
+   so that walk landed correctly for slot 0 (offset zero) and slot 1 (+0x18,
+   still inside 32) and ran off the end at slot 2's +0x30.
+
+   WHAT FIXED IT, and it is NOT the migration this entry used to prescribe.
+   Every one of the names is now hosted at the FULL 0x18 * 4 extent as its own
+   array -- hal/auto_bss.cpp (f4a2/f4a4/f4a6), hal/actor_vtables.cpp
+   (f49c/f49e/f4a0/f4ac/f4ae), hal/sub_actors.cpp (f4a8, spelled 0x60) -- and
+   tests/walk_window.cpp copies all seven CheckInput-written fields out of the
+   real data_0209f498 record at the DS's own 0x18 stride for every player,
+   bounded 1..4. A full-extent array puts player N's value at offset N * 0x18
+   of its own storage, which is exactly where the ROM's walk looks. The two
+   names the copy does not carry are the two CheckInput does not write: f4a8
+   tx/ty, and f4ae mode, whose only writers (src/InitControllerMode.c's own
+   4-player loop and src/SetControllerMode.c) go through the split name that
+   its readers read.
+
+   SO THERE IS NO BAND MIGRATION TO DO. Nothing was made interior to
+   .dsstate$mmm, nothing shifted, and the "retires every BMP baseline in the
+   tree" regression surface this entry used to promise belongs to a change that
+   does not need making. Do not do it.
+
+   AND THE REFUSAL IS GONE. This entry said "tests/walk_window.cpp REFUSES
+   above two players loudly"; run vs4p grepped for it and there is no such
+   refusal. hal/auto_bss.cpp's own note at the sizing has said so since MP3.
+
+   WHAT ACTUALLY CAPPED FOUR-PLAYER PLAY, measured by run vs4p at 577b48832
+   with four windows on one loopback session, is nothing in this band: it was
+   SESSION FORMATION. Every console seated its world on the FIRST peer, so the
+   parent booted a two-player world while slots 2 and 3 were still joining, and
+   the four windows ran four different matches (counts 2/2/3/4). Closed in
+   hal/comms_loopback.cpp (the parent announces a grown roster to every live
+   child) and hal/comms_conductor.cpp (the seat waits for SM64DS_VS_PLAYERS).
+   See the four-window section at the bottom of this file.
+
+3. THE VS MODE FLAG IS DELIBERATELY OFF. data_0209f2d8 == 1 is not "two players
+   are present", it is DS VS MODE, and eleven attack-cylinder wrappers in ov002
+   branch on it (VS ground-pound radius 0x82000 against single-player's
+   0x32000), as do func_ov002_020dd908's shockwave, Stage, StarMarker, the HUD
+   and the fader. MP3 moved the player COUNT and left the mode alone, so two
+   players run on mode-0 code that was already proven. Turning the flag on is a
+   lane of its own and it wants ov075 (the VS menu) mounted first, because
+   src/PrepareVsMode.c is what the ROM sets it from.
+
+
+================================================================================
+THE data_0209f310 SPAN CHECK (run rel0215, lane prop15) -- IT WAS SHORT
+================================================================================
+
+Item 1 above ends by naming the per-player carried-star array as live gameplay
+state. The undersized-host-globals trap says a hosted DS global must cover its
+whole ROM span, so it was measured. It did not, and the way it failed is one
+this file has not recorded before: a SPLIT, not a truncation.
+
+THE ROM SPAN IS FOUR BYTES, 0x0209f310..0x0209f313, and three independent
+readings agree:
+
+  * config/arm9/symbols.txt names data_0209f310 (0x0209f310), data_0209f311
+    (0x0209f311) and then data_0209f314 -- so dsd splits the run into a 1-byte
+    head and a 3-byte tail, and the next DIFFERENT object starts at +4.
+    data_0209f314 is the level area table, hosted in hal/camera_bridges.cpp,
+    and it carries six relocations of its own. It is not slack.
+  * the reloc census: 15 loads land on 0x0209f310 (arm9 3, ov002 10, ov075 2)
+    and exactly one on 0x0209f311, which is NumVsStarsObtained's second load.
+    Nothing addresses 0x0209f312 or 0x0209f313 directly -- they are reached by
+    indexing, which is why the symbol table alone cannot size this.
+  * THE DECIDING EVIDENCE IS A MATCHED TU, and it arrived in this same lane.
+    src/func_ov075_021165b0.c -- propagated from main tonight, byte-verified at
+    2004/b56 -- spells the width out literally:
+
+        if (data_0209f310[0] != 0 || data_0209f310[1] != 0 ||
+            data_0209f310[2] != 0 || data_0209f310[3] != 0 || ...
+
+    and walks the array twice more with `do { ... } while (i < 4)`. Four
+    players, one signed char each. That is the ROM's own answer, not an
+    inference from the symbol bound.
+
+WHAT THE PORT HOSTED. hal/actor_classes_star.cpp defines the pair as two
+grouped sections, .dsstate$hvsstar0000 (data_0209f310[1]) and $hvsstar0001
+(data_0209f311[31]), on the reasoning that MSVC lays $NNNN contributions out in
+suffix order and would therefore put them adjacent. The suffix-order half is
+true. The ADJACENCY half was never measured, and it was false: read out of the
+0.2.15 release build's own maps, before any change, on all three hosting
+targets --
+
+    walk_window.map        _data_0209f310 00d280d4   _data_0209f311 00d280d8
+    smoke_player.map       _data_0209f310 009fd0d0   _data_0209f311 009fd0d4
+    walk_window_hires.map  _data_0209f310 015980d4   _data_0209f311 015980d8
+
+-- f311 sat FOUR bytes behind f310 where the ROM puts it ONE. The linker gives
+each contribution its default four-byte alignment, so the one-byte head was
+padded out to four. hal/cxx_aliases.cpp's GXBANK macro has carried the missing
+half all along ("align(4) on every member would pad each one to four and put
++0x18 at +0x30"); this pair was written without any align() at all.
+
+WHAT IT COST, and why nothing ever faulted. Every WRITER indexes the array:
+GiveVsStars(idx, delta) does data_0209f310[idx] += delta, Stage::InitResources
+zeroes it with a walking p2, func_ov002_020d94cc's drop tests
+data_0209f310[slot] > 0, the three HUD readers index by data_0209f250, and
+func_ov075_021165b0 reads [0]..[3]. All of those land on host +0..+3. The one
+READER that walks by pointer is NumVsStarsObtained -- and its sum IS the VS win
+test, `NumVsStarsObtained() == 5` -- which takes player 0 from data_0209f310 and
+then walks from &data_0209f311, landing on host +4..+6 for players 1, 2 and 3.
+Three bytes of inter-contribution padding sat between the two, owned by no
+symbol. So nothing was corrupted and no neighbour was clobbered: player 0 read
+back correctly and players 1-3 always read zero. A VS match could not have been
+won by anyone but player 0, and the failure would have looked like a game rule
+rather than a bug.
+
+THE FIX is the GXBANK arrangement: __declspec(align(4)) on the head and
+__declspec(align(1)) on the member, so the linker places f311 at f310+1. AFTER,
+same three targets:
+
+    walk_window.map        _data_0209f310 00d290d8   _data_0209f311 00d290d9
+    smoke_player.map       _data_0209f310 009fe0d4   _data_0209f311 009fe0d5
+    walk_window_hires.map  _data_0209f310 015990d8   _data_0209f311 015990d9
+
+AND IT IS GATED NOW, twice. port_vsstar_layout_check() in
+hal/actor_classes_star.cpp reads the delta back once per process from
+port_scene_fill_vs, and port/tools/gxband_guard.py grew a band, 'vsstar', which
+asserts the config-derived offsets against EVERY hosting target's map at link
+time. Its own post-link line on the fixed build:
+
+    gxband_guard: gxbank 3/24 maps (floor 3), 13 members, 36 deltas; dtcm 3/24
+    maps (floor 3), 1 members, 0 deltas; vsrank 3/24 maps (floor 3), 2 members,
+    3 deltas; vsstar 3/24 maps (floor 3), 2 members, 3 deltas -- layout OK
+
+The runtime check alone would not have been enough -- ppu_gap_audit section 11a
+already measured a runtime layout check reading green over a broken band --
+which is why the link-time band is the real answer and the runtime one is the
+second opinion.
+
+AND IT WAS NOT THE ONLY ONE. Retiring the ov075 faces put func_ov075_021165b0
+in the link, and that one body walks FOUR split-symbol runs. Two more have the
+identical shape:
+
+  data_0209b2ec (1) + data_0209b2ed (3), the VS ranking counters, 0x0209b2f0
+      next. It had no host at all -- hal/auto_bss.cpp carried a generic
+      `int data_0209b2ec[8]` and nothing defined b2ed. Hosted as a
+      grouped-section pair in hal/scene_vs_menu.cpp now, gated by the 'vsrank'
+      band above, measured at f310+1 on all three maps.
+  data_0209fc5c (1) + data_0209fc5d (3), the per-slot ready bytes, 0x0209fc60
+      next. FIXED by the fc5c width reconciliation (port/vs-fc5c-width): the
+      pair is a grouped-section block in hal/scene_vs_menu.cpp now, gated by
+      the 'ready' band, and every accessor in the tree is on the byte view.
+      The int/u8 split this entry used to record was live game-breakage, not
+      a latent hazard: hal/level_boot.cpp's VS seat wrote the flags at int
+      stride, the ROM's byte readers saw fc5c[1] == 0, and Player::Behavior's
+      VS gate (`data_0209f2d8 == 1 && data_0209fc5c[mPlayerNo] == 0`) froze
+      player 2 in St_LevelEnter_Main on every VS map -- the frozen-slot1
+      symptom the vs-online lane measured for 900 frames. The same byte read
+      is why _Z19LoadEntranceObjects... discarded the second player it
+      spawned (the orphan shadow-caster), which is what the ARENA DAY section
+      below is really about. data_0209fc5d is the member half of the same
+      grouped-section pair now -- one four-byte block, fc5c the head byte and
+      fc5d the other three, adjacency asserted by the 'ready' band -- so
+      func_ov075_021165b0's walk over both names reads the one run the DS
+      reads.
+
+
+================================================================================
+BANKED OPEN QUESTION: VS DETERMINISM AND THE ROM'S RNG SEED (run mg16, lane MP3)
+================================================================================
+
+DOWNGRADED TO A BANKED QUESTION by coordinator order once host-authoritative
+state sync was sanctioned: under state sync the host's world is authoritative
+and small simulation divergences stop being correctness bugs. The archaeology
+was already done when the order landed, so it is recorded here rather than
+thrown away. NOBODY SHOULD CHASE THIS until the sync layer's shape is settled.
+
+WHAT THE ROM ACTUALLY DOES, derived from src and not invented:
+
+  THE RNG is one LCG, src/RandomIntInternal.c (0x0203b990):
+      *seed = *seed * 0x19660d + 0x3c6ef35f
+  Three seed globals, all bss (zero at boot): data_0209e650 (world/actor),
+  data_0209d4b8 (minigame), data_ov002_0210e160 (Player-local anim variation).
+
+  EVERY SEED WRITER IS A CONSTANT EXCEPT ONE. __sinit_02074e44.c:9 and
+  __sinit_02074dc4.c:12 write 1; func_020196cc.c:14 and
+  __sinit_ov002_021019d0.c:1085 write 0x4d2. The single non-constant seed in the
+  whole ROM is
+
+      _ZN5Stage13InitResourcesEv.cpp:424
+          func_0203b9b4(&data_0209e650, func_0203dad4());
+
+  and src/func_0203dad4.c is `return data_020a1040` -- THE COMMS FRAME COUNTER.
+  The same line's neighbour at :427 picks the VS star order as
+  func_0203dad4() % 6 into data_0209f344.
+
+  THAT COUNTER IS A SESSION VALUE, not a local one. src/func_0203df40.c:65 ticks
+  it once per frame, and src/func_0203ea5c.c:419 overwrites it with the PARENT's
+  value whenever any live peer disagrees -- a local counter continuously slaved
+  to the session clock. src/func_0203db64.c:59, the session-start path, zeroes
+  the whole 0x24 record including the counter.
+
+  SO THE ROM'S DETERMINISM CONTRACT IS: zero the clock at session start, converge
+  it on the parent every frame, and seed the world from it at level load -- by
+  which time it is common to every console. Identical seeds plus identical
+  inputs give identical worlds, which is what makes input-lockstep sound.
+
+  THE SLEEP TIMER IS NOT RNG-DRIVEN and is a red herring taken alone: it is a
+  plain 900-frame countdown (mStateTimer at Player+0x6a4, set 0x384 in
+  _ZN6Player12St_Wait_InitEv.cpp:38, decremented in Player::Behavior:127). It is
+  however a SENSITIVE INDICATOR, because St_Wait is reached through transitions
+  that depend on RNG-driven world objects. "The two characters fall asleep at
+  different times" is a symptom of seed divergence, not of a timer bug.
+
+  AND THE ROM SHIPS ITS OWN DESYNC DETECTOR, which is worth knowing whatever
+  architecture wins: _ZN5Stage6RenderEv.cpp:132-141 XORs every player's position
+  vector and writes it into the shared payload at index 0x10, which lands at
+  Rec.unk22; src/func_0203ea5c.c:457-463 compares it across consoles and raises
+  bit 8 of data_020a0f1c on a mismatch. A free per-frame "which frame did the
+  worlds part company" instrument. (Two ROM quirks: :141 clobbers :140's write,
+  and the else-if at :462 repeats the same test so one branch is dead.)
+
+WHERE THE PORT STOOD WHEN THIS WAS BANKED:
+
+  * The port skips Stage::InitResources entirely, so data_0209e650 sat at its
+    static-init 1 forever. Identical on both consoles, so never a desync -- right
+    by accident rather than by construction.
+  * hal/level_boot.cpp seats data_0209f344 from `data_020a1040 % 6` directly.
+    In single player that counter is 0 and the row is 0, which is correct. IN A
+    SESSION each console's counter is whatever its own boot burned before the
+    join, so THE TWO CONSOLES CAN PICK DIFFERENT STAR ORDERS. That is a real
+    divergence source and it is the concrete thing this archaeology found.
+  * hal/comms_conductor.cpp now zeroes the clock and seeds data_0209e650 from it
+    at the point the port stands in for the multiplayer menu, which is the ROM's
+    own ordering. Gated on a transport being installed, so single player is
+    untouched. That change predates the downgrade order; if the sync layer makes
+    it moot it can go, but it costs nothing and it makes the port do what the
+    ROM does rather than rely on a coincidence.
+
+
+================================================================================
+ARENA DAY: RESOLVED -- THE COUNT HOLD IS RETIRED, THE ROM'S LOOP SEATS EVERYONE
+================================================================================
+Resolved on port/vs-fc5c-width. Filed by run mg16 lane MP3/MP4 as "the
+player-count hold will ignore a real VS arena's own starts"; the arena day came
+and the hold was retired, though not by the condition the original entry
+wanted, because the premise fell first.
+
+WHAT THE PORT DOES NOW. hal/level_boot.cpp's port_load1 lets the ROM's loop run
+at the real player count: player i spawns from entrance record p3 + i and is
+KEPT. The only remaining guard clamps the count to the records the table has
+past p3 (a test boot that outruns the table gets the extra slots from
+port_vs_spawn_extra_players, as before). The four arenas' records, decoded from
+the overlays (ov059/ov051/ov037/ov050): four consecutive player records each,
+raw 0, p3=0 -- level 51's at (-1200,254,6800) (-1387,254,6667) (-987,254,6567)
+(-1587,254,6467). Castle grounds' records 0-3 are those SAME four starts,
+byte-identical to level 51's.
+
+WHAT THE HOLD WAS ACTUALLY HIDING. The orphan shadow-caster that justified it
+was the fc5c stride bug (the split-symbol entry above): the loop spawned a
+real second player, read byte data_0209fc5c[1] as 0 through the int-stride
+seat, and discarded the pointer -- leaving the actor ticking and casting a
+shadow with no body. The entry's original explanation, "record p3+1 is a
+different door / not a Player", was a misread of a correct measurement: EVERY
+entrance record in the game names the player (raw 0), and castle grounds'
+record 1 is a player start with param 0x0000. Both conditional predicates the
+original entry recorded as failures (total-record count; class equality
+between records p3 and p3+1) failed because they were asked to predict which
+spawn the loop would DISCARD, and the discard was the width bug, not a
+property of the records. The 152 -> 216 shadow-census jump in the
+class-equality experiment was the width bug casting its shadow.
+
+THE HONEST TEST the original entry wanted now runs green for real reasons:
+port/tools/mp3_proof.py rungS's census reads 88 + 64*(n-1) with the loop
+unheld, and the collision rungs measure the solver against a forced overlap
+fixture (SM64DS_VS_OVERLAP_AT) instead of the retired stand-in spawn.
+
+
+================================================================================
+FOUR PLAYERS: THE BLOCKER WAS SESSION FORMATION, NOT THE Ctrl BAND (run vs4p)
+================================================================================
+The campaign record said three or four players needed the Ctrl split band
+migrated, and item 2 above used to say the same thing. Both were stale. Run
+vs4p measured the whole surface at cons 577b48832 before changing a line, and
+the band turned out to be finished work while the actual cap was somewhere
+nobody had looked.
+
+WHAT ALREADY WORKED, unmodified, at 577b48832. One process, a real arena,
+SM64DS_VS_MAP=0 with SM64DS_VS_PLAYERS=4:
+
+    [a2] VS: 4 players, I am slot 0, game mode 1, f1/+0x6da 0 0 0 0
+    [vs] entrance records on this level: 4 (player i spawns from record p3+i)
+    [vs] f5 count=4 me=0 live=1,1,1,1
+    [vs] f5 slot0 ... no=0 char=3 pos=(-4915200,1040384,27852800) pal=5539
+    [vs] f5 slot1 ... no=1 char=3 pos=(-5681152,1040384,27308032) pal=5541
+    [vs] f5 slot2 ... no=2 char=3 pos=(-4042752,1040384,26898432) pal=5543
+    [vs] f5 slot3 ... no=3 char=3 pos=(-6500352,1040384,26488832) pal=5545
+
+Four distinct actors; the (i << 6) spawn flag unpacks to mPlayerNo 0..3; char 3
+on every slot, which is the ROM's VS arm; the four positions are level 51's own
+four entrance records and NO "port-supplied start" line appears, so the ROM's
+loop seated all four; and pal 5539/5541/5543/5545 is four distinct 16-colour
+rows, so `Player+0x61C = base + (mPlayerNo << 1)` already paints four different
+Yoshis. The spawn work this campaign expected to owe does not exist.
+
+WHAT DID NOT WORK, and it is one sentence: EVERY CONSOLE SEATED ITS WORLD ON
+THE FIRST PEER. lb_become_parent and on_parent_packet both reach
+kCommsParentConnected as soon as one child is live, comms_wait_for_session
+released on that, and vs_player_count() was read once. Four windows on one
+loopback session:
+
+    slot 1 joined at round 0;   live mask 0x3, players 2
+    [a2] VS: 2 players       <- the parent seated a TWO-player world
+    slot 2 joined at round 62;  live mask 0x7, players 3
+    slot 3 joined at round 109; live mask 0xf, players 4
+
+At frame 500 the four windows reported counts 2/2/3/4 and slots 2 and 3 were
+NULL in the windows that had already seated. Forcing SM64DS_VS_PLAYERS=4 on all
+four fixed the count everywhere and proved the rest of the stack -- all four
+pads read correctly (0040/0080/0020/0010) in all four windows -- but the
+windows still disagreed, because they had seated at rounds 0, 0, 54 and 99 and
+so gave slot 3 a different number of input-less frames each. Player 3 was on
+the arena in two windows and fallen out of it in the other two.
+
+THE FIX, both halves in the host layer with src/ untouched:
+  * hal/comms_loopback.cpp announces a GROWN ROSTER to every live child. A
+    child stops knocking once accepted, so slot 1 would otherwise never hear
+    that slots 2 and 3 arrived. Reuses the ACCEPT packet with the slot
+    ASSIGNMENT BIT CLEARED, or a direct-mode child would adopt another child's
+    slot; repeated for a short window so one lost datagram cannot strand the
+    console it was meant to inform.
+  * hal/comms_conductor.cpp holds the world seat until player_count() reaches
+    SM64DS_VS_PLAYERS. Unset is 0 and 0 reduces to the old test exactly, so
+    solo and two-window runs are byte-for-byte what they were. Waiting also
+    keeps the parent's round at 0 while the others knock, which is what makes
+    all four start on the same round.
+
+The lobby's arming freeze already forces SM64DS_VS_PLAYERS, so the number that
+decides how many Player actors spawn and the number that decides how long to
+wait are the same number.
+
+STILL OPEN, and it is the LOBBY's to close, not the port's: over the relay the
+ACCEPT is unavoidably a broadcast with no recipient field, so the parent cannot
+resolve two children that both claim slot 1 (the limit is stated at
+hal/comms_loopback.cpp's kTypeAccept arm). A four-player relay session needs
+the lobby to hand each seat a distinct SM64DS_COMMS_SLOT. Fixing it in the port
+means a recipient field and a wire-version bump.

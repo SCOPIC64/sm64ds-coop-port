@@ -16,17 +16,30 @@
 
 #include "fault_probe.h"
 
+// SMOKELINK5 (run link100 wave 10 round 5), the same fix port/tests/
+// smoke_roots.cpp made for the same reason (that file's own header carries
+// the full derivation): the entry used to be declared as a flat extern "C"
+// Itanium name over a forward-declared struct, which is what src/ emitted
+// before the 09-14 sync. It is now Heap::SetupRootHeap(), a real static
+// member (include/Heap.h:236, ?SetupRootHeap@Heap@@SAPAU1@XZ), so the flat
+// spelling bought a link error. This file is HOST TEST CODE, not ROM code,
+// so it may include the class header and call the member the way C++ calls
+// it, reaching the same object it always linked,
+// src/_ZN4Heap13SetupRootHeapEv.cpp -- only the spelling changed.
+#include "Heap.h"
+
 typedef unsigned int u32;
 
 extern "C" {
 void *_ZN6PlayerC1Ev(void *self);
-void *_ZN4Heap13SetupRootHeapEv(void);
-void *_ZN9ActorBasenwEj(unsigned size);
+void *_ZN7fBase_cnwEj(unsigned size);
 extern int data_0209b3ec[12];
 extern unsigned short data_020a4b54;
 extern void **data_020a4bb8;
-extern void *data_020a0eac_c;
-extern void *data_020a0ea0;
+extern void *data_020a0eac_c;                /* Memory::gameHeapPtr */
+extern void *data_020a0ea0;                  /* defaultHeapPtr (gate 3a) */
+void _ZN4Heap18InitializeGameHeapEjPS_(unsigned size, void *root);
+unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *alloc);
 void hal_fill_model_vtable(void);
 void hal_fill_shadow_vtable(void);
 void hal_fill_mmc_vtable(void);
@@ -38,12 +51,14 @@ int hal_player_st_walk_main(void *p);
 int hal_player_behavior(void *p);
 void hal_render_player_body(void *p);
 void hal_render_player_body_only(void *p);
+extern "C" int port_player_render_hidden(const void *p);  /* the render gate */
 extern char data_0209f4a0[];                 /* per-player pad blocks, 0x18 */
 extern unsigned char data_020a0e40[];        /* current player index */
 extern unsigned char data_ov002_0211013c[];  /* St_Walk state object */
 extern short data_02092144[];                /* per-player health words */
 extern unsigned char data_ov002_02110424[];  /* St_Fall state object */
 void port_ov002_patch(void);         /* rehome DS-baked data pointers */
+void port_cross_patch(void);         /* and the ones that leave their mount */
 /* ov002 static ctors: SharedFilePtr IDs, state tables */
 void __sinit_ov002_02100560(void);
 void __sinit_ov002_02100938(void);
@@ -68,6 +83,8 @@ void __sinit_ov002_021071f4(void);
 void __sinit_ov002_02107298(void);
 void __sinit_ov002_02107304(void);
 void __sinit_ov002_02107370(void);
+void port_cutscene_states_seat(void);  /* link100 PMFB6: the ten state tables */
+void port_kuppa_cmd_seat(void);        /* link100 SMALLS: the fourteen kuppa command records */
 void __sinit_ov002_02107f88(void);
 void __sinit_ov002_0210804c(void);
 void __sinit_ov002_02108094(void);
@@ -157,7 +174,7 @@ int main(void)
     PORT_INSTALL_FAULT_PROBE();
     setvbuf(stdout, NULL, _IONBF, 0);
     if (!ntr::io_init()) { fprintf(stderr, "io_init failed\n"); return 2; }
-    CHECK(_ZN4Heap13SetupRootHeapEv() != NULL);
+    CHECK(Heap::SetupRootHeap() != NULL);
     ident_fx(data_0209b3ec);
     hal_fill_model_vtable();
     hal_fill_shadow_vtable();
@@ -165,6 +182,7 @@ int main(void)
     hal_fill_modelanim2_vtable();
 
     port_ov002_patch();
+    port_cross_patch();
     /* the overlay's static ctors give every static SharedFilePtr its ID */
     __sinit_ov002_02100560();
     __sinit_ov002_02100938();
@@ -188,6 +206,11 @@ int main(void)
     __sinit_ov002_021071f4();
     __sinit_ov002_02107298();
     __sinit_ov002_02107304();
+    port_cutscene_states_seat();
+    /* link100 lane SMALLS: the fourteen kuppa command records, before
+       the matched src/func_ov002_020bd664.cpp copies them into its
+       function static on the first script command. */
+    port_kuppa_cmd_seat();
     __sinit_ov002_02107370();
     __sinit_ov002_02107f88();
     __sinit_ov002_0210804c();
@@ -199,9 +222,32 @@ int main(void)
     data_020a4b54 = 0;
     static unsigned short spawn_info[4] = { 0, 0, 100, 100 };
     data_020a4bb8[0] = spawn_info;
-    data_020a0eac_c = data_020a0ea0;
 
-    void *player = _ZN9ActorBasenwEj(0x800);
+    /* THE GAME HEAP, the ROM's own chain instead of an alias -- the same
+       bring-up tests/walk_window.cpp does, so the smoke and the game configure
+       the heap the same way. This line used to be
+       `data_020a0eac_c = data_020a0ea0;`, which pointed the game-heap word
+       straight at the root heap: every allocation came out of the whole host
+       arena and the ROM's own heap object never existed. func_0201a054, the
+       main.c boot spine, calls Heap::InitializeGameHeap(0x3b000, 0) instead --
+       a hard immediate and a NULL parent, no arena arithmetic. See
+       walk_window.cpp for the disassembly and slice_w1l3.txt for the verified
+       encoding. ActorBase::operator new below takes the Player out of this
+       heap by name -- Memory::Allocate(size, -4, data_020a0eac), a negative
+       alignment, so from the tail -- which is what makes the carve exercised
+       here and not merely performed. */
+    _ZN4Heap18InitializeGameHeapEjPS_(0x3b000, 0);
+    CHECK(data_020a0eac_c != NULL);
+    if (!data_020a0eac_c) {
+        fprintf(stderr, "InitializeGameHeap returned null -- no game heap\n");
+        return 2;
+    }
+    fprintf(stderr, "[heap] game heap %p, 0x%x bytes, %u free after carve\n",
+            data_020a0eac_c, 0x3b000u,
+            _ZN22ExpandingHeapAllocator10MemoryLeftEv(
+                *(void **)((char *)data_020a0eac_c + 0x14)));
+
+    void *player = _ZN7fBase_cnwEj(0x800);
     CHECK(player != NULL);
     _ZN6PlayerC1Ev(player);
     printf("  player constructed at %p, vtable %p\n", player, *(void **)player);
@@ -221,24 +267,57 @@ int main(void)
         printf("  St_Wait_Main frame %d -> %d\n", f, wm);
     }
 
+    /* eaten-gate proof: exercise the REAL port_player_render_hidden on this
+       constructed player, the predicate hal_render_player_world early-returns
+       on. Not VS mode and no invincibility here, so a visible opaque player
+       must read shown (0); setting Actor mFlags&0x10 (+0xb0, the ROM's
+       held/eaten hide, _ZN6Player6RenderEv.cpp:58) or mOpacity==0 (+0x6f5,
+       :56) must flip it to hidden. This is the St_InYoshiMouth victim's case
+       the port used to draw riding the eater. State is saved and restored. */
+    {
+        char *pc = (char *)player;
+        unsigned  saved_flags = *(unsigned *)(pc + 0xb0);
+        unsigned char saved_op = *(unsigned char *)(pc + 0x6f5);
+
+        *(unsigned char *)(pc + 0x6f5) = 0x1f;              /* opaque */
+        *(unsigned *)(pc + 0xb0) = saved_flags & ~0x10u;    /* not held */
+        int shown = port_player_render_hidden(player);
+
+        *(unsigned *)(pc + 0xb0) = (saved_flags & ~0x10u) | 0x10u;  /* eaten */
+        int hidden_flag = port_player_render_hidden(player);
+
+        *(unsigned *)(pc + 0xb0) = saved_flags & ~0x10u;
+        *(unsigned char *)(pc + 0x6f5) = 0;                 /* transparent */
+        int hidden_op = port_player_render_hidden(player);
+
+        *(unsigned *)(pc + 0xb0) = saved_flags;             /* restore */
+        *(unsigned char *)(pc + 0x6f5) = saved_op;
+
+        printf("  eaten-gate: opaque+unheld shown=%d, mFlags&0x10 hidden=%d, "
+               "mOpacity==0 hidden=%d\n", shown, hidden_flag, hidden_op);
+        CHECK(shown == 0);
+        CHECK(hidden_flag != 0);
+        CHECK(hidden_op != 0);
+    }
+
     /* gate 11: a real floor first -- the castle grounds KCL through the
        gate-8 recipe, enabled in the global collision registry so the
        Player's ground probes find it */
     {
         static struct { unsigned short id; unsigned char refs; void *p; } kcl_ptr;
         extern void *_ZN13SharedFilePtr9ConstructEj(void *, unsigned);
-        extern void _ZN12MeshColliderC1Ev(void *);
-        extern void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *);
-        extern void _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(
+        extern void _ZN7dBgW_KcC1Ev(void *);
+        extern void *_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(void *);
+        extern void _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(
             void *, void *, void *);
-        extern int _ZN16MeshColliderBase6EnableEP5Actor(void *, void *);
+        extern int _ZN4dBgW6EnableEP8dActor_c(void *, void *);
         _ZN13SharedFilePtr9ConstructEj(&kcl_ptr, 1941);
         static char mc_storage[0x60];
-        _ZN12MeshColliderC1Ev(mc_storage);
-        char *kcl = (char *)_ZN12MeshCollider8LoadFileER13SharedFilePtr(&kcl_ptr);
+        _ZN7dBgW_KcC1Ev(mc_storage);
+        char *kcl = (char *)_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(&kcl_ptr);
         CHECK(kcl != NULL);
         static char clps_storage[0x100];
-        _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
+        _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
                                                           clps_storage);
         /* ROOT CAUSE (found 2026-08-02): the level collider's OWNER feeds
            func_02035354's self-collision exclusion. Enabling it with the
@@ -249,7 +328,7 @@ int main(void)
            (suspect: the div-52 walk-physics draft's ground branches), so
            real collision stays opt-in until that is run down. */
         static char stage_owner[0x200];
-        _ZN16MeshColliderBase6EnableEP5Actor(
+        _ZN4dBgW6EnableEP8dActor_c(
             mc_storage, getenv("SM64DS_REAL_CLSN") ? (void *)stage_owner
                                                    : (void *)player);
         /* stand Mario inside the octree box, above the floor plane */

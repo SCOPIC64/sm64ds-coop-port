@@ -24,14 +24,17 @@ extern unsigned char data_ov002_02110364[];
 
 typedef unsigned char StateBytes;
 
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch; the State objects are
+//   emitted overlay bytes read at raw DS offsets, not host PMFs. See the
+//   header.
 extern "C" int _ZN6Player11ChangeStateERNS_5StateE(struct Player *self,
                                                    StateBytes *newState) {
-    *(StateBytes **)((char *)&self->unk_378) = newState;
+    *(StateBytes **)((char *)&self->mRequestedState) = newState;
 
     {
         StateBytes *cur;
         int ok;
-        cur = *(StateBytes **)((char *)&self->unk_370);
+        cur = *(StateBytes **)((char *)&self->mState);
         if (cur == 0) { ok = 1; goto check_ok; }
         if (*(int *)((char *)cur + 0x10) == 0) { ok = 1; goto check_ok; }
         ok = hal_call_state_fn(self, *(unsigned *)((char *)cur + 0x10));
@@ -39,7 +42,7 @@ extern "C" int _ZN6Player11ChangeStateERNS_5StateE(struct Player *self,
         if (!ok) return 0;
     }
 
-    if (*(StateBytes **)((char *)&self->unk_370) == data_ov002_0211022c
+    if (*(StateBytes **)((char *)&self->mState) == data_ov002_0211022c
         && (unsigned short)(self->mStateFlags & 0x400) == 0
         && self->mIsNoControl != 0
         && newState != data_ov002_0211013c
@@ -61,13 +64,13 @@ extern "C" int _ZN6Player11ChangeStateERNS_5StateE(struct Player *self,
     }
 
     self->mLoopingSoundHandle = 0;
-    self->unk_630 = 0;
-    self->mParticle2 = self->unk_630;
-    self->unk_628 = self->mParticle2;
+    self->mParticle3 = 0;
+    self->mParticle2 = self->mParticle3;
+    self->mParticle1 = self->mParticle2;
 
-    *(StateBytes **)((char *)&self->unk_374) =
-        *(StateBytes **)((char *)&self->unk_370);
-    *(StateBytes **)((char *)&self->unk_370) = newState;
+    *(StateBytes **)((char *)&self->mPrevState) =
+        *(StateBytes **)((char *)&self->mState);
+    *(StateBytes **)((char *)&self->mState) = newState;
 
     self->unk_717 = 0;
     self->mIsBodyClsnEnabled = 1;
@@ -111,7 +114,7 @@ extern "C" int _ZN6Player11ChangeStateERNS_5StateE(struct Player *self,
     }
 
     {
-        StateBytes *s = *(StateBytes **)((char *)&self->unk_370);
+        StateBytes *s = *(StateBytes **)((char *)&self->mState);
         if (*(int *)s == 0) return 1;
         return hal_call_state_fn(self, *(unsigned *)s);
     }

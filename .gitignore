@@ -4,27 +4,22 @@
 *.nds
 *.bin
 *.sav
+*.mln
+*.ml1
+*.ml2
+*.ml3
+*.ml4
+*.ml5
+*.ml6
+*.ml7
+*.ml8
+*.ml9
+*.ml10
+
 baserom*
 extracted/
 build/
 
-# --- Build artifacts ---
-*.o
-
-# --- Ghidra scaffolds (derived from ROM; local only) ---
-ghidra_out/
-ghidra_targets.txt
-
-# --- Tooling / OS noise ---
-__pycache__/
-*.pyc
-.venv/
-venv/
-.idea/
-.vscode/
-.vs/
-Thumbs.db
-desktop.ini
 
 # third-party binaries (not our code)
 tools/bin/
@@ -44,6 +39,10 @@ match/auto/
 # external reference repos (not ours; do not commit)
 reference/
 
+# Unlicensed third-party character sources and generated native packs stay local.
+/port/mods/.local-src/
+/port/mods/characters/*/assets/
+
 # --- Internal working files: kept local, not published ---
 knowledge/
 match/
@@ -55,6 +54,10 @@ notes/ac-decomp-comparison.md
 
 # third-party tools cloned for evaluation/integration (not part of this repo)
 vendor/
+
+# emu-trace runtime capture output (tools/trace) - regenerable, may contain ROM-derived memory dumps
+/traces/
+/behavior/
 
 # local-only, never commit
 tools/claims_key.txt
@@ -69,6 +72,7 @@ tools/claims_handle.txt
 /unsloth_compiled_cache/
 /out/
 /wsl-bridge/
+.pytest_cache/
 
 # local MCP server wiring (machine-specific, may hold endpoints or tokens)
 /.mcp.json
@@ -96,7 +100,43 @@ _glmwork/
 .agents/
 .codex/
 .cw2004work/
+# port runtime output: rendered frames, smoke-test screenshots, playtest logs.
+# These are pixels the game drew from Nintendo's assets - same rule as the ROM.
+/frames/
+/playlog/
+*.bmp
 
-# emu-trace runtime capture output (tools/trace) - regenerable, may contain ROM-derived memory dumps
-/traces/
-/behavior/
+# --- Build artifacts ---
+*.o
+
+# --- Ghidra scaffolds (derived from ROM; local only) ---
+ghidra_out/
+ghidra_targets.txt
+
+# --- Tooling / OS noise ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+.idea/
+.vscode/
+.vs/
+Thumbs.db
+desktop.ini
+# --- carried from the port branch at the main->port sync (main does not have these) ---
+# Headless proof run output (scratch; regenerated per run)
+port/tools/_party_out/
+# port runtime output: rendered frames, smoke-test screenshots, playtest logs.
+# These are pixels the game drew from Nintendo's assets - same rule as the ROM.
+/frames/
+/playlog/
+# ...and anywhere else walk_window is launched from. Run mg11 lane TTI: a
+# proof script with port/ as its working directory made the recorder write
+# port/playlog/, which the root-anchored pattern above does not reach, and a
+# git add -A committed eight of them. The unanchored pattern covers every
+# working directory the exe can be launched from.
+playlog/
+*.bmp
+# session run records live outside the repo (the orchestration dir), never in it
+runs/
+tmpdir/

@@ -1,0 +1,49 @@
+# WHAT A PLAYER'S EXTRACTION HAS TO PRODUCE, IN ONE LIST.
+#
+# Run link60, lane KIT1. port/kit_pipeline.txt is the write-up.
+#
+# Paths are relative to the asset root -- the folder the kit is unzipped into,
+# which play.bat and the launcher both pass as SM64DS_ASSET_ROOT. Forward
+# slashes, because that is how the exe's own format strings spell them and this
+# file is compared against those strings byte for byte.
+#
+# THIS LIST EXISTS BECAUSE IT ONCE DID NOT. hal/fs_names.cpp started requiring
+# the three nitrofs entries below and nothing connected that to the extractor
+# that has to write them, so every fresh player extraction was missing three
+# files the game refuses to start without. The gap was invisible to every check
+# in the repo because no check ran the shipped artifact away from a checkout.
+#
+# port/tools/kit_smoke.py is what keeps this honest, and it does not read the
+# source. It reads THE SHIPPED EXE and the extractor's actual output:
+#
+#   * every "build/assets/<name>" string in the packaged exe must appear here,
+#     so a new required file cannot be added without landing on this list;
+#   * every name here must appear as a string in the packaged exe, so an entry
+#     cannot go stale after the exe stops wanting it;
+#   * running the extractor must produce every path here, so the writer and the
+#     reader cannot drift apart in either direction.
+#
+# A file added to the exe through some shape that leaves no literal in the
+# binary would slip all three, and that is the honest limit of this check. No
+# current seam is shaped that way; every one of them snprintf's a literal.
+
+# The asset catalog: file id -> path, and game handle -> file id.
+build/assets/files.tsv
+build/assets/handles.tsv
+
+# The cartridge's OWN name and allocation tables, and where they sat in it.
+# hal/fs_names.cpp runs the ROM's own name walker over these, so they have to
+# be the card's bytes rather than anything rebuilt from files.tsv.
+build/assets/nitrofs.tsv
+build/assets/nitrofs_fnt.bin
+build/assets/nitrofs_fat.bin
+
+# ROM-CLEAN: the code-side data tables the exe no longer embeds, and the
+# manifest it verifies them against at boot.
+build/assets/romdata.bin
+build/assets/romdata.manifest
+
+# The unpacked filesystem itself. One sentinel rather than 2,072 rows: the
+# sound archive is the largest single file and the last thing the extractor
+# writes into the tree, so a half-finished dump does not have it.
+extracted/dsd/files/data/sound_data.sdat

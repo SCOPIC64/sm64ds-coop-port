@@ -25,13 +25,65 @@
  * body was compiled from, so a mount pointing at the wrong bytes says so
  * instead of calling into the overlay image.
  *
- * STATE 1 (read) Main is ov002 0x020bb614, a 0x3dc-byte hole in the delink
- * table with no C at all -- the sign's read loop, which drives the Message
- * box. It is seated with a benign host stand-in (below): the sign holds its
- * read pose while the Player's Talk runs, and messages auto-advance through
- * the Message_Show stub, so talk completes end to end with invisible text.
- * If a future gate hosts Message, this state needs its Main matched and the
- * stand-in comes out.
+ * STATE 1'S MAIN IS A LOGIC-VERIFIED NEAR-MISS HOST COPY (gate 181). ov002
+ * 0x020bb614 (the read loop, 0x3dc) sat unmatched; a div=7 attempt proved a
+ * hard ordering floor -- the entire body 0x44..0x3dc is byte-identical to the
+ * ROM and all seven divergences are one prologue regalloc/schedule
+ * permutation (nearmiss/db.jsonl carries the floor evidence: the
+ * conditional-cast shift-pair split vs load-hoist collision). Semantics are
+ * exact, so the body below is the near-miss C, the cannon-lid precedent.
+ * It walks the player to the sign, turns both, then hands off to
+ * Player::ShowMessage2. Replace with matched src the day the floor breaks.
+ *
+ * THE OLD NOTE HERE SAID ShowMessage2 IS DECLINED AND THAT A SIGN READ
+ * "APPROACHES AND IDLES". THAT HAS BEEN FALSE SINCE 2026-08-08: the decline
+ * was removed, the matched src is back in slice_gate10, and hal/message_pump.cpp
+ * ticks Message::UpdateWindow + Message::Update every frame, so the box really
+ * opens. Traced live (SM64DS_SIGN_TRIGGER=1 SM64DS_TRACE_SIGN=1, level 3): the
+ * read state runs sub 0 turn for 15 frames, sub 1 walk, sub 2 face for 15
+ * frames, then ShowMessage2 fires and the box reaches state 7 and stays there
+ * until dismissed. Anyone debugging the reported sign soft-lock should not
+ * start from "the message is declined", because it is not.
+ *
+ * SUB-STATE 1 HAS NO TIMEOUT AND NO ABORT. It drives the PLAYER'S POSITION
+ * (Vec3_ApproachHorz on player+0x5c, 0xa000 per frame toward a point 0x78000
+ * in front of the sign), and Vec3_ApproachHorz writes x/z DIRECTLY and is
+ * collision-blind -- its arrival test is horizontal length only. So the walk
+ * can only fail to arrive if something writes the player's position back
+ * between sign ticks.
+ *
+ * MEASURED, AND IT DOES NOT -- but read the rig before trusting the number.
+ *
+ * FIRST ATTEMPT, WHICH DOES NOT COUNT: eight approach directions at radius 700
+ * around the level-3 sign, walk arrived every time, achieved step always the
+ * full 0xa000. That measurement was taken on a player who never leaves
+ * St_LevelEnter (0x020c7838) on level 3: speed 0 every frame, no movement
+ * state, full stick ignored. He could not have contended for his position
+ * under any conditions, so "nothing contests the write" was true of a case
+ * incapable of contesting it. A rig that cannot fail the test does not pass it.
+ *
+ * REDONE WHERE THE PLAYER REALLY MOVES (level 1, SM64DS_SELFTEST_DASH, speed
+ * 131072 = 32 units/frame in the frame before entry): ENTERING THE TALK ZEROES
+ * HIS SPEED. spd goes 131072 -> 0 on the entry frame and stays 0 for the whole
+ * walk, and the achieved step is the full 0xa000 every frame. So residual
+ * momentum cannot fight the walk either: the talk takes his velocity before
+ * sub 1 starts. Making the no-timeout loop fire needs a third party that moves
+ * him WITHOUT going through his speed (a moving platform, a moving collider),
+ * not momentum and not terrain.
+ *
+ * THE REPORTED SOFT-LOCK IS THEREFORE STILL UNEXPLAINED, and specifically the
+ * ROTATION is: sub 0 turns for 15 frames and converges, sub 2 turns for 15 and
+ * converges, and sub 0 cannot chase an unstable angle because the read point
+ * is 0x78000 (120 units) out and the proximity escape fires at 0x32000 (200),
+ * so the player can never be near enough to that point to destabilise
+ * Vec3_HorzAngle while still in sub 0. Three hypotheses tested, all negative.
+ * Do not treat this machine as the known cause.
+ *
+ * STILL UNTESTED, and it is what the third reporter actually described
+ * ("quickly trying to read"): RE-ENTRANCY. Triggering the read repeatedly, or
+ * during the transition, or cancelling and re-entering. The probe in
+ * hal/input_probe.cpp latches on `entered` and fires once, so it cannot
+ * produce that case; testing it needs a rig that can re-arm.
  */
 #include <cstdio>
 #include <cstdlib>
@@ -56,15 +108,126 @@ extern PortSignPostState data_ov002_0210e084[];
 
 enum { PORT_SIGNPOST_STATES = 5 };
 
-static void port_signpost_read_main(void *)
+/* ---- what the read-state main closes over (all linked; the two 020bec
+   helpers join slice_gate16) ---- */
+extern "C" {
+extern short data_02082214[];
+extern unsigned char data_0209d660, data_0209d6bc, data_0209f284;
+int _ZN6Player12GetTalkStateEv(void *player);
+int Vec3_HorzDist(void *a, void *b);
+short Vec3_HorzAngle(void *a, void *b);
+int _Z14ApproachLinearRsss(short *val, short target, short step);
+int Vec3_ApproachHorz(void *pos, void *target, int step);
+int func_ov002_020bec84(void *player, unsigned int i);
+int func_ov002_020bec9c(void *player, unsigned int a, int b, int d, unsigned short e);
+int _ZN6Player12FinishedAnimEv(void *player);
+void _ZN6Player12ShowMessage2ER7fBase_cjPK7Vector3hh(
+    void *player, void *actor, unsigned int msg, void *pos, unsigned int a,
+    unsigned int b);
+void func_02012790(int id);
+void func_ov002_020bbd5c(void *selfv, int i);   /* defined below */
+}
+
+/* LOGIC-VERIFIED NEAR-MISS host copy of ov002 0x020bb614 (SignPost state 1
+   Main, the read loop), div=7, prologue-only regalloc residue, body
+   byte-identical; floor evidence in nearmiss/db.jsonl. */
+// PORT_HOST_ABI: near-miss host copy; the matched-src replacement waits on the floor.
+static void port_signpost_read_main(void *selfv)
 {
-    /* The read loop (ov002 0x020bb614) is unmatched and its body is the
-       Message box, which auto-advances on the host (Message_Show). Standing
-       in the read state while the Player's own Talk runs its course is the
-       honest interim: no abort, talk completes, text stays invisible until
-       the text engine is hosted. Said once per boot. */
-    static int said;
-    if (!said++) std::printf("[sign] read state: holding for talk (text auto-advanced)\n");
+    char *c = (char *)selfv;
+    int msgPos[3], tgt[3], plPos[3];
+    char *player;
+    unsigned short msgId;
+    int scale, talk, ang, param;
+    short sinV, cosV;
+    unsigned char st;
+
+    msgId = 0;
+    param = *(int *)(c + 8);
+    if (param != 0xffff)
+        msgId = (unsigned short)param;
+
+    player = *(char **)(c + 0x598);
+    msgPos[0] = *(int *)(c + 0x5c);
+    msgPos[1] = *(int *)(c + 0x60) + 0x50000;
+    msgPos[2] = *(int *)(c + 0x64);
+
+    scale = 0x5a000;
+    if (*(unsigned char *)(c + 0x58e) == 1)
+        scale = 0x78000;
+    tgt[0] = *(int *)(c + 0x5c);
+    tgt[1] = *(int *)(c + 0x60);
+    tgt[2] = *(int *)(c + 0x64);
+    ang = (int)*(unsigned short *)(c + 0x8e);
+    sinV = data_02082214[(ang >> 4) * 2];
+    tgt[0] += (int)(((long long)scale * sinV + 0x800) >> 12);
+    cosV = data_02082214[(ang >> 4) * 2 + 1];
+    tgt[2] += (int)(((long long)scale * cosV + 0x800) >> 12);
+
+    plPos[0] = *(int *)(player + 0x5c);
+    plPos[1] = *(int *)(player + 0x60);
+    plPos[2] = *(int *)(player + 0x64);
+
+    talk = _ZN6Player12GetTalkStateEv(player);
+    switch (talk) {
+    case 0:
+        st = *(unsigned char *)(c + 0x58d);
+        switch (st) {
+        case 0:
+            if (Vec3_HorzDist(plPos, tgt) < 0x32000) {
+                *(unsigned char *)(c + 0x58d) += 1;
+            } else if (_Z14ApproachLinearRsss(
+                           (short *)(player + 0x8e),
+                           Vec3_HorzAngle(plPos, tgt), 0x800) != 0) {
+                *(unsigned char *)(c + 0x58d) += 1;
+                func_ov002_020bec9c(player, 1, 0, 0x1000, 0);
+            }
+            break;
+        case 1:
+            if (Vec3_ApproachHorz(player + 0x5c, tgt, 0xa000) != 0)
+                *(unsigned char *)(c + 0x58d) += 1;
+            break;
+        case 2:
+            if (_Z14ApproachLinearRsss(
+                    (short *)(player + 0x8e),
+                    (short)(*(short *)(c + 0x8e) + 0x8000), 0x800) != 0) {
+                if (*(unsigned char *)(c + 0x58e) == 1) {
+                    if (func_ov002_020bec84(player, 1) != 0
+                        || func_ov002_020bec84(player, 0) != 0) {
+                        func_ov002_020bec9c(player, 2, 0x40000000, 0x1000, 0);
+                    } else if (func_ov002_020bec84(player, 2) != 0
+                               && _ZN6Player12FinishedAnimEv(player) != 0) {
+                        func_ov002_020bec9c(player, 3, 0x40000000, 0x1000, 0);
+                    } else if (func_ov002_020bec84(player, 3) != 0
+                               && _ZN6Player12FinishedAnimEv(player) != 0) {
+                        _ZN6Player12ShowMessage2ER7fBase_cjPK7Vector3hh(
+                            player, c, (short)msgId, msgPos, 0, 1);
+                    }
+                } else {
+                    func_ov002_020bec9c(player, 0, 0, 0x1000, 0);
+                    _ZN6Player12ShowMessage2ER7fBase_cjPK7Vector3hh(
+                        player, c, (short)msgId, msgPos, 0, 1);
+                }
+            }
+            break;
+        }
+        break;
+    case 1:
+        break;
+    default:
+        func_ov002_020bbd5c(c, 0);
+        break;
+    }
+
+    if (data_0209d660 != 0 && msgId == 0x74a) {
+        switch (data_0209d6bc) {
+        case 3: data_0209f284 = 1; break;
+        case 9: data_0209f284 = 0; break;
+        }
+    }
+    if (*(unsigned char *)(c + 0x594) != data_0209f284 && data_0209f284 != 0)
+        func_02012790(0x24);
+    *(unsigned char *)(c + 0x594) = data_0209f284;
 }
 
 static const struct { unsigned rom; void (*host)(void *); } g_states[10] = {
@@ -91,26 +254,18 @@ extern "C" void port_sign_post_states_seat(void)
     }
 }
 
-/* func_ov002_020bbd5c: enter state `i` -- store it, then run its Init. */
-extern "C" void func_ov002_020bbd5c(void *selfv, int i)
-{
-    char *c = (char *)selfv;
-    *(int *)(c + 0x354) = i;
-    if ((unsigned)i >= PORT_SIGNPOST_STATES) {
-        std::fprintf(stderr, "FATAL: SignPost state %d out of range\n", i);
-        std::abort();
-    }
-    ((void (*)(void *))(size_t)data_ov002_0210e084[i].init.fn)(c);
-}
+/* BOTH DISPATCHERS ARE BACK ON THE SLICE. src/func_ov002_020bbd5c.cpp and
+   src/func_ov002_020bbda4.cpp are on port/slice_pmf3.txt (run link100 lane
+   PMF3): /vmg /vmm makes MSVC's pointer-to-member the ROM's 8-byte record, so
+   the stride is the ROM's 0x10 and both bodies TAIL JUMP; the mangled table
+   reference is bridged in port/hal/pmf3_aliases.cpp. The seat above is
+   unchanged and is what the rows are gated on -- it verifies each of the ten
+   records against the ROM's own address, zeroes the adjustment word as it
+   seats, and installs the host bodies -- and the ten source statics at ov002
+   0x02109a64..0x02109ab4 were re-read out of overlay_0002.bin with their
+   relocations, every adjustment word ROM zero.
 
-/* func_ov002_020bbda4: run the current state's Main. */
-extern "C" void func_ov002_020bbda4(void *selfv)
-{
-    char *c = (char *)selfv;
-    int i = *(int *)(c + 0x354);
-    if ((unsigned)i >= PORT_SIGNPOST_STATES) {
-        std::fprintf(stderr, "FATAL: SignPost state %d out of range\n", i);
-        std::abort();
-    }
-    ((void (*)(void *))(size_t)data_ov002_0210e084[i].main_.fn)(c);
-}
+   ONE GUARD GOES WITH THE HOST BODIES and it is worth naming: they tested
+   `(unsigned)i >= PORT_SIGNPOST_STATES` and ABORTED. The ROM makes no such
+   test, and because the host test was an abort rather than a silent skip,
+   every green battery this port has run is proof it never fired. */

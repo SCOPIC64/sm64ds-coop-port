@@ -4,13 +4,14 @@
 #include "decl_common.h"
 /* recovered: named members + shared header, real C++ method */
 #include "SeesawBob.h"
-extern void _ZN13SharedFilePtr7ReleaseEv(void *);
+#include "SharedFilePtr.h"
+#include "dBgW.h"
 
 int SeesawBob::CleanupResources()
 {
-  if(_ZN16MeshColliderBase9IsEnabledEv((char *)&mMeshCollider))
-    _ZN16MeshColliderBase7DisableEv((char *)&mMeshCollider);
-  _ZN13SharedFilePtr7ReleaseEv(*(void**)(data_ov095_021374a0 + (unsigned char)((char *)this)[0x31e]*0xc));
-  _ZN13SharedFilePtr7ReleaseEv(*(void**)(data_ov095_021374a4 + (unsigned char)((char *)this)[0x31e]*0xc));
+  if(((dBgW *)((char *)&(*(u8 *)&mMeshCollider)))->IsEnabled())
+    ((dBgW *)((char *)&(*(u8 *)&mMeshCollider)))->Disable();
+  ((SharedFilePtr *)(*(void**)(data_ov095_021374a0 + mVariant*0xc)))->Release();
+  ((SharedFilePtr *)(*(void**)(data_ov095_021374a4 + mVariant*0xc)))->Release();
   return 1;
 }

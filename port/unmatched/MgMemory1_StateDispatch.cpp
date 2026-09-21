@@ -1,0 +1,493 @@
+// PORT_HOST_ABI. The mwcc POINTER-TO-MEMBER WALL, per-class half:
+// dScMgMemory_c's four TABLE dispatchers and its twenty-five state addresses.
+// Run mg9, lane MMT.  Actor id 0x16a, scene 362, "Memory Match".
+//
+// Read unmatched/MgBase_StateDispatch.cpp's header first, then
+// unmatched/MgMemory2_StateDispatch.cpp.  The first carries the ROM
+// disassembly of the mwcc dispatch sequence and the finding that the overlay
+// constructors already copy the pairs at the right stride; the second is this
+// class's SIBLING and the template this file follows.  Neither is repeated
+// here.
+//
+// THE SIBLING IS A TEMPLATE AND NOT A SOURCE.  dScMgMemory2_c (0x16b, scene
+// 363, "Memory Master") has the same five-table shape, the same record stride
+// and the same two-index object -- and every address, every offset and every
+// record count below was re-read out of this class's own ROM code rather than
+// taken from it.  Where the two differ they differ silently: the state indexes
+// are at +0x5314 and +0x5318 here against +0x53d4 and +0x53d8 there, and the
+// per-record loop runs TWELVE records here against twenty there.
+//
+// The dispatchers that read a member pointer out of an OBJECT FIELD rather
+// than out of a table are NOT in this file and NOT this lane's: they are the
+// shared ov006/ov004 glue unmatched/MgMemory2_FieldPmf.cpp already host-copies
+// (func_ov006_020c07e8, func_ov006_020c19d0, func_ov004_020b52fc), and this
+// class reaches the same three through the same sub-object at +0x4f38.
+//
+// ---- 1. THE TWENTY-FIVE ADDRESSES, AND WHERE THEY COME FROM ---------------
+//
+// src/__sinit_ov006_021311c8.c, this class's own overlay constructor, read
+// assignment by assignment.
+//
+// READING THE CONSTRUCTOR IS NOT OPTIONAL HERE AND THE FAN-OUT BRIEF SAYS SO.
+// port/mg_fanout_costs.txt section 9 records that its per-id attribution is
+// address containment -- does a constructor's copied .data range bracket that
+// id's SpawnInfo -- and that it OVER-ATTRIBUTES "for at least 0x16a and
+// 0x16b".  The two constructors are adjacent (__sinit_ov006_021311c8 for this
+// class, __sinit_ov006_021314e4 for Memory Master) and their pair runs are
+// adjacent too, so a lane that took the neighbouring one would get a file that
+// compiles, links and dispatches twenty-nine addresses belonging to the class
+// next door.  The constructor's own assignment list is the only ground truth,
+// and this lane checked the containment as well: exactly ONE doubled-id word
+// lies inside 0x0213cfc0..0x0213d088, and it is 0x016a016a at 0x0213cfdc.
+//
+// A SWEEP OF THE PAIR RANGE WOULD ALSO BE WRONG, for section 4's reason and on
+// this class as visibly as on curling: g_profile_MG_MEMORY sits at
+// 0x0213cfd8, INSIDE the run of pair symbols (0x0213cfd0 is a pair, 0x0213cfe0
+// is the next one), so a sweep would find the factory word 0x020f5504 and the
+// doubled id as a "pair".  The constructor's own list skips it.
+//
+// Every pair was then read out of extracted/overlays/overlay_0006.bin at base
+// 0x020bfec0.  Twenty-five pairs, twenty-five DISTINCT code words, every
+// adjustment word zero, and all twenty-five inside this class's own code block
+// 0x020f3834..0x020f5564.
+//
+//   table                n  arity  dispatched by
+//   -------------------  -  -----  -------------------------------------------
+//   data_ov006_021422dc  5    0    _ZN13dScMgMemory_c8BehaviorEv  (vtable slot 6)
+//   data_ov006_02142304  6    0    _ZN13dScMgMemory_c9StatePlayEv
+//   data_ov006_021422bc  4    0    _ZN13dScMgMemory_c11StateResultEv
+//   data_ov006_02142334  7    1    _ZN13dScMgMemory_c11UpdateCardsEv
+//   data_ov006_021422a4  3    ?    NOTHING -- see section 3
+//
+// TWO OF THE FIVE TABLES ARE DISPATCHED BY A STATE OF ANOTHER TABLE.
+// _ZN13dScMgMemory_c9StatePlayEv is slot 1 of data_ov006_021422dc and _ZN13dScMgMemory_c11StateResultEv
+// is slot 3 of it, so both appear in the arity-0 switch below AND are host
+// copies further down this file.  That is the sibling's shape (0x020f7234 and
+// 0x020f71c8) and not a new one.
+//
+// ---- 2. THE ROM'S OWN DISPATCH SHAPES, DISASSEMBLED -----------------------
+//
+// Read out of the shipped overlay image, not taken from src, because the state
+// index offset and the `this` a callee is handed are the two things a wrong
+// host copy gets silently wrong.
+//
+//   _ZN13dScMgMemory_c8BehaviorEv  vtable slot 6, Behavior, 0x5c = 23 words
+//                        (21 instructions + 2 pool)
+//     add r0,r4,#0x5000 / ldr r0,[r0,#0x314]      the index at +0x5314
+//     ldr r1,[pc,#0x3c]                           = 0x021422dc
+//     add r3,r1,r0,lsl #3                         stride EIGHT
+//     ldr r1,[r3,#4] / ands r1,r1,#1 / ...        the ordinary PMF sequence
+//     add r0,r4,r1,asr #1 / blx r1                this = the class base
+//     bl func_ov004_020b65e4
+//     ldr r0,[pc,#0x14] (= 0x00004f38) / add r0,r4,r0 / bl func_ov006_020c19d0
+//     mov r0,#1
+//
+//   _ZN13dScMgMemory_c9StatePlayEv  0x4c = 19 words (18 + 1 pool).  Index at +0x5318,
+//     table 0x02142304, then a `mov r0,r4 / bl 0x020f3f10` tail.
+//   _ZN13dScMgMemory_c11StateResultEv  0x48 = 18 words (17 + 1 pool).  Index at +0x5318,
+//     table 0x021422bc, returns nothing.
+//   _ZN13dScMgMemory_c11UpdateCardsEv  0x74 = 29 words (28 + 1 pool).  The one-argument
+//     loop, and it is TWELVE records, not twenty:
+//       mov r7,r0          r7 = the CLASS BASE, and it never changes
+//       mov r5,r7          r5 = the per-record cursor
+//       mov r6,#0          r6 = i
+//       ldr r4,[pc,#0x54]  = 0x02142334
+//     loop:
+//       add r0,r5,#0x5000 / ldrb r1,[r0,#0x1bb]   the live flag, record +0x13
+//       cmp r1,#0 / beq skip
+//       ldrb r0,[r0,#0x1bc]                       the state byte, record +0x14
+//       add r3,r4,r0,lsl #3                       stride EIGHT
+//       ...the PMF sequence...
+//       add r0,r7,r1,asr #1                       THIS = the class base
+//       mov r1,r6                                 ARG  = i, the loop counter
+//       blx r2
+//       add r6,r6,#1 / cmp r6,#0xc / add r5,r5,#0x18
+//
+// So the arity-1 callee is passed (class base, i) and NOT (record base, i);
+// r5 is only ever used to fetch the two bytes.  The records are the twenty
+// halfword/byte structs at +0x51a8 with stride 0x18 -- src/minigames/d_s_mg_memory.cpp
+// clears exactly TWELVE of them -- so the two bytes the loop reads are record
+// field +0x13 (the in-play gate) and +0x14 (the per-card state).
+//
+// ---- 3. ONE TABLE HAS NO DISPATCHER AND IS CARRIED, NOT ROUTED ------------
+//
+// data_ov006_021422a4 takes three pairs -- 0x020f3ba0, 0x020f3a14 and
+// 0x020f3a10 -- and it has exactly ONE relocation pointing at it in the whole
+// overlay, from:0x021314e0, which is inside this class's own .init
+// constructor.  The other four tables have two each: the constructor's, and
+// their dispatching TU's literal-pool load.  So no code in ov006 names this
+// table and its arity is derivable from nothing.  It is the same measurement
+// port/mg_fanout_costs.txt section 3 records for the sibling's
+// data_ov006_021423a8, on a different table in a different class, and it is a
+// statement about the relocation set rather than a claim that the states are
+// dead: a dispatch through a computed address would leave no relocation
+// either.
+//
+// THE THREE ADDRESSES ARE DELIBERATELY NOT IN EITHER SWITCH BELOW.  Two of the
+// three are spelled (char *, int) in src and the third is a four-byte `bx lr`,
+// which LOOKS like arity 1 -- and guessing on that basis is exactly what
+// port/tools/stategen.py refuses to do at the arity step.  Run on this
+// constructor it refuses with "cannot derive the dispatch arity for 1
+// table(s): data_ov006_021422a4", which is the tool agreeing with this
+// paragraph rather than this paragraph quoting the tool.  If a dispatch
+// through a computed address ever reaches one of them, the framework's own
+// UNHANDLED line names the address and the run is the evidence.
+//
+//     0x020f3ba0   src/minigames/d_s_mg_memory.cpp   void (char *c, int i)
+//     0x020f3a14   src/minigames/d_s_mg_memory.cpp   void (char *c, int i)
+//     0x020f3a10   src/minigames/d_s_mg_memory.cpp   void (void), 4 bytes, bx lr
+//
+// All three ARE in port/slice_mmt.txt, so the bodies are in the build and a
+// later lane that finds the dispatcher has only a switch arm to write.
+//
+// ---- 4. EVERY ROUTED STATE HAS A MATCHED src TU ---------------------------
+//
+// All twenty-five code words resolve to a src file, all twenty-five have a
+// delink block, and none of the twenty-five carries a NONMATCHING banner.  So
+// this class has NO state floor at all -- neither the sibling's kind (a
+// NONMATCHING body that is still reachable) nor curling's kind (an address
+// with no src in either extension).  The bodiless counter below is kept
+// structurally zero for the sibling's reason: if a later lane ever adds a
+// state this class cannot reach, this is where it is counted.
+//
+// THE CLASS'S ONE FLOOR WAS NOT A STATE, AND IT IS CLOSED.
+// _ZN13dScMgMemory_c9DrawCardsEv, the card draw, the sixth call vtable slot 9 makes, was
+// a named trap in unmatched/MgMemory1_Faces.cpp when this file was written.
+// Section 13's method in port/mg_fanout_costs.txt is what found it -- a
+// delinks join over every callee of every override, not over the state
+// addresses -- and it found it in exactly the place that section says to look.
+// Run mg10 lane F362 decompiled it: src/minigames/d_s_mg_memory.cpp, carried by
+// port/slice_mmt.txt, NONMATCHING at 24 of 42 words on colouring and schedule.
+// The trap is deleted, so dScMgMemory_c now has NO floor of either kind.
+//
+// ---- 5. WHY THIS FILE HAS ITS OWN ENTRY POINTS ----------------------------
+//
+// unmatched/MgBase_StateDispatch.cpp owns port_mg_call0 and port_mg_call1 and
+// chains them to exactly one per-class pair, which unmatched/
+// MgCurling_StateDispatch.cpp defines.  A second class cannot define those
+// names, so this file calls port_mg_memory1_call0 / _call1, which try THIS
+// class's switch and hand everything else to the framework unchanged -- the
+// shape every seated minigame after curling uses.  The framework therefore
+// remains the single place that decides what a null code word means, what a
+// nonzero adjustment means and how an unhandled address is reported.
+
+#include <cstdio>
+#include <cstdlib>   /* std::abort, for the boot installer below (lane PMFB4) */
+
+/* The eight-byte mwcc member pointer, in the only spelling that is true on both
+   machines: two words, no member-pointer type anywhere. */
+struct MgPmf { unsigned code; int adj; };
+
+extern "C" {
+
+/* the framework's entry points; see MgBase_StateDispatch.cpp */
+void port_mg_call0(void *self, unsigned code, int adj);
+void port_mg_call1(void *self, unsigned code, int adj, int a);
+
+/* ---- the twenty routed state bodies, in address order --------------------
+   Each is declared with the parameter list ITS OWN src TU defines, so a
+   ride-through is called the way the ROM calls it rather than the way the
+   slot's arity would suggest.  The two (void) ones in the arity-1 table are
+   four-byte `bx lr` bodies -- there is nothing for an ignored argument to be
+   wrong about, which is the ruling unmatched/MgCoin_StateDispatch.cpp and
+   unmatched/MgMemory2_StateDispatch.cpp both make for the same shape, and this
+   lane re-read both bodies out of the ROM to confirm the shape rather than the
+   name.  Pointer parameters spelled with a local struct type in their own src
+   (Ctx *, Big *) are void * here: these are C-linkage symbols and the
+   declaration has to agree with the ROM's register use, not with a type name
+   that exists in one TU.
+   0x020f5164 and 0x020f50f8 are host copies further down this file. */
+void  _ZN13dScMgMemory_c10StateSetupEv(char *c);
+void  _ZN13dScMgMemory_c10StateJudgeEv(void *c);
+void  _ZN13dScMgMemory_c9StateExitEv(char *self);
+void  _ZN13dScMgMemory_c10RoundStartEv(char *c);
+void  _ZN13dScMgMemory_c13RoundDealEasyEv(unsigned char *c);
+void  _ZN13dScMgMemory_c15RoundDealNormalEv(char *c);
+void  _ZN13dScMgMemory_c13RoundDealHardEv(unsigned char *c);
+void *_ZN13dScMgMemory_c13RoundWaitDealEv(char *c);
+void  _ZN13dScMgMemory_c11RoundRevealEv(char *c);
+void  _ZN13dScMgMemory_c10ResultWaitEv(char *self);
+void  _ZN13dScMgMemory_c12ResultRewardEv(char *c);
+void  _ZN13dScMgMemory_c15ResultTurnCardsEv(char *c);
+void  _ZN13dScMgMemory_c12ResultFinishEv(void *c);           /* src spells it Ctx *       */
+void  _ZN13dScMgMemory_c8CardMoveEi(char *self, int i);
+void  _ZN13dScMgMemory_c8CardIdleEi(void);              /* one-argument slot, bx lr body */
+void  _ZN13dScMgMemory_c10CardSelectEi(char *self, int idx);
+void  _ZN13dScMgMemory_c10CardFlipUpEi(char *base, int idx);
+void  _ZN13dScMgMemory_c8CardWaitEi(void);              /* one-argument slot, bx lr body */
+void  _ZN13dScMgMemory_c12CardFlipDownEi(char *c, int i);
+void  _ZN13dScMgMemory_c11CardFlyAwayEi(void *p, int i);    /* src spells it Big *       */
+
+/* the four mount tables this file dispatches, re-typed to the ROM's eight-byte
+   pair.  The ov006 mount defines the storage; __sinit_ov006_021311c8 fills it
+   at minigame scene load.  data_ov006_021422a4 is deliberately absent -- see
+   section 3; nothing here reads it. */
+extern MgPmf data_ov006_021422bc[];
+extern MgPmf data_ov006_021422dc[];
+extern MgPmf data_ov006_02142304[];
+extern MgPmf data_ov006_02142334[];
+
+/* the ordinary callees the host copies below keep, each spelled as its own src
+   TU spells it.  func_ov006_020c19d0 is the sub-object field dispatcher
+   unmatched/MgMemory2_FieldPmf.cpp host-copies; this class reaches the same
+   sub-object at the same +0x4f38 offset. */
+void func_ov004_020b65e4(void);
+void func_ov006_020c19d0(void *c);
+
+/* host-copied further down this file, and called from above their own
+   definitions -- 020f5164 and 020f50f8 are STATE BODIES as well as dispatchers,
+   and 020f3f10 is 020f5164's tail call. */
+void _ZN13dScMgMemory_c9StatePlayEv(void *c);
+void _ZN13dScMgMemory_c11StateResultEv(void *c);
+void _ZN13dScMgMemory_c11UpdateCardsEv(void *c);
+
+/* the boot installer at the end of this file; hal/scene_mg.cpp calls it after
+   the ov006 constructors have filled the tables. */
+void port_mg_memory1_states_seat(void);
+
+}  /* extern "C" */
+
+// ---- the class's address switch --------------------------------------------
+
+static unsigned g_mem1_state_hits;
+/* THE BODILESS-STATE COUNTER, KEPT AND STRUCTURALLY ZERO. Every address in the
+   two switches below reaches a real symbol, so nothing increments this. It is
+   kept rather than deleted so hal/scene_mg_memory1.cpp's census field keeps its
+   meaning: if a later lane ever adds a state this class cannot reach, this is
+   where it is counted, and a nonzero reading is a regression rather than a new
+   field. */
+static unsigned g_mem1_floor_hits;
+
+static int mem1_try_0(void *self, unsigned code)
+{
+    char *c = (char *)self;
+    switch (code) {
+    /* data_ov006_021422dc, dispatched by vtable slot 6 */
+    case 0x020f51b0u: _ZN13dScMgMemory_c10StateSetupEv(c); return 1;
+    case 0x020f5164u: _ZN13dScMgMemory_c9StatePlayEv(c); return 1;   /* host copy below */
+    case 0x020f5140u: _ZN13dScMgMemory_c10StateJudgeEv(c); return 1;
+    case 0x020f50f8u: _ZN13dScMgMemory_c11StateResultEv(c); return 1;   /* host copy below */
+    case 0x020f50c0u: _ZN13dScMgMemory_c9StateExitEv(c); return 1;
+    /* data_ov006_02142304, dispatched by _ZN13dScMgMemory_c9StatePlayEv */
+    case 0x020f4c38u: _ZN13dScMgMemory_c10RoundStartEv(c); return 1;
+    case 0x020f4bbcu: _ZN13dScMgMemory_c13RoundDealEasyEv((unsigned char *)c); return 1;
+    case 0x020f4b30u: _ZN13dScMgMemory_c15RoundDealNormalEv(c); return 1;
+    case 0x020f4ad4u: _ZN13dScMgMemory_c13RoundDealHardEv((unsigned char *)c); return 1;
+    case 0x020f4a40u: _ZN13dScMgMemory_c13RoundWaitDealEv(c); return 1;
+    case 0x020f49acu: _ZN13dScMgMemory_c11RoundRevealEv(c); return 1;
+    /* data_ov006_021422bc, dispatched by _ZN13dScMgMemory_c11StateResultEv */
+    case 0x020f4888u: _ZN13dScMgMemory_c10ResultWaitEv(c); return 1;
+    case 0x020f47d8u: _ZN13dScMgMemory_c12ResultRewardEv(c); return 1;
+    case 0x020f46ecu: _ZN13dScMgMemory_c15ResultTurnCardsEv(c); return 1;
+    case 0x020f456cu: _ZN13dScMgMemory_c12ResultFinishEv(c); return 1;
+    default:                                  return 0;
+    }
+}
+
+static int mem1_try_1(void *self, unsigned code, int a)
+{
+    char *c = (char *)self;
+    switch (code) {
+    /* data_ov006_02142334, dispatched by _ZN13dScMgMemory_c11UpdateCardsEv.  `c` is the
+       CLASS BASE and `a` is the loop counter, in that order; section 2 has the
+       disassembly that says so. */
+    case 0x020f43c4u: _ZN13dScMgMemory_c8CardMoveEi(c, a);  return 1;
+    case 0x020f43c0u: _ZN13dScMgMemory_c8CardIdleEi();      return 1;  /* bx lr body */
+    case 0x020f4248u: _ZN13dScMgMemory_c10CardSelectEi(c, a);  return 1;
+    case 0x020f41b0u: _ZN13dScMgMemory_c10CardFlipUpEi(c, a);  return 1;
+    case 0x020f41acu: _ZN13dScMgMemory_c8CardWaitEi();      return 1;  /* bx lr body */
+    case 0x020f411cu: _ZN13dScMgMemory_c12CardFlipDownEi(c, a);  return 1;
+    case 0x020f3f84u: _ZN13dScMgMemory_c11CardFlyAwayEi(c, a);  return 1;
+    default:                                      return 0;
+    }
+}
+
+/* The two entry points the host copies below use.  Everything this switch does
+   not own goes to the framework unchanged, so the null-code guard, the
+   nonzero-adjustment refusal and the UNHANDLED report all still live in exactly
+   one place. */
+extern "C" void port_mg_memory1_call0(void *self, unsigned code, int adj)
+{
+    if (code != 0 && adj == 0 && mem1_try_0(self, code)) {
+        ++g_mem1_state_hits;
+        return;
+    }
+    port_mg_call0(self, code, adj);
+}
+
+extern "C" void port_mg_memory1_call1(void *self, unsigned code, int adj, int a)
+{
+    if (code != 0 && adj == 0 && mem1_try_1(self, code, a)) {
+        ++g_mem1_state_hits;
+        return;
+    }
+    port_mg_call1(self, code, adj, a);
+}
+
+extern "C" unsigned port_mg_memory1_state_hits(void) { return g_mem1_state_hits; }
+extern "C" unsigned port_mg_memory1_floor_hits(void) { return g_mem1_floor_hits; }
+
+// ---- the four host copies --------------------------------------------------
+//
+// Each is its src TU verbatim except for the table declaration (MgPmf rather
+// than a member-pointer type) and the dispatch site (port_mg_memory1_callN
+// rather than `(c->*table[i].pmf)()`).  Where anything else moved it is stated
+// on the line.
+
+/* src/_ZN13dScMgMemory_c9StatePlayEv -- RETIRED, run link100 lane SEAT4. Its table is
+   seated in port/hal/pmf_seat4.cpp and the matched TU is on
+   port/slice_seat4.txt, so the host copy that stood in for it is gone and
+   the declaration above is what the faces in this file reach. */
+
+/* src/_ZN13dScMgMemory_c11StateResultEv -- RETIRED, run link100 lane SEAT4. Its table is
+   seated in port/hal/pmf_seat4.cpp and the matched TU is on
+   port/slice_seat4.txt, so the host copy that stood in for it is gone and
+   the declaration above is what the faces in this file reach. */
+
+// ---- TWO TABLES SEATED, AND TWELVE FACES -----------------------------------
+//
+// Run link100 lane PMFB4. Two of dScMgMemory_c's tables now hold HOST addresses,
+// written at boot by port_mg_memory1_states_seat below after every cell has been
+// compared against the ROM's own code word and a zero adjustment word, so two of
+// the four host copies are gone:
+//
+//   _ZN13dScMgMemory_c8BehaviorEv  data_ov006_021422dc   5 slots  arity 0  (vtable slot 6)
+//   _ZN13dScMgMemory_c11UpdateCardsEv  data_ov006_02142334   7 slots  arity 1
+//
+// THE TWO HOST COPIES THAT STAY are _ZN13dScMgMemory_c9StatePlayEv and _ZN13dScMgMemory_c11StateResultEv,
+// which are STATE BODIES of data_ov006_021422dc rather than dispatchers of a
+// table of their own. The installer writes faces that call them, so they keep
+// working from the seated cells. The switch stays live for the tables this lane
+// did not seat.
+//
+// THE STRIDE, BOTH SIDES (runs/link100/out/PMFB4/rom_gate3.txt, emit_gate3.txt):
+//   020f5388  ROM add r3,r1,r0,lsl #3 at 020f539c, pool 020f53dc = 021422dc
+//   020f3f10  ROM add r3,r4,r0,lsl #3 at 020f3f3c, pool 020f3f80 = 02142334
+// emitted [eax*8] and [eax*8+4] in both listings. ROM 8 == emitted 8, and /Zp4
+// leaves both listings identical but for the TITLE line.
+//
+// THE TWELVE SOURCE PAIRS all read {code, 0} in overlay_0006.bin at the
+// addresses src/__sinit_ov006_021311c8.c copies each slot from, every one a
+// whole-pair copy with no field-form fill:
+//
+//   021422dc[0] <- 0213cfd0 020f51b0/0    02142334[0] <- 0213d018 020f43c4/0
+//   021422dc[1] <- 0213cfc0 020f5164/0    02142334[1] <- 0213cff0 020f43c0/0
+//   021422dc[2] <- 0213d088 020f5140/0    02142334[2] <- 0213cfe8 020f4248/0
+//   021422dc[3] <- 0213d080 020f50f8/0    02142334[3] <- 0213cfc8 020f41b0/0
+//   021422dc[4] <- 0213d078 020f50c0/0    02142334[4] <- 0213d010 020f41ac/0
+//                                         02142334[5] <- 0213d008 020f411c/0
+//                                         02142334[6] <- 0213d070 020f3f84/0
+//
+// THE DISPATCH SHAPE, off each row's own listing: `mov ecx, tab[i*8+4] /
+// mov eax, tab[i*8] / add ecx, <this> / call eax`, no `add esp,N` after it.
+// 020f3f10 pushes edi at BOTH of its two indirect call sites (it compiles its
+// loop with a peeled first iteration, and both were read); 020f5388 pushes
+// nothing. So 02142334 takes one-argument faces and 021422dc zero-argument ones.
+//
+// ONE /alternatename: src/minigames/d_s_mg_memory.cpp declares its table at
+// namespace scope through its own shadow class, so MSVC spells
+// ?data_ov006_02142334@@3PAP8C75@@AEXH@ZA -- the C75 is that TU's own class
+// name, part of the decoration -- read off the object with dumpbin /symbols.
+// src/minigames/d_s_mg_memory.cpp declares its table inside extern "C".
+//
+// ONE GUESS MARKER, ADJUDICATED: src/minigames/d_s_mg_memory.cpp carries "recovered
+// from vtable slot identity"; port/tools/inferred_stub_adjudicated.txt:760 rules
+// it REAL_DECOMP.
+//
+// TWO OF THE TWELVE SLOTS TAKE NO ARGUMENT AT ALL (their src TUs are `void(void)`
+// empty bodies in one-argument cells), which is the ride-through shape
+// port/tools/aritycheck.py checks; their faces call them with nothing.
+//
+// STALE COMMENT DISCLOSED, NOT EDITED: hal/scene_mg_memory1.cpp:247-251 still
+// calls _ZN13dScMgMemory_c8BehaviorEv "the HOST COPY". Its declaration beside it is
+// correct: same C linkage, one pointer, int return.
+#pragma comment(linker, "/alternatename:?data_ov006_02142334@@3PAP8C75@@AEXH@ZA=_data_ov006_02142334")
+
+/* EVERY FACE COUNTS: g_mem1_state_hits keeps counting exactly the dispatches
+   that happen, as the switch counted them while the host copies routed. */
+#define M1_FACE1(sym, cast)                                                   \
+    static void __fastcall m1_##sym(void *self, void *dead_edx, int i)        \
+    {                                                                         \
+        (void)dead_edx;                                                       \
+        ++g_mem1_state_hits;                                                  \
+        sym(cast self, i);                                                    \
+    }
+#define M1_FACE1_VOID(sym)                                                    \
+    static void __fastcall m1_##sym(void *self, void *dead_edx, int i)        \
+    {                                                                         \
+        (void)self; (void)dead_edx; (void)i;                                  \
+        ++g_mem1_state_hits;                                                  \
+        sym();                                                                \
+    }
+#define M1_FACE0(sym, cast)                                                   \
+    static void __fastcall m1_##sym(void *self, void *dead_edx)               \
+    {                                                                         \
+        (void)dead_edx;                                                       \
+        ++g_mem1_state_hits;                                                  \
+        sym(cast self);                                                       \
+    }
+
+/* data_ov006_021422dc, arity 0. Slots 1 and 3 are host copies above. */
+M1_FACE0(_ZN13dScMgMemory_c10StateSetupEv, (char *))
+M1_FACE0(_ZN13dScMgMemory_c9StatePlayEv, (char *))
+M1_FACE0(_ZN13dScMgMemory_c10StateJudgeEv, (char *))
+M1_FACE0(_ZN13dScMgMemory_c11StateResultEv, (char *))
+M1_FACE0(_ZN13dScMgMemory_c9StateExitEv, (char *))
+/* data_ov006_02142334, arity 1 */
+M1_FACE1(_ZN13dScMgMemory_c8CardMoveEi, (char *))
+M1_FACE1_VOID(_ZN13dScMgMemory_c8CardIdleEi)
+M1_FACE1(_ZN13dScMgMemory_c10CardSelectEi, (char *))
+M1_FACE1(_ZN13dScMgMemory_c10CardFlipUpEi, (char *))
+M1_FACE1_VOID(_ZN13dScMgMemory_c8CardWaitEi)
+M1_FACE1(_ZN13dScMgMemory_c12CardFlipDownEi, (char *))
+M1_FACE1(_ZN13dScMgMemory_c11CardFlyAwayEi, (char *))
+
+/* run link100 lane SEAT4: this class's remaining state tables are
+   seated in port/hal/pmf_seat4.cpp, from inside this installer, so the
+   seat order hal/scene_mg.cpp already establishes is the one they get
+   and no new call site is added anywhere. */
+extern "C" void port_pmf_seat4_memory1(void);
+
+extern "C" void port_mg_memory1_states_seat(void)
+{
+    static int done;
+    if (done)
+        return;
+    done = 1;
+
+    port_pmf_seat4_memory1();
+
+    static const struct {
+        MgPmf *table;
+        const char *name;
+        unsigned slot;
+        unsigned rom;
+        void *face;
+    } seats[] = {
+        {data_ov006_021422dc, "021422dc", 0, 0x020f51b0u, (void *)m1__ZN13dScMgMemory_c10StateSetupEv},
+        {data_ov006_021422dc, "021422dc", 1, 0x020f5164u, (void *)m1__ZN13dScMgMemory_c9StatePlayEv},
+        {data_ov006_021422dc, "021422dc", 2, 0x020f5140u, (void *)m1__ZN13dScMgMemory_c10StateJudgeEv},
+        {data_ov006_021422dc, "021422dc", 3, 0x020f50f8u, (void *)m1__ZN13dScMgMemory_c11StateResultEv},
+        {data_ov006_021422dc, "021422dc", 4, 0x020f50c0u, (void *)m1__ZN13dScMgMemory_c9StateExitEv},
+
+        {data_ov006_02142334, "02142334", 0, 0x020f43c4u, (void *)m1__ZN13dScMgMemory_c8CardMoveEi},
+        {data_ov006_02142334, "02142334", 1, 0x020f43c0u, (void *)m1__ZN13dScMgMemory_c8CardIdleEi},
+        {data_ov006_02142334, "02142334", 2, 0x020f4248u, (void *)m1__ZN13dScMgMemory_c10CardSelectEi},
+        {data_ov006_02142334, "02142334", 3, 0x020f41b0u, (void *)m1__ZN13dScMgMemory_c10CardFlipUpEi},
+        {data_ov006_02142334, "02142334", 4, 0x020f41acu, (void *)m1__ZN13dScMgMemory_c8CardWaitEi},
+        {data_ov006_02142334, "02142334", 5, 0x020f411cu, (void *)m1__ZN13dScMgMemory_c12CardFlipDownEi},
+        {data_ov006_02142334, "02142334", 6, 0x020f3f84u, (void *)m1__ZN13dScMgMemory_c11CardFlyAwayEi},
+    };
+
+    for (unsigned i = 0; i < sizeof seats / sizeof seats[0]; ++i) {
+        MgPmf *p = &seats[i].table[seats[i].slot];
+        if (p->code != seats[i].rom || p->adj != 0) {
+            std::fprintf(stderr, "FATAL: dScMgMemory_c state table %s slot %u: "
+                         "the sinit left %08x/%d, the ROM's own pairs say "
+                         "%08x/0 -- WRONG BYTES\n", seats[i].name,
+                         seats[i].slot, p->code, p->adj, seats[i].rom);
+            std::abort();
+        }
+        p->code = (unsigned)(size_t)seats[i].face;
+    }
+}

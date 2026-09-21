@@ -4,15 +4,17 @@
 #include "decl_common.h"
 /* recovered: named members + shared header, real C++ method */
 #include "TtcRotatingGear.h"
-extern void _ZN13SharedFilePtr7ReleaseEv(void *);
-extern int G0[];
+#include "SharedFilePtr.h"
+#include "dBgW.h"
+extern int TtcRotatingGear_ClsnFile[];
+extern int TtcRotatingGear_ModelFile[];
 
 int TtcRotatingGear::CleanupResources()
 {
-    if (_ZN16MeshColliderBase9IsEnabledEv((char *)&mMeshCollider)) {
-        _ZN16MeshColliderBase7DisableEv((char *)&mMeshCollider);
+    if (((dBgW *)((char *)&(*(u8 *)&mMeshCollider)))->IsEnabled()) {
+        ((dBgW *)((char *)&(*(u8 *)&mMeshCollider)))->Disable();
     }
-    _ZN13SharedFilePtr7ReleaseEv(G0);
-    _ZN13SharedFilePtr7ReleaseEv(G1);
+    ((SharedFilePtr *)(TtcRotatingGear_ModelFile))->Release();
+    ((SharedFilePtr *)(TtcRotatingGear_ClsnFile))->Release();
     return 1;
 }

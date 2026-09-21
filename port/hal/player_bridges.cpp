@@ -4,17 +4,33 @@
 // defining TUs compile them as real methods against the shared headers.
 // Same hop as gate 9 (cxxname_bridge.cpp), split into its own TU because
 // Player.h drags a wider include surface than the gate-9 file wants.
+#include <cmath>
+#include "vs_width.h"   /* 0.3.2: the port's player width */
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 #include "Animation.h"
-#include "BgCh.h"
+#include "dBgCh.h"
 #include "NestedHeapIterator.h"
 #include "Player.h"
+#include "player_fields.h"   /* run mg16 lane MP4: the one place field offsets live */
+#include "host_settings.h"   /* port::adventure_ghost_mode() for the ghost pass */
+#include "comms_seam.h"      /* port::sync_stats(): the local-write witness */
 #include "ShadowModel.h"
 #include "TextureSequence.h"
 #include "Heap.h"
 #include "ModelAnim.h"
+
+#include "dsstate_seg.h"
+/* SYNC4: see the case for 0x020e0d28 inside player_states.inc. */
+extern "C" int __fastcall port_player_st_crazedcrate_cleanup(void *self, void *);
+#pragma comment(linker, "/alternatename:@port_player_st_crazedcrate_cleanup@8=?St_CrazedCrate_Cleanup@Player@@QAEHXZ")
+
+/* the geometry-engine polygon buffer, for the tongue render self-check
+   (SM64DS_WINGS_PROBE); same forward decl cxxname_bridge.cpp uses so the
+   header's wider surface does not have to come in here */
+namespace ntr { struct GxTriangle; const GxTriangle *gx_polygons(std::size_t &n); }
 
 /* how many times hal_call_state_fn fell off the end of its switch this run --
    read by the F3 overlay in port/tests/walk_window.cpp */
@@ -27,75 +43,20 @@ extern "C" int _ZN6Player13InitResourcesEv(void *);
 /* C++-linkage globals some slice TUs call under Itanium-style names */
 int _ZNK9Animation12WillHitFrameEi(void *self, int f)
 { return ((Animation *)self)->Animation::WillHitFrame(f) ? 1 : 0; }
-int _ZN9Animation8GetFlagsEv(void *self)
+/* GetFlags is C linkage now: main's mangled-declaration sweep gave the Player
+   state TUs an extern "C" declaration, so they call the plain name. The alias
+   at the head of hal/cxx_aliases.cpp still serves the old C++ mangling. */
+extern "C" int _ZN9Animation8GetFlagsEv(void *self)
 { return ((Animation *)self)->Animation::GetFlags(); }
 void _ZN6Player4HealEi(Player *p, int amt)
 { p->Player::Heal(amt); }
-/* the F5/MODS live character switch: SetRealCharacter is a real __thiscall
-   method, so it needs its `this` in ECX -- a plain extern "C" declaration
-   generates __cdecl and the character id arrives as stack garbage (the
-   switch crashed reading wild model slots). Same wrapper pattern as Heal. */
-extern "C" void hal_player_set_real_character(void *p, unsigned chr)
-{ ((Player *)p)->Player::SetRealCharacter(chr); }
 
+/* RETIRED at SYNC6: main's #2666 put src/actors/Player.cpp back in the build
+   and it defines ?GetBodyModelID@Player@@QBEII_N@Z itself, so this face was
+   the second definition (one LNK2005 row against player_bridges.cpp.obj in
+   build_s2.log). The flat body it forwarded to is unchanged.
 unsigned int Player::GetBodyModelID(unsigned int a, bool b_) const
-{ return _ZNK6Player14GetBodyModelIDEjb((char *)this, a, b_ ? 1 : 0); }
-
-/* ---- outfit tint (MODS/F5 "color") --------------------------------------
-   Multiplies the body ModelAnim's DIF_AMB diffuse+ambient channels by the
-   active preset. DIF_AMB packs two BGR555 colors (diffuse bits 0-14, flag
-   15, ambient 16-30, flag 31 -- see ntr/gx.cpp); the flags are preserved.
-   Originals are cached per (file, materials, count) and restored when the
-   file changes or Default returns, so retinting never compounds. The head
-   keeps its own colors. */
-extern "C" const float *port_outfit_tint(void);
-namespace {
-const BMD_File *g_tint_file;
-unsigned *g_tint_mats;
-unsigned g_tint_orig[128];
-unsigned g_tint_n;
-int g_tint_applied;
-}  // namespace
-
-static void hal_tint_body(ModelAnim *ma)
-{
-    const float *t = port_outfit_tint();
-    BMD_File *f = ma ? ma->data.modelFile : 0;
-    unsigned *mats = (ma && f) ? (unsigned *)ma->data.materials : 0;
-    unsigned n = f ? f->numMaterials : 0;
-    if (n > 128) n = 128;
-    if (g_tint_applied &&
-        (f != g_tint_file || mats != g_tint_mats || n != g_tint_n)) {
-        for (unsigned i = 0; i < g_tint_n; ++i)
-            g_tint_mats[i * 12 + 10] = g_tint_orig[i];
-        g_tint_applied = 0;
-    }
-    if (!t || !mats || !n) {
-        if (!t) g_tint_file = 0;
-        return;
-    }
-    if (!g_tint_applied || f != g_tint_file || mats != g_tint_mats ||
-        n != g_tint_n) {
-        for (unsigned i = 0; i < n; ++i) g_tint_orig[i] = mats[i * 12 + 10];
-        g_tint_file = f;
-        g_tint_mats = mats;
-        g_tint_n = n;
-        g_tint_applied = 1;
-    }
-    for (unsigned i = 0; i < n; ++i) {
-        const unsigned v = g_tint_orig[i];
-        unsigned c[6] = {v & 0x1f, (v >> 5) & 0x1f, (v >> 10) & 0x1f,
-                         (v >> 16) & 0x1f, (v >> 21) & 0x1f,
-                         (v >> 26) & 0x1f};
-        for (int k = 0; k < 6; ++k) {
-            int r = (int)(c[k] * t[k % 3] + 0.5f);
-            c[k] = (unsigned)(r > 31 ? 31 : r);
-        }
-        mats[i * 12 + 10] =
-            (v & 0x80008000u) | c[0] | (c[1] << 5) | (c[2] << 10) |
-            (c[3] << 16) | (c[4] << 21) | (c[5] << 26);
-    }
-}
+{ return _ZNK6Player14GetBodyModelIDEjb((char *)this, a, b_ ? 1 : 0); }      */
 
 extern "C" {
 /* gate-10 smoke drives the state machine directly (the ChangeState PMF
@@ -138,14 +99,14 @@ static void hal_dump_model_tables(Model *m)
         BMD_Texture *t = f->textures + i;
         printf("  tex %2u %-20s flags %08x fmt %u %3dx%-3d size %5u "
                "vramoff %05x\n",
-               i, (const char *)t->unk_00, t->flags, (t->flags >> 26) & 7,
+               i, (const char *)t->name, t->flags, (t->flags >> 26) & 7,
                8 << ((t->flags >> 20) & 7), 8 << ((t->flags >> 23) & 7),
                t->size, (t->flags & 0xffff) << 3);
     }
     for (u32 i = 0; i < f->numPalettes; ++i) {
         BMD_Palette *p = f->palettes + i;
         printf("  pal %2u %-20s size %5u vramoff %05x -> pltt %04x\n", i,
-               (const char *)p->unk_00, p->size, p->vramOffset,
+               (const char *)p->name, p->size, p->vramOffset,
                p->vramOffset >> 4);
     }
     const unsigned char *mm = (const unsigned char *)m->data.materials;
@@ -153,7 +114,7 @@ static void hal_dump_model_tables(Model *m)
         const u32 *e = (const u32 *)(mm + i * 0x30);
         printf("  mat %2u %-20s tex %3d pal %3d teximage %08x pltt %04x "
                "attr %08x difamb %08x\n",
-               i, (const char *)f->materials[i].unk_00, (int)e[0], (int)e[1],
+               i, (const char *)f->materials[i].name, (int)e[0], (int)e[1],
                e[7], e[8], e[9], e[10]);
     }
 }
@@ -168,7 +129,7 @@ void hal_render_model(void *model, int scaleShift)
     if (hal_tex_log()) hal_dump_model_tables(m);
     /* THE STAGE RENDERS IN SCENE UNITS, and this is Stage::RenderModel's own
        shape: the model matrix is the Model constructor's identity
-       (data_02082128) and the entire scale travels through Model::Render's
+       (IDENTITY_MATRIX4X3) and the entire scale travels through Model::Render's
        Vector3 argument -- data_020755d4 -- which the ordinary part walk
        spends as an MTX_SCALE on top of its own 1 << (shift + 12). Scene is
        what everything else in the frame is now in: the view matrix
@@ -230,10 +191,21 @@ void hal_render_player_body(void *player)
 { hal_render_player_body_ex(player, 1); }
 void hal_render_player_body_only(void *player)
 { hal_render_player_body_ex(player, 0); }
-/* scene-space variant: mat4x3 = Y-rotation(mAngleY) at 1.0 + the scene
-   translation, the head composed through the body's own matrix (the neck
-   bone is model-space) */
-extern "C" short data_02082214[];   /* s16 trig pairs [sin, cos], 4096 = 1 */
+/* the three matrix helpers and the scratch matrix Player::Render uses to seat
+   mModelAnim4 (+0x174); all four are matched and already in the link */
+extern "C" {
+void Matrix4x3_FromTranslation(void *m, int x, int y, int z);
+void Matrix4x3_ApplyInPlaceToRotationZ(void *m, int ang);
+void MulMat4x3Mat4x3(const void *a, const void *b, void *out);
+extern int data_020a0e68;
+/* base Model::Render, non-virtually -- the exact call Player::Render's i==3 arm
+   makes on the Yoshi head. C-linkage face over the matched
+   src/_ZN5Model6RenderEPK7Vector3.cpp, so the dispatch is non-virtual as in the
+   ROM: index 3 is a ModelAnim, and going through its own vtable Render slot
+   would re-run UpdateVerts, which is why Player::Render reaches past it to the
+   base method and renders the head at the pose the anim system already left. */
+void _ZN5Model6RenderEPK7Vector3(void *self, const void *pos);
+}
 static void m43_mul(const int *a, const int *b, int *out)
 {
     for (int r = 0; r < 3; ++r)
@@ -249,41 +221,1655 @@ static void m43_mul(const int *a, const int *b, int *out)
                             12) +
                       b[9 + c2];
 }
+
+/* THE HEAD-MODEL GROUP, Player::Render's second draw. Player::Render walks one
+   model out of the array at Player +0x154, indexed by
+   func_ov002_020becf4(this, unk_6db, 1), and forks on that index
+   (src/_ZN6Player6RenderEv.cpp lines 120-128):
+
+       if (i == 3) {                                    // Yoshi's head
+           Model::Render(mdl4, this+0x80);              // base, non-virtual, NO seat
+       } else {                                         // Mario/Luigi/Wario heads
+           *(M34*)mdl4->bones[0] = *(M34*)(bodyBones + 0x2d0);  // neck bone
+           mdl4->Virtual10(&mScale);
+       }
+
+   The array is seated in func_ov002_020e5948 (InitResources): the four
+   character heads load into indices 0-3 from data_ov002_0210a69c, and index 3
+   -- Yoshi -- is a ModelAnim (0x64 bytes, a base BCA anim) while 0-2 are plain
+   Models (0x50). func_ov002_020becf4 returns 3 for Yoshi in normal play (its
+   v==3 branch adds 4 only when unk_714, "something in the mouth", is set), so
+   i==3 is Yoshi's EVERY-FRAME head index, not a tongue-only case. That is why
+   it is special-cased at all: Mario/Luigi/Wario wear a separate cap model that
+   has to be pinned to the body's neck bone, but Yoshi's head is a full model
+   authored in body space and drawn at the player root.
+
+   THE MATRIX IS NOT SEATED HERE, and that is the whole correction over take 1.
+   func_ov002_020e444c -- which the port already runs every frame inside
+   Player::Behavior (func_ov002_020e4bb8 -> func_ov002_020e444c, and via
+   func_ov002_020e3f90 when Yoshi is carrying something) -- has already written
+   head+0x1c to the player-root matrix by the time render runs. So the i==3 arm
+   dispatches base Model::Render with nothing seated, exactly as the ROM does.
+
+   THE PROBE THAT ONCE READ head+0x1c == body+0x1c == scene ON EVERY FRAME WAS
+   READING A STANDING PLAYER, and the claim it left here was wrong in motion.
+   The seat's matrix carries the X and Z rotations and a model offset that the
+   old hand-built `scene` did not; all of them are zero at rest and none of them
+   are at speed. That is where Yoshi's head-off-body separation came from, and
+   hal_render_player_world now reads the seated matrix instead of rebuilding
+   one -- see the banner there for the measurements. head+0x1c and body+0x1c are
+   the same write on the ROM, and they are the same value here now.
+
+   Take 1 seated head+0x1c = scene by hand -- redundant, it already was -- and,
+   worse, believed i==3 meant "mid-tongue" and so it read as a new render on top
+   of the else arm the port still ran; the real fault the human saw (head gone,
+   a model upside down under the feet) is the else arm's neck-bone compose being
+   run over Yoshi's index-3 head, which is not neck-parented. Routing i==3 to the
+   ROM's own base Model::Render, and leaving every other head on the neck-bone
+   compose, is the fix.
+
+   SCOPE: this draws Yoshi's HEAD in the right place every frame. It does not on
+   its own make the tongue reach: the head ModelAnim's currFrame does not advance
+   in the port (St_YoshiPower_Main's Animation::Advance on +0x160 leaves it at 0
+   here), so the mouth/tongue animation stays at frame 0. Extending the tongue is
+   a separate open gap (the head anim never being advanced/posed), not this fork. */
+static void hal_render_head_group(char *c, char *head, unsigned hid,
+                                  ModelAnim *ma, const int *scene)
+{
+    if (hid == 3) {
+        /* Yoshi's head: mat4x3 already seated by func_ov002_020e444c this frame;
+           dispatch the BASE Model::Render (non-virtual) with c+0x80, exactly the
+           ROM's i==3 arm. Base, not the object's own slot 4: index 3 is a
+           ModelAnim, whose virtual Render would re-run UpdateVerts, and the ROM
+           calls Model::Render directly to render the head at the pose the anim
+           system already produced. */
+        _ZN5Model6RenderEPK7Vector3(head, c + 0x80);
+        return;
+    }
+
+    /* EVERY OTHER HEAD -- the cap Mario, Luigi and Wario wear, a model of its
+       own. src/_ZN6Player6RenderEv.cpp:123-127 is two statements:
+
+           char* m   = mdl4;
+           char* dst = *(char**)(m + 0x14);                  // head bones
+           char* src = *(char**)(bodyMdl + 0x14) + 0x2d0;    // body neck bone
+           *(M34*)dst = *(M34*)src;                          // 1
+           ((VObj*)mdl4)->m14((char*)&mScaleX);              // 2
+
+       and the port had a stand-in for the first and had DROPPED THE SECOND'S
+       ARGUMENT. &mScaleX is Player mScaleX/Y/Z at +0x080, the same vector the
+       body draw and the i==3 arm above are handed; this call passed NULL,
+       which func_0204488c reads as unit. Statement 2 is now written as the ROM
+       writes it.
+
+       WHAT THAT DOES AND WHAT IT DOES NOT DO, measured, because the two are
+       not the same and the difference is the port's stand-in for statement 1.
+       Model::Render loads the model's mat4x3 as the world matrix
+       (src/_ZN5Model6RenderEPK7Vector3.cpp -> ModelComponents::Render ->
+       data_020a4bd0), and func_0204488c then emits, per part and in this
+       order (src/func_0204488c.c:68-78):
+
+           func_020553a4(data_020a4bd0)   GX 0x17  MTX_LOAD_4x3, the world
+           *mtxScale = c0/c1/c2           GX 0x1b  MTX_SCALE, THIS argument
+           func_02055388(partMtx)         GX 0x19  MTX_MULT_4x3, the bone
+
+       -- world, then scale, then the bone's whole 4x3. Anything carried in
+       bone 0 is INSIDE the scale; anything folded into the world matrix is
+       OUTSIDE it. The ROM puts the neck in bone 0. The port composes it
+       through `scene` into head+0x1c and leaves bone 0 at (0,0,0).
+
+       So the scale now multiplies the cap's PARTS, which is what the ROM's
+       argument does, and it cannot reach the cap's ANCHOR, because bone 0
+       holds nothing for MTX_SCALE to multiply. Castle grounds, Mario, level 1,
+       SM64DS_FORCE_STATE=squish, head-minus-neck world Y in Fix12 scene units:
+
+           standing            gap      0    before and after
+           crushed, NULL       gap  41378    the cap 80.8 world units HIGH
+           crushed, &mScaleX   gap  41378    not one Fix12 of it
+
+       THE POSITION IS NOT CLOSED HERE, deliberately. Closing it needs the
+       ROM's statement 1 as well: copy the body's neck bone into the head's
+       bone 0, drop the compose, and let func_ov002_020e444c's player-root
+       seat of head+0x1c stand as the ROM leaves it. An earlier pass in this
+       lane built that and reported the crushed gap reaching 0 -- and also
+       reported it moving normal-play framebuffer hashes with mScale at unit,
+       which the table above says THIS change does not do. The emission order
+       predicts exactly that: through bone 0 the neck's ROTATION goes inside
+       MTX_SCALE and a non-uniform scale shears it, and through the world
+       matrix it does not. So the relocation is a rendering change, not a
+       no-op. It needs its own commit and its own before/after; it is not
+       carried here and it is not re-measured here.
+
+       WHAT WAS MEASURED HERE, castle grounds level 1, Mario, the quiet
+       spawner, ten normal-play runs (L1 296/300, L5, L6, L9 x Mario/Yoshi):
+       every rc 0, every selftest position unchanged, and all ten framebuffer
+       hashes BYTE-IDENTICAL to the same runs without this argument. The
+       CRUSHED frame is not byte-identical, which is the point: at frame 80 of
+       the squish run the two framebuffers differ in 3435 of 589824 pixel
+       bytes (1226 of 196608 pixels, 0.62 percent), all of them inside one
+       40x42 box at x 236..275, y 209..250 -- the cap. Frames 78 through 82
+       all differ by the same order. This change is not an invisible numeric
+       delta; what the box looks like is an owner's call, not this comment's.
+       Shots: status_shots/cap/mario_crushed_f0{78,80,82}_{before,after}.png */
+    /* THE ROM'S STATEMENT 1, src/_ZN6Player6RenderEv.cpp:123-126: the body's
+       neck bone is copied INTO the head model's bone 0, and the head model's
+       own mat4x3 is left as func_ov002_020e444c seated it this frame (the
+       player root, the same matrix the body draws through). The port used to
+       compose neck * scene into head+0x1c instead and leave bone 0 at
+       (0,0,0). The two are the same product while mScale is unit; they are
+       not the same product under a crush, because func_0204488c emits
+       MTX_SCALE between the world matrix and the bone, so a neck carried in
+       the world matrix is outside the scale and cannot shrink with the body.
+       Measured: crushed gap 41378 on castle grounds and 22714 on the
+       opening's Wario before, 0 after. */
+    char *hbones = *(char **)(head + 0x14);
+    const char *neck = *(const char *const *)((char *)ma + 0x14) + 0x2d0;
+    if (hbones && neck)
+        for (int i = 0; i < 12; ++i)
+            ((int *)hbones)[i] = ((const int *)neck)[i];
+    /* Slot 5, not 4: VObj (src/_ZN6Player6RenderEv.cpp's shadow vtable) names
+       every slot by byte offset, so m14 is index 5, and _ZTV5Model[5] is
+       Model::Render (hal/cxxname_bridge.cpp:522). This read 4 while
+       hal_fill_model_vtable dual-filled _ZTV5Model[4] with Render, until
+       0a7f12ee9 removed the dual fill and put Virtual10 back at [4]. */
+    ((void(__fastcall *)(void *, void *, const void *))(
+        ((void ***)head)[0][5]))(head, 0, c + 0x80);
+}
+
+/* run mg16 lane MP3: the two globals Player::Render's own gates read. The
+   per-slot Player table and the local-player index are read by the adventure
+   ghost pass below (declared here so hal_render_player_world can tell a remote
+   body from the local one; also declared later at their first non-ghost use). */
+extern "C" {
+extern unsigned char data_0209f2d8;   /* VS mode flag */
+extern unsigned char data_0209fc5c[]; /* per-slot "this slot is live"; BYTE
+                                         stride, the ROM's own width */
+extern void *data_0209f394[];         /* per-slot Player* */
+extern unsigned char data_0209f250;   /* local player index */
+}
+
+/* ---- THE GHOST ALPHA -------------------------------------------------------
+   The DS polygon alpha is 5 bits (0..31); func_02046208 writes it into the
+   0x1f0000 field of every material's polygon attribute. 31 is fully opaque and
+   1 is nearly gone; 0 is NOT invisible, it is the DS's wireframe mode, so the
+   floor here is 1. The default is a ghostly ~40%. SM64DS_ADVENTURE_ALPHA tunes
+   it for the visual check without a rebuild. */
+static unsigned ghost_alpha()
+{
+    static int a = -1;
+    if (a < 0) {
+        const char *e = std::getenv("SM64DS_ADVENTURE_ALPHA");
+        a = e ? std::atoi(e) : 12;
+        if (a < 1) a = 1;
+        if (a > 31) a = 31;
+    }
+    return (unsigned)a;
+}
+
+/* ModelBase::ApplyOpacity, the ROM's own one-argument body (method_faces.cpp
+   forwards to the matched src/_ZN9ModelBase12ApplyOpacityEj.cpp). It walks the
+   model's components and stamps the alpha into each material, the same call
+   Player::Render makes on the wings. Re-applied every frame because the
+   material flags are rebuilt by the per-frame update. */
+extern "C" void _ZN9ModelBase12ApplyOpacityEj(void *self, unsigned a);
+static void ghost_opacity(void *model)
+{
+    if (model) _ZN9ModelBase12ApplyOpacityEj(model, ghost_alpha());
+}
+
+/* ---- THE NO-COLLISION HALF OF THE GHOST PASS ------------------------------
+   Once per frame, over every REMOTE live slot, re-assert the disable-
+   interaction state (status/VSMERCY.md, player_fields::disable_interaction) so
+   a ghost body cannot collide with, damage, or be damaged by the local player.
+   RE-ASSERTED every frame because Player::ChangeState re-arms all three fields
+   on every transition; a single set does not stick. The LOCAL body
+   (data_0209f250) is never touched, so the player stays fully solid and fully
+   interactive. Gated on the mode, so VS and solo are byte-unaffected. Called
+   from the per-frame tick in tests/walk_window.cpp, beside sync_tick. */
+extern "C" int port_party_member(int slot);   /* hal/comms_sync.cpp */
+extern "C" void port_adventure_ghost_hold()
+{
+    if (!port::adventure_ghost_mode()) return;
+    const int me = (int)data_0209f250;
+    for (int i = 0; i < kPortMaxPlayers; ++i) {
+        if (i == me) continue;
+        if (data_0209fc5c[i] == 0) continue;   /* slot not live */
+        /* PARTY: a party member is a shared-world body that COLLIDES and
+           interacts -- do NOT hold it non-colliding. Only non-party remotes
+           (adventure ghosts) get the pass-through hold. */
+        if (port_party_member(i)) continue;
+        if (void *a = data_0209f394[i])
+            port::player::disable_interaction(a);
+    }
+}
+
+/* ---- THE ADVENTURE-GHOST PROBE (SM64DS_ADVENTURE_PROBE) --------------------
+   A headless, single-instance proof of the M1 capability, run against the REAL
+   level-boot spawn (SM64DS_VS_PLAYERS=2 seats one extra body with no VS mode)
+   rather than a synthetic construction. Called once per frame from the walk
+   loop AFTER port_adventure_ghost_hold, so the three interaction flags it reads
+   on the ghost are this frame's. It asserts, and prints one [advprobe] line at
+   frame kAt+2:
+
+     - a ghost body exists at a remote live slot (i != data_0209f250);
+     - this is NOT VS mode (data_0209f2d8 == 0) and adventure mode is on;
+     - the ghost is held non-colliding (all three flags via interaction_disabled)
+       while the LOCAL body is not (it stays solid and interactive);
+     - the ghost CARRIES A NETWORK POSE: a real wire snapshot (port_adventure_
+       probe_apply, the actual apply_snapshot path) teleports the ghost to a
+       chosen pose and the ghost lands there while the LOCAL body does not move.
+
+   ALL PASS is the line the driver greps. Inert unless the env knob is set. */
+extern "C" void port_adventure_probe_apply(int slot, int x, int y, int z,
+                                           short yaw);
+extern "C" void port_adventure_ghost_follow();
+/* M2: the presence predicate and this console's level, for the diag line and
+   the presence proof below (both defined in hal/comms_sync.cpp / here). */
+extern "C" int port_adventure_peer_visible(int slot);
+/* PARTY: the per-slot party-member predicate (hal/comms_sync.cpp). A remote
+   slot that is a party member renders SOLID and COLLIDES; a remote slot that
+   is not stays a translucent, pass-through ghost. */
+extern "C" int port_party_member(int slot);
+extern signed char data_0209f2f8;
+
+/* PARTY: what the render pass actually DID with each slot last frame, recorded
+   at the render site so the party probe reads an observation rather than
+   re-deriving the decision. 1 = drawn ghost (translucent), 0 = drawn solid,
+   -1 = not drawn this frame. Indexed by the player slot (Player +0x6d8). */
+extern "C" signed char g_party_render_ghost[16] = {
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+
+/* TEMP faithful eat/egg-lay reproduction driver (SM64DS_YOSHI_EGG_REPRO=<frame>).
+   The headless harness cannot turn Yoshi to face a wandering enemy, so a natural
+   tongue-catch is not scriptable. This forces the SAME grab the tongue-collision
+   handler performs (func_ov002_020d6998 sets mObjInMouth and the enemy's grabbed
+   bit), then hands control to the REAL St_Swallow egg-lay path via ChangeState.
+   Everything downstream -- Player_DisableInteraction, anim 0x70, FinishedAnim,
+   daYegg_c_classInit -- runs unchanged, so the freeze it exposes is the game's, not
+   the driver's. Inert unless the env is set. */
+extern "C" {
+extern void *port_first_live_actor_of_class(unsigned id);   /* hal/actor_registry.cpp */
+extern unsigned port_unique_id_of_actor(void *actor);       /* hal/actor_registry.cpp */
+/* the ROM's own cap-pickup entry point; src/actors/Player.cpp,
+   called by the cap actor at src/actors/daObjMarioCap_c.cpp:51. Used only by the
+   SM64DS_YOSHI_CAP repro driver below. */
+extern void _ZN6Player18SetNewHatCharacterEjjb(void *self, unsigned a, unsigned b,
+                                               bool c);
+}
+extern "C" void port_adventure_probe(int frame)
+{
+    {
+        /* NATURAL egg-lay driver: from SM64DS_YOSHI_EGG_REPRO for the next
+           SM64DS_YOSHI_EGG_WIN frames, keep the tongue's target id (Player+0x338)
+           pointed at the first live enemy of class SM64DS_YOSHI_EGG_CLASS, so a
+           scripted B flick (SM64DS_PAD_TEST) makes the REAL func_ov002_020d6998
+           grab it and the whole St_YoshiPower->swallow->St_Swallow machine runs
+           with the real per-frame Main dispatch. */
+        static int rf = -2;
+        static unsigned cls = 201u;
+        static int win = 60;
+        static char *pp = 0;
+        static unsigned uid = 0xffffffffu;
+        if (rf == -2) {
+            const char *e = std::getenv("SM64DS_YOSHI_EGG_REPRO");
+            rf = e ? std::atoi(e) : -1;
+            const char *c = std::getenv("SM64DS_YOSHI_EGG_CLASS");
+            if (c) cls = (unsigned)std::strtoul(c, 0, 0);
+            const char *w = std::getenv("SM64DS_YOSHI_EGG_WIN");
+            if (w) win = std::atoi(w);
+        }
+        if (rf >= 0 && frame >= rf && frame < rf + win) {
+            const int me = (int)data_0209f250;
+            pp = (char *)((me >= 0 && me < kPortMaxPlayers) ? data_0209f394[me] : 0);
+            char *gg = (char *)port_first_live_actor_of_class(cls);
+            if (frame == rf) {
+                uid = gg ? port_unique_id_of_actor(gg) : 0xffffffffu;
+                std::fprintf(stderr, "[eggrepro] arm f%d p=%p enemy=%p uid=%u "
+                             "(class %u)\n", frame, (void *)pp, (void *)gg, uid, cls);
+                std::fflush(stderr);
+            }
+            if (pp && gg && uid != 0xffffffffu) {
+                /* only seed while Yoshi is not already holding something, so the
+                   tongue's own grab check runs unshortcut */
+                if (*(void **)(pp + 0x360) == 0)
+                    *(unsigned *)(pp + 0x338) = uid;   /* tongue target id */
+            }
+        }
+        /* SM64DS_YOSHI_SWALLOW=1: complete the tongue-to-mouth TRANSFER that the
+           port's frozen head animation never reaches, so the REAL swallow path
+           runs headless.
+
+           St_YoshiPower_Main case 1 makes exactly two writes when the body
+           animation crosses frame 0xa (src/_ZN6Player18St_YoshiPower_MainEv.cpp):
+
+               obj->unk_0b0 |=  0x40000;    // now in the mouth
+               obj->unk_0b0 &= ~0x20000;    // no longer on the tongue
+
+           In the port that frame is never crossed -- the p+0x160 head ModelAnim
+           does not advance (see the note at the head-render fix above), so the
+           body anim it copies its cursor from starts past 0xa. St_YoshiPower_
+           Cleanup then sees 0x20000 still set and DROPS the enemy, and Yoshi
+           never leaves St_YoshiPower. That is a separate, already-documented
+           animation defect; this driver steps over it and NOTHING ELSE. It makes
+           the ROM's own two writes, at the same point in the eat, and then gets
+           out of the way: func_ov002_020d6790 (from Player::Behavior) reads the
+           enemy's OnYoshiTryEat itself, picks the state itself, and every frame
+           of St_Swallow_Init / St_Swallow_Main / OnTurnIntoEgg / daYegg_c_classInit
+           after that is the game's. So a freeze this exposes is the game's.
+
+           Off unless the env is set, and it only ever fires while the player is
+           actually holding a tongued enemy. */
+        if (pp && rf >= 0 && frame >= rf && frame < rf + win) {
+            static int fwd = -1;
+            if (fwd < 0) fwd = std::getenv("SM64DS_YOSHI_SWALLOW") != 0;
+            char *h = *(char **)(pp + 0x360);
+            if (fwd && h && (*(unsigned *)(h + 0xb0) & 0x20000)) {
+                *(unsigned *)(h + 0xb0) |= 0x40000u;
+                *(unsigned *)(h + 0xb0) &= ~0x20000u;
+                std::fprintf(stderr, "[eggrepro] f%d mouth-transfer on %p "
+                             "(b0 now 0x%x)\n", frame, (void *)h,
+                             *(unsigned *)(h + 0xb0));
+                std::fflush(stderr);
+            }
+        }
+        /* SM64DS_YOSHI_CAP=<frame>: the CHARACTER-CAP pickup, driven at a
+           chosen frame while Yoshi is holding an enemy in his mouth.
+
+           This is the ordinary single-player route into
+           func_ov002_020bdb50's slot-19 dispatch. The cap actor's own state
+           machine (src/actors/daObjMarioCap_c.cpp:51, case 1) does exactly this
+           call and nothing else on the way in:
+
+               Player::SetNewHatCharacter(cap->mCharacter & 0xff, 0, 0)
+
+           and SetNewHatCharacter's first act is func_ov002_020bdb50(this, 0),
+           which -- because arg is 0 and mObjInMouth is non-null -- reads the
+           held enemy's vtable slots 18 and 19. Nothing guards it: there is no
+           "is Yoshi holding something" check anywhere on that path.
+
+           The harness cannot walk Yoshi into a cap block headless (it cannot
+           steer him at a specific piece of level furniture), so this makes the
+           cap actor's OWN call, with the cap actor's OWN arguments, at a
+           chosen frame. Everything downstream -- SetNewHatCharacter,
+           func_ov002_020bdb50, the two vtable dispatches -- is the game's.
+           Off unless the env is set, and it fires once. */
+        if (pp) {
+            static int capf = -2;
+            static unsigned capchr = 0u;
+            static int capdone = 0;
+            if (capf == -2) {
+                const char *e = std::getenv("SM64DS_YOSHI_CAP");
+                capf = e ? std::atoi(e) : -1;
+                const char *c2 = std::getenv("SM64DS_YOSHI_CAP_CHAR");
+                if (c2) capchr = (unsigned)std::strtoul(c2, 0, 0);
+            }
+            if (capf >= 0 && !capdone && frame >= capf) {
+                char *h = *(char **)(pp + 0x360);
+                std::fprintf(stderr, "[caprepro] f%d held=%p -> "
+                             "SetNewHatCharacter(%u, 0, 0)\n",
+                             frame, (void *)h, capchr);
+                std::fflush(stderr);
+                capdone = 1;
+                _ZN6Player18SetNewHatCharacterEjjb(pp, capchr, 0, 0);
+                std::fprintf(stderr, "[capheld] after cap: held=%d\n",
+                             *(void **)(pp + 0x360) ? 1 : 0);
+                std::fprintf(stderr, "[capchar] mCharacter=%u mHatCharacter=%u\n",
+                             (unsigned)*(unsigned char *)(pp + 0x6d9),
+                             (unsigned)*(unsigned char *)(pp + 0x6dd));
+                std::fflush(stderr);
+            }
+        }
+        /* State dump while (likely) frozen, to see which eat substate is stuck. */
+        if (rf >= 0 && pp && frame >= rf && frame < rf + win) {
+            static int last6e3 = -1, laststuck = 0;
+            char *g2 = (char *)port_first_live_actor_of_class(cls);
+            void *held = *(void **)(pp + 0x360);
+            int step = *(unsigned char *)(pp + 0x6e3);
+            int t = *(unsigned short *)(pp + 0x6a4);
+            int f714 = *(unsigned char *)(pp + 0x714);
+            unsigned s6ce = *(unsigned short *)(pp + 0x6ce);
+            unsigned eb0 = held ? *(unsigned *)((char *)held + 0xb0) : 0u;
+            int noctl = *(unsigned char *)(pp + 0x709);
+            if (step != last6e3 || (noctl && !laststuck) || (frame % 15) == 0) {
+                last6e3 = step; laststuck = noctl;
+                char *bm = (char *)port::player::body_model_anim(pp);   /* GetBodyModelID model */
+                char *m160 = *(char **)(pp + 0x160);                    /* the p+0x160 ModelAnim */
+                char *ba = bm ? bm + 0x50 : 0;
+                char *a160 = m160 ? m160 + 0x50 : 0;
+                std::fprintf(stderr, "[eggstate] f%d step=%d f714=%d held=%p "
+                             "enemyb0=0x%x noctl=%d animId=%u | bodyModel=%p "
+                             "num=0x%x cur=%d spd=%d | m160=%p num=0x%x cur=%d spd=%d "
+                             "same=%d\n",
+                             frame, step, f714, held, eb0, noctl,
+                             (unsigned)port::player::anim_id(pp),
+                             (void *)bm,
+                             ba ? *(unsigned *)(ba + 4) : 0u,
+                             ba ? *(int *)(ba + 8) : -1, ba ? *(int *)(ba + 0xc) : -1,
+                             (void *)m160,
+                             a160 ? *(unsigned *)(a160 + 4) : 0u,
+                             a160 ? *(int *)(a160 + 8) : -1, a160 ? *(int *)(a160 + 0xc) : -1,
+                             (bm == m160));
+                std::fflush(stderr);
+            }
+        }
+    }
+    /* DIAG (SM64DS_ADVENTURE_DIAG): identity + per-slot positions, every 60
+       frames, no injection. For the live two-window bug hunt: it shows each
+       instance's local index, which slot each live body is, its position, and
+       its interaction flags, so drift and slot confusion are visible in a
+       playlog. Temporary bug-hunt instrument. */
+    {
+        static int diag = -1;
+        if (diag < 0) {
+            const char *e = std::getenv("SM64DS_ADVENTURE_DIAG");
+            diag = e ? std::atoi(e) : 0;   /* value = frame stride, 0 = off */
+        }
+        if (diag > 0 && (frame % diag) == 0) {
+            const int me = (int)data_0209f250;
+            for (int i = 0; i < kPortMaxPlayers; ++i) {
+                if (data_0209fc5c[i] == 0 && !data_0209f394[i]) continue;
+                void *a = data_0209f394[i];
+                if (!a) continue;
+                std::fprintf(stderr,
+                    "[advdiag] f%d me=%d mylev=%d slot%d%s live=%u vis=%d "
+                    "pos=(%d,%d,%d) "
+                    "yaw=%d noctl=%u clsn=%u cat4=%u anim=%u cur=%d\n",
+                    frame, me, (int)data_0209f2f8, i,
+                    i == me ? "(LOCAL)" : "(ghost)",
+                    data_0209fc5c[i],
+                    i == me ? -1 : port_adventure_peer_visible(i),
+                    *port::player::pos_x(a), *port::player::pos_y(a),
+                    *port::player::pos_z(a), (int)*port::player::facing(a),
+                    *(unsigned char *)((char *)a + port::player::kIsNoControl),
+                    *(unsigned char *)((char *)a + port::player::kIsBodyClsnEnabled),
+                    (*(unsigned *)((char *)a + port::player::kBodyColliderFlags) & 4u) ? 1u : 0u,
+                    (unsigned)port::player::anim_id(a),
+                    port::player::anim_frame(a) >> 12);
+            }
+        }
+    }
+
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_ADVENTURE_PROBE") ? 1 : 0;
+    if (!on) return;
+
+    /* One shot, late enough that the level has booted and both bodies are past
+       the level-entry no-control. Inject AND verify in the SAME frame so the
+       ghost cannot drift under its own physics between set and read, and so the
+       local-write witness reads exactly this one apply. */
+    static bool done = false;
+    const int kAt = 90;
+    if (frame != kAt || done) return;
+
+    const int me = (int)data_0209f250;
+    void *localb = (me >= 0 && me < kPortMaxPlayers) ? data_0209f394[me] : 0;
+    int ghost_slot = -1;
+    for (int i = 0; i < kPortMaxPlayers; ++i) {
+        if (i == me) continue;
+        if (data_0209fc5c[i] == 0) continue;
+        if (data_0209f394[i]) { ghost_slot = i; break; }
+    }
+    done = true;
+
+    int fails = 0;
+    const bool have_ghost = ghost_slot >= 0 && localb;
+    const bool not_vs = data_0209f2d8 == 0;
+    const bool adv_on = port::adventure_ghost_mode();
+    bool ghost_held = false, local_free = false, pose_ok = false,
+         local_untouched = false;
+
+    if (have_ghost) {
+        void *g = data_0209f394[ghost_slot];
+        /* the hold already ran this frame (walk_window calls it first), so the
+           three interaction flags are freshly set on the ghost and untouched on
+           the local body. */
+        ghost_held = port::player::interaction_disabled(g);
+        local_free = !port::player::interaction_disabled(localb);
+
+        /* drive one REAL wire snapshot into the ghost, 4 units off its own
+           position with a distinct yaw. The local body must NOT move under it:
+           the sync layer's own witness counts any change to the local body
+           across the apply call, and it must stay zero. */
+        const int tx = *port::player::pos_x(g) + 4 * 0x1000;
+        const int ty = *port::player::pos_y(g);
+        const int tz = *port::player::pos_z(g) + 4 * 0x1000;
+        const short tyaw = (short)0x2000;
+        const unsigned long long lw0 = port::sync_stats().local_writes;
+        port_adventure_probe_apply(ghost_slot, tx, ty, tz, tyaw);
+        /* the ghost is a pure follower now: apply_snapshot records the target and
+           port_adventure_ghost_follow moves the body. Run one follower step here
+           so the teleport target lands this frame for the exact assert below,
+           the same call the walk loop makes every frame after sync_tick. */
+        port_adventure_ghost_follow();
+        const unsigned long long lw1 = port::sync_stats().local_writes;
+
+        pose_ok = *port::player::pos_x(g) == tx &&
+                  *port::player::pos_z(g) == tz &&
+                  *port::player::facing(g) == tyaw;
+        local_untouched = (lw1 == lw0);
+    }
+
+    if (!have_ghost) ++fails;
+    if (!not_vs) ++fails;
+    if (!adv_on) ++fails;
+    if (!ghost_held) ++fails;
+    if (!local_free) ++fails;
+    if (!pose_ok) ++fails;
+    if (!local_untouched) ++fails;
+    std::fprintf(stderr,
+        "[advprobe] ghost_slot=%d have_ghost=%d not_vs=%d adv_on=%d "
+        "ghost_held=%d local_free=%d pose_carried=%d local_untouched=%d "
+        "=> %s\n",
+        ghost_slot, have_ghost, not_vs, adv_on, ghost_held, local_free,
+        pose_ok, local_untouched, fails == 0 ? "ALL PASS" : "FAIL");
+}
+
+/* ---- THE ADVENTURE PRESENCE PROOF (SM64DS_ADVENTURE_PRESENCE) --------------
+   M2's headless proof: the level filter and N independent ghosts, on one
+   instance, through the REAL apply path. It seats >=2 remote bodies
+   (SM64DS_VS_PLAYERS=3, data_0209f2d8 left 0 so no VS mode) and drives them
+   with real v4 wire snapshots that carry a LEVEL ID, then asserts what a
+   multi-instance session would show:
+
+     - SAME-LEVEL peer is VISIBLE: a snapshot naming this console's own level
+       spawns the ghost -- peer_visible is 1 and the follower moves the body to
+       the wire pose.
+     - DIFFERENT-LEVEL peer is DESPAWNED: a snapshot naming another level leaves
+       peer_visible 0 and the follower does NOT move that body, so nothing of it
+       is drawn -- two peers on the same wire, only the same-level one ghosted.
+     - LEVEL CHANGE despawns and LEVEL ENTRY respawns: re-report the visible
+       peer in another level and it drops out (peer_visible 0, body frozen);
+       re-report the far peer in our level and it comes in (peer_visible 1, body
+       driven). That is a scripted peer changing level, both edges.
+     - THE LOCAL BODY IS NEVER WRITTEN across any of it (the sync layer's own
+       local_writes witness stays put), and this is NOT VS mode.
+
+   Two remote slots driven independently by their own snapshots is the N-ghost
+   generalisation in miniature: the same per-slot loop the render and tag walk,
+   proven to keep two ghosts apart. Prints one [advpresence] line with ALL PASS.
+   Inert unless the knob is set. */
+extern "C" void port_adventure_probe_apply_lvl(int slot, int x, int y, int z,
+                                               short yaw, int level);
+extern "C" void port_adventure_presence_probe(int frame)
+{
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_ADVENTURE_PRESENCE") ? 1 : 0;
+    if (!on) return;
+    static bool done = false;
+    const int kAt = 100;
+    if (frame != kAt || done) return;
+    done = true;
+
+    const int me = (int)data_0209f250;
+    const int mylev = (int)data_0209f2f8;
+    const int otherlev = mylev + 7;     /* an id that is not ours */
+
+    /* the first two REMOTE live bodies -- the N-ghost pair */
+    int sA = -1, sB = -1;
+    for (int i = 0; i < kPortMaxPlayers; ++i) {
+        if (i == me) continue;
+        if (data_0209fc5c[i] == 0 || !data_0209f394[i]) continue;
+        if (sA < 0) sA = i; else if (sB < 0) { sB = i; break; }
+    }
+    void *localb = (me >= 0 && me < kPortMaxPlayers) ? data_0209f394[me] : 0;
+
+    int fails = 0;
+    const bool not_vs = data_0209f2d8 == 0;
+    const bool adv_on = port::adventure_ghost_mode();
+    const bool have_pair = sA >= 0 && sB >= 0 && localb;
+    bool visA_same = false, visB_diff = false, drawnA = false, frozenB = false;
+    bool visA_after = false, visB_after = false, frozenA2 = false, drawnB2 = false;
+    bool local_untouched = false;
+
+    if (have_pair) {
+        void *ba = data_0209f394[sA], *bb = data_0209f394[sB];
+        const unsigned long long lw0 = port::sync_stats().local_writes;
+
+        /* PHASE 1: A in our level (spawn), B in another (despawn). */
+        const int ax = *port::player::pos_x(ba) + 4 * 0x1000;
+        const int az = *port::player::pos_z(ba) + 4 * 0x1000;
+        const int bx0 = *port::player::pos_x(bb), bz0 = *port::player::pos_z(bb);
+        port_adventure_probe_apply_lvl(sA, ax, *port::player::pos_y(ba), az,
+                                       (short)0x1000, mylev);
+        port_adventure_probe_apply_lvl(sB, bx0 + 4 * 0x1000,
+                                       *port::player::pos_y(bb),
+                                       bz0 + 4 * 0x1000, (short)0x1000, otherlev);
+        visA_same = port_adventure_peer_visible(sA) != 0;
+        visB_diff = port_adventure_peer_visible(sB) == 0;
+        port_adventure_ghost_follow();
+        drawnA = *port::player::pos_x(ba) == ax && *port::player::pos_z(ba) == az;
+        frozenB = *port::player::pos_x(bb) == bx0 &&
+                  *port::player::pos_z(bb) == bz0;   /* not driven: despawned */
+
+        /* PHASE 2: A changes to another level (despawn), B enters ours (spawn). */
+        const int ax2 = *port::player::pos_x(ba), az2 = *port::player::pos_z(ba);
+        const int bx2 = *port::player::pos_x(bb) + 6 * 0x1000;
+        const int bz2 = *port::player::pos_z(bb) + 6 * 0x1000;
+        port_adventure_probe_apply_lvl(sA, ax2 + 9 * 0x1000,
+                                       *port::player::pos_y(ba),
+                                       az2 + 9 * 0x1000, (short)0x2000, otherlev);
+        port_adventure_probe_apply_lvl(sB, bx2, *port::player::pos_y(bb), bz2,
+                                       (short)0x2000, mylev);
+        visA_after = port_adventure_peer_visible(sA) == 0;   /* left our level */
+        visB_after = port_adventure_peer_visible(sB) != 0;   /* entered it */
+        port_adventure_ghost_follow();
+        frozenA2 = *port::player::pos_x(ba) == ax2 &&
+                   *port::player::pos_z(ba) == az2;   /* despawned: frozen */
+        drawnB2 = *port::player::pos_x(bb) == bx2 &&
+                  *port::player::pos_z(bb) == bz2;     /* spawned: driven */
+
+        local_untouched = port::sync_stats().local_writes == lw0;
+    }
+
+    if (!have_pair) ++fails;
+    if (!not_vs) ++fails;
+    if (!adv_on) ++fails;
+    if (!visA_same) ++fails;
+    if (!visB_diff) ++fails;
+    if (!drawnA) ++fails;
+    if (!frozenB) ++fails;
+    if (!visA_after) ++fails;
+    if (!visB_after) ++fails;
+    if (!frozenA2) ++fails;
+    if (!drawnB2) ++fails;
+    if (!local_untouched) ++fails;
+    std::fprintf(stderr,
+        "[advpresence] slotA=%d slotB=%d mylev=%d otherlev=%d have_pair=%d "
+        "not_vs=%d adv_on=%d visA_same=%d visB_diff=%d drawnA=%d frozenB=%d "
+        "visA_left=%d visB_entered=%d frozenA2=%d drawnB2=%d local_untouched=%d "
+        "=> %s\n",
+        sA, sB, mylev, otherlev, have_pair, not_vs, adv_on, visA_same, visB_diff,
+        drawnA, frozenB, visA_after, visB_after, frozenA2, drawnB2,
+        local_untouched, fails == 0 ? "ALL PASS" : "FAIL");
+}
+
+/* ---- THE PARTY RENDER-BOUNDARY PROOF (SM64DS_PARTY_PROBE) ------------------
+   The party slice's deterministic authority for the ghost-vs-party render
+   boundary and party-body liveness, on ONE instance. It seats >=3 bodies
+   (SM64DS_VS_PLAYERS=3, VS mode off, SM64DS_ADVENTURE=1) and, with
+   SM64DS_PARTY_MEMBERS="1", marks slot 1 a PARTY member and leaves slot 2 an
+   adventure GHOST. In one run it asserts BOTH treatments coexist:
+
+     - the PARTY body (slot 1) renders SOLID (the render pass did NOT apply
+       ghost opacity: g_party_render_ghost==0) and COLLIDES (the hold left it
+       interactive: interaction_disabled==false), while
+     - the GHOST body (slot 2) renders TRANSLUCENT (g_party_render_ghost==1)
+       and is PASS-THROUGH (interaction_disabled==true), and
+     - the LOCAL body (slot 0) is solid and interactive throughout.
+
+   LIVENESS BY MOVEMENT, per slot, NOT a frozen census (the Klepto lesson): a
+   baseline of each body's anim frame and world position is captured at
+   kBaseline, and by kAt the PARTY body must have TICKED BEHAVIOR -- its anim
+   frame advanced or its world position moved -- proving it is a live,
+   Behavior-driven body and not a motionless seat. The observation is read
+   back out of the fields the ROM's own Behavior writes; nothing here drives
+   the party body, so any change is the Behavior's. The live loopback run adds
+   MOVEMENT through the shipped rollback sim under injected input.
+
+   Prints one [partyprobe] line with ALL PASS. Inert unless the knob is set. */
+extern "C" signed char g_party_render_ghost[16];
+extern "C" void port_party_probe(int frame)
+{
+    /* DIAG (SM64DS_PARTY_DIAG=<stride>): per-slot party treatment + position,
+       for the live loopback run to read the remote party body's solid/collide
+       treatment and its movement across frames. No injection, no assert. */
+    {
+        static int diag = -2;
+        if (diag == -2) {
+            const char *e = std::getenv("SM64DS_PARTY_DIAG");
+            diag = e ? std::atoi(e) : 0;
+        }
+        if (diag > 0 && (frame % diag) == 0) {
+            const int me2 = (int)data_0209f250;
+            for (int i = 0; i < kPortMaxPlayers; ++i) {
+                void *a = data_0209f394[i];
+                if (!a) continue;
+                std::fprintf(stderr,
+                    "[partydiag] f%d me=%d mylev=%d slot%d%s live=%u party=%d "
+                    "render_ghost=%d clsn_disabled=%d pos=(%d,%d,%d) anim=%d\n",
+                    frame, me2, (int)data_0209f2f8, i, i == me2 ? "(LOCAL)" : "",
+                    (unsigned)(i < kPortMaxPlayers ? data_0209fc5c[i] : 0),
+                    i == me2 ? -1 : port_party_member(i),
+                    i < 16 ? (int)g_party_render_ghost[i] : -1,
+                    port::player::interaction_disabled(a) ? 1 : 0,
+                    *port::player::pos_x(a), *port::player::pos_y(a),
+                    *port::player::pos_z(a),
+                    (int)port::player::anim_frame(a));
+            }
+        }
+    }
+
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_PARTY_PROBE") ? 1 : 0;
+    if (!on) return;
+
+    const int me = (int)data_0209f250;
+    /* the first two REMOTE live bodies: slot A the party member, slot B ghost */
+    int sA = -1, sB = -1;
+    for (int i = 0; i < kPortMaxPlayers; ++i) {
+        if (i == me) continue;
+        if (data_0209fc5c[i] == 0 || !data_0209f394[i]) continue;
+        if (sA < 0) sA = i; else if (sB < 0) { sB = i; break; }
+    }
+
+    /* per-slot liveness baseline, captured once */
+    static bool seeded = false;
+    static int base_anim[16], base_px[16], base_pz[16];
+    const int kBaseline = 40;
+    const int kAt = 120;
+    if (frame == kBaseline && !seeded) {
+        seeded = true;
+        for (int i = 0; i < kPortMaxPlayers && i < 16; ++i) {
+            void *a = data_0209f394[i];
+            base_anim[i] = a ? (int)port::player::anim_frame(a) : 0;
+            base_px[i] = a ? *port::player::pos_x(a) : 0;
+            base_pz[i] = a ? *port::player::pos_z(a) : 0;
+        }
+        /* The NON-party ghost (slot B) needs a presence snapshot to be drawn at
+           all -- a ghost is a broadcast body, and without a same-level snapshot
+           the render loop despawns it. Drive ONE real wire snapshot at its own
+           pose so peer_visible(B) is true and it renders translucent. The party
+           member (slot A) needs no such thing: a party body is always drawn (it
+           rides the sim, not the broadcast). */
+        if (sB >= 0 && data_0209f394[sB]) {
+            void *g = data_0209f394[sB];
+            port_adventure_probe_apply(sB, *port::player::pos_x(g),
+                                       *port::player::pos_y(g),
+                                       *port::player::pos_z(g),
+                                       (short)*port::player::facing(g));
+        }
+    }
+    static bool done = false;
+    if (frame != kAt || done) return;
+    done = true;
+
+    int fails = 0;
+    const bool not_vs = data_0209f2d8 == 0;
+    const bool adv_on = port::adventure_ghost_mode();
+    const bool have_pair = sA >= 0 && sB >= 0 && seeded;
+
+    bool party_is_member = false, party_solid = false, party_collides = false;
+    bool ghost_is_ghost = false, ghost_translucent = false, ghost_passthrough = false;
+    bool local_solid = false, local_interactive = false;
+    bool party_live = false;
+    int panim0 = 0, panim1 = 0, ppos_d = 0;
+
+    if (have_pair) {
+        void *pa = data_0209f394[sA], *gb = data_0209f394[sB];
+        void *lb = (me >= 0 && me < kPortMaxPlayers) ? data_0209f394[me] : 0;
+
+        party_is_member = port_party_member(sA) != 0;
+        ghost_is_ghost = port_party_member(sB) == 0;
+
+        /* the render pass's own record of what it drew last frame */
+        party_solid = g_party_render_ghost[sA] == 0;
+        ghost_translucent = g_party_render_ghost[sB] == 1;
+
+        /* the hold's observable collision treatment */
+        party_collides = !port::player::interaction_disabled(pa);
+        ghost_passthrough = port::player::interaction_disabled(gb);
+        local_solid = lb && g_party_render_ghost[me] == 0;
+        local_interactive = lb && !port::player::interaction_disabled(lb);
+
+        /* LIVENESS of the party body: Behavior ticked (anim advanced) or it
+           moved (position changed) since the baseline. Per-slot, movement, not
+           census. */
+        panim0 = base_anim[sA];
+        panim1 = (int)port::player::anim_frame(pa);
+        const int dx = *port::player::pos_x(pa) - base_px[sA];
+        const int dz = *port::player::pos_z(pa) - base_pz[sA];
+        ppos_d = (dx < 0 ? -dx : dx) + (dz < 0 ? -dz : dz);
+        party_live = (panim1 != panim0) || (ppos_d != 0);
+    }
+
+    if (!have_pair) ++fails;
+    if (!not_vs) ++fails;
+    if (!adv_on) ++fails;
+    if (!party_is_member) ++fails;
+    if (!party_solid) ++fails;
+    if (!party_collides) ++fails;
+    if (!ghost_is_ghost) ++fails;
+    if (!ghost_translucent) ++fails;
+    if (!ghost_passthrough) ++fails;
+    if (!local_solid) ++fails;
+    if (!local_interactive) ++fails;
+    if (!party_live) ++fails;
+    std::fprintf(stderr,
+        "[partyprobe] partyslot=%d ghostslot=%d have_pair=%d not_vs=%d adv_on=%d "
+        "party_member=%d party_solid=%d party_collides=%d ghost=%d "
+        "ghost_translucent=%d ghost_passthrough=%d local_solid=%d "
+        "local_interactive=%d party_live=%d(anim %d->%d posd=%d) => %s\n",
+        sA, sB, have_pair, not_vs, adv_on, party_is_member, party_solid,
+        party_collides, ghost_is_ghost, ghost_translucent, ghost_passthrough,
+        local_solid, local_interactive, party_live, panim0, panim1, ppos_d,
+        fails == 0 ? "ALL PASS" : "FAIL");
+}
+
+/* ---- THE ROM'S PER-FRAME TEXTURE-SEQUENCE UPDATES --------------------------
+   Player::Render (src/_ZN6Player6RenderEv.cpp:80-83, 129-135) runs three
+   TextureSequence::Update calls every frame, and this port's replacement
+   render ran none of them, so every material a BTP drives stayed at its
+   BMD-authored default forever. For Luigi that default is the WRONG variant:
+   luigi_head_cap.bmd's head material is authored pointing at 'luigi_head_2'
+   -- the vanish-power stipple -- and only the every-frame Update pulls it
+   back to 'luigi_head_1' (L_tx_headtrans.btp frame 0). His body file is
+   authored the other way round (default 'luigi_body_tr_1', the normal skin),
+   which is why the body looked right while the head rendered see-through
+   from the port's first boot. Measured: [btpprep] resolves the trans pairs at
+   boot, and no [btp] material patch ever ran before this block existed.
+
+   The three updates, the ROM's own gates and order:
+     after the body render,  param1==1 (Luigi):  seq +0x254 -> body model
+       (+0xe0, slot 1)'s components, then currFrame(+0x25c) = unk_6fc<<12
+       (unk_6fc is the vanish-power progress; 0 in normal play = frame 0 =
+       the normal texture)
+     after the head render,  param1==1 (Luigi):  seq +0x268 -> head-with-cap
+       (+0x158)'s components, then currFrame(+0x270) = unk_6fc<<12
+     after the head render,  face timer +0x73c == 0 (func_ov002_020bea7c):
+       the per-character face/blink seq (+0x1dc + char*0x14) -> the CURRENT
+       head model's components (the eye-blink everyone gets, all characters)
+
+   The null guards are port hygiene only (the ROM would crash there too); the
+   gates and destinations are the matched TU's, byte for byte of intent. */
+extern "C" void _ZN15TextureSequence6UpdateER15ModelComponents(void *seq,
+                                                               void *mc);
+extern "C" int func_ov002_020bea7c(char *self);
+extern "C" int port_player_render_hidden(const void *player);  /* below, hoisted */
+
+static void hal_player_texseq_body(char *c)
+{
+    if (*(int *)(c + 0x8) != 1) return;            /* param1: Luigi only */
+    char *mdl = *(char **)(c + 0xe0);              /* body model, slot 1 */
+    if (mdl)
+        _ZN15TextureSequence6UpdateER15ModelComponents(c + 0x254, mdl + 8);
+    *(int *)(c + 0x25c) = (int)*(unsigned char *)(c + 0x6fc) << 12;
+}
+
+static void hal_player_texseq_head(char *c, unsigned hid)
+{
+    if (*(int *)(c + 0x8) == 1) {                  /* param1: Luigi only */
+        char *mdl = *(char **)(c + 0x158);         /* head with cap */
+        if (mdl)
+            _ZN15TextureSequence6UpdateER15ModelComponents(c + 0x268, mdl + 8);
+        *(int *)(c + 0x270) = (int)*(unsigned char *)(c + 0x6fc) << 12;
+    }
+    if (func_ov002_020bea7c(c) == 0) {             /* face timer idle */
+        char *head = ((char **)(c + 0x154))[hid];
+        if (head)
+            _ZN15TextureSequence6UpdateER15ModelComponents(
+                c + 0x1dc + *(unsigned char *)(c + 0x6db) * 0x14, head + 8);
+    }
+}
+
+/* port/rollback: THE TEXTURE-SEQUENCE UPDATES RUN IN A REPLAYED FRAME.
+   hal_render_player_world is entirely tick-only-skipped and entirely
+   conservative-re-sim-skipped (rb_skip_render(), which SM64DS_ROLLBACK_-
+   ACTOR_RENDER=1 does not touch -- it is a Stage-level render skip, not
+   the actor-Render one). The map0 DET rung showed one arena byte
+   drifting on every VS map 0 window: the per-character eye-blink material
+   flag (hal_player_texseq_head's third block, "everyone gets, all
+   characters") lands in the CURRENT HEAD MODEL's ModelComponents, which
+   every player slot on the same character shares (VS map 0's census plays
+   four of the same character) -- so the update is shared state a later
+   frame's SAME call reads (whether the blink shows), not Render-private
+   scratch, exactly the rule status/ROLLBACK_SHIP.md section 6 states for
+   an actor's Render. It is not an actor, so it is not on the actor replay
+   list (port_actor_render_replay); it is a Player, and it belongs beside
+   the particle submission (tests/walk_window.cpp, "the particle
+   SUBMISSION stays in a replayed frame") -- state-mutating, not pixel
+   work, so it runs on every tick, replayed or not. What it does NOT do is
+   run the frame's other player-render work (UpdateVerts, ModelAnim::-
+   Render, the wing model): those stay under rb_skip_render(), unmeasured
+   here, because they write host GX state only.
+   The port_player_render_hidden gate is reproduced because the ROM's own
+   Player::Render only reaches these updates past its four hide gates
+   (comment above hal_render_player_world). */
+extern "C" void hal_player_texseq_tick(void *player)
+{
+    char *c = (char *)player;
+    if (port_player_render_hidden(c)) return;
+    hal_player_texseq_body(c);
+    const unsigned hid = func_ov002_020becf4(c, *(unsigned char *)(c + 0x6db), 1);
+    if (hid != 8 && hid != 9)
+        hal_player_texseq_head(c, hid);
+}
+
+/* ---- SM64DS_YHD_PROBE: the head-vs-body matrix separation, per frame --------
+   Prints the difference between the two matrices this function is about to draw
+   with -- `scene`, the body's, and the head's at +0x1c -- next to the player
+   fields func_ov002_020e444c builds both of them from. On the ROM those two are
+   the SAME WRITE (src/func_ov002_020e444c.c lines 55 and 66 both store
+   data_020a0e68), so every difference column here reads zero, and a nonzero one
+   is the gap the head is being drawn away from the body by. That is the
+   regression the banner in hal_render_player_world closed, so the probe stays.
+
+   dtr = head translation - body translation, in scene units (world >> 3).
+   drot = max |head rotation element - body rotation element|, Fix12 (0x1000=1).
+   spd  = horizontal |dpos| per frame in world Fix12, the "certain speeds" axis. */
+static double yhd_sqrt(double v) { return std::sqrt(v); }
+static void yhd_probe(char *c, const int *scene, const char *head)
+{
+    static int on = -1;
+    if (on < 0) {
+        const char *e = getenv("SM64DS_YHD_PROBE");
+        on = e ? atoi(e) : 0;
+        if (on)
+            printf("[yhd] frame spd sink u690 u694 angY angX angZ "
+                   "dtrx dtry dtrz |dtr| drot\n");
+    }
+    if (!on || !head) return;
+
+    static int frame = 0, px = 0, py = 0, pz = 0, primed = 0;
+    const int x = *(const int *)(c + 0x5c);
+    const int y = *(const int *)(c + 0x60);
+    const int z = *(const int *)(c + 0x64);
+    const int vx = primed ? x - px : 0;
+    const int vz = primed ? z - pz : 0;
+    px = x; py = y; pz = z; primed = 1;
+    (void)py;
+
+    const int *hm = (const int *)(head + 0x1c);
+    const int dtx = hm[9] - scene[9];
+    const int dty = hm[10] - scene[10];
+    const int dtz = hm[11] - scene[11];
+    int drot = 0;
+    for (int i = 0; i < 9; ++i) {
+        int d = hm[i] - scene[i];
+        if (d < 0) d = -d;
+        if (d > drot) drot = d;
+    }
+    const double spd = (double)vx * vx + (double)vz * vz;
+    const double dtr = (double)dtx * dtx + (double)dty * dty + (double)dtz * dtz;
+
+    printf("[yhd] %d %.1f %d %d %d %d %d %d %d %d %d %.1f %d\n", frame++,
+           yhd_sqrt(spd), *(const int *)(c + 0x68c),
+           *(const int *)(c + 0x690), *(const int *)(c + 0x694),
+           (int)*(const short *)(c + 0x8e), (int)*(const short *)(c + 0x8c),
+           (int)*(const short *)(c + 0x90), dtx, dty, dtz,
+           yhd_sqrt(dtr), drot);
+}
+
+/* ---- SM64DS_HSINK_PROBE, and the scale the body draw was missing ------
+   Env-gated, inert unless SM64DS_HSINK_PROBE is set. Reads only; writes no
+   game state.
+
+   THE ROM PASSES ONE SCALE VECTOR TO BOTH HALVES OF THE PLAYER.
+   src/_ZN6Player6RenderEv.cpp:79 draws the body
+
+       _ZN5Model6RenderEPK7Vector3(bodyMdl, ((char*)this) + 0x80);
+
+   and :121 draws Yoshi's head with the SAME ((char*)this) + 0x80. That is
+   Player mScaleX/Y/Z (Actor.h +0x080/+0x084/+0x088). This port drew the head
+   with it and the body with nothing, until the call site below was corrected:
+
+       body:  ma->ModelAnim::Render(0)                     -> NULL == unit
+       head:  _ZN5Model6RenderEPK7Vector3(head, c + 0x80)  -> mScale
+
+   (that body call was ALSO the wrong method -- see the call site's own banner
+   for the re-pose half of the same one-line correction)
+
+   NULL really is unit: the vector reaches func_0204488c
+   (src/func_0204488c.c:66-72), which writes MTX_SCALE (0x0400046c) only when
+   the pointer is non-null, and it writes it AFTER the world matrix multiply
+   and BEFORE the per-bone MTX_TRANS -- so the scale multiplies the bone
+   translations, i.e. it scales the model about the model ROOT (the player's
+   feet), not about the bone.
+
+   With the root, the world rotation and the world translation identical for
+   both models, any scale != 1.0 moves one mesh and leaves the other where it
+   was. mScaleY is written by exactly two functions, both crush states:
+   Player::St_Squish_Main (src/actors/Player.cpp, case 0 sets
+   mScaleY = 0x100 and case 1 walks it back up in 0x100 steps) and
+   Player::Unk_020c6a10 (mScaleY = 0x100, 30-frame hold), so in ordinary play
+   mScale is unit and this whole difference is invisible.
+
+   COLUMNS, all Fix12 (0x1000 == 1.0). Bone translations are SCENE units, which
+   are world >> 3.
+     frame   render frame counter
+     posY    Player mPosY (+0x60), world Fix12
+     sy      the Y the HEAD render was actually handed. Player mScaleY on
+             Yoshi (the i==3 arm); 4096 on Mario/Luigi/Wario, whose head is
+             a scene-space stand-in that is handed no scale at all -- see
+             hal_render_head_group
+     bsy     the Y the BODY render was actually handed this frame; it read
+             4096 on every frame before the fix, because the call passed
+             NULL, and it now carries Player mScaleY
+     hb0y    head bone 0 origin, model space Y
+     nky     body neck bone (bones + 0x2d0) origin, model space Y
+     headY   head bone 0 world Y AS DRAWN, i.e. through the head's scale
+     bodyY   neck bone world Y AS DRAWN, i.e. through the body's scale
+     gap     headY - bodyY. THIS IS THE ANSWER COLUMN. The head's anchor and
+             the body's neck are the same joint; a large negative gap is the
+             head drawn far below the neck it hangs from.
+     btris   polygons the body draw submitted this frame, so "the fix is a
+             no-op in unscaled play" is a measurement and not an argument.
+
+   MEASURED on castle grounds as Yoshi (SM64DS_CHARACTER=3, level 1),
+   squished at frame 66 by SM64DS_FORCE_STATE=squish, which calls the ROM's
+   own crusher entry Player::Unk_020c6a10(1):
+
+     standing, sy 4096   gap 0        on every frame
+     squished, sy 256    gap -41723   pre-fix, flat for the whole hold
+     squished, sy 256    gap 0        post-fix
+
+   -41723 Fix12 in scene units is 10.2 scene units, and scene is world >> 3,
+   so the head was drawn 81.5 world units below the neck it hangs from --
+   a head inside a body that had not shrunk.
+
+   MARIO/LUIGI/WARIO ARE A DIFFERENT SHAPE, and the two figures this
+   paragraph used to give -- gap -44136 pre-fix and -2758 post-fix, from
+   the row [hsink] 68 ... 130048 132806 -2758 -- ARE WITHDRAWN. They came
+   out of the else-arm probe bug described at hsink_probe below: headY was
+   pinned at scene[10], the player root, so the column reported the whole
+   neck height as a sink even on a standing Mario. Read the corrected
+   figures there. Their head is a separate cap model that the ROM parents
+   to the body's neck bone and renders with &mScaleX
+   (src/_ZN6Player6RenderEv.cpp:127); hal_render_head_group now passes that
+   argument, and the cap's POSITION residue is a separate change described
+   in that function's banner.                                        */
+static int hsink_on(void)
+{
+    static int on = -1;
+    if (on < 0) {
+        const char *e = std::getenv("SM64DS_HSINK_PROBE");
+        on = e ? std::atoi(e) : 0;
+    }
+    return on;
+}
+static int hsink_worldY(const int *m, int px, int py, int pz)
+{
+    long long v = (long long)px * m[1] + (long long)py * m[4] +
+                  (long long)pz * m[7];
+    return (int)(v >> 12) + m[10];
+}
+static int hsink_axisY(const int *m, const int *b, const int *s)
+{
+    const int px = (int)(((long long)b[9]  * s[0]) >> 12);
+    const int py = (int)(((long long)b[10] * s[1]) >> 12);
+    const int pz = (int)(((long long)b[11] * s[2]) >> 12);
+    return hsink_worldY(m, px, py, pz);
+}
+/* THE PROBE READ THE WRONG MATRIX FOR EVERY HEAD BUT YOSHI'S, and every
+   Mario/Luigi/Wario figure it ever printed -- including the -44136 and -2758
+   in the banner above -- carried the error.
+
+   It took head+0x1c to be the matrix the head is drawn through. On the i==3
+   arm that is true. On the else arm it is not: head+0x1c is RE-SEATED TO THE
+   PLAYER-ROOT MATRIX EVERY FRAME by func_ov002_020e444c (the same seat the
+   i==3 arm rests on), and hal_render_head_group's neck compose overwrites it
+   only for the instant of the draw. This probe runs BEFORE that compose, so it
+   read the player root -- the feet -- through the head's own bone 0, which the
+   else arm never seats and which is (0,0,0).
+
+   MEASURED, and it is not a rounding error: a STANDING Mario, mScale unit,
+   nothing wrong with him, read gap -44081 on every frame -- the whole neck
+   height, reported as a sink. headY was pinned at scene[10] while bodyY moved
+   with the body's scale, so the column was measuring the body's scale twice
+   and the head not at all.
+
+   CORRECTED, AGAIN: hal_render_head_group's else arm now seats the body's
+   neck bone into the head model's own bone 0 (the ROM's statement 1) instead
+   of composing neck * scene into head+0x1c, so head+0x1c is left exactly as
+   func_ov002_020e444c seats it and is the matrix the draw loads on EVERY
+   arm, i==3 included. The probe reads it directly, with no separate compose
+   of its own. */
+static void hsink_probe(char *c, const int *scene, const char *head,
+                        const char *ma, const int *bscale,
+                        const int *hscale, unsigned hid, int btris)
+{
+    static int on = -1;
+    if (on < 0) {
+        on = hsink_on();
+        if (on)
+            std::printf("[hsink] frame posY sy bsy hb0y nky headY bodyY gap btris\n");
+    }
+    if (!on || !head || !ma) return;
+
+    static int frame = 0;
+    const int unit[3] = { 0x1000, 0x1000, 0x1000 };
+    const int *hs = hscale ? hscale : unit;
+    const int *bs = bscale ? bscale : unit;
+
+    const char *hb = *(const char *const *)(head + 0x14);
+    const char *bb = *(const char *const *)(ma + 0x14);
+    if (!hb || !bb) { ++frame; return; }
+    const int *b0 = (const int *)hb;              /* head bone 0  */
+    const int *nk = (const int *)(bb + 0x2d0);    /* body neck    */
+
+    /* the matrix the draw loads: head+0x1c, on every arm. */
+    const int *hm = (const int *)(head + 0x1c);
+    const int headY = hsink_axisY(hm, b0, hs);
+    const int bodyY = hsink_axisY(scene, nk, bs);
+
+    std::printf("[hsink] %d %d %d %d %d %d %d %d %d %d\n", frame++,
+                *(const int *)(c + 0x60), hs[1], bs[1], b0[10], nk[10],
+                headY, bodyY, headY - bodyY, btris);
+}
+
+
+/* ---- THE VS COLOUR, AND WHY EVERY YOSHI WAS GREEN --------------------------
+
+   In VS every player is Yoshi -- the spawn loop forces character 3 into every
+   slot (src/_Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij.cpp:68-71) --
+   and they are told apart by COLOUR. That is the ROM's own arrangement, not a
+   mod: yoshi_model.bmd carries ONE palette, yoshi_all_16p_pl, 128 bytes = four
+   stacked 16-colour rows, and a player selects his row by shifting the palette
+   base the material records point at.
+
+   The ROM does it in two steps, and this port ran the first and not the second.
+
+     STEP 1, at resource load. func_ov002_020e5948 ends with
+         Player+0x61C = body material[0]'s palette base + (mPlayerNo << 1)
+     -- one 16-colour row per step of the player number. The port runs this: it
+     is port/unmatched/TexSeq_Caller_ov002_020e5948.cpp:408, same line.
+
+     STEP 2, at render. Player::Render (src/_ZN6Player6RenderEv.cpp:66-76 and
+     :112-122) writes that one value into +0x20 of EVERY runtime material
+     record, once over the body model's materials and once over the head
+     model's, gated on data_0209f2d8 == 1 (VS) and param1 == 3 (Yoshi).
+     +0x20 is the material's TEXPLTT_BASE: func_02044b30
+     (src/func_02044b30.c:14) stores it straight to 0x040004AC on the way into
+     each display list, and ntr binds the palette at PLTT_SLOT_BASE + base*16.
+
+   src/_ZN6Player6RenderEv.cpp IS NOT IN THIS PORT'S LINK -- port/slice_w1l5.txt
+   line 202, blocked by func_ov002_020e3e00's C2733 -- and the Player vtable's
+   Render slot is a no-op (hal/level_boot.cpp's ps_render). Every draw a player
+   gets comes from THIS function instead, and until now it reproduced the four
+   gates, the body draw, the head group, the three texture sequences and the
+   wings, but not step 2. So nothing in the port ever wrote a material record,
+   every Yoshi kept the base his BMD was authored with -- row 0 -- and the owner
+   saw two green Yoshis in a live two-window match.
+
+   MEASURED, at 65bae498d with SM64DS_VS_COLOR_PROBE=1, arena 51, two windows,
+   2201 frames x 2 players: Player+0x61C read 5539 for slot 0 and 5541 for slot
+   1 (the ROM's selector, working), while the body material base read 5539 for
+   BOTH and the bound colours were byte-identical -- 0d83,1224,1a86,2eab, which
+   is row 0, the greens. The selector was right the whole time and nothing
+   spent it.
+
+   WHY IT IS SAFE TO WRITE THE HEAD'S RECORDS TOO, which looks like it should
+   corrupt them: the value is the BODY's palette base, and the head files'
+   own 16-colour palette is byte-identical to the body's row 0. Player 0
+   shifts by nothing, so VS-green Yoshi samples the body's row 0 and looks
+   exactly like adventure Yoshi -- which is only true because one step of
+   mPlayerNo is exactly one 16-colour row. The head is not reloaded or
+   resized; its own palette is simply never sampled in VS.
+
+   THE GATES ARE THE ROM'S AND NOTHING MORE. Outside VS, or on a character
+   that is not Yoshi, this writes nothing at all. */
+static void hal_player_vs_palette(char *c, char *mdl)
+{
+    if (data_0209f2d8 != 1) return;         /* VS mode only */
+    if (*(int *)(c + 0x8) != 3) return;     /* param1 == 3, Yoshi */
+    if (!mdl) return;
+    const int *p = (const int *)(mdl + 8);  /* ModelComponents at +0x8 */
+    const unsigned char *hdr = (const unsigned char *)p[0];  /* BMD_File */
+    char *rec = (char *)p[1];                                /* materials */
+    if (!hdr || !rec) return;               /* port hygiene; the ROM faults */
+    unsigned n = 0;
+    std::memcpy(&n, hdr + 0x24, 4);         /* BMD_File::numMaterials */
+    const int pal = *(const int *)(c + 0x61c);
+    for (unsigned i = 0; i < n; ++i, rec += 0x30)
+        *(int *)(rec + 0x20) = pal;
+}
+
+/* ---- SM64DS_VS_COLOR_PROBE=1: reading the BOUND palette back ----------------
+   The VS colour question cannot be answered from Player+0x61C. That word is
+   written UNCONDITIONALLY by the resource load (base + (mPlayerNo << 1), six
+   lines above the VS test in port/unmatched/TexSeq_Caller_ov002_020e5948.cpp),
+   so two MARIOS differ by 2 there and it says nothing about what got drawn.
+   Review retired the arm that read it as proof, and the bar it left is a probe
+   that reads a BOUND record back. This is that probe, in three layers, each
+   one further down the pipe than the last:
+
+     source   Player+0x61C          what the resource load computed
+     record   material[i] + 0x20    the runtime material record the render
+                                    walk spends -- what Player::Render writes
+                                    and what this port did not
+     bound    TEXPLTT_BASE latch    read back out of the mapped I/O window at
+                                    0x040004AC AFTER the draw. func_02044b30
+                                    (src/func_02044b30.c:14) stores material
+                                    +0x20 there per material, and ntr's
+                                    io_write mirrors every store into the
+                                    window before dispatching it to the
+                                    geometry engine (port/ntr/io.cpp:655), so
+                                    this is the last palette the engine was
+                                    actually handed during this player's draw.
+
+   And the colours themselves: ntr/gx.cpp samples a 16-colour material at
+   PLTT_SLOT_BASE + base*16 (bind_from_vram), so the same arithmetic here reads
+   the exact BGR555 entries the decoder will use. Two players whose entries
+   differ are two players painted different colours; two players whose entries
+   match are the defect.
+
+   The polygon delta rides along because a bind with no geometry behind it
+   proves nothing -- a palette latched for a player who submitted zero
+   triangles is not a colour. */
+static int vscol_on()
+{
+    static int on = -1;
+    if (on < 0) on = getenv("SM64DS_VS_COLOR_PROBE") ? 1 : 0;
+    return on;
+}
+
+/* The port's texture-palette window base; the same constant ntr/gx.cpp calls
+   PLTT_SLOT_BASE and hal/model_host.cpp points data_020a60b0 at. */
+static const unsigned kVsColPlttWindow = 0x06880000u;
+
+static void vscol_model(const char *what, int frame, int no, char *mdl)
+{
+    if (!mdl) {
+        std::fprintf(stderr, "[vscol] f%d slot%d %s model=NULL\n",
+                     frame, no, what);
+        return;
+    }
+    const int *p = (const int *)(mdl + 8);      /* ModelComponents at +0x8 */
+    const unsigned char *hdr = (const unsigned char *)p[0];  /* BMD_File */
+    const unsigned char *rec = (const unsigned char *)p[1];  /* materials */
+    if (!hdr || !rec) {
+        std::fprintf(stderr, "[vscol] f%d slot%d %s hdr=%p rec=%p\n",
+                     frame, no, what, (const void *)hdr, (const void *)rec);
+        return;
+    }
+    unsigned n = 0;
+    std::memcpy(&n, hdr + 0x24, 4);             /* BMD_File::numMaterials */
+    if (n > 8) n = 8;
+    for (unsigned i = 0; i < n; ++i) {
+        int base = 0;
+        std::memcpy(&base, rec + i * 0x30 + 0x20, 4);
+        const unsigned short *pal =
+            (const unsigned short *)(kVsColPlttWindow + (unsigned)base * 16u);
+        std::fprintf(stderr,
+                     "[vscol] f%d slot%d %s mat%u base=%d "
+                     "col=%04x,%04x,%04x,%04x\n",
+                     frame, no, what, i, base,
+                     pal[0], pal[1], pal[2], pal[3]);
+    }
+}
+
+static void vscol_probe(char *c, int frame, std::size_t tris_before)
+{
+    const int no = (int)*(unsigned char *)(c + 0x6d8);
+    std::size_t tris_after = 0;
+    ntr::gx_polygons(tris_after);
+    /* the latch, read back out of the mapped window rather than assumed */
+    const unsigned latched = *(volatile unsigned *)0x040004ACu;
+    const unsigned short *lpal =
+        (const unsigned short *)(kVsColPlttWindow + latched * 16u);
+    std::fprintf(stderr,
+                 "[vscol] f%d slot%d char=%d param1=%d pal61c=%d "
+                 "TEXPLTT_BASE=%u col=%04x,%04x,%04x,%04x tris=%d\n",
+                 frame, no, (int)(*(unsigned char *)(c + 0x6d9) & 7),
+                 *(int *)(c + 8), *(int *)(c + 0x61c), latched,
+                 lpal[0], lpal[1], lpal[2], lpal[3],
+                 (int)(tris_after - tris_before));
+
+    const unsigned id =
+        _ZNK6Player14GetBodyModelIDEjb(c, *(int *)(c + 8) & 0xff, 0);
+    vscol_model("body", frame, no, (char *)((ModelAnim **)(c + 0xdc))[id]);
+    const unsigned hid =
+        func_ov002_020becf4(c, *(unsigned char *)(c + 0x6db), 1);
+    if (hid != 8 && hid != 9)
+        vscol_model("head", frame, no, ((char **)(c + 0x154))[hid]);
+}
+
+/* run mg16 lane MP3: the "should this player body be hidden this frame" test,
+   lifted out of hal_render_player_world so a later adventure ghost-hide path can
+   ask the SAME question instead of duplicating Player::Render's gates. Nonzero
+   means the ROM's Player::Render (src/_ZN6Player6RenderEv.cpp:44-58) would not
+   draw the body this frame, in its own gate order:
+     :44-48  VS mode and this slot not live       -> hide
+     :49-55  the invincibility blink               -> hide (see the bit note)
+     :56     fully transparent, mOpacity==0 (0x6f5) -> hide
+     :58     held/eaten, mFlags & 0x10 (Actor +0xb0)-> ROM skips the body block
+   Gates :56 and :58 were the two this port used to omit. The mFlags one is the
+   ROM's held/eaten hide, and the eaten victim is exactly why it matters: while
+   St_InYoshiMouth the player stays LIVE and keeps mOpacity 0x1f, so it passes
+   gates 1-3 and rode the eater visibly until mFlags&0x10 got honoured here. */
+extern "C" int port_player_render_hidden(const void *player)
+{
+    const char *c = (const char *)player;
+    const unsigned char no = *(const unsigned char *)(c + 0x6d8);
+    /* :44-48  VS liveness (0.3.2: kPortMaxPlayers is sixteen) */
+    if (data_0209f2d8 == 1 && no < kPortMaxPlayers && data_0209fc5c[no] == 0)
+        return 1;
+    /* :49-55  blink. The ROM picks bit 1 or bit 0 off IsState(hurt); that state
+       object is ov002's and unreachable here, so the port takes the conservative
+       half, bit 0, the arm the ROM uses everywhere except that one state. */
+    if (port::player::invincible_timer(c) & 1)
+        return 1;
+    /* :56  mOpacity == 0, offset 0x6f5 (Player.h). */
+    if (*(const unsigned char *)(c + 0x6f5) == 0)
+        return 1;
+    /* :58  mFlags & 0x10, Actor mFlags at +0xb0. The ROM's held/eaten hide. */
+    if (*(const unsigned int *)(c + 0xb0) & 0x10)
+        return 1;
+    return 0;
+}
+
 void hal_render_player_world(void *player)
 {
     char *c = (char *)player;
+    /* ADVENTURE GHOSTS: a REMOTE body drawn see-through. This is the render
+       half of the ghost pass; the no-collision half is port_adventure_ghost_hold
+       below. Remote means "not the body at the local player's slot" -- the same
+       body the per-slot render loop in tests/walk_window.cpp draws last and never
+       ghosts. The mode gate keeps VS and solo byte-unaffected: adventure mode is
+       its own flag, never data_0209f2d8. */
+    /* PARTY co-op: a REMOTE body is a translucent ghost UNLESS it is a party
+       member, in which case it is a shared-world body and renders SOLID (no
+       ghost opacity). The per-slot party flag is the one thing that selects
+       between the two treatments; everything else about the ghost pass is
+       unchanged. The slot is the Player number at +0x6d8. */
+    const int party_slot = (int)*(const unsigned char *)(c + 0x6d8);
+    const bool remote = player != data_0209f394[data_0209f250];
+    const bool ghost = port::adventure_ghost_mode() && remote &&
+                       !port_party_member(party_slot);
+    if (party_slot >= 0 && party_slot < 16)
+        g_party_render_ghost[party_slot] = (signed char)(ghost ? 1 : 0);
+    std::size_t vscol_tris0 = 0;
+    static int vscol_frame = -1;
+    if (vscol_on()) {
+        ntr::gx_polygons(vscol_tris0);
+        /* one frame counter for the function, bumped by slot 0 so both
+           players' lines in the same frame carry the same number */
+        if (*(unsigned char *)(c + 0x6d8) == 0) ++vscol_frame;
+    }
+
+    /* ---- THE GATES Player::Render KEEPS, AND THIS DID NOT ------------------
+     *
+     * Run mg16 lane MP3, field failure 3. This function draws the body; the
+     * SHADOW is a different path entirely -- Player::Behavior registers a
+     * ShadowModel node (func_ov002_020e4bb8 -> func_ov002_020e444c ->
+     * Actor::DropShadowRadHeight) and one global ShadowModel::RenderAll walk
+     * draws every node. That path honours its OWN gates. This one honoured
+     * none of src/_ZN6Player6RenderEv.cpp's, so the two could disagree about
+     * whether a player should be drawn AT ALL -- and a caster whose body is
+     * gated out is precisely "a shadow with no body".
+     *
+     * The four gates, in the ROM's own order (_ZN6Player6RenderEv.cpp:44-58),
+     * all four now reproduced through port_player_render_hidden:
+     *   VS mode and this slot not live  -> not drawn
+     *   the invincibility blink          -> not drawn on alternating frames
+     *   fully transparent, mOpacity==0   -> not drawn  (offset 0x6f5, Player.h)
+     *   mFlags & 0x10                    -> not drawn  (Actor +0xb0, held/eaten)
+     *
+     * The blink one matters most here: it is a PER-FRAME alternation, so a
+     * body that ignores it while its shadow does not gives a shadow that
+     * flickers away from a body that never does.
+     *
+     * NOT A NEW POLICY -- this is the matched TU's own logic, applied where the
+     * port draws instead of it. hal_render_player_world exists because
+     * Player::Render's vtable slot is a no-op in this port
+     * (hal/level_boot.cpp's ps_render), so every gate that slot would have
+     * applied has to be applied here or it is not applied anywhere. */
+    /* ALL FOUR gates now, through the one named predicate so the adventure
+       ghost-hide path can reuse it. The blink gate reads the invincibility
+       timer THROUGH THE ACCESSOR: the raw path here once read 0x6a6, which is
+       mStateWaitTimer not mInvincibleTimer, so it culled the body on a timer
+       that ticks constantly; the accessor is the one place that offset lives.
+       mOpacity (0x6f5) and mFlags&0x10 (+0xb0) used to be omitted here and are
+       reproduced inside the predicate now. */
+    if (port_player_render_hidden(c)) {
+        /* SM64DS_EATEN_PROBE: prove the held/eaten hide fires. On the green
+           path this is silent; set the env var to log the slot whose body is
+           now skipped because Actor mFlags&0x10 is set (the St_InYoshiMouth
+           victim that used to ride the eater). */
+        if (getenv("SM64DS_EATEN_PROBE") &&
+            (*(const unsigned int *)(c + 0xb0) & 0x10))
+            std::fprintf(stderr, "[eaten] slot %u body skipped: mFlags&0x10\n",
+                         (unsigned)*(const unsigned char *)(c + 0x6d8));
+        /* PARTY: not drawn this frame -- the recorded treatment is neither
+           solid nor ghost. */
+        if (party_slot >= 0 && party_slot < 16)
+            g_party_render_ghost[party_slot] = -1;
+        return;
+    }
+
     unsigned id = _ZNK6Player14GetBodyModelIDEjb(c, *(int *)(c + 8) & 0xff, 0);
     ModelAnim *ma = ((ModelAnim **)(c + 0xdc))[id];
     if (!ma) return;
-    unsigned idx = ((unsigned short)*(short *)(c + 0x8e)) >> 4;
-    /* THE ROM'S OWN MATRIX: rotation rows at 1.0 and the translation row in
-       SCENE units, which is what an actor's Render writes and what
-       Camera::Render's view matrix expects. `(v + 4) >> 3` is Camera::Render's
-       own rounding for the same conversion.
-       The x8 rotation rows this replaces were that same matrix carried into a
-       world-unit frame; they came out the same size on screen and left Mario
-       ~145 world units tall, which is what the migration has to preserve. */
-    int s = data_02082214[idx * 2], co = data_02082214[idx * 2 + 1];
-    int scene[12] = {co, 0, -s, 0, 0x1000, 0, s, 0, co,
-                     (*(int *)(c + 0x5c) + 4) >> 3,
-                     (*(int *)(c + 0x60) + 4) >> 3,
-                     (*(int *)(c + 0x64) + 4) >> 3};
-    for (int i = 0; i < 12; ++i) ((int *)&ma->mat4x3)[i] = scene[i];
-    ma->ModelAnim::UpdateVerts();
-    hal_tint_body(ma);
-    ma->ModelAnim::Render(0);
+    /* THE BODY MATRIX IS THE ONE THE SEAT ALREADY WROTE, and this function
+       must not build its own. That is the whole of the Yoshi head-vs-body
+       separation the field report described as the head coming off at speed
+       and on hard landings.
+
+       func_ov002_020e444c (src/func_ov002_020e444c.c) composes ONE matrix in
+       data_020a0e68 each frame inside Player::Behavior --
+
+           translation(RotateY(pos, mAngleY) + [0, unk_690 - mSinkDepth,
+                                                unk_694])
+           then rotation Y (+0x8e), then X (+0x8c), then Z (+0x90)
+
+       -- and stores that same matrix into the BODY model at +0x1c (line 55)
+       and into the HEAD model at +0x1c (line 66), in one statement group.
+       Player::Render (src/_ZN6Player6RenderEv.cpp:79 and :121) then draws both
+       with a bare Model::Render and sets NO matrix at render time. On the ROM
+       the two models cannot separate: they are literally the same write.
+
+       This function used to rebuild a matrix here from mAngleY and the
+       position alone and store it over the body's, leaving the head on the
+       seated one. The two agree while Yoshi stands still -- which is why an
+       earlier head-vs-body probe read them identical and the note above
+       recorded them as bit-identical -- but the seat also carries the X and Z
+       rotations, and +0x8c is the LEAN, driven by speed out of
+       func_ov002_020cd550. So the faster he ran the further the head pitched
+       away from a body that never pitched at all.
+
+       Measured on this tree before the change, castle grounds as Yoshi, the
+       largest rotation-element difference between the head's matrix and the
+       body's over 300 frames (Fix12, 0x1000 = 1.0):
+
+           idle       maxspeed      0    gap    0
+           walk       maxspeed  65520    gap  682   (lean 9.5 deg)
+           dash       maxspeed 131040    gap 1350   (lean 19.2 deg)
+           longjump   maxspeed 196560    gap 1112
+
+       and gap == 4096 * sin(lean) to within rounding at every sample, so the
+       separation was the lean angle exactly. Against the matrix the seat had
+       already left in the body, the head measured identical on every frame of
+       every run -- the right matrix was there the whole time and was being
+       thrown away.
+
+       Both halves of the field report are this one fault. The lean only exists
+       above a speed, and it grows with it, which is "at certain speeds". And it
+       engages in a SINGLE FRAME at full size around jumps and landings -- 0 to
+       1038 at frame 158 of the jump-spam run, 0 to 1050 at frame 98 of the
+       dash-jump run, 0 to 1073 at frame 234 of the long-jump run -- so the head
+       did not drift off, it popped off and back on, which is "when he hits the
+       ground too hard".
+
+       So: read it, do not build it. The scale and units are unchanged, because
+       the seat writes the same scene convention this function used to build
+       (its translation is `out >> 3`, the same world-to-scene shift, with the
+       rotation rows at 1.0 out of Matrix4x3_FromTranslation). `scene` stays the
+       name the neck-bone and wing composes below use, and they now compose
+       against the body's real matrix rather than a stand-in. */
+    int scene[12];
+    for (int i = 0; i < 12; ++i) scene[i] = ((const int *)&ma->mat4x3)[i];
+    /* NO RE-POSE AT DRAW TIME, because the cartridge does not have one, and
+       the second pose is not the same pose. src/_ZN6Player6RenderEv.cpp's body
+       draw is a bare Model::Render and poses nothing; the ROM's ONE per-frame
+       body pose is func_ov002_020e4768, in the behaviour pass:
+
+           func_020167a4(body)                  ModelComponents::UpdateBones,
+                                                bone records from the animation
+           func_ov002_020e640c(self)            THE HEAD AND NECK LOOK ANGLES,
+                                                written into the body's BMD bone
+                                                records at bones+0x1ba/0x1bc/0x1be
+                                                and +0x326/0x328/0x32a out of
+                                                Player +0x742 and +0x75c..0x766
+           UpdateVertsUsingBones(body+8)        transforms[] from those records
+           if (i == 3) head->Virtual10(bones+0x2d0)   Yoshi's head root
+
+       ModelAnim::UpdateVerts is UpdateBones + UpdateVertsUsingBones with the
+       middle step MISSING, so calling it here rewrote the bone records from the
+       raw animation, threw the look angles away and re-skinned. The head had
+       already been rooted at the look-corrected neck by the behaviour pass, so
+       the two disagreed. Measured with SM64DS_HSINK_PROBE=1 as the head anchor
+       minus the body neck, Fix12 in scene units: castle grounds as Yoshi, 55 of
+       118 head draws nonzero, worst 4430 at the walk-to-idle change; castle
+       interior, 228 of 257. Both go to 0 with this call gone, and btris stays
+       258 on every frame, which is the witness that the behaviour pass poses the
+       body by itself. A write watch on the neck bone showed it written twice a
+       frame with two different answers (out/HEAD3/bugs.md sections 1 and 2). */
+    hal_player_vs_palette(c, (char *)ma);
+    /* see-through, last before the draw so the per-frame material rebuild
+       (UpdateVerts, the palette stamp) is already done and the alpha is what
+       the raster reads. */
+    if (ghost) ghost_opacity(ma);
+    /* THE ROM'S BODY DRAW, WHOLE. src/_ZN6Player6RenderEv.cpp:79 is one
+       statement carrying two facts, and the port used to get both of them
+       wrong with `ma->ModelAnim::Render(0)`:
+
+           _ZN5Model6RenderEPK7Vector3(bodyMdl, ((char*)this) + 0x80);
+
+       BASE Model::Render, not ModelAnim::Render. ModelAnim::Render is
+       UpdateVerts + Model::Render (src/_ZN9ModelAnim6RenderEPK7Vector3.cpp),
+       so dispatching it here re-posed the body a second time at draw
+       time, after the UpdateVerts three lines up and after `scene` was
+       read. That is the same reach-past-the-anim the head's i==3 arm makes
+       for the same reason (see hal_render_head_group's banner).
+
+       AND THE +0x80 SCALE, not NULL. Player mScaleX/Y/Z. See the
+       SM64DS_HSINK_PROBE banner above for what NULL cost.
+
+       ONE LINE, BOTH HALVES, DELIBERATELY. They land on the same call and
+       either one alone is still not the ROM's statement; written as two
+       independent switches, whichever flipped second would silently edit
+       what the first one did. */
+    std::size_t hsink_t0 = 0;
+    if (hsink_on()) ntr::gx_polygons(hsink_t0);
+    ma->Model::Render((const Vector3 *)(c + 0x80));
+    std::size_t hsink_t1 = hsink_t0;
+    if (hsink_on()) ntr::gx_polygons(hsink_t1);
+    hal_player_texseq_body(c);
 
     unsigned hid = func_ov002_020becf4(c, *(unsigned char *)(c + 0x6db), 1);
     if (hid != 8 && hid != 9) {
         char *head = ((char **)(c + 0x154))[hid];
         if (head) {
-            char *neck = *(char **)((char *)ma + 0x14) + 0x2d0;
-            if (neck)
-                m43_mul((const int *)neck, scene, (int *)(head + 0x1c));
-            ((void(__fastcall *)(void *, void *, const void *))(
-                ((void ***)head)[0][4]))(head, 0, 0);
+            yhd_probe(c, scene, head);
+            hsink_probe(c, scene, head, (const char *)ma,
+                        (const int *)(c + 0x80),
+                        (const int *)(c + 0x80),
+                        hid, (int)(hsink_t1 - hsink_t0));
+            hal_player_vs_palette(c, head);
+            if (ghost) ghost_opacity(head);
+            hal_render_head_group(c, head, hid, ma, scene);
+            hal_player_texseq_head(c, hid);
         }
     }
+
+    /* THE WING MODEL: Player::mModelAnim4, EMBEDDED at +0x174.
+       NOT the tongue, which is what an earlier pass here took it for. The gate
+       says so outright -- func_ov002_020e4bb8 ends with the render latches
+
+           *(u8*)(self + 0x6fe) = *(u8*)(self + 0x6fd);
+           *(u8*)(self + 0x700) = *(u8*)(self + 0x6ff);   <- mHasWings
+
+       so unk_700 is last frame's mHasWings, and the model it gates is the pair
+       of wings. That also explains the Yoshi special case below: his wings
+       hang off a different bone, with an offset and a quarter turn.
+
+       Player::Render (src/_ZN6Player6RenderEv.cpp) draws it like this:
+
+           if (unk_700 != 0) {
+               ModelBase::ApplyOpacity(this + 0x174, mOpacity, 0);
+               if (unk_6db == 3) {
+                   Matrix4x3_FromTranslation(&data_020a0e68, -0x1b33, -0x666, 0);
+                   Matrix4x3_ApplyInPlaceToRotationZ(&data_020a0e68, 0x4000);
+                   MulMat4x3Mat4x3(&data_020a0e68, bodyBones + 0x180, &data_020a0e68);
+                   mModelAnim4.Virtual18(&data_020a0e68, &mScale);
+               } else {
+                   mModelAnim4.Virtual18(bodyBones + 0x2d0, &mScale);
+               }
+           }
+
+       and all four parts of that matter. An earlier pass here drew
+       *(ModelAnim **)(c + 0x160) -- the pointer func_ov002_020d71ec SetAnims,
+       which is NOT the object Render walks -- with the body's own scene matrix,
+       through Render (slot 4), with no gate at all. What Tango saw was a
+       model upside down under every character's feet, on Mario as much as on
+       Yoshi: the probe said 198 polygons on frame 0 of a plain Mario boot,
+       from the same object either way.
+
+       THE TONGUE IS STILL NOT DRAWN. Removing this does not cost anything that
+       was working -- the wings were never in the right place -- but it does not
+       deliver the tongue either. Whatever draws the tongue, it is not
+       mModelAnim4, and unk_700 never opens on a tongue (SM64DS_WINGS_PROBE=1
+       through SM64DS_SELFTEST_TONGUE says the gate stays 0 the whole run).
+
+       Faithful now: gated on unk_700, the ROM's own two matrices, and
+       Virtual18 -- which is host slot 6 (_ZTV9ModelAnim is D1 0, D0 1,
+       Model::DoSetFile 2, UpdateVerts 3, Virtual10 4, Render 5, Virtual18 6,
+       read out of the ROM's own table at 0x0208e980) and takes the matrix and
+       the scale, unlike Render. The bone matrix is composed through `scene`
+       the way the head at
+       +0x154 is, because this path renders in scene space, not the ROM's
+       world space. */
+    {
+        static int probe = -1;
+        if (probe < 0) probe = std::getenv("SM64DS_WINGS_PROBE") ? 1 : 0;
+        char *m4 = c + 0x174;
+        unsigned char gate = *(unsigned char *)(c + 0x700);
+        if (probe) {
+            static int said, said_open;
+            if (!said) {
+                said = 1;
+                std::fprintf(stderr, "[wings] +0x174 gate unk_700=%u "
+                             "unk_6db=%u vptr=%p\n", gate,
+                             *(unsigned char *)(c + 0x6db), *(void **)m4);
+            }
+            if (gate && !said_open) {
+                said_open = 1;
+                std::size_t n0 = 0, n1 = 0;
+                ntr::gx_polygons(n0);
+                std::fprintf(stderr, "[wings] gate OPENED (unk_700=%u, "
+                             "unk_6db=%u, step=%u)\n", gate,
+                             *(unsigned char *)(c + 0x6db),
+                             *(unsigned char *)(c + 0x6e3));
+                (void)n0; (void)n1;
+            }
+        }
+        if (gate != 0) {
+            char *bones = *(char **)((char *)ma + 0x14);
+            int composed[12];
+            const int *src;
+            if (*(unsigned char *)(c + 0x6db) == 3) {
+                Matrix4x3_FromTranslation(&data_020a0e68, -0x1b33, -0x666, 0);
+                Matrix4x3_ApplyInPlaceToRotationZ(&data_020a0e68, 0x4000);
+                MulMat4x3Mat4x3(&data_020a0e68, bones + 0x180, &data_020a0e68);
+                src = (const int *)&data_020a0e68;
+            } else {
+                src = (const int *)(bones + 0x2d0);
+            }
+            m43_mul(src, scene, composed);
+            /* Slot 6, not 5. The ROM's _ZTV9ModelAnim at 0x0208e980 is seven slots
+               -- D1 0, D0 1, Model::DoSetFile 2, UpdateVerts 3, Virtual10 4,
+               Render 5, Virtual18 6 (0x0208e99c = 020167c4) -- and
+               src/_ZN6Player6RenderEv.cpp's own shadow names every slot by byte
+               offset, so the wing statement's m18 is byte 0x18, index 6. MSVC does
+               not fold the destructor pair for this family any more
+               (hal/cxxname_bridge.cpp:530-539), so ??_7ModelAnim@@6BModel@@@ is
+               seven slots in the same order and slot 6 is
+               ?Virtual18@ModelAnim@@UAEXIPBUVector3@@@Z. This read 5 while the
+               fold made Virtual18 the fifth slot; 0a7f12ee9 restored ROM order and
+               these dispatches were not renumbered with it. Index 5 is
+               ModelAnim::Render, which takes the scale alone and ends `ret 4`,
+               while this site pushes two stack words and cleans none -- so the
+               wrong slot also left four bytes on the stack and this function's
+               epilogue pops edi, esi and ebx before it restores the frame
+               pointer. */
+            ((void(__fastcall *)(void *, void *, unsigned, const void *))(
+                ((void ***)m4)[0][6]))(m4, 0, (unsigned)(uintptr_t)composed,
+                                       c + 0x80);
+        }
+    }
+
+    /* LAST, after every draw this function makes, so the latch it reads is the
+       one this player's geometry was submitted under. */
+    if (vscol_on()) vscol_probe(c, vscol_frame, vscol_tris0);
 }
 
 void hal_render_player_body_ex(void *player, int with_head)
@@ -297,8 +1883,8 @@ void hal_render_player_body_ex(void *player, int with_head)
     ((int *)&ma->mat4x3)[4] = 0x1000;
     ((int *)&ma->mat4x3)[8] = 0x1000;
     ma->ModelAnim::UpdateVerts();
-    hal_tint_body(ma);
     ma->ModelAnim::Render(0);
+    hal_player_texseq_body(c);
 
     /* the head is its own model; Player::Render seats it by copying the
        body's neck-bone matrix (+0x2d0 in the bone array) into the head's
@@ -314,8 +1900,15 @@ void hal_render_player_body_ex(void *player, int with_head)
             if (src)
                 for (int i = 0; i < 12; ++i)
                     ((int *)(head + 0x1c))[i] = ((const int *)src)[i];
+            /* Slot 5, not 4: VObj names every slot by byte offset, so m14 is
+               index 5, and _ZTV5Model[5] is Model::Render
+               (hal/cxxname_bridge.cpp:522). This read 4 while
+               hal_fill_model_vtable dual-filled _ZTV5Model[4] with Render,
+               until 0a7f12ee9 removed the dual fill and put Virtual10 back
+               at [4]. */
             ((void(__fastcall *)(void *, void *, const void *))(
-                ((void ***)head)[0][4]))(head, 0, 0);
+                ((void ***)head)[0][5]))(head, 0, 0);
+            hal_player_texseq_head(c, hid);
         }
     }
 }
@@ -328,32 +1921,31 @@ void hal_render_player_body_ex(void *player, int with_head)
 extern "C" int _ZN6Player18St_LevelEnter_MainEv(int *c);
 extern "C" int _ZN6Player12St_Jump_InitEv(char *c);
 extern "C" void func_ov002_020e200c(char *c);
+extern "C" void func_ov002_020c9c4c(char *c);
+extern "C" void func_ov002_020c9de4(char *c);
+extern "C" void func_ov002_020c9d68(char *c);
+extern "C" void func_ov002_020c9d1c(char *c);
+extern "C" void func_ov002_020c9cc0(char *c);
+extern "C" void func_ov002_020c9c00(char *c);
+extern "C" void func_ov002_020c9b7c(char *c);
+extern "C" void func_ov002_020c9b5c(char *c);
+extern "C" void func_ov002_020c9ac0(char *c);
+extern "C" void func_ov002_020c9b10(char *c);
+extern "C" void func_ov002_020c9a04(char *c);
+extern "C" void func_ov002_020c9998(char *c);
+extern "C" void func_ov002_020c990c(char *c);
+extern "C" void func_ov002_020c98a4(char *c);
+extern "C" void func_ov002_020c9840(char *c);
+extern "C" void func_ov002_020c97f8(char *c);
+extern "C" void func_ov002_020c97e0(char *c);
+extern "C" void func_ov002_020e1e70(char *c);
+extern "C" void func_ov002_020e1c20(char *c);
 /* Three state slots the ROM fills with plain ov002 functions rather than
    Player methods: Null's Init, WallJump's Init, InYoshiMouth's Cleanup.
    The community St_ names at those addresses belong to ov006, not ov002. */
-extern "C" int func_ov002_020cac30(void);
-extern "C" int func_ov002_020d6084(char *c);
-extern "C" int func_ov002_020e17f8(void *c);
-extern "C" void func_ov002_020e1c20(char *c);
-/* NoControl's per-kind Init handlers (character select reaches kinds Mario
-   never takes); signatures from src */
-extern "C" void func_ov002_020c97e0(char *c);
-extern "C" void func_ov002_020c97f8(char *c);
-extern "C" void func_ov002_020c9840(char *c);
-extern "C" void func_ov002_020c98a4(char *c);
-extern "C" void func_ov002_020c990c(void *c);
-extern "C" void func_ov002_020c9998(void *c);
-extern "C" void func_ov002_020c9a04(char *c);
-extern "C" void func_ov002_020c9ac0(char *c);
-extern "C" int func_ov002_020c9b10(char *c);
-extern "C" void func_ov002_020c9b5c(char *c);
-extern "C" void func_ov002_020c9b7c(void *c);
-extern "C" int func_ov002_020c9c00(char *c);
-extern "C" void func_ov002_020c9c4c(char *c);
-extern "C" void func_ov002_020c9cc0(char *c);
-extern "C" int func_ov002_020c9d1c(char *c);
-extern "C" void func_ov002_020c9d68(char *c);
-extern "C" void func_ov002_020c9de4(char *c);
+extern "C" int _ZN6Player12St_Null_InitEv(void);
+extern "C" int _ZN6Player23St_InYoshiMouth_CleanupEv(char *c);
+extern "C" int _ZN6Player16St_WallJump_InitEv(void *c);
 extern "C" int _ZN6Player16St_BurnLava_MainEv(char *c);
 /* gate 14: the level-boot state and the seven entrance-step handlers */
 extern "C" int func_ov002_020c6f3c(void *c);
@@ -373,16 +1965,17 @@ extern "C" void func_ov002_020c6fe4(char *c);
      =1  once per distinct DS address (the quiet census)
      =2  on every CHANGE, with the Player's height, which is what a
          walk-in/swim-across/climb-out run has to be read from */
+/* ST_CLIMB's two host entries, port/unmatched/Player_St_Climb.cpp */
+extern "C" int port_player_st_climb_init(void *self);
+extern "C" int port_player_st_climb_main(void *self);
+/* ST_SWINGPLAYER's Main host entry, port/unmatched/Player_St_SwingPlayer_Main.cpp */
+extern "C" int port_player_st_swingplayer_main(void *self);
+/* Player::St_EndingFly_Main, under the flat name the ov002 world gives it
+   (the sinit's PMF table pairs it with the EndingFly state; see the case). */
+extern "C" int _ZN6Player17St_EndingFly_MainEv(char *self);
+
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
-    /* SM64DS_TRACE_CS=1: log every state-fn dispatch with the current
-       state object, so transitions read as object changes. How the dive
-       bug was caught (a Main called as an exit re-entered its own state
-       until the stack was gone). */
-    if (std::getenv("SM64DS_TRACE_CS")) {
-        void *cur = *(void **)((char *)self + 0x370);
-        std::fprintf(stderr, "[cs] obj=%p fn=%08x\n", cur, ds_addr);
-    }
     {
         static int on = -1;
         if (on < 0) {
@@ -396,6 +1989,35 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
                 prev = ds_addr;
                 std::printf("  [state] 0x%08x y=%.1f\n", ds_addr,
                             *(int *)((char *)self + 0x60) / 4096.0);
+            }
+            /* =3: the LevelEnter entrance-step spin, byte by byte. The
+               step exits on FinishedAnim with the hold byte clear, so
+               those two plus the mode/step pair are the whole question. */
+            /* =3: the LevelEnter entrance-step spin, whichever step it is.
+               Every exit gate the seven step handlers use is here: the hold
+               byte, the global countdown, the no-control timer, and the
+               animation's cursor against its length. */
+            if (on >= 3 &&
+                (ds_addr == 0x020c75f0 || ds_addr == 0x020c7350 ||
+                 ds_addr == 0x020c71e0 || ds_addr == 0x020c7194 ||
+                 ds_addr == 0x020c72a4 || ds_addr == 0x020c70ac ||
+                 ds_addr == 0x020c6fe4)) {
+                extern int data_0209f2bc[];
+                char *c = (char *)self;
+                const unsigned id =
+                    _ZNK6Player14GetBodyModelIDEjb(c, *(int *)(c + 8) & 0xff, 0);
+                char *anim = *(char **)(c + 0xdc + id * 4) + 0x50;
+                std::fprintf(stderr,
+                             "  [enter] fn=%08x mode=%u step=%u hold6de=%u "
+                             "f2bc=%u hold6a6=%u cur=%d nff=0x%08x fin=%d\n",
+                             ds_addr,
+                             *(unsigned char *)(c + 0x6e3),
+                             *(unsigned char *)(c + 0x6e5),
+                             *(unsigned char *)(c + 0x6de),
+                             *(unsigned char *)data_0209f2bc,
+                             port::player::invincible_timer(c),
+                             *(int *)(anim + 8), *(unsigned *)(anim + 4),
+                             ((Animation *)anim)->Animation::Finished());
             }
         } else if (on) {
             static unsigned said[64];
@@ -411,6 +2033,43 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
     }
     switch (ds_addr) {
 #include "player_states.inc"
+    /* run linkw / lane l5: the last state-fn addresses in ov002's symbol
+       table that the generated .inc does not carry. All three are matched
+       src TUs, seated through port/slice_w1l5.txt, and all three are real
+       __thiscall methods, so the call goes through the Player class exactly
+       the way every method case in the .inc above does.
+
+       Addresses read out of config/arm9/overlays/ov002/symbols.txt, not
+       guessed from a neighbouring case:
+         _ZN6Player17St_EndingFly_InitEv       0x020c3d6c
+         _ZN6Player22St_SwingPlayer_CleanupEv  0x020d9fc4
+         _ZN6Player19St_SwingPlayer_InitEv     0x020da3b0
+
+       SwingPlayer's Main is NOW HOSTED. St_SwingPlayer_Main 0x020d9fec has
+       no matched src TU (a matching floor), so it took a faithful host
+       transcription from the ROM body, the Climb shape -- see
+       port/unmatched/Player_St_SwingPlayer_Main.cpp and the case below. It
+       was the last unhosted half: Init sets the held partner's pin bit
+       (mHeldObj+0xb0 |= 0x800) and only Cleanup clears it, so with Main
+       no-op'd the state never advanced, never ChangeState'd out and Cleanup
+       never ran -- the partner stayed pinned and the carrier kept a spin
+       nothing consumed, the same freeze-then-slide Climb documents.
+
+       EndingFly's Main is NOT the ov007-named body an earlier version of
+       this comment blamed. The ov002 sinit's own PMF state table pairs the
+       EndingFly state object (0x0211058c) with _ZN6Player17St_EndingFly_MainEv: the
+       wave-2 mount lane derived that from the relocation triple, and its
+       reviewer re-derived it by reconstructing all 81 state objects from
+       the sinit's store sequence. The ov007 body at the same address is a
+       different overlay's function that 86 ov007-internal calls reach and
+       no PMF cell anywhere names. The case below dispatches the ov002 body;
+       its data (the 27-record rising-spiral step table data_ov002_0210a8b8
+       and the kuppa script data_02088610) rode in with the wave-2 mounts. */
+    case 0x020c3d1c: return _ZN6Player17St_EndingFly_MainEv((char *)self);
+    case 0x020c3d6c: return ((Player *)self)->Player::St_EndingFly_Init();
+    case 0x020d9fc4: return ((Player *)self)->Player::St_SwingPlayer_Cleanup();
+    case 0x020da3b0: return ((Player *)self)->Player::St_SwingPlayer_Init();
+    case 0x020d9fec: return port_player_st_swingplayer_main((void *)self);
     }
     /* Every miss here is a state the port silently does not run, and the only
        record of it used to be a line in the flight recorder that nobody reads
@@ -421,6 +2080,170 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
                  ds_addr);
     return 1;
 }
+
+/* ---- LIVE CHARACTER SWAP (port mod) ------------------------------------
+   The mod is the ENTRY POINT, not the swap. Player::SetRealCharacter is the
+   game's own permanent change -- the one the character doors call -- and it is
+   already instant: it starts the hat morph and then writes unk_73c = 0, which
+   cancels the morph's state machine before a single stage of it runs. So there
+   is nothing to reimplement here and nothing to animate away. What the port
+   owes it is a caller with guards, because the ROM only ever reaches it from
+   one place that has already checked everything.
+
+   All four body and head models are resident from InitResources
+   (func_ov002_020e5948), so no model loading happens. One thing does load: the
+   BCA for (current animation, new character). mCharFileBase is animId * 4, not
+   a per-character base, so ANIM_PTRS[base + chr] is a 2D lookup and only the
+   current row's Mario column is resident at boot.
+
+   Return codes exist so the caller can print WHY nothing happened rather than
+   looking broken: 0 done, 1 no player, 2 out of range, 3 already that one. */
+extern void *data_0209f394[];        /* per-player Actor*, cxxname_bridge's */
+extern short data_02092144[];        /* per-player health, high byte = HP */
+extern void *data_ov002_020ff480[];  /* ANIM_PTRS[anim*4 + char] */
+extern signed char data_02092114;    /* queued in-level swap, -1 = none */
+void _ZN10ModelAnim24CopyERKS_Pcj(void *self, const void *src, char *nf,
+                                  unsigned nof);
+
+/* THE DOOR SWAP, operating on a given player. This is the game's own in-place
+   change (Player::SetRealCharacter, the path the character doors take), which
+   loads the incoming character's files through data_ov002_020ff480 and arms the
+   hat morph BEFORE it moves param1, then cancels the morph so the change is
+   instant. It replaces nothing about the Player except who it is -- the model,
+   the animation cursor, the state and the position all carry across untouched,
+   so there is no cold restart and no stand-freeze. Returns the same codes as
+   port_set_character (0 done, 1 no player, 2 out of range, 3 already that one).
+   port_set_character wraps this on the local player; port_player_set_character
+   routes to it as the default swap. */
+static int port_door_swap(char *c, int chr)
+{
+    if (!c) return 1;
+    /* SetRealCharacter masks with & 3 in two places but uses chr RAW in the
+       other two (the ANIM_PTRS index and the chr + 0xc4 default-anim index),
+       so an out-of-range value would read past the table into whatever ov002
+       packed next. Reject it -- masking would silently hand back a different
+       character than the caller asked for. */
+    if (chr < 0 || chr > 3) return 2;
+    /* the body ModelAnim2 slots: null until InitResources has run, and
+       SetRealCharacter dereferences one with no check of its own */
+    if (!*(void **)(c + 0xdc)) return 1;
+    if ((int)(*(unsigned *)(c + 8) & 0xff) == chr) return 3;
+
+    /* A cap collect in flight is CANCELLED, not refused. Cancelling is what an
+       instant swap means, and refusing would be a trap: the debug menu pauses
+       the tick, so unk_73c can never advance while someone is holding the menu
+       open. Say it happened so an odd-looking result is attributable. */
+    if (((Player *)c)->Player::IsCollectingCap())
+        std::fprintf(stderr, "[chr] swap during a cap collect (unk_73c=%04x);"
+                             " the morph is cancelled\n",
+                     *(unsigned short *)(c + 0x73c));
+
+    /* SetRealCharacter ends in Heal(0x880) unconditionally. Save the whole
+       short, not just the HP byte -- the low byte is a fraction GiveHealth
+       works in. Without this every swap visibly refills the HUD hearts, which
+       makes the row useless for anything you were testing damage against. */
+    /* THE HEALTH TABLE IS SIXTEEN WIDE, so mPlayerNo is read WHOLE. The `& 3`
+       that used to be here predated 0.3.2's widening of data_02092144 to
+       kPortMaxPlayers (hal/cxx_aliases.cpp:70), and it was wrong the moment
+       slots 4..15 could exist: a swap in slot 5 saved slot 1's health and then
+       wrote slot 1's health back over whatever slot 1 had done in between.
+       mPlayerNo is a whole byte and the port writes the TRUE slot into it
+       (hal/level_boot.cpp, right after Actor::Spawn returns), so the only
+       thing owed here is a bound, not a mask. */
+    unsigned pno = *(unsigned char *)(c + 0x6d8);
+    if (pno >= (unsigned)kPortMaxPlayers) pno = 0;
+    const short saved_hp = data_02092144[pno];
+    /* which body model is animating RIGHT NOW, before param1 moves */
+    const unsigned old_id =
+        _ZNK6Player14GetBodyModelIDEjb(c, *(unsigned *)(c + 8) & 0xff, 0);
+
+    ((Player *)c)->Player::SetRealCharacter((unsigned)chr);
+
+    /* KNOWN, LEFT ALONE DELIBERATELY: Luigi's head draws with the toon/flash
+       shading the power flower uses. The swap does not turn it on -- unk_73c
+       = 0 inside SetRealCharacter cancels func_ov002_020be3b0 before stage 1's
+       SetPolygonMode(m, 2) can run, which is what makes the swap instant. It
+       means stage 7, the only thing that turns the flash OFF, never runs
+       either, so a model already in that polygon mode keeps it. A
+       Player::TurnOffToonShading(chr) here clears it, but that is a rendering
+       question about Luigi's head model rather than part of the swap, and it
+       has not been eyeballed. Chip it separately. */
+
+    /* THE OTHER THING THE ROM'S CALLER ALREADY HAD RIGHT. data_02092114 is the
+       QUEUED in-level swap -- the file-select picker writes the character it
+       wants and func_ov002_020be008 performs it on the next landing, spawning
+       the cap actor and freezing the player in a no-control state while the
+       poof plays. -1 means "nothing queued", and the port never seats it: it
+       is plain zero-initialised storage, which reads as "a swap to Mario is
+       pending". Inert for as long as you ARE Mario, which is why nothing has
+       ever noticed. The moment param1 becomes anything else the poll fires and
+       drags you straight back, ~28 frames after the swap, through a state the
+       port does not host -- so you end up frozen as the character you asked
+       for. SetRealCharacter is a direct swap, so the honest value afterwards is
+       the one 020be008 itself writes when it has consumed the request. */
+    data_02092114 = -1;
+
+    data_02092144[pno] = saved_hp;
+    /* The body renders off param1, which the call above wrote, but the HEAD
+       renders off unk_6db, and the only thing that re-syncs unk_6db from
+       param1 is the tail of func_ov002_020e4bb8 -- inside Player::Behavior.
+       With the menu open the tick is skipped, so without this the new body
+       wears the old head for exactly as long as somebody is looking at it.
+       This is that same assignment, one tick early, and it is idempotent once
+       the tick resumes. */
+    *(unsigned char *)(c + 0x6db) = (unsigned char)chr;
+
+    /* THE ONE THING SetRealCharacter LEAVES TO ITS CALLER, and the reason a
+       swap that looked fine faulted on the next tick.
+
+       Its tail is ModelAnim2::Copy(body[m1], body[m2], newFile, 0) -- but it
+       assigns param1 = chr BEFORE computing both ids, so m1 == m2 and the copy
+       is a model onto itself. That cannot carry an animation across, and
+       body[chr] has no base Animation to begin with: InitResources
+       (func_ov002_020e5948) seats only otherAnim for all four models and the
+       base Animation for whoever you actually are. So the new model comes out
+       with numFramesAndFlags == 0, and Animation::Advance's `% len` on the
+       very next Player_AdvanceAnims is an integer divide by zero.
+
+       On the ROM this is invisible, because SetRealCharacter has exactly one
+       caller -- the character door -- and the door's state immediately calls
+       Player::SetAnim with a DIFFERENT animation id, which takes SetAnim's
+       slow path and seats the frame count off the new file. A swap that does
+       not change animation never gets that. Calling SetAnim here would not
+       help either: ModelAnim::SetAnim fast-paths when the file pointer already
+       matches, and SetRealCharacter's own Copy already stored it.
+
+       So do what the hat morph does. This is func_ov002_020be3b0's stage-3
+       call with the operands it has: dst != src, which carries the live
+       cursor, speed and frame count off the character who was walking a moment
+       ago onto the one who is now. */
+    {
+        const unsigned base = *(unsigned *)(c + 0x63c);
+        const unsigned new_id =
+            _ZNK6Player14GetBodyModelIDEjb(c, (unsigned)chr, 0);
+        void *dst = *(void **)(c + 0xdc + new_id * 4);
+        void *src = *(void **)(c + 0xdc + old_id * 4);
+        /* SharedFilePtr's layout is not recovered; +4 is the file pointer every
+           caller in src/ indexes, SetRealCharacter's own Copy argument included.
+           It is a real load off the file seam, so it can come back empty. */
+        char *bca = *(char **)((char *)data_ov002_020ff480[base + chr] + 4);
+        if (dst && src && dst != src && bca)
+            _ZN10ModelAnim24CopyERKS_Pcj(dst, src, bca, 0);
+        /* and say so if it still came out unplayable, rather than leaving the
+           divide to announce it */
+        if (!bca || !dst ||
+            (*(unsigned *)((char *)dst + 0x54) & ~0xc0000000u) == 0)
+            std::fprintf(stderr, "[chr] character %d came out with no playable "
+                                 "body animation (anim base %u, file %p) -- "
+                                 "Advance will divide by zero\n",
+                         chr, base, (void *)bca);
+    }
+    return 0;
+}
+
+/* the local-player wrapper the debug menu reached for first */
+int port_set_character(int chr)
+{ return port_door_swap((char *)data_0209f394[0], chr); }
 
 void _ZN6Player16InitWingFeathersEb(void *self, unsigned char b_)
 { ((Player *)self)->Player::InitWingFeathers(b_ != 0); }
@@ -455,44 +2278,120 @@ int _ZN6Player17SetNoControlStateEhih(void *self, unsigned char a, int b,
 { return ((Player *)self)->Player::SetNoControlState(a, b, c); }
 int _ZN6Player8HasNoCapEv(void *self)
 { return ((Player *)self)->Player::HasNoCap(); }
-/* The subject resolver: no-arg ride-through callers (St_Swim_Main calls
-   GetHealth() bare, trusting ARM r0 to still hold the player) leave stack
-   garbage where `self` should be. The subject is always a live player, so
-   a pointer that is not one of the engine's player slots falls back to the
-   local player. Comparisons only -- garbage is never dereferenced. */
-static Player *hal_player_self(void *self)
-{
-    extern unsigned char data_0209f250;
-    extern int data_0209f394[];
-    for (int i = 0; i < 4; ++i)
-        if (self == (void *)(size_t)data_0209f394[i]) return (Player *)self;
-    return (Player *)(size_t)data_0209f394[data_0209f250 & 3];
-}
 int _ZN6Player9GetHealthEv(void *self)
+{ return ((Player *)self)->Player::GetHealth(); }
+
+void _ZN5dBgCh19StartDetectingWaterEv(void *self)
+{ ((dBgCh *)self)->dBgCh::StartDetectingWater(); }
+
+/* THE CYLINDER SHADOW IS NO LONGER DEFERRED (run linkw wave 4, lane w4-a).
+   This was `void _ZN11ShadowModel12InitCylinderEv(void *) {}`, the stub that
+   kept the matched body out of the image; it is now the ordinary C-name-to-
+   method bridge, the same shape as _ZN11ShadowModel10InitCuboidEv in
+   hal/cxxname_bridge.cpp, and the body it reaches is the matched
+   src/_ZN11ShadowModel12InitCylinderEv.cpp.
+
+   The three things that had to be true first, and are:
+     - the template BMD at data_020ad560 is static .data in overlay 1, 0x3c
+       bytes with one bone at 0x020ad5dc and one material at 0x020ad4c4, and
+       wave 3 named that chain in port/ov001_syms.txt;
+     - the host zero copy of data_020ad560 that would have shadowed the mount
+       is gone from hal/actor_vtables.cpp, which now aliases the arm9 spelling
+       onto the ov001 one;
+     - _ZTV11ShadowModel[1] holds ShadowModel::DoSetFile (hal/model_dtor_seat
+       .cpp, seated in wave 1 and called from port_stage_a2_seat), so the
+       vtable dispatch ModelBase::SetFile makes lands on a real body.
+
+   IT RETURNS int, AND THE VALUE IS DERIVED RATHER THAN CHOSEN. The ROM's
+   InitCylinder is a TAIL BRANCH into SetFile, which tail-branches into
+   DoSetFile, so r0 leaves this function carrying DoSetFile's result -- and
+   BobOmb::InitResources tests it (`if (InitCylinder() == 0) return 0;`, see
+   the ride-through block in hal/bob_enemy_bridges.cpp). The matched
+   ShadowModel::InitCylinder and ModelBase::SetFile are both declared void by
+   the decomp, so the value cannot ride out of a host call the way it rides out
+   of the ARM one. It does not have to be guessed at either: matched
+   src/_ZN11ShadowModel9DoSetFileEPcii.cpp returns 0 exactly when it has just
+   stored data = 0 and 1 in every other path, so `data != 0` read back off the
+   object after the call IS that return value, not a stand-in for it.
+
+   THE SEAT CHECK IS NOT DEFENSIVE PROGRAMMING, IT IS A MEASURED HARNESS GAP,
+   and it is the wave-3 abort-vs-no-op lesson (hal/cxxname_bridge.cpp) landing
+   in a new place. The matched body's SetFile dispatches DoSetFile through
+   _ZTV11ShadowModel[2] -- ROM numbering, as of the destructor respelling in
+   include/ModelBase.h; it was [1] while MSVC folded the pair -- which
+   hal/model_dtor_seat.cpp seats inside
+   hal_seat_model_family_dtors -- and that runs from port_stage_a2_seat, so
+   walk_window and walk_window_hires have it from process start. smoke_player
+   does NOT: it hand-fills the host vtables and calls hal_fill_shadow_vtable,
+   which by its own comment seats slot 0 only. Measured, not assumed -- with
+   the bridge unguarded, smoke_player faults c0000005 accessing 0 with
+   ?InitCylinder@ShadowModel@@QAEXXZ + 0xe on the stack under
+   func_ov002_020e5948 + 0x6d7 (Mario's own drop shadow, Player + 0x2ac), while
+   walk_window runs 1000 frames through that same call.
+
+   So the guard fires only where the host never filled the slot, and there it
+   reproduces that harness's baseline exactly: an InitCylinder that installs
+   nothing, which is what the stub gave smoke_player for its whole green
+   history. It returns 0 for the same reason the line below returns data != 0
+   -- no DoSetFile ran, so no data was attached -- and the one caller in that
+   target ignores the value anyway (port/unmatched/TexSeq_Caller_ov002_
+   020e5948.cpp declares this void). It complains on stderr the first time
+   rather than staying silent, because in a target that DOES seat the slot the
+   same line would mean the seat had regressed and the shadows had stopped
+   drawing. The real fix is one call in tests/smoke_player.cpp
+   (hal_seat_model_family_dtors, beside the four hal_fill_*_vtable calls) or
+   one line in hal/cxxname_bridge.cpp's hal_fill_shadow_vtable; neither file is
+   this lane's. */
+int _ZN11ShadowModel12InitCylinderEv(void *self)
 {
-    Player *p = hal_player_self(self);
-    if (!p) return 8;
-    return p->Player::GetHealth();
+    void **vt = *(void ***)self;
+    if (!vt || !vt[2]) {
+        static int told;
+        if (!told) {
+            told = 1;
+            std::fprintf(stderr, "InitCylinder: _ZTV11ShadowModel[2] "
+                         "(DoSetFile) is null in this target -- no shadow "
+                         "installed\n");
+        }
+        return 0;
+    }
+    ((ShadowModel *)self)->ShadowModel::InitCylinder();
+    return ((ShadowModel *)self)->data != 0;
 }
 
-void _ZN4BgCh19StartDetectingWaterEv(void *self)
-{ ((BgCh *)self)->BgCh::StartDetectingWater(); }
+/* PORT_HOST_ABI CORRECTION (run link100, lane CRASH3). TextureSequence::Prepare
+   is STATIC, and include/TextureSequence.h carries the cartridge evidence for it:
+   the ROM body is a 0xc long-call veneer into func_02046d50, which reads only r0
+   and r1, never touches r2, and reads r1 at exactly BTP_File's own field offsets.
+   Two words and no this -- that IS the ROM's call surface.
 
-/* SHADOW SYSTEM DEFERRED (matches InitCuboid, cxxname_bridge.cpp, which now
-   carries the full writeup). The template BMD at data_020ad560 is NOT
-   runtime-built: it is static .data in overlay 1, a complete BMD_File with one
-   bone at 0x020ad5dc and one material at 0x020ad4c4. Parsing the stub does
-   walk garbage, but because the port never mounts ov001, not because a
-   builder is missing.
+   The three-parameter face this replaces was written against the stale belief
+   that Prepare was a non-static method (the same belief is still spelled out in
+   port/tools/hostgen.py's REG_RIDE_ARG comment and in the two retired host
+   copies). Because the callee is in fact static, MSVC compiled
+   `((TextureSequence *)self)->Prepare(*bmd, *btp)` by evaluating self, DISCARDING
+   it, and pushing only the 2nd and 3rd parameters. Read out of the shipped
+   artifact at 004106e0:
 
-   Note the stub is also UNDERSIZED where it is declared (actor_vtables.cpp):
-   the ROM record is 0x3c bytes, 0x020ad560 to the bone at 0x020ad59c. */
-void _ZN11ShadowModel12InitCylinderEv(void *) {}
+       push ebp / mov ebp,esp
+       push dword ptr [ebp+0x10]      <- 3rd parameter
+       push dword ptr [ebp+0x0c]      <- 2nd parameter
+       call ?Prepare@TextureSequence@@SAXAAUBMD_File@@AAUBTP_File@@@Z
+       add esp,8 / pop ebp / ret
 
-void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(void *self, void *bmd,
-                                                       void *btp)
-{ ((TextureSequence *)self)->TextureSequence::Prepare(*(BMD_File *)bmd,
-                                                      *(BTP_File *)btp); }
+   [ebp+8] is never read, and the callee's own mangling ("SAX") says static. So
+   the face shifted every argument down by one. All 17 call sites in the image
+   pass the BMD as their FIRST argument, so func_02046d50 was handed the BTP file
+   where it wanted the BMD; func_020471ac then read [BTP+0x14] as a texture count
+   and [BTP+0x18] as a texture array, walked into the BTP's own bytes, and handed
+   a run of characters to cstd::strcmp as a pointer.
+
+   Two parameters is the ROM's shape and is right for every caller at this cdecl
+   ABI: the fourteen ROM-arity sites pass exactly these two words, and the three
+   sites the REG_RIDE_ARG row patched pass (bmd, btp, btp), whose first two words
+   are the same two -- the caller cleans up its own extra push. */
+void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(void *bmd, void *btp)
+{ TextureSequence::Prepare(*(BMD_File *)bmd, *(BTP_File *)btp); }
 void *_ZN15TextureSequence8LoadFileER13SharedFilePtr(void *fp)
 { return TextureSequence::LoadFile(*(SharedFilePtr *)fp); }
 
@@ -503,34 +2402,350 @@ int _ZN18NestedHeapIterator8PreviousEP13HeapAllocator(void *self, void *h)
 { return ((NestedHeapIterator *)self)->NestedHeapIterator::Previous(
       (HeapAllocator *)h); }
 
+/* SYNC4: main declares Heap::Rescue void. The face keeps its int signature
+   because its C callers are declared that way, and returns 0 rather than
+   whatever EAX happens to hold -- the ROM body sets no result either, so the
+   value is unread; see the falls-off-the-end block in port/CMakeLists.txt for
+   the same question asked of the src bodies. */
 int _ZN4Heap6RescueEv(void *self)
-{ return ((Heap *)self)->Heap::Rescue(); }
+{ ((Heap *)self)->Heap::Rescue(); return 0; }
 int _ZN4Heap21MaxAllocationUnitSizeEv(void *self)
 { return ((Heap *)self)->Heap::MaxAllocationUnitSize(); }
 int _ZN4Heap6IntactEv(void *self)
 { return ((Heap *)self)->Heap::Intact() ? 1 : 0; }
 
 /* gate-10 BSS, second ring */
-int data_0208e428[8], data_0209b44c[4], data_0209b480[4];
+/* data_0209b44c is NOT here: it is the one-byte area id, hosted in
+   hal/actor_vtables.cpp so the smoke targets that link no player bridge
+   still get it, and so writer and reader share one object. */
+DSSTATE_BEGIN
+int data_0208e428[8], data_0209b480[4];
 int data_020a4d60[8], data_020a6438[8], data_020a6488[4], data_020a648c[4];
 int data_020a6490[4], data_020a649c[4], data_020a64a0[4], data_020a64a4[4];
-/* The sound command queue's two SIZED objects. Placeholders while sound was
-   stubbed; the hosted ARM7 in hal/sdat/ needs their real extents.
-   data_020a6760 is the node pool func_0205b070 cache-flushes as 0x1800
-   bytes = 256 nodes x 0x18, and the seeding chains all 256 of them.
+/* The sound command queue's SIZED object. A placeholder while sound was
+   stubbed; the hosted ARM7 in hal/sdat/ needs its real extent.
    data_020a64a8 is the batch ring that func_0205b070 and func_0205b274 index
    with "idx++; if (idx > 8) idx = 0", so it needs nine slots. At the old
-   sizes, seeding the pool walked off the end of a 32-byte object. */
+   size, the ring walked off the end of a 32-byte object.
+
+   data_020a6760 IS NOT HERE ANY MORE (run link100, lane SND1, rung R1). It was
+   `int data_020a6760[256 * 0x18 / sizeof(int)]` -- the right 0x1800 extent, but
+   as a lone object. src/func_0205b358.c, the ROM's own SND_Init, addresses the
+   same 0x1800 bytes under THREE dsd names (data_020a6760, data_020a7760 + 0x7e8
+   for the last node's link, and data_020a7f48 for the tail pointer), so hosting
+   only the first of them left the other two nowhere and the body unrunnable.
+   hal/snd_globals.cpp hosts all three as one run with the names at their ROM
+   offsets, which is what let the transcription in hal/sdat/consumer.cpp retire.
+   Defining it here as well would be a duplicate symbol. */
 void *data_020a64a8[16];
-int data_020a6760[256 * 0x18 / sizeof(int)];
 int data_020a0f1c[4], data_020a4d54[4], data_020a6440[4], data_020a6444[4];
 int data_020a6484[4], data_020a6494[4], data_020a6498[4];
 int data_0209cdd0, data_0209cdd4, data_0209cdd8, data_0209cddc, data_0209cde0;
 int data_0209f220[8], data_0209f264[8], data_020a0d90[8], data_020a0f38[8];
 int data_020a4b58[4], data_020a4b68[4], data_020a60f4[4];
-/* DTCM scratch the timer list walker anchors at */
-__declspec(align(8)) unsigned char data_023c0000[64];
+/* DTCM, AND IT IS 16 KB AND NOT 64 BYTES. This used to read "DTCM scratch the
+   timer list walker anchors at" and be sized for that one reader, which is the
+   undersized-hosted-global shape: a span decided by the first caller found
+   rather than by the ROM.
+   THE SPAN IS THE ARM9's DATA TCM, 0x023c0000..0x023c4000, and what fixes the
+   size is the BIOS interrupt check flag at the top of it, DTCM_END - 8, the
+   NitroSDK OSi_IrqCheckFlag slot. FIVE handlers in src write that word by
+   literal offset, and only two of them are in this link:
+       func_0202f2c4            |= 2       slice_fdr, AND REACHED, 191x a frame
+       func_02059834            |= 0x10    slice_gate10, linked and undriven
+       _ZN3IRQ13VBlankHandlerEv |= 1       not compiled
+       _ZN3IRQ13DmaTimHandlerEj |= mask    not compiled
+       func_ov006_020efcf8      |= 2       not compiled
+   At 64 bytes that store landed 16,312 bytes past the object, 56 bytes into
+   _hal_area_table and so INSIDE .dsstate, which means a save state would have
+   captured the corruption and a restore replayed it. It was invisible only
+   because no host path had ever RUN one of the five: the ntr layer stored no
+   handler for mask 1, 2 or 0x10, so none was ever dispatched. Raising IRQ 2
+   drives the first one for real, and the second goes live the day anyone
+   models timer interrupts, so the span has to be real before either.
+   See port/irq2_map.txt section 8. */
+__declspec(align(8)) unsigned char data_023c0000[0x4000];
 int data_02099e94[4], data_02099ebc[4], data_02099ec4[4], data_02099fcc[4];
-int data_020a6084[4], data_020a6088[2], data_020a8114[4];
+/* data_020a6088 is NOT here any more. It is the head of the GX bank-state
+   block, whose members the SetBankFor* family reaches by STRUCT OFFSET out to
+   +0x18 and which func_02053d9c clears 26 bytes at a time, and the `int[2]`
+   that used to sit here was both too small for that and not adjacent to the
+   twelve u16 symbols the ROM has after it. Eight bytes was already generous:
+   the symbol's own span in config/arm9/symbols.txt is two. The whole band is
+   laid out in ROM order in hal/cxx_aliases.cpp; read the banner there. */
+int data_020a6084[4], data_020a8114[4];
+DSSTATE_END
 
 }  /* extern "C" */
+
+/* ---- THE GAME'S OWN CHARACTER CHANGE ---------------------------------------
+   Player::SetRealCharacter is the cap-block path, the thing that runs when you
+   break a Luigi or Wario cap, hat animation and all. It is also the only
+   correct way to change character in place, because it does the part a bare
+   index write cannot: it Releases the outgoing character's file, LoadFiles the
+   incoming one, re-points the ModelAnim2 at it, swaps the voice bank through
+   func_ov002_020e6330 and writes the save byte at data_0209caa0[0x41] so the
+   choice survives. All of it is matched src already in the slices, gate 22 for
+   this and gate 10 for the rest.
+
+   THIS WRAPPER EXISTS ONLY FOR THE CALLING CONVENTION. The Itanium name is
+   /alternatename'd onto ?SetRealCharacter@Player@@QAEXI@Z, which is
+   __thiscall, so calling it through the C name from a TU without Player.h
+   passes `this` on the stack and leaves ecx holding whatever was there. That
+   is the garbage-ecx trap the port has already been bitten by three times.
+   Here the real header is in scope and the call is an ordinary method call. */
+extern "C" { extern void *data_ov002_020ff480[]; }
+
+/* THE LEGACY SWAP: rebuild the whole Player by re-running InitResources with a
+   rewritten spawn param. It works, but it is a COLD restart -- InitResources
+   re-runs func_ov002_020e5948 (the model/anim resource init), re-seats the
+   collision, and re-places the Player at the entrance, so the animation system
+   comes back at frame 0 and the Player stands frozen for a second or two while
+   it settles. That freeze is the whole reason for the door path below. Kept
+   behind SM64DS_SWAP_LEGACY=1 as a fallback while the door path proves out.
+
+   The param's layout is InitResources' own unpacking, read back out of the
+   fields it wrote: bits 0-2 character, 3-5 the sub value at +0x6da, 6-7 the
+   entrance index at +0x6d8. Bits 8+ feed func_ov002_020c7dd0's entrance type,
+   which a mid-level swap has no business re-running, so they go in as 0.
+   Position, angle and speed are carried across because InitResources places the
+   Player at the entrance and the point is to change who you are, not where. */
+static void port_legacy_set_character(void *player, unsigned ch)
+{
+    char *c = (char *)player;
+    int pos[3], spd[4];
+    short ang;
+    unsigned param;
+
+    ch &= 3;
+    pos[0] = *(int *)(c + 0x5c);
+    pos[1] = *(int *)(c + 0x60);
+    pos[2] = *(int *)(c + 0x64);
+    ang = *(short *)(c + 0x8e);
+    spd[0] = *(int *)(c + 0x98);
+    spd[1] = *(int *)(c + 0xa4);
+    spd[2] = *(int *)(c + 0xa8);
+    spd[3] = *(int *)(c + 0xac);
+
+    /* run pal16: THE TWO-BIT FIELD, AND THE TRUE SLOT CARRIED ACROSS IT.
+       mPlayerNo is a whole byte and the port writes the TRUE slot into it
+       (hal/level_boot.cpp), but the flag word's slot field is bits 6-7 and
+       nothing else. Shifting a raw mPlayerNo in here was wrong twice over for
+       a slot at or above four:
+
+         - `5 << 6` is 0x140, so bit 8 went in SET, and this function's own
+           note three paragraphs up promises bits 8+ go in as 0 because they
+           feed func_ov002_020c7dd0's entrance type, which a mid-level swap
+           has no business re-running. Masking is what makes that note true.
+         - InitResources then unpacked `(a >> 6) & 3` back into +0x6d8 and
+           recomputed the VS palette word at +0x61C from it, so a legacy swap
+           in slot 5 came back as player 1 wearing row 1. That is exactly the
+           defect run pal16 fixed at the spawn, reverted here.
+
+       THE PORT HAS THREE CALLERS OF InitResources AND THIS IS THE ONLY ONE
+       THAT NEEDED THIS. hal/level_boot.cpp's ps_init is the vtable slot, so it
+       runs INSIDE Actor::Spawn and is exactly what the spawn-side repair
+       already corrects on the way out. hal_player_init_resources just above is
+       the gate-10 smoke's direct entry, one Mario at slot 0 in a harness with
+       no VS and no second player, where this delta is zero by construction.
+       This one is the only place a LIVE player at an arbitrary slot is rebuilt
+       mid-level, which is why it is the only place the invariant could come
+       back wrong.
+
+       So the field is masked going in, and both halves of the identity are
+       put back afterwards -- the same delta the spawn uses, for the same
+       reason: one step of mPlayerNo is one sixteen-colour row. A slot 0..3
+       masks to itself and the repair is a no-op, which is every run of the
+       legacy path that has ever been taken. */
+    const unsigned true_slot = *(unsigned char *)(c + 0x6d8);
+    const unsigned packed_slot = true_slot & 3;
+
+    param = ch | ((unsigned)*(unsigned char *)(c + 0x6da) << 3) |
+            (packed_slot << 6);
+    *(int *)(c + 8) = (int)param;
+    *(unsigned char *)(c + 0x6d9) = (unsigned char)ch;
+
+    _ZN6Player13InitResourcesEv(c);
+
+    if (true_slot != packed_slot) {
+        *(int *)(c + 0x61c) += ((int)true_slot - (int)packed_slot) << 1;
+        *(unsigned char *)(c + 0x6d8) = (unsigned char)true_slot;
+    }
+
+    *(int *)(c + 0x5c) = pos[0];
+    *(int *)(c + 0x60) = pos[1];
+    *(int *)(c + 0x64) = pos[2];
+    *(short *)(c + 0x8e) = ang;
+    *(int *)(c + 0x98) = spd[0];
+    *(int *)(c + 0xa4) = spd[1];
+    *(int *)(c + 0xa8) = spd[2];
+    *(int *)(c + 0xac) = spd[3];
+}
+
+/* CHANGE CHARACTER ON THE SPOT. Every entry point in the port -- F4, the debug
+   menu row, SM64DS_SWITCH, SM64DS_SELFTEST_SWAP -- comes through here, so the
+   default swap path is chosen in one place.
+
+   THE DEFAULT IS NOW THE DOOR PATH (port_door_swap). It is the game's own
+   in-place change: it loads the incoming character's files through
+   data_ov002_020ff480 and arms the hat morph engine (func_ov002_020be3b0, which
+   Player::Behavior already ticks every frame) BEFORE it moves param1, then
+   cancels the morph so the change is instant. The model, the animation cursor,
+   the current state and the position all carry across, so there is no cold
+   restart and no stand-freeze -- which is the whole point of preferring it.
+
+   The old worry was that the door path could not do Yoshi, because
+   SetRealCharacter arms the CAP morph and there is no Yoshi cap, leaving a
+   zero-length Animation that divides by zero on the next Advance. port_door_swap
+   already closes that: after SetRealCharacter it does the hat morph's own
+   stage-3 ModelAnim::Copy with dst != src, carrying the live cursor and frame
+   count off the outgoing character onto the incoming one, so the new body has a
+   playable animation whether or not a cap was involved.
+
+   SM64DS_SWAP_LEGACY=1 forces the old InitResources rebuild for an A/B. */
+extern "C" void port_player_set_character(void *player, unsigned ch)
+{
+    static int legacy = -1;
+    if (legacy < 0) legacy = std::getenv("SM64DS_SWAP_LEGACY") ? 1 : 0;
+    if (legacy) { port_legacy_set_character(player, (int)(ch & 3)); return; }
+
+    int rc = port_door_swap((char *)player, (int)(ch & 3));
+    /* the door path can decline (no player, already that character); the codes
+       are informational, but on an outright "no player" fall back to the legacy
+       rebuild rather than leaving the caller with nothing happening. */
+    if (rc == 1)
+        port_legacy_set_character(player, (int)(ch & 3));
+}
+
+/* ---- SM64DS_VS_CHARS: the lobby's per-slot character pick, applied post-boot -
+ *
+ * THE GAME SIDE of VS character selection. In VS the spawn loop forces every
+ * player to Yoshi -- mCharacter = 3 into every slot's spawn param, the force in
+ * the frozen src/_Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij.cpp.
+ * This reads a per-slot pick the lobby assigns and, once the world is seated,
+ * swaps each chosen slot to its character through the game's OWN in-place door
+ * path (port_player_set_character -> SetRealCharacter) -- the exact swap the
+ * vs-nonyoshi spike (status/VSNONYOSHI.md) proved loads, renders and plays in a
+ * VS arena, per slot, with no fault: func_ov002_020e5948 seats all four
+ * characters' body+head archives unconditionally in VS, so nothing needs a
+ * non-Yoshi file seated at boot.
+ *
+ * THE FORMAT mirrors SM64DS_VS_NAMES / SM64DS_VS_COLORS (hal/star_flow.cpp,
+ * hal/fs_mods.cpp): comma-separated fields in SLOT order, EXACTLY 3 commas
+ * (four fields, a narrow session) OR EXACTLY 15 commas (sixteen, a wide one),
+ * nothing between. Each field is ONE of:
+ *     empty  -> that slot keeps its Yoshi default (no swap)
+ *     '0'    -> Yoshi, the default (no swap)
+ *     '1' Mario     '2' Luigi     '3' Wario
+ * so "1,2,3,0" is Mario / Luigi / Wario / Yoshi in slots 0..3 and slot 3 is
+ * left untouched. The env value is NOT the engine's own character index: 0 is
+ * Yoshi so "leave it at the VS default" is the natural zero, and 1..3 are the
+ * three non-Yoshi bodies, mapped to the engine's 0..2 (Mario/Luigi/Wario) when
+ * the swap is applied.
+ *
+ * IGNORED WHOLESALE ON ANY VIOLATION, the contract names/colours keep: a
+ * malformed variable is dropped, not partly salvaged, and every slot stays
+ * Yoshi. ABSENT is the common case and silent -- with no SM64DS_VS_CHARS this
+ * loads nothing and swaps nothing, so a VS match is byte-for-byte the all-Yoshi
+ * arena it is today.
+ *
+ * This is the seam the lobby character picker feeds: lobby -> plan ->
+ * SM64DS_VS_CHARS env -> this apply, the same shape as names and colours. */
+static int g_vs_chars[kPortMaxPlayers];   /* engine char 0..2, or -1 = no swap */
+static int g_vs_chars_read;
+static int g_vs_chars_fields;
+
+static void vs_chars_load(void)
+{
+    if (g_vs_chars_read)
+        return;
+    g_vs_chars_read = 1;
+    g_vs_chars_fields = kPortNarrowPlayers;
+    for (int i = 0; i < kPortMaxPlayers; ++i) g_vs_chars[i] = -1;
+
+    const char *e = std::getenv("SM64DS_VS_CHARS");
+    if (!e)
+        return;                          /* absent: the common case, silent */
+
+    const size_t len = std::strlen(e);
+    /* 16 x 1 + 15 = 31 at the wide shape, 7 at the narrow one; the comma count
+       below decides the shape, so the cap is the wide one. */
+    if (len < 1 || len > 31) {
+        std::fprintf(stderr, "[vs] SM64DS_VS_CHARS ignored: %u bytes, the "
+                "contract allows 1..7 (four fields) or 1..31 (sixteen)\n",
+                (unsigned)len);
+        return;
+    }
+    int commas = 0;
+    for (size_t i = 0; i < len; ++i)
+        if (e[i] == ',') ++commas;
+    int nf;
+    if (commas == kPortNarrowPlayers - 1) nf = kPortNarrowPlayers;
+    else if (commas == kPortMaxPlayers - 1) nf = kPortMaxPlayers;
+    else {
+        std::fprintf(stderr, "[vs] SM64DS_VS_CHARS ignored: %d comma(s), the "
+                "contract requires exactly 3 (four fields) or exactly 15 "
+                "(sixteen)\n", commas);
+        return;
+    }
+
+    int tmp[kPortMaxPlayers];
+    for (int i = 0; i < kPortMaxPlayers; ++i) tmp[i] = -1;
+    int slot = 0, w = 0;
+    for (size_t i = 0; i <= len; ++i) {
+        const char ch = (i < len) ? e[i] : ',';
+        if (ch == ',') { ++slot; w = 0; continue; }
+        ++w;
+        if (w > 1) {
+            std::fprintf(stderr, "[vs] SM64DS_VS_CHARS ignored: field %d is "
+                    "longer than one character\n", slot);
+            return;
+        }
+        if (ch < '0' || ch > '3') {
+            std::fprintf(stderr, "[vs] SM64DS_VS_CHARS ignored: field %d byte "
+                    "%02x is not one of 0..3 (0/blank Yoshi, 1 Mario, 2 Luigi, "
+                    "3 Wario)\n", slot, (unsigned char)ch);
+            return;
+        }
+        /* '0' is the default Yoshi = no swap; 1..3 map to engine 0..2 */
+        tmp[slot] = (ch == '0') ? -1 : (ch - '1');
+    }
+
+    g_vs_chars_fields = nf;
+    for (int i = 0; i < nf; ++i) g_vs_chars[i] = tmp[i];
+
+    static const char *const kName[3] = { "Mario", "Luigi", "Wario" };
+    std::fprintf(stderr, "[vs] SM64DS_VS_CHARS accepted, %d fields:", nf);
+    for (int i = 0; i < nf; ++i)
+        std::fprintf(stderr, " [%s]",
+                     g_vs_chars[i] < 0 ? "Yoshi" : kName[g_vs_chars[i]]);
+    std::fprintf(stderr, "\n");
+}
+
+/* Apply the SM64DS_VS_CHARS pick once the VS world is seated. Called every frame
+   from the walk loop beside the SM64DS_SWITCH probe; self-gates to VS mode, to
+   frame 90 (the point the spike's swap fires, past the level-entry no-control),
+   and to ONE shot -- not a per-frame write. Each slot whose pick differs from
+   Yoshi is swapped through the game's own door path; a Yoshi (or empty, or
+   absent) slot is never touched. Inert with no SM64DS_VS_CHARS, so the all-Yoshi
+   arena is byte-unchanged. Single-player and every non-VS boot are untouched
+   because data_0209f2d8 != 1 returns before anything is read. */
+extern "C" void port_vs_apply_chars(int frame)
+{
+    if (data_0209f2d8 != 1) return;      /* VS mode only */
+    static bool done = false;
+    if (frame != 90 || done) return;
+    done = true;
+    vs_chars_load();
+
+    static const char *const kName[3] = { "Mario", "Luigi", "Wario" };
+    for (int i = 0; i < g_vs_chars_fields && i < kPortMaxPlayers; ++i) {
+        const int chr = g_vs_chars[i];
+        if (chr < 0) continue;           /* Yoshi/empty: left as the default */
+        void *p = data_0209f394[i];
+        if (!p) continue;                /* slot has no body in this arena */
+        std::fprintf(stderr, "[vs] SM64DS_VS_CHARS slot %d -> %s\n", i,
+                     kName[chr]);
+        port_player_set_character(p, (unsigned)chr);
+    }
+}

@@ -1,0 +1,59 @@
+/* HOST COPY of src/game/actors/d_a_bakubaku.cpp -- BUBBA's chase gate (id 228, ov032,
+ * level 24). Run rel0215, lane cast-sweep2.
+ *
+ * WHY A HOST COPY: the r0-passthrough seam, the fifth instance of the shape
+ * port/unmatched/Actor_ClosestPlayer_OverlayReaders.cpp hosts four of. That
+ * file's LATENT registry names this exact TU -- "src/game/actors/d_a_bakubaku.cpp
+ * (ov032, calls ClosestPlayer() no arg)" -- as a bug that goes live the instant
+ * ov032 is hosted, which is what this lane does. port/tools/closestplayer_guard
+ * .py fails the build rather than letting it through, and it did.
+ *
+ * The matched src declares `extern char *_ZN8dActor_c13ClosestPlayerEv(void);` and
+ * calls it with no argument. That is byte-identical on ARM because
+ * Actor::ClosestPlayer reads `this` from r0 and the caller's r0 is still live
+ * across the `bl` -- ROM 0x02111350:
+ *     push {r4,lr} ; mov r4, r0 ; bl 0x02010ad8   <- r0 is still `this`
+ * On the host the definition is `(void *self)` cdecl, so a zero-argument call
+ * passes stack garbage and ClosestPlayer's Vec3_Dist((char *)self + 0x5c, ...)
+ * reads a garbage base -- the null-this +0x5c fault, the rabbit-crash class.
+ *
+ * THE FIX passes the body's own first parameter, which is exactly the value the
+ * ROM leaves in r0. Everything else is the matched source line for line; only
+ * the ClosestPlayer declaration (now one-arg) and its call site change.
+ *
+ * The matched src TU stays in src/ as the byte proof and is dropped from
+ * port/slice_sweep2_ov032.txt.
+ *
+ * What the gate answers: "keep chasing?" -- 1 (stop) if there is no player, if
+ * the WithMeshClsn at +0x190 is on a wall or on the ground, if the horizontal
+ * distance from the anchor at +0x40c exceeds 0x4b0000, or -- unless BUBBA is in
+ * the state cell at 0x02113abc -- if the water surface at data_0209f32c is below
+ * its own Y. The 0x40c anchor and the 0x4b0000 bound are read off the ROM's own
+ * literal pool at 0x021113f0 / the immediate at 0x021113a8.
+ *
+ * PORT_HOST_ABI: ARM r0 passthrough into a thiscall Actor::ClosestPlayer.
+ */
+#include "common.h"
+
+/* the real one-arg (this) shape, the same declaration the four copies in
+ * Actor_ClosestPlayer_OverlayReaders.cpp share */
+extern "C" void *_ZN8dActor_c13ClosestPlayerEv(void *self);
+
+extern "C" {
+int _ZNK10dBgCh_Actr8IsOnWallEv(void *self);
+int _ZNK10dBgCh_Actr10IsOnGroundEv(void *self);
+int Vec3_HorzDist(const struct Vector3 *a, const struct Vector3 *b);
+extern char data_ov032_02113abc[];
+extern char data_0209f32c[];
+
+/* PORT_HOST_ABI: ARM r0 passthrough into a thiscall Actor::ClosestPlayer. */
+/* func_ov032_02111350 RETIRED (run link100, lane SEAT6, batch B6).
+   The r0 passthrough into a thiscall Actor::ClosestPlayer is one
+   declaration and one argument, not a body.
+   The matched TU src/func_ov032_02111350.c is seated in its place: port/tools/hostgen.py's REG_RIDE_ARG table gives the declaration its
+   receiver and the call site the body's own `c`.
+   port/tools/closestplayer_guard.py still refuses the RAW source in any
+   slice line, and is right to: the raw source is not what is compiled.
+   Per-row ROM evidence (referrer, RTTI name, kind:function record, the
+   dispatch instruction read at its own address) is in port/slice_seat6.txt. */
+}

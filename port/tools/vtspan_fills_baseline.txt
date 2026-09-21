@@ -1,0 +1,200 @@
+# vtspan_fills_baseline.txt
+#
+# Host vtable FILL functions that `python port/tools/vtspan.py <root> --fills`
+# is allowed to leave a ROM slot unwritten in, plus the fills it cannot resolve
+# to a ROM table at all.
+#
+# --fills asks a different question from --sweep. --sweep asks whether the host
+# ARRAY is long enough; --fills asks whether the fill LOOP writes every slot
+# the ROM table has. An array of the right length whose fill skips slot 19
+# leaves a null there, and a dispatch of it is a call to address zero.
+#
+# WHY A BASELINE EXISTS AT ALL. Five fills are short on cons 3a5733c03 and two
+# more cannot be resolved. That is pre-existing debt, not a regression from the
+# checker landing, and a gate that is red the day it arrives is a gate somebody
+# switches off. So the rows below are frozen, a fill NOT in this list fails, and
+# the list may only shrink. run_checks.py reports the frozen count on every run
+# so the debt travels with the green.
+#
+# THE ROWS ARE NOT CLEARED, THEY ARE COUNTED. Nobody adjudicated them here.
+# Two of them (the dBgActor_c / Platform pair, and the curling table) skip
+# EVERY slot, which reads like a fill that seats only destructors while
+# something else fills the rest -- plausible, unverified, and exactly the sort
+# of thing this note exists to stop being forgotten.
+#
+# KEY: the fill function's name. Not the table, because one fill can seat
+# several tables and the fill is what would be edited to fix it.
+#
+# Frozen 2026-08-17, run link60 lane AB1, from:
+#     $ python port/tools/vtspan.py . --fills
+#     179 fills resolved to a ROM table
+#     5 FILLS LEAVE A SLOT UNWRITTEN
+#     2 fill(s) this scan could NOT resolve
+
+# --- leaves a ROM slot unwritten -------------------------------------------
+hal_seat_platform_dtors        # _ZTV10dBgActor_c and _ZTV10dBgActor_c, 32 slots each, writes only the dtor pair
+hal_fill_mri_projectile_vtable # _ZTV14MrI_Projectile, 31 slots, 12+ never written
+hal_fill_mri_vtable            # _ZTV3MrI, 31 slots, 12+ never written
+port_scene_fill_curling        # data_ov004_020bc0c0, 36 slots
+
+# --- could not be resolved to a ROM table: a GAP in the check, not a pass ---
+hal_fill_seaweed_vtable        # _ZTV13daObjWakame_c is a host-only name
+hal_fill_fall_block_lll_vtable # _ZTV20daObjFl_Fall_Block_c is a host-only name
+
+
+# --- ADJUDICATED FALSE RED: the address-keyed minigame scene fills -----------
+#
+# Appended 2026-08-24 by the run mg12 merge gate. Unlike the rows above, these
+# ARE adjudicated, and the adjudication is that vtspan cannot see what they do.
+#
+# THE SYMPTOM. `vtspan.py . --fills` reported all 29 as short, and it reported
+# them identically: every one resolves to the SAME ROM table, data_ov004_020bc0c0,
+# 36 slots, "never written: 0,1,2,3,..." with EVERY slot unwritten. Twenty-nine
+# independent defects do not present as one repeated line. One checker blind
+# spot hitting twenty-nine identical call sites does.
+#
+# THE MECHANISM, from the source rather than the naming. --fills looks for
+# INDEXED writes -- `vt[7] = ...` -- and counts the slot numbers it sees. These
+# fills do not write by slot number. Each one calls port_scene_mg_fill_shared()
+# or port_scene_fill_rom() and then its own applier (slot3_apply, snw_apply,
+# tti_apply, ...), and those key on the ROM WORD a slot holds, not on its
+# index. port/hal/scene_mg_slot3.cpp:46 says so in as many words, and the row
+# type is `struct S3Face { unsigned ds; void *host; }` -- `ds` is the DS
+# address. A fill that never names a slot number writes every slot it should
+# and shows the checker nothing. Verified mechanically over all 29: every one
+# reaches an address-keyed applier, none is missing.
+#
+# THE ONE THING THAT LOOKS LIKE AN INDEXED WRITE. 28 of the 29 do contain a
+# `vt[0] = ...` / `vt[9] = ...` pair. Those are the SM64DS_SCENE_SLOT0 and
+# SM64DS_SCENE_SLOT9 diagnostic overrides, env-gated off by default, and they
+# write the DERIVED table, not the data_ov004_020bc0c0 the report names. They
+# are not seating and they are not the reason for the red.
+#
+# WHY THIS IS NOT A REGRESSION. port_scene_fill_curling is already frozen above
+# with the identical note -- "data_ov004_020bc0c0, 36 slots" -- adjudicated at
+# link60. It is the same shape as these 29; it was simply the only one seated
+# when the baseline was cut. Run mg12's CRD lane proved the rest pre-existing by
+# rebuilding the check at the merge base with every mg12 lane file reverted and
+# getting the same red. The seats span runs mg5 to mg11, scenes 361-390 (374 is
+# curling, already above), so the gate has been red since long before this wave.
+#
+# WHY BASELINE THEM RATHER THAN LEAVE THE GATE RED. A gate that is red for a
+# reason nobody is acting on stops being read, and a NEW short fill -- a real
+# one, from a fill that does write by index and misses a slot -- would land
+# invisibly inside a 29-line red. Freezing the known class is what makes the
+# next one alarm. The list may only shrink: the real fix is teaching --fills to
+# follow an address-keyed applier, at which point these rows retire.
+#
+# PROVENANCE. Scene number and registry name are read from the
+# port_scene_classes[] table in port/hal/scene_boot.cpp. The commit is the one
+# that introduced the fill, found by `git log -G <name> -- port/hal`. The run
+# and lane tag is read from the registry's own nearest preceding comment, so
+# treat it as the seat's own label rather than an independently measured fact;
+# the commit hash is the measured half.
+#
+# Run mg15 lane MENU appends the THIRTY-SIXTH row, and it is the first that is
+# not a minigame: dScMiniGm_c is the MENU those thirty launch from, scene 5,
+# ov005. The class is EIGHTEEN slots (a direct Scene subclass) rather than the
+# 36-slot dScMgBase_c shape, so vtspan resolves it to its own ROM table and not
+# to data_ov004_020bc0c0 -- but the blind spot is identical and so is the
+# adjudication: hal/scene_mg_menu.cpp writes its seven own slots by index and
+# hands the other eleven to port_scene_fill_rom(), which keys on the ROM WORD.
+# --fills sees the seven and reports the eleven as never written.
+#
+# THIS ROW'S SEAT CARRIES ITS OWN RUNTIME PROOF, which the rows below do not.
+# port_scene_fill_rom returns the number of slots it left holding a raw DS
+# word, and the fill asserts it is exactly seven on every boot
+# (`if (left != 7) fprintf(...)`). That line has never fired: not in this
+# lane's runs, and not in the independent reviewer's six. So for this one row
+# the "vtspan cannot see it" claim is not just mechanical reasoning about the
+# checker, it is measured from the other side.
+port_scene_fill_mgm            # scene 5   menu         seated mg15 lane MENU, commit fa6507a3c
+port_scene_fill_cup            # scene 361 cup          seated mg9 lane CUP, commit 61d53e3e4
+port_scene_fill_memory1        # scene 362 memory1      seated mg9 lane MMT, commit 004ca2bf7
+port_scene_fill_memory2        # scene 363 memory2      seated mg6 lane MEM, commit 4992799c9
+port_scene_fill_slot1          # scene 364 slot1        seated mg9 lane S364, commit a4eee93d9
+port_scene_fill_slot3          # scene 365 slot3        seated mg11 lane MUG, commit 9ecc373a9
+port_scene_fill_luigi          # scene 366 luigi        seated mg5 lane LUI, commit 121dd980f
+port_scene_fill_boombox        # scene 367 boombox      seated mg9 lane BOX, commit 8e9f94bda
+port_scene_fill_pachinko       # scene 368 pachinko     seated mg5 lane LUI, commit 16aa08f88
+port_scene_fill_pachinko2      # scene 369 pachinko2    seated mg6 lane LKT, commit c4574edd2
+port_scene_fill_bomroom        # scene 370 bomroom      seated mg6 lane SOS, commit afa1bdd3d
+port_scene_fill_amida          # scene 371 amida        seated mg9 lane S371, commit 66e35f0a3
+port_scene_fill_jump           # scene 372 jump         seated mg11 lane BNP, commit 66d5e6249
+port_scene_fill_jump2          # scene 373 jump2        seated mg11 lane BNT, commit 6dbaa8170
+port_scene_fill_curling2       # scene 375 curling2     seated mg6 lane S75, commit ebfb84eb1
+port_scene_fill_smartball      # scene 376 smartball    seated mg5 lane LUI, commit 55951b1f8
+port_scene_fill_snowball       # scene 377 snowball     seated mg11 lane SNW, commit e57eadb44
+port_scene_fill_coin           # scene 378 coin         seated mg5 lane CCN, commit 51dc94331
+port_scene_fill_card           # scene 379 card         seated mg11 lane PKR, commit bb63faa76
+port_scene_fill_panel          # scene 380 panel        seated mg6 lane S75, commit 918b3541b
+port_scene_fill_mcarlo         # scene 381 mcarlo       seated mg9 lane S381, commit 48b8d319d
+port_scene_fill_mcarlo2        # scene 382 mcarlo2      seated mg11 lane PGO, commit 6d2564540
+port_scene_fill_roulette       # scene 383 roulette     seated mg11 lane RLT, commit f9c548fc9
+port_scene_fill_trampoline     # scene 384 trampoline   seated mg11 lane TTI, commit 1dd84bfbd
+port_scene_fill_trampoline2    # scene 385 trampoline2  seated mg11 lane TTE, commit c245ddaa1
+port_scene_fill_wiggler        # scene 386 wiggler      seated mg9 lane WIG, commit f77cfbd2a
+port_scene_fill_booseek        # scene 387 booseek      seated mg9 lane WIG, commit f67de7d1d
+port_scene_fill_luckystars     # scene 388 luckystars   seated mg9 lane LKY, commit 035242666
+port_scene_fill_esp3d          # scene 389 esp3d        seated mg9 lane PSY, commit ae320216b
+port_scene_fill_flower         # scene 390 flower       seated mg5 lane CCN, commit 01020361a
+
+
+# --- THE THIRTY-SEVENTH ROW, AND IT CARRIES A SECOND FINDING ----------------
+#
+# Appended 2026-08-30 by run rel0215 lane prop15. port_scene_fill_vs is scene
+# 6, dScEntry_c, ov075 -- the VS / wireless entry menu, seated by run vs1 lane
+# VS-WIRING. It is the MENU row's shape exactly: a direct Scene subclass whose
+# seat (hal/scene_vs_menu.cpp) writes its eight own slots by index and hands
+# the other ten to port_scene_fill_rom(), which keys on the ROM WORD. --fills
+# sees the eight and reports slots 2/4/5/7/8/10/11/13/14/15 as never written.
+# Like the MENU row it carries its own runtime proof from the other side:
+# port_scene_fill_rom's leftover count is asserted at exactly eight on every
+# boot (`if (left != 8) fprintf(...)`), and that line has not fired.
+#
+# THE SECOND FINDING IS SLOT 18, AND IT IS vtspan's, NOT THE SEAT's. --fills
+# also lists 18, and that one is NOT the address-keyed blind spot: the fill
+# spans 18 slots (0..17) and never reaches an index 18 at all. vtspan sizes
+# data_ov075_0211d304 at NINETEEN. The ROM says eighteen, and the seat is
+# right to stop where it stops. Measured here from
+# extracted/overlays/overlay_0075.bin at the delinks base 0x02113ee0, and
+# cross-read against config/arm9/overlays/ov075/relocs.txt:
+#
+#   0x0211d304 .. 0x0211d348   18 consecutive relocated code words. The table.
+#   0x0211d34c -> 0x0211b1cc   0x0211d350 = 0x00000000 (no reloc)
+#   0x0211d354 -> 0x0211b260   0x0211d358 = 0x00000000 (no reloc)
+#   0x0211d35c -> 0x0211afb0   0x0211d360 = 0x00000000 (no reloc)
+#   0x0211d364 onward          zero
+#
+# Three {function, 0} pairs at 8-byte stride with a literal zero partner on
+# every one, and dsd names data_ov075_0211d34c and data_ov075_0211d354 at that
+# same 8-byte stride. That is vtspan's OWN documented pointer-to-member
+# signature, both of pmf_pairs_at()'s structural tells, and slice_vs.txt
+# section 1 called it a pair run when the seat was built. The corroboration is
+# the count: slice_vs.txt's "THE THREE PMF DISPATCH SITES are OUT of the slice"
+# block (the unnumbered one near the manifest's end) names THREE of them in this
+# scene, and there are exactly three pairs. func_ov075_0211afb0 -- the third
+# pair's target, and one of the two faces this seat still carries -- has NO
+# arm_call anywhere in the config: its only two references are this pair word
+# and an ov006 data load at the shared window. It is dispatched THROUGH the
+# pair and nothing else, and it is entered every frame (299 face hits over a
+# 300-frame scene-6 run), which is the run-time half of the same claim.
+#
+# WHY vtspan MISSES IT, stated so the next reader does not re-derive it:
+# span()'s run only consults a terminator once n >= 31, and routes() only asks
+# pmf_pairs_at() at slots 31 and 32. Both are right for an Actor-shaped table,
+# where the pair run can only start past Actor's own virtual list. A direct
+# Scene subclass is eighteen slots, so ITS pair run starts at 18, far below
+# where either terminator is armed, and the raw run walks into the first pair
+# and stops on its zero partner at 19. vtspan's own symbol-bound route already
+# answers 18 here and is overruled by the run.
+#
+# NOT FIXED IN vtspan, DELIBERATELY, and this is the honest half. Arming
+# pmf_pairs_at() below slot 31 would change widths for every table in the tree
+# at once, under the sweep baseline and 212 other fills, and this lane owns
+# neither. The narrow claim is what is banked: THIS table is 18, the seat is
+# correct, and a fill written to 19 would overwrite the first PMF pair's
+# function word with a host thunk -- an actively wrong "fix" that vtspan would
+# have called green. Whoever arms the checker below 31 retires this paragraph
+# and should expect other Scene-shaped tables to move by one the same way.
+port_scene_fill_vs             # scene 6   VS entry menu  seated vs1 lane VS-WIRING; slot 18 is the PMF pair run, see above
