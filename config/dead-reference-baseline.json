@@ -106,10 +106,6 @@
    "ref": "src/FortressWall_Spawn.c"
   },
   {
-   "file": "notes/bgobject-provenance.md",
-   "ref": "src/func_ov025_02111898.c"
-  },
-  {
    "file": "notes/collision-query-classes.md",
    "ref": "notes/drafts-sphereclsn-detectclsn.cpp"
   },
@@ -120,10 +116,6 @@
   {
    "file": "notes/collision-system.md",
    "ref": "notes/drafts-sphereclsn-detectclsn.cpp"
-  },
-  {
-   "file": "notes/collision-system.md",
-   "ref": "port/unmatched/MeshCollider_DetectClsn_Sphere.cpp"
   },
   {
    "file": "notes/declaration-centralization.md",
@@ -234,18 +226,6 @@
    "ref": "src/_ZN9ActorBaseC1Ev.cpp"
   },
   {
-   "file": "notes/port-selftest-bmp-gate.md",
-   "ref": "port/hal/host_settings.cpp"
-  },
-  {
-   "file": "notes/port-selftest-bmp-gate.md",
-   "ref": "port/ov009_syms.txt"
-  },
-  {
-   "file": "notes/port-selftest-bmp-gate.md",
-   "ref": "port/tools/battery.py"
-  },
-  {
    "file": "notes/research-matching-levers.md",
    "ref": "src/randomizer.py"
   },
@@ -256,10 +236,6 @@
   {
    "file": "notes/rom-build.md",
    "ref": "src/config"
-  },
-  {
-   "file": "notes/rom-build.md",
-   "ref": "src/func_ov013_021112a8.c"
   },
   {
    "file": "notes/rom-build.md",
@@ -331,35 +307,7 @@
   },
   {
    "file": "port/docs/mmio-inventory.md",
-   "ref": "port/salvage-port-repo-tools"
-  },
-  {
-   "file": "port/docs/mmio-inventory.md",
-   "ref": "port/tools/mmio_inventory.py"
-  },
-  {
-   "file": "port/docs/mmio-inventory.md",
-   "ref": "src/_ZN4cstd11fdiv_resultEv.c"
-  },
-  {
-   "file": "port/docs/mmio-inventory.md",
-   "ref": "src/_ZN4cstd11ldiv_resultEv.c"
-  },
-  {
-   "file": "port/docs/mmio-inventory.md",
-   "ref": "src/_ZN4cstd3divEii.c"
-  },
-  {
-   "file": "port/docs/mmio-inventory.md",
-   "ref": "src/_ZN4cstd3modEii.c"
-  },
-  {
-   "file": "port/docs/mmio-inventory.md",
-   "ref": "src/_ZN4cstd4ldivEii.c"
-  },
-  {
-   "file": "port/docs/mmio-inventory.md",
-   "ref": "src/_ZN4cstd4sqrtEy.c"
+   "ref": "tools/mmio_inventory.py"
   },
   {
    "file": "port/docs/opie-assessment.md",
@@ -375,19 +323,15 @@
   },
   {
    "file": "port/docs/opie-assessment.md",
-   "ref": "port/salvage-port-repo-tools"
-  },
-  {
-   "file": "port/docs/opie-assessment.md",
-   "ref": "port/tools/mmio_inventory.py"
-  },
-  {
-   "file": "port/docs/opie-assessment.md",
-   "ref": "src/func_02034da4.c"
+   "ref": "notes/nds-software-stack.md"
   },
   {
    "file": "port/docs/opie-assessment.md",
    "ref": "src/port"
+  },
+  {
+   "file": "port/docs/opie-assessment.md",
+   "ref": "tools/mmio_inventory.py"
   },
   {
    "file": "tools/chaos_db_ci.py",
@@ -408,14 +352,6 @@
   {
    "file": "tools/chaos_db_ci.py",
    "ref": "src/x.c"
-  },
-  {
-   "file": "tools/check_dead_references.py",
-   "ref": "src/f.c"
-  },
-  {
-   "file": "tools/check_dead_references.py",
-   "ref": "src/game/mario.c"
   },
   {
    "file": "tools/check_dead_references.py",
