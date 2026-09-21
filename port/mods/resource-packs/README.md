@@ -4,6 +4,9 @@ Each enabled subdirectory contains a `pack.lua`. Prefix the directory with
 `off_` to disable it. Lua is deliberately declarative: it registers native
 SM64DS resources and metadata, but cannot access the filesystem, network,
 process, debug library, game memory, or arbitrary native code.
+Each manifest is also capped at 1 MiB, 1,000,000 VM instructions, and 16 MiB
+of Lua-managed memory, so a broken pack cannot hang startup or consume memory
+without limit.
 
 ```lua
 sm64ds.character {
