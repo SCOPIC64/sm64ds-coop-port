@@ -26,6 +26,28 @@ struct LoadContext {
     std::vector<TextureReplacement> textures;
 };
 
+struct LuaMemory {
+    size_t used = 0;
+    size_t limit = 16 * 1024 * 1024;
+};
+
+void *limited_alloc(void *user, void *ptr, size_t old_size, size_t new_size)
+{
+    LuaMemory *memory = static_cast<LuaMemory *>(user);
+    if (!new_size) {
+        std::free(ptr);
+        memory->used = old_size > memory->used ? 0 : memory->used - old_size;
+        return nullptr;
+    }
+    if (new_size > old_size && new_size - old_size > memory->limit - memory->used)
+        return nullptr;
+    void *next = std::realloc(ptr, new_size);
+    if (!next) return nullptr;
+    memory->used = new_size >= old_size ? memory->used + new_size - old_size
+                                        : memory->used - (old_size - new_size);
+    return next;
+}
+
 LoadContext *context(lua_State *L)
 {
     return static_cast<LoadContext *>(lua_touserdata(L, lua_upvalueindex(1)));
@@ -207,7 +229,8 @@ bool load_pack(const fs::path &directory, std::string &error)
         return false;
     }
     LoadContext ctx{directory, directory.filename().string()};
-    lua_State *L = luaL_newstate();
+    LuaMemory memory;
+    lua_State *L = lua_newstate(limited_alloc, &memory);
     if (!L) { error = ctx.id + ": cannot create Lua state"; return false; }
     open_sandbox(L);
     register_api(L, &ctx);
