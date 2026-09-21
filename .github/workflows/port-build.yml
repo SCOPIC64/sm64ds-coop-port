@@ -136,6 +136,8 @@ jobs:
       # catalog up front, before it configures anything.)
       - name: Configure
         shell: cmd
+        env:
+          SM64DS_LINK_ONLY: "1"
         run: |
           set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
           if not exist "%VSWHERE%" (echo ERROR: vswhere.exe not found 1>&2 & exit /b 1)
@@ -145,7 +147,7 @@ jobs:
           rem Redirection first: `echo VAR=%X%>>file` can bind a trailing char to the >.
           >>"%GITHUB_ENV%" echo VSINSTALL=%VSINSTALL%
           call "%VSINSTALL%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
-          cmake -S port -B build\portci -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake -S port -B build\portci -G Ninja -DCMAKE_BUILD_TYPE=Release -DPORT_LINK_ONLY=ON -DBUILD_TESTING=OFF
 
       # Each `shell: cmd` step is its own process, so vcvars32 has to be re-applied;
       # only the discovery is carried over, through GITHUB_ENV.
@@ -155,6 +157,8 @@ jobs:
       # change that breaks three targets reads as a change that breaks one.
       - name: Link the ROM-free targets
         shell: cmd
+        env:
+          SM64DS_LINK_ONLY: "1"
         run: |
           call "%VSINSTALL%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
           cmake --build build\portci --target smoke smoke_gx smoke_heap smoke_roots smoke_fs -- -k 0

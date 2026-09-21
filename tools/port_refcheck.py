@@ -343,6 +343,22 @@ def _cmake_write_targets(name, args, variables, helpers, active=()):
         outputs = [words[i + 1] for i, word in enumerate(words[:-1])
                    if word in ('RESULT_VARIABLE', 'RESULTS_VARIABLE',
                                'OUTPUT_VARIABLE', 'ERROR_VARIABLE')]
+    elif name == 'cmake_parse_arguments':
+        # The standard signature writes <prefix>_<keyword> for every option,
+        # one-value and multi-value keyword, plus CMake's two diagnostic
+        # variables. Model only those writes: the argument values themselves
+        # cannot select a different output variable.
+        if len(words) < 4 or not re.fullmatch(r'\w+', words[0]):
+            return None
+        prefix = words[0]
+        keywords = []
+        for group in words[1:4]:
+            keywords.extend(word for word in group.split(';') if word)
+        if any(not re.fullmatch(r'\w+', word) for word in keywords):
+            return None
+        outputs = [f'{prefix}_{word}' for word in keywords]
+        outputs.extend((f'{prefix}_UNPARSED_ARGUMENTS',
+                        f'{prefix}_KEYWORDS_MISSING_VALUES'))
     elif name in ('include', 'find_package', 'cmake_language'):
         return None  # arbitrary included/evaluated code can write any variable
     elif name not in {
@@ -359,9 +375,21 @@ def _cmake_write_targets(name, args, variables, helpers, active=()):
             'link_directories', 'link_libraries', 'set_property',
             'set_target_properties', 'set_source_files_properties'}:
         raise ValueError('unsupported CMake command cannot prove source selection: ' + name)
-    if any(not re.fullmatch(r'\w+', key) for key in outputs):
-        return None
-    return set(outputs)
+    writes = set()
+    for key in outputs:
+        if re.fullmatch(r'\w+', key):
+            writes.add(key)
+            continue
+        # A patterned destination such as PORT_HOSTGEN_TU_ROW_${name}
+        # cannot overwrite unrelated variables. Invalidate every currently
+        # known variable that it could name. A wholly dynamic destination
+        # still fails closed because it can collide with anything.
+        pieces = re.split(r'\$\{\w+\}', key)
+        if len(pieces) == 1 or not any(pieces):
+            return None
+        pattern = '^' + r'\w*'.join(re.escape(piece) for piece in pieces) + '$'
+        writes.update(name for name in variables if re.fullmatch(pattern, name))
+    return writes
 
 
 def _invalidate_cmake_writes(name, args, variables, helpers):
@@ -860,14 +888,25 @@ def _generated_data_owners(requests):
             if not path.is_relative_to(PORT.resolve()) or not path.is_file():
                 continue
             symbols = _data_symbols("arm9/overlays/" + module)
+            symbol_addrs = set(symbols.values())
             for line in path.read_text(encoding="utf-8").splitlines():
                 if line.lstrip().startswith("#"):
                     continue
                 for entry in line.split():
                     if entry == "--pack":
                         continue
-                    name, _, size = entry.partition(":")
-                    if name not in symbols or not valid_size(size):
+                    name_at, _, size = entry.partition(":")
+                    name, at, pin_s = name_at.partition("@")
+                    pin = None
+                    if at:
+                        if not re.fullmatch(r"0x[0-9a-fA-F]+", pin_s):
+                            valid = False
+                            break
+                        pin = int(pin_s, 16)
+                    if ((pin is not None and not IDENT_FULL_RE.fullmatch(name))
+                            or (pin is None and name not in symbols)
+                            or (pin is not None and pin not in symbol_addrs)
+                            or not valid_size(size)):
                         valid = False
                         break
                     provided.add(name)
@@ -1054,6 +1093,7 @@ def _host_c_definitions(text, pragma_macros=(), defined_macros=()):
               for m in CPP_TOKEN_RE.finditer("".join(lines))
               if m.group() not in pragma_macros]
     owners = {}
+    c_declarations = set()
     remapped = set(defined_macros) | _defined_macro_names([text])
 
     def close_group(i, end):
@@ -1075,7 +1115,10 @@ def _host_c_definitions(text, pragma_macros=(), defined_macros=()):
         single_linkage = values[:2] == ["extern", '"C"']
         if single_linkage:
             decl, values = decl[2:], values[2:]
-        if not (c_linkage or single_linkage) or not values:
+        inherited_linkage = body and any(
+            IDENT_FULL_RE.fullmatch(value) and value in c_declarations
+            for value in values)
+        if not (c_linkage or single_linkage or inherited_linkage) or not values:
             return
         if any(v in values for v in ("static", "typedef", "using", "namespace", "class", "struct", "union", ":")):
             return
@@ -1117,6 +1160,8 @@ def _host_c_definitions(text, pragma_macros=(), defined_macros=()):
                         continue
                     if body:
                         owners[value] = tok.pos
+                    else:
+                        c_declarations.add(value)
                 elif not body and following in ("[", "=", ",", ";"):
                     # An unknown typedef or macro might hide const/internal
                     # storage. Accept fundamental types/pointers/arrays only;
