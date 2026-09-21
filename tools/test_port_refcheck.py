@@ -77,6 +77,17 @@ set(OTHER "set(FAKE_SYMS invented)")
         self.assertEqual(count, 1)
         self.assertEqual(len(failures), 1)
 
+    def test_cmake_parse_arguments_inside_helper_is_modelled(self):
+        count, failures = self.cmake('''
+function(add_extra_sources target)
+    cmake_parse_arguments(PARSE "OPTIONAL" "OWNER" "SRC" ${ARGN})
+    target_sources(${target} PRIVATE ${PARSE_SRC})
+endfunction()
+set(X_SYMS real)
+add_extra_sources(smoke SRC extra.cpp)
+''', ('real',))
+        self.assertEqual((count, failures), (1, []))
+
     def test_host_definitions_resolve_cross_file_reference(self):
         self.write(self.port / "hal" / "sections.h",
                    '#define DSSTATE_BEGIN __pragma(data_seg("sample"))\n'

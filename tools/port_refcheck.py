@@ -343,6 +343,22 @@ def _cmake_write_targets(name, args, variables, helpers, active=()):
         outputs = [words[i + 1] for i, word in enumerate(words[:-1])
                    if word in ('RESULT_VARIABLE', 'RESULTS_VARIABLE',
                                'OUTPUT_VARIABLE', 'ERROR_VARIABLE')]
+    elif name == 'cmake_parse_arguments':
+        # The standard signature writes <prefix>_<keyword> for every option,
+        # one-value and multi-value keyword, plus CMake's two diagnostic
+        # variables. Model only those writes: the argument values themselves
+        # cannot select a different output variable.
+        if len(words) < 4 or not re.fullmatch(r'\w+', words[0]):
+            return None
+        prefix = words[0]
+        keywords = []
+        for group in words[1:4]:
+            keywords.extend(word for word in group.split(';') if word)
+        if any(not re.fullmatch(r'\w+', word) for word in keywords):
+            return None
+        outputs = [f'{prefix}_{word}' for word in keywords]
+        outputs.extend((f'{prefix}_UNPARSED_ARGUMENTS',
+                        f'{prefix}_KEYWORDS_MISSING_VALUES'))
     elif name in ('include', 'find_package', 'cmake_language'):
         return None  # arbitrary included/evaluated code can write any variable
     elif name not in {
