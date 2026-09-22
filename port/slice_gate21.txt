@@ -35,7 +35,7 @@
 # this-adjustment arithmetic itself, so MSVC's pointer-to-member
 # representation never comes into it -- the rabbit's case. Only the eight
 # statics need seating, and that is in hal/actor_overlays.cpp with the rest.
-src/Butterfly_Spawn.c
+src/d_a_btfly.c
 src/_ZN9Butterfly13InitResourcesEv.cpp
 src/_ZN9Butterfly8BehaviorEv.cpp
 # _ZN9Butterfly6RenderEv IS NOT HERE: it dispatches ModelAnim slot 5
@@ -44,17 +44,17 @@ src/_ZN9Butterfly8BehaviorEv.cpp
 # Virtual18, which takes two arguments where the shadow passes one. Host
 # copy in port/unmatched/ModelAnim_Renders.cpp; measured as a c0000005 in
 # Model::Virtual10 before it was one.
-src/_ZN9Butterfly16CleanupResourcesEv.c
-src/_ZN9Butterfly16OnPendingDestroyEv.c
+src/_ZN9Butterfly16CleanupResourcesEv.cpp
+src/_ZN9Butterfly16OnPendingDestroyEv.cpp
 # the eight states, all matched -- no hole and no trap
-src/func_ov100_0214109c.cpp
-src/func_ov100_0214117c.cpp
-src/func_ov100_021412d8.c
-src/func_ov100_02140e44.cpp
-src/func_ov100_02141470.c
-src/func_ov100_021415bc.c
-src/func_ov100_02141800.cpp
-src/func_ov100_02141848.c
+#MISSING(upstream-folded): src/func_ov100_0214109c.cpp
+#MISSING(upstream-folded): src/func_ov100_0214117c.cpp
+#MISSING(upstream-folded): src/func_ov100_021412d8.c
+#MISSING(upstream-folded): src/func_ov100_02140e44.cpp
+#MISSING(upstream-folded): src/func_ov100_02141470.c
+#MISSING(upstream-folded): src/func_ov100_021415bc.c
+#MISSING(upstream-folded): src/func_ov100_02141800.cpp
+#MISSING(upstream-folded): src/func_ov100_02141848.c
 
 # ---- FISH (actor 344, ov100) x2 -------------------------------------------
 # The two shoals in the moat. Seven states, and the class is bound to a PARENT
@@ -68,11 +68,11 @@ src/func_ov100_02141848.c
 # case for the fifth time, so MSVC would quadruple the stride. Host copy plus
 # the seven-static seat in port/unmatched/Fish_Behavior.cpp. All seven states
 # are matched src, so that file carries no trap.
-src/Fish_Spawn.cpp
+src/d_a_fish.cpp
 src/_ZN4Fish13InitResourcesEv.cpp
 # _ZN4Fish6RenderEv IS NOT HERE either, the same ModelAnim slot-5 case.
 src/_ZN4Fish16CleanupResourcesEv.cpp
-src/_ZN4Fish16OnPendingDestroyEv.c
+#DUP(first in slice_gate16): src/_ZN4Fish16OnPendingDestroyEv.cpp
 # the seven states, all matched
 src/func_ov100_021463b0.cpp
 src/func_ov100_02146468.c
@@ -91,7 +91,7 @@ src/__sinit_ov100_021473bc.c
 src/__sinit_ov100_021474e8.c
 src/__sinit_ov100_021475a4.c
 src/__sinit_ov100_02147698.c
-src/__sinit_ov100_02147a70.c
+#MISSING(upstream-folded): src/__sinit_ov100_02147a70.c
 src/__sinit_ov100_02147bc0.c
 src/__sinit_ov100_02147d7c.c
 
@@ -104,14 +104,15 @@ src/func_ov100_0214629c.cpp
 # Two arm9 bodies no class the port carried before now needed: the butterfly
 # asks its own animation how long it is, and one of its states poofs.
 src/_ZNK9Animation13GetFrameCountEv.cpp
-src/_ZN5Actor14TriplePoofDustEv.c
+#MISSING(upstream-folded): src/_ZN5Actor14TriplePoofDustEv.c
 
 # --- linkloop round 1 ---
-src/_ZN5Actor16TriplePoofDustAtERK7Vector3.c
+#MISSING(upstream-folded): src/_ZN5Actor16TriplePoofDustAtERK7Vector3.c
 
 # --- linkloop round 2 ---
 # The butterfly's D1 teardown chain (hal/actor_classes.cpp hosts slot 16 for
 # the three classes that die once woken): the +0x394 member's own D1 and the
 # MovingCylinderClsn D2 it chains to. Aliases in hal/cxx_aliases.cpp.
-src/_ZN25MovingCylinderClsnWithPosD1Ev.c
-src/_ZN18MovingCylinderClsnD2Ev.c
+#MISSING(upstream-folded): src/_ZN25MovingCylinderClsnWithPosD1Ev.c
+#MISSING(upstream-folded): src/_ZN18MovingCylinderClsnD2Ev.c
+src/game/actors/d_a_obj_waterfall.cpp

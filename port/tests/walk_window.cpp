@@ -290,10 +290,10 @@ void __sinit_ov002_02107298(void); void __sinit_ov002_02107304(void);
 void __sinit_ov002_02107370(void); void __sinit_ov002_02107f88(void);
 void __sinit_ov002_0210804c(void); void __sinit_ov002_02108094(void);
 void *_ZN13SharedFilePtr9ConstructEj(void *, unsigned);
-void _ZN12MeshColliderC1Ev(void *);
-void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *);
-void _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(void *, void *, void *);
-int _ZN16MeshColliderBase6EnableEP5Actor(void *, void *);
+void _ZN7dBgW_KcC1Ev(void *);
+void *_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(void *);
+void _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(void *, void *, void *);
+int _ZN4dBgW6EnableEP8dActor_c(void *, void *);
 void *_ZN5ModelC1Ev(void *);
 void *_ZN5Model8LoadFileER13SharedFilePtr(void *);
 void _ZN9ModelBase7SetFileEP8BMD_Fileii(void *, void *, int, int);
@@ -307,7 +307,7 @@ void _ZN4BgCh21StopDetectingOrdinaryEv(void *);
 int SurfaceInfo_TestFlag0x20(const int *);
 int hal_ground_ray(void *mc, int x, int y, int z, int reach, int *out_y);
 int hal_line_ray(void *mc, const int *a, const int *b, int *out);
-void _ZN12WithMeshClsn13SetGroundFlagEv(void *);
+void _ZN10dBgCh_Actr13SetGroundFlagEv(void *);
 int func_02035354(void *, void *);
 int func_020393b4(void *);
 /* the real Camera actor (gate 13) */
@@ -2434,7 +2434,7 @@ int main(void)
         g_mc = stage + 0x91c;
     } else {
         g_mc = mc_storage;
-        _ZN12MeshColliderC1Ev(mc_storage);
+         _ZN7dBgW_KcC1Ev(mc_storage);
     }
     if (real_boot) {
         /* Door and exit stay off in both stages -- their actors are Stage B.
@@ -2536,10 +2536,10 @@ int main(void)
     if (!real_boot) {
         static struct { unsigned short id; unsigned char refs; void *p; } kp;
         _ZN13SharedFilePtr9ConstructEj(&kp, 1941);
-        char *kcl = (char *)_ZN12MeshCollider8LoadFileER13SharedFilePtr(&kp);
+        char *kcl = (char *)_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(&kp);
         if (!kcl) return 4;
         static char clps[0x100];
-        _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
+        _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
                                                           clps);
         /* ROOT CAUSE (found 2026-08-02): the level collider's OWNER feeds
            func_02035354's self-collision exclusion. Enabling it with the
@@ -2556,7 +2556,7 @@ int main(void)
            probes (hal_ground_ray / hal_line_ray) work under a NULL owner
            either way. SM64DS_FAKE_SNAP=1 brings the harness ground snap
            back on top for shots that need Mario planted. */
-        _ZN16MeshColliderBase6EnableEP5Actor(
+        _ZN4dBgW6EnableEP8dActor_c(
             mc_storage, fake_snap ? (void *)player : (void *)0);
         /* NO SCALE PAIR HERE ANY MORE. world = KCL raw << 6 is the walk's
            own business now (the ROM's `asr #6`, see
@@ -4911,7 +4911,7 @@ int main(void)
                     *(int *)(c + 0x60) = gy;
                     if (*(int *)(c + 0xa8) < 0)
                         *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
-                    _ZN12WithMeshClsn13SetGroundFlagEv(c + 0x380);
+                    _ZN10dBgCh_Actr13SetGroundFlagEv(c + 0x380);
                     /* landing signal: St_Jump/Fall exit on this byte;
                        the real WithMeshClsn tracking will own it once
                        the continuous update runs on host */

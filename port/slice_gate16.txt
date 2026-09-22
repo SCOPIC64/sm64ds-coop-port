@@ -22,8 +22,8 @@ src/func_0204302c.c
 # ---- the shared vtable slots every actor class dispatches through ---------
 # _ZN5Actor22BeforeCleanupResourcesEv is C++ inside a .c (the gate-9 case
 # again); it goes through hostgen, see GATE16_SYMS in CMakeLists.txt
-src/_ZN5Actor12BeforeRenderEv.c
-src/_ZN5Actor13OnYoshiTryEatEv.c
+#MISSING(upstream-folded): src/_ZN5Actor12BeforeRenderEv.c
+#MISSING(upstream-folded): src/_ZN5Actor13OnYoshiTryEatEv.c
 # Slots 13/14 (ActorBase::Virtual34/Virtual38) are NOT here. Both are the
 # actor's own solid-heap creation and pull the whole Heap:: allocator face in
 # behind them; nothing in the castle grounds' object set has a dedicated heap,
@@ -37,24 +37,24 @@ src/_ZN5Actor13OnYoshiTryEatEv.c
 # variant's list; Behavior ticks every cylinder on all five lists; Render
 # walks the same lists and draws the variant's Model at each node, billboarded
 # to the camera's heading and faded by distance through the Clipper.
-src/Tree_Spawn.cpp
-src/_ZN4Tree13InitResourcesEv.cpp
-src/_ZN4Tree8BehaviorEv.cpp
-src/_ZN4Tree6RenderEv.cpp
-src/_ZN4Tree16CleanupResourcesEv.cpp
-src/_ZN4Tree16OnPendingDestroyEv.c
-src/_ZN4TreeD1Ev.cpp
-src/_ZN4TreeD0Ev.cpp
+#MISSING(upstream-folded): src/Tree_Spawn.cpp
+#MISSING(upstream-folded): src/_ZN4Tree13InitResourcesEv.cpp
+#MISSING(upstream-folded): src/_ZN4Tree8BehaviorEv.cpp
+#MISSING(upstream-folded): src/_ZN4Tree6RenderEv.cpp
+#MISSING(upstream-folded): src/_ZN4Tree16CleanupResourcesEv.cpp
+#MISSING(upstream-folded): src/_ZN4Tree16OnPendingDestroyEv.c
+#MISSING(upstream-folded): src/_ZN4TreeD1Ev.cpp
+#MISSING(upstream-folded): src/_ZN4TreeD0Ev.cpp
 # ...and the ring it closes over: the cylinder it threads onto the list, the
 # Model face it loads through, the Clipper call its Render fades by, and the
 # two destructors + the MSL array-destroy helper its own dtor calls.
-src/_ZN19CylinderClsnWithPosC1Ev.c
-src/_ZN19CylinderClsnWithPosD1Ev.c
-src/_ZN19CylinderClsnWithPosD0Ev.c
-src/_ZN19CylinderClsnWithPos4InitERK7Vector35Fix12IiES4_jj.c
-src/_ZN19CylinderClsnWithPos6GetPosEv.c
-src/_ZN19CylinderClsnWithPos10GetOwnerIDEv.cpp
-src/_ZN12CylinderClsnD2Ev.c
+#MISSING(upstream-folded): src/_ZN19CylinderClsnWithPosC1Ev.c
+#MISSING(upstream-folded): src/_ZN19CylinderClsnWithPosD1Ev.c
+#MISSING(upstream-folded): src/_ZN19CylinderClsnWithPosD0Ev.c
+#MISSING(upstream-folded): src/_ZN19CylinderClsnWithPos4InitERK7Vector35Fix12IiES4_jj.c
+#MISSING(upstream-folded): src/_ZN19CylinderClsnWithPos6GetPosEv.c
+#MISSING(upstream-folded): src/_ZN19CylinderClsnWithPos10GetOwnerIDEv.cpp
+#MISSING(upstream-folded): src/_ZN12CylinderClsnD2Ev.c
 src/_ZN5Model14LoadAndSetFileEtii.cpp
 # func_02016ff4 is a HOST COPY in port/unmatched/: its shadow-class
 # virtual call counts slots in ROM numbering (two destructor slots) and
@@ -71,10 +71,10 @@ src/_ZN4Heap10ReallocateEPvj.cpp
 src/_ZN9ModelBase12ApplyOpacityEj.cpp
 src/func_020461b4.c
 src/func_02046208.c
-src/_ZN7Clipper13Func_02015560ER9Matrix4x3R7Vector35Fix12IiES3_.c
-src/_ZN5ModelD1Ev.c
-src/_ZN5ActorD2Ev.cpp
-src/func_02044104.c
+src/_ZN7Clipper13Func_02015560ER9Matrix4x3R7Vector35Fix12IiES3_.cpp
+#DUP(first in slice_gate4b): src/_ZN5ModelD1Ev.cpp
+#MISSING(upstream-folded): src/_ZN5ActorD2Ev.cpp
+#MISSING(upstream-folded): src/func_02044104.c
 # __destroy_arr is NOT here: it is one of the hand-asm MSL runtime primitives
 # (an exception-frame array destroy), so there is no C to compile. It joins
 # its sibling func_020733a8 in hal/actor_vtables.cpp, transcribed from the
@@ -86,12 +86,12 @@ src/func_02044104.c
 # loop table all say otherwise (see hal/actor_classes.cpp). The files below are
 # the ones the vtable at 0x0210b4c8 points at, which is the vtable
 # AmbientSoundEffects_Spawn installs.
-src/AmbientSoundEffects_Spawn.c
+#MISSING(upstream-folded): src/AmbientSoundEffects_Spawn.c
 src/_ZN14EnemySwitchTag13InitResourcesEv.cpp
 src/_ZN14EnemySwitchTag8BehaviorEv.cpp
-src/_ZN14EnemySwitchTag6RenderEv.c
-src/_ZN14EnemySwitchTag16CleanupResourcesEv.c
-src/_ZN14EnemySwitchTag16OnPendingDestroyEv.c
+#MISSING(upstream-folded): src/_ZN14EnemySwitchTag6RenderEv.c
+src/_ZN14EnemySwitchTag16CleanupResourcesEv.cpp
+#MISSING(upstream-folded): src/_ZN14EnemySwitchTag16OnPendingDestroyEv.c
 # The two destructors stay OUT and slots 16/17 trap by name. D1 is a real
 # method over a locally-declared `Actor` whose destructor that TU never
 # defines, and D0 spells its vtable and heap as the VT/HEAP placeholders;
@@ -109,28 +109,28 @@ src/IsStarCollectedInLevel.c
 # It is the first registry row with a MovingMeshCollider: a KCL of its own,
 # transformed by the actor's matrix, that the Player's own ground and wall
 # probes walk alongside the level's.
-src/BlackBrickBlock_Spawn.c
-src/_ZN13BigBrickBlock13InitResourcesEv.c
+src/d_a_obj_block_s.cpp
+src/_ZN13BigBrickBlock13InitResourcesEv.cpp
 src/_ZN13BigBrickBlock8BehaviorEv.cpp
 src/_ZN13BigBrickBlock6RenderEv.cpp
 src/_ZN13BigBrickBlock16CleanupResourcesEv.cpp
-src/_ZN13BigBrickBlockD1Ev.c
-src/_ZN13BigBrickBlockD0Ev.c
+src/_ZN13BigBrickBlockD1Ev.cpp
+src/_ZN13BigBrickBlockD0Ev.cpp
 # ...and the ring it closes over: the MovingMeshCollider face, the Platform
 # helpers its lifecycle drives, and the event/star bits it reads.
-src/_ZN18MovingMeshColliderD1Ev.c
-src/_ZN18MovingMeshCollider10DetectClsnER10SphereClsn.c
-src/_ZN18MovingMeshCollider10DetectClsnER11RaycastLine.c
-src/_ZN18MovingMeshCollider10DetectClsnER13RaycastGround.c
-src/_ZN18MovingMeshCollider11GetVelocityER7Vector3.cpp
-src/_ZN18MovingMeshCollider12TransformPosERK7Vector3RS0_.cpp
-src/_ZN18MovingMeshCollider14GetAngularVelYEv.cpp
-src/_ZN18MovingMeshCollider17GetTriangleOriginEsR7Vector3.cpp
-src/_ZN18MovingMeshCollider9GetNormalEsR7Vector3.cpp
-src/_ZN18MovingMeshCollider9Virtual08Ev.cpp
-src/_ZN5Event6GetBitEj.c
-src/_ZN5Actor9TrackStarEjj.c
-src/func_ov002_020b36a0.c
+#MISSING(upstream-folded): src/_ZN18MovingMeshColliderD1Ev.c
+#MISSING(upstream-folded): src/_ZN18MovingMeshCollider10DetectClsnER10SphereClsn.c
+#MISSING(upstream-folded): src/_ZN18MovingMeshCollider10DetectClsnER11RaycastLine.c
+#MISSING(upstream-folded): src/_ZN18MovingMeshCollider10DetectClsnER13RaycastGround.c
+#MISSING(upstream-folded): src/_ZN18MovingMeshCollider11GetVelocityER7Vector3.cpp
+#MISSING(upstream-folded): src/_ZN18MovingMeshCollider12TransformPosERK7Vector3RS0_.cpp
+#MISSING(upstream-folded): src/_ZN18MovingMeshCollider14GetAngularVelYEv.cpp
+#MISSING(upstream-folded): src/_ZN18MovingMeshCollider17GetTriangleOriginEsR7Vector3.cpp
+#MISSING(upstream-folded): src/_ZN18MovingMeshCollider9GetNormalEsR7Vector3.cpp
+#MISSING(upstream-folded): src/_ZN18MovingMeshCollider9Virtual08Ev.cpp
+src/_ZN5Event6GetBitEj.cpp
+#MISSING(upstream-folded): src/_ZN5Actor9TrackStarEjj.c
+#MISSING(upstream-folded): src/func_ov002_020b36a0.c
 src/IsStarCollectedInCurLevel.c
 
 # ---- SIGN_POST (actor 184, ov002), x5 -------------------------------------
@@ -139,17 +139,17 @@ src/IsStarCollectedInCurLevel.c
 # a WithMeshClsn of its own and a cuboid shadow. InitResources drops a ground
 # ray from 100 units up and snaps the post to what it finds, which is the first
 # time an actor other than the Player raycasts the level.
-src/SignPost_Spawn.c
+#MISSING(upstream-folded): src/SignPost_Spawn.c
 src/_ZN8SignPost13InitResourcesEv.cpp
 src/_ZN8SignPost8BehaviorEv.cpp
 src/_ZN8SignPost6RenderEv.cpp
 src/_ZN8SignPost16CleanupResourcesEv.cpp
-src/_ZN8SignPostD1Ev.c
-src/_ZN8SignPostD0Ev.c
+src/_ZN8SignPostD1Ev.cpp
+src/_ZN8SignPostD0Ev.cpp
 # ...and the ring: the MovingCylinderClsn it threads, the shadow it drops, the
 # Platform helpers, and the four ov002 leaves its Behavior branches into.
-src/_ZN18MovingCylinderClsnC1Ev.c
-src/_ZN18MovingCylinderClsnD1Ev.c
+#MISSING(upstream-folded): src/_ZN18MovingCylinderClsnC1Ev.c
+#MISSING(upstream-folded): src/_ZN18MovingCylinderClsnD1Ev.c
 # ShadowModel::InitCuboid is NOT here. The shadow system is deferred (see
 # hal/cxxname_bridge.cpp): the cuboid template BMD at data_020ad524 is built
 # at runtime by boot code the port does not host, so the real InitCuboid
@@ -157,8 +157,8 @@ src/_ZN18MovingCylinderClsnD1Ev.c
 # SignPost::InitResources did. The C-named no-op already in the HAL is what
 # every other caller gets; hal/actor_class_faces.cpp gives the sign the same
 # answer through the METHOD name its own TU spells.
-src/_ZN8Platform13IsClsnInRangeE5Fix12IiES1_.cpp
-src/_ZN8Platform20UpdateKillByMegaCharEsss5Fix12IiE.cpp
+#MISSING(upstream-folded): src/_ZN8Platform13IsClsnInRangeE5Fix12IiES1_.cpp
+#MISSING(upstream-folded): src/_ZN8Platform20UpdateKillByMegaCharEsss5Fix12IiE.cpp
 src/func_ov002_020baf80.c
 src/func_ov002_020bafc0.c
 src/func_ov002_020bae9c.c
@@ -176,27 +176,17 @@ src/func_ov002_020bb060.c
 # Process wrappers already have. All fourteen bodies are here: the table is
 # indexed by the level's parameter and picking only the one this level uses
 # would be a guess the next level breaks.
-src/OneUpMushroom_Spawn.c
-src/_ZN13OneUpMushroom13InitResourcesEv.cpp
-src/_ZN13OneUpMushroom6RenderEv.cpp
-src/_ZN13OneUpMushroom16CleanupResourcesEv.cpp
-src/_ZN13OneUpMushroom16OnPendingDestroyEv.c
-src/_ZN13OneUpMushroomD1Ev.c
-src/_ZN13OneUpMushroomD0Ev.c
-src/func_ov002_020af3a0.c
-src/func_ov002_020af2b0.c
+#MISSING(upstream-folded): src/OneUpMushroom_Spawn.c
+#MISSING(upstream-folded): src/_ZN13OneUpMushroom13InitResourcesEv.cpp
+#MISSING(upstream-folded): src/_ZN13OneUpMushroom6RenderEv.cpp
+#MISSING(upstream-folded): src/_ZN13OneUpMushroom16CleanupResourcesEv.cpp
+#MISSING(upstream-folded): src/_ZN13OneUpMushroom16OnPendingDestroyEv.c
+#MISSING(upstream-folded): src/_ZN13OneUpMushroomD1Ev.c
+#MISSING(upstream-folded): src/_ZN13OneUpMushroomD0Ev.c
+#MISSING(upstream-folded): src/func_ov002_020af3a0.c
+#MISSING(upstream-folded): src/func_ov002_020af2b0.c
 # the fourteen type behaviours the PMF table names
-src/func_ov002_020af7cc.c
-src/func_ov002_020af838.c
-src/func_ov002_020af924.c
-src/func_ov002_020af950.c
-src/func_ov002_020afa6c.c
-src/func_ov002_020afa98.c
-src/func_ov002_020afbb4.c
-src/func_ov002_020afc44.c
-src/func_ov002_020afd10.c
-src/func_ov002_020afe4c.cpp
-src/func_ov002_020aff10.c
+src/actors/da1up_c.cpp
 # ...and the ring: the Enemy base the factory constructs, the Yoshi-eat check
 # its Behavior opens with, and the per-frame helper it closes with.
 # THE ENEMY CONSTRUCTOR IS NOT src/_ZN5EnemyC2Ev.cpp. ov002 and ov007 are
@@ -206,24 +196,23 @@ src/func_ov002_020aff10.c
 # Enemy::Enemy is func_ov002_020aed98: Actor::Actor, then the Enemy vtable.
 # OneUpMushroom_Spawn's call is relocated to 0x020aed98 module:overlay(2),
 # which is what settles it. The name is bridged in hal/cxx_aliases.cpp.
-src/func_ov002_020aed98.cpp
-src/func_ov002_020af4ec.cpp
+#MISSING(upstream-folded): src/func_ov002_020aed98.cpp
 
 # ---- the ov002 tier's shared closure ---------------------------------------
 # What the three classes above reach into once and share: the moving-mesh
 # collider's own transform-and-walk pair (the first actor colliders on the
 # level's own list), the shadow and cylinder teardowns every Platform runs,
 # and the leaves of the two Behavior chains.
-src/_ZN10SphereClsnD1Ev.c
-src/_ZN11ShadowModelD1Ev.c
-src/_ZN12WithMeshClsnD1Ev.c
-src/_ZN16MeshColliderBase10BeforeClsnER10ClsnResultP5ActorR7Vector3P10Vector3_16S7_.cpp
-src/_ZN5Actor13DistToCPlayerEv.c
-src/_ZN5Actor15IsPlayerInRangeEi.c
-src/_ZN5Actor19DisappearPoofDustAtERK7Vector3.c
-src/_ZN5Actor24KillAndTrackInDeathTableEv.c
+#MISSING(upstream-folded): src/_ZN10SphereClsnD1Ev.c
+src/_ZN11ShadowModelD1Ev.cpp
+#MISSING(upstream-folded): src/_ZN12WithMeshClsnD1Ev.c
+#MISSING(upstream-folded): src/_ZN16MeshColliderBase10BeforeClsnER10ClsnResultP5ActorR7Vector3P10Vector3_16S7_.cpp
+#MISSING(upstream-folded): src/_ZN5Actor13DistToCPlayerEv.c
+#MISSING(upstream-folded): src/_ZN5Actor15IsPlayerInRangeEi.c
+#MISSING(upstream-folded): src/_ZN5Actor19DisappearPoofDustAtERK7Vector3.c
+#MISSING(upstream-folded): src/_ZN5Actor24KillAndTrackInDeathTableEv.c
 src/_ZN6Player14IsFrontSlidingEv.cpp
-src/_ZN6Player15IsEnteringLevelEv.cpp
+#DUP(first in slice_gate10): src/actors/Player.cpp
 src/_ZN6Player17LostGrabbedObjectEv.cpp
 src/_ZN8Particle6System17NewUnkCallback818Ejj5Fix12IiES2_S2_PK11Vector3_16f.c
 src/GiveLives.c
@@ -233,51 +222,38 @@ src/func_02035394.c
 src/func_020374b8.c
 src/func_02037940.c
 src/func_02037a04.c
-src/func_020397fc.c
+#MISSING(upstream-folded): src/func_020397fc.c
 src/func_02039db8.c
 src/func_02039e30.c
 src/func_02039e48.c
-src/func_ov002_020aed18.c
-src/func_ov002_020bdf8c.c
+#MISSING(upstream-folded): src/func_ov002_020aed18.c
 src/func_ov002_020e496c.c
 # the 1-up's own leaves: the shared per-frame helper, the collect path and the
 # five type bodies' common tail
-src/func_ov002_020aeee4.cpp
-src/func_ov002_020aefa4.c
 # func_ov002_020aefb8 is C++ inside a .c (the gate-9 case): a WithMeshClsn
 # shadow class with const methods. It goes through hostgen, see GATE16_SYMS.
-src/func_ov002_020af0c0.c
-src/func_ov002_020af1dc.c
-src/func_ov002_020af218.c
-src/func_ov002_020af248.c
-src/func_ov002_020af3a8.c
-src/func_ov002_020af474.c
-src/func_ov002_020af684.cpp
-src/func_ov002_020afc68.cpp
-src/func_ov002_020afde4.cpp
 src/GiveCoins.c
-src/_ZN5Actor17TrackInDeathTableEv.cpp
-src/_ZN6Player20IsStateEnteringLevelEv.cpp
-src/func_02038224.c
-src/func_02039658.c
-src/func_0203ac1c.c
-src/func_ov002_020ee5d0.c
-src/_ZNK12WithMeshClsn13JustHitGroundEv.c
-src/_ZN5Enemy12UpdateWMClsnER12WithMeshClsnj.cpp
-src/_ZN5Actor12ReflectAngleE5Fix12IiES1_s.c
+#MISSING(upstream-folded): src/_ZN5Actor17TrackInDeathTableEv.cpp
+#MISSING(upstream-folded): src/func_02038224.c
+#MISSING(upstream-folded): src/func_02039658.c
+#MISSING(upstream-folded): src/func_0203ac1c.c
+#DUP(first in slice_gate9): src/actors/dBgActor_c.cpp
+#MISSING(upstream-folded): src/_ZNK12WithMeshClsn13JustHitGroundEv.c
+#MISSING(upstream-folded): src/_ZN5Enemy12UpdateWMClsnER12WithMeshClsnj.cpp
+#MISSING(upstream-folded): src/_ZN5Actor12ReflectAngleE5Fix12IiES1_s.c
 src/DeathTable_SetBit.c
-src/WithMeshClsn_UpdateContinuous_Veneer.c
-src/WithMeshClsn_UpdateDiscreteNoLava_veneer.c
+#MISSING(upstream-folded): src/WithMeshClsn_UpdateContinuous_Veneer.c
+#MISSING(upstream-folded): src/WithMeshClsn_UpdateDiscreteNoLava_veneer.c
 src/func_020383f0.c
 src/func_02038414.c
 src/func_ov002_020b18f0.c
-src/_ZN12WithMeshClsn16UpdateContinuousEv.c
-src/_ZN12WithMeshClsn20UpdateDiscreteNoLavaEv.cpp
-src/_ZN12WithMeshClsn22UpdateContinuousNoLavaEv.c
-src/_ZN12WithMeshClsn22UpdateDiscreteNoLava_2Ev.cpp
-src/_ZN5Event6SetBitEj.c
+#MISSING(upstream-folded): src/_ZN12WithMeshClsn16UpdateContinuousEv.c
+#MISSING(upstream-folded): src/_ZN12WithMeshClsn20UpdateDiscreteNoLavaEv.cpp
+#MISSING(upstream-folded): src/_ZN12WithMeshClsn22UpdateContinuousNoLavaEv.c
+#MISSING(upstream-folded): src/_ZN12WithMeshClsn22UpdateDiscreteNoLava_2Ev.cpp
+src/_ZN5Event6SetBitEj.cpp
 src/_ZN9PowerStar13AddStarMarkerEv.cpp
-src/_ZNK12WithMeshClsn15ShouldUpdatePosEv.c
+src/_ZNK10dBgCh_Actr15ShouldUpdatePosEv.cpp
 src/func_0203553c.c
 src/func_02038a38.cpp
 src/FUN_0202a130.c
@@ -294,7 +270,12 @@ src/func_ov002_020bbac8.c
 src/func_ov002_020bba28.cpp
 src/func_ov002_020bb520.c
 src/func_ov002_020bb42c.c
-src/func_ov002_020afa50.c
-src/func_ov002_020af908.c
-src/func_ov002_020af724.c
-src/_ZNK12WithMeshClsn12TouchesWaterEv.cpp
+#MISSING(upstream-folded): src/_ZNK12WithMeshClsn12TouchesWaterEv.cpp
+src/game/actors/d_a_tree.cpp
+src/game/actors/d_a_ch_room.cpp
+port/unmatched/_ZN11CastleWater16OnPendingDestroyEv.c
+src/_ZN4Fish16OnPendingDestroyEv.cpp
+#DUP(first in slice_gate16): src/_ZN13BigBrickBlock13InitResourcesEv.cpp
+#DUP(first in slice_gate16): src/_ZN13BigBrickBlockD0Ev.cpp
+#DUP(first in slice_gate16): src/_ZN13BigBrickBlockD1Ev.cpp
+src/_ZN13BigBrickBlock16HasNonzeroAngleXEv.cpp

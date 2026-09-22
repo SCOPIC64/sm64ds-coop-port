@@ -4,13 +4,12 @@
 // their .c-file callers reference Itanium C names. Each face forwards with
 // a qualified call, the player_bridges pattern, batched here because the
 // include surface spans most of the actor stack.
-#include "Actor.h"
-#include "ActorBase.h"
-#include "BgCh.h"
+#include "dActor_c.h"
+#include "fBase_c.h"
+#include "dActor_c.h"
+#include "dBgCh.h"
 #include "Camera.h"
 #include "ClsnResult.h"
-#include "CylinderClsn.h"
-#include "CylinderClsnWithPos.h"
 #include "Heap.h"
 #include "Message.h"
 #include "ModelBase.h"
@@ -19,11 +18,8 @@
 #include "OAM.h"
 #include "PathPtr.h"
 #include "Player.h"
-#include "RaycastLine.h"
-#include "SphereClsn.h"
-#include "TextureSequence.h"
 #include "Timer.h"
-#include "WithMeshClsn.h"
+#include "dBgCh_Actr.h"
 
 extern "C++" int ApproachLinear2(short &x, short target, short step);
 
@@ -37,34 +33,47 @@ void _ZN10ModelAnim24CopyERKS_Pcj(void *self, const void *src, char *nf,
 { ((ModelAnim2 *)self)->ModelAnim2::Copy(*(const ModelAnim2 *)src, nf, nof); }
 
 
+/* Old-C providers onto the renamed collision TUs: surviving callers spell
+   the Itanium names below, whose classes moved on (CylinderClsn -> dCc_c,
+   WithMeshClsn -> dBgCh_Actr). Same ROM structs, so the forward is exact. */
+extern "C" {
+void _ZN5dCc_c5ClearEv(void *s);
+void _ZN5dCc_c6UpdateEv(void *s);
+void _ZN10dBgCh_Actr13SetGroundFlagEv(void *s);
+void _ZN10dBgCh_Actr13SetLimMovFlagEv(void *s);
+void _ZN10dBgCh_Actr15ClearGroundFlagEv(void *s);
+void _ZN10dBgCh_Actr15ClearLimMovFlagEv(void *s);
+void _ZN10dBgCh_Actr18StopDetectingWaterEv(void *s);
+void _ZN10dBgCh_Actr19ClearAllGroundFlagsEv(void *s);
+void _ZN10dBgCh_Actr19StartDetectingWaterEv(void *s);
+}
 void _ZN12CylinderClsn5ClearEv(void *self)
-{ ((CylinderClsn *)self)->CylinderClsn::Clear(); }
+{ _ZN5dCc_c5ClearEv(self); }
 void _ZN12CylinderClsn6UpdateEv(void *self)
-{ ((CylinderClsn *)self)->CylinderClsn::Update(); }
-
+{ _ZN5dCc_c6UpdateEv(self); }
 void _ZN12WithMeshClsn13SetGroundFlagEv(void *self)
-{ ((WithMeshClsn *)self)->WithMeshClsn::SetGroundFlag(); }
+{ _ZN10dBgCh_Actr13SetGroundFlagEv(self); }
 void _ZN12WithMeshClsn13SetLimMovFlagEv(void *self)
-{ ((WithMeshClsn *)self)->WithMeshClsn::SetLimMovFlag(); }
+{ _ZN10dBgCh_Actr13SetLimMovFlagEv(self); }
 void _ZN12WithMeshClsn15ClearGroundFlagEv(void *self)
-{ ((WithMeshClsn *)self)->WithMeshClsn::ClearGroundFlag(); }
+{ _ZN10dBgCh_Actr15ClearGroundFlagEv(self); }
 void _ZN12WithMeshClsn15ClearLimMovFlagEv(void *self)
-{ ((WithMeshClsn *)self)->WithMeshClsn::ClearLimMovFlag(); }
+{ _ZN10dBgCh_Actr15ClearLimMovFlagEv(self); }
 void _ZN12WithMeshClsn18StopDetectingWaterEv(void *self)
-{ ((WithMeshClsn *)self)->WithMeshClsn::StopDetectingWater(); }
+{ _ZN10dBgCh_Actr18StopDetectingWaterEv(self); }
 void _ZN12WithMeshClsn19ClearAllGroundFlagsEv(void *self)
-{ ((WithMeshClsn *)self)->WithMeshClsn::ClearAllGroundFlags(); }
+{ _ZN10dBgCh_Actr19ClearAllGroundFlagsEv(self); }
 void _ZN12WithMeshClsn19StartDetectingWaterEv(void *self)
-{ ((WithMeshClsn *)self)->WithMeshClsn::StartDetectingWater(); }
+{ _ZN10dBgCh_Actr19StartDetectingWaterEv(self); }
 
 void _ZN15TextureSequence6UpdateER15ModelComponents(void *self, void *mc)
 { ((TextureSequence *)self)->TextureSequence::Update(
       *(ModelComponents *)mc); }
 
 void _ZN4BgCh19StartDetectingToxicEv(void *self)
-{ ((BgCh *)self)->BgCh::StartDetectingToxic(); }
+{ ((dBgCh *)self)->dBgCh::StartDetectingToxic(); }
 void _ZN4BgCh21StopDetectingOrdinaryEv(void *self)
-{ ((BgCh *)self)->BgCh::StopDetectingOrdinary(); }
+{ ((dBgCh *)self)->dBgCh::StopDetectingOrdinary(); }
 
 void _ZN5Model14SetPolygonModeEi(void *self, int mode)
 { ((Model *)self)->Model::SetPolygonMode(mode); }
@@ -96,12 +105,12 @@ void _ZN6Player4HealEi(void *self, int amt)
 
 
 void _ZN9ActorBase18MarkForDestructionEv(void *self)
-{ ((ActorBase *)self)->ActorBase::MarkForDestruction(); }
+{ ((fBase_c *)self)->fBase_c::MarkForDestruction(); }
 
 /* Gate 15: Actor::BeforeBehavior is a .c-style TU that calls its base by
    Itanium name, while the definition is a real __thiscall method. */
 int _ZN9ActorBase14BeforeBehaviorEv(void *self)
-{ return ((ActorBase *)self)->ActorBase::BeforeBehavior() ? 1 : 0; }
+{ return ((fBase_c *)self)->fBase_c::BeforeBehavior() ? 1 : 0; }
 
 unsigned _ZNK7PathPtr8NumNodesEv(const void *self)
 { return ((const PathPtr *)self)->PathPtr::NumNodes(); }
@@ -197,15 +206,15 @@ extern "C" int _ZN6Player9DropActorEv(void *self)
    __thiscall methods, so a linker alias onto the Itanium name their .c
    callers use would enter the body with `this` in whatever ecx held. */
 extern "C" int _ZN5Actor18GetBitInDeathTableEv(void *self)
-{ return ((Actor *)self)->Actor::GetBitInDeathTable(); }
+{ return ((dActor_c *)self)->dActor_c::GetBitInDeathTable(); }
 extern "C" void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a)
-{ ((Actor *)self)->Actor::AfterInitResources(a); }
+{ ((dActor_c *)self)->dActor_c::AfterInitResources(a); }
 
 /* gate 16: Actor::BeforeRender is the same shape -- a .c TU calling its base
    by Itanium name over a real __thiscall definition. Slot 10 of every actor
    class the registry carries goes through it. */
 extern "C" int _ZN9ActorBase12BeforeRenderEv(void *self)
-{ return ((ActorBase *)self)->ActorBase::BeforeRender(); }
+{ return ((fBase_c *)self)->fBase_c::BeforeRender(); }
 
 /* gate 16: ModelBase::ApplyOpacity is a real method whose only caller,
    Tree::Render, spells it as an Itanium C name (and passes a third argument
@@ -230,7 +239,7 @@ extern "C" void _ZN5Model17UpdateFileOffsetsER8BMD_File(BMD_File *f)
    three engine globals rather than declaring them), so the slot-5 thunks that
    call the method need the method to exist. */
 extern "C" void _ZN9ActorBase21AfterCleanupResourcesEj(void *self, unsigned a);
-void ActorBase::AfterCleanupResources(u32 a)
+void fBase_c::AfterCleanupResources(u32 a)
 { _ZN9ActorBase21AfterCleanupResourcesEj(this, a); }
 
 extern "C" int _ZN4Heap7_SizeofEPv(void *self, void *p)
@@ -241,16 +250,23 @@ extern "C" void _ZN4Heap10ReallocateEPvj(void *self, void *p, unsigned n)
 /* gate 16, THE OTHER DIRECTION: CylinderClsnWithPos::Init is defined at C
    linkage in its own TU while Tree::InitResources declares it as a method on
    a local class shape and calls it __thiscall. An /alternatename would enter
-   the cdecl body with `this` still in ecx, so this is a face. */
+   the cdecl body with `this` still in ecx, so this is a face. The class
+   itself was not promoted upstream; the body below is the old TU's logic
+   (copy pos, run dCc_c::Init) against the renamed cylinder. */
+extern "C" void _ZN5dCc_c4InitE5Fix12IiES1_jj(void *self, int radius,
+                                              int height, unsigned flags,
+                                              unsigned vulnFlags);
 extern "C" void _ZN19CylinderClsnWithPos4InitERK7Vector35Fix12IiES4_jj(
     void *self, const void *pos, int radius, int height, unsigned flags,
-    unsigned vulnFlags);
-void CylinderClsnWithPos::Init(const Vector3 &pos, Fix12i radius,
-                               Fix12i height, u32 flags, u32 vulnFlags)
+    unsigned vulnFlags)
 {
-    _ZN19CylinderClsnWithPos4InitERK7Vector35Fix12IiES4_jj(
-        this, &pos, radius, height, flags, vulnFlags);
+    ((int *)self)[0x30 / 4 + 0] = ((const int *)pos)[0];
+    ((int *)self)[0x30 / 4 + 1] = ((const int *)pos)[1];
+    ((int *)self)[0x30 / 4 + 2] = ((const int *)pos)[2];
+    _ZN5dCc_c4InitE5Fix12IiES1_jj(self, radius, height, flags, vulnFlags);
 }
+/* (A CylinderClsnWithPos::Init method face stood here for the old Tree TU;
+   the promoted d_a_tree.cpp drives dCcPos_c directly, so nothing calls it.) */
 
 
 /* ---- gate 16: the collider faces the actor colliders need ---------------
@@ -260,17 +276,18 @@ void CylinderClsnWithPos::Init(const Vector3 &pos, Fix12i radius,
    through a vtable -- after transforming the ray or sphere into the
    collider's own space. func_01ffb0fc is the line walk's ROM address, which
    is how the matched source spells it. */
-#include "MeshCollider.h"
-#include "SphereClsn.h"
+#include "dBgW_Kc.h"
+#include "dBgCh_Lin.h"
+#include "dBgCh_SphCrr.h"
 extern "C" {
 int func_01ffb0fc(void *self, void *ray)
-{ return ((MeshCollider *)self)->MeshCollider::DetectClsn(*(RaycastLine *)ray); }
+{ return ((dBgW_Kc *)self)->dBgW_Kc::DetectClsn(*(dBgCh_Lin *)ray); }
 int _ZN12MeshCollider10DetectClsnER10SphereClsn(void *self, void *sph)
-{ return ((MeshCollider *)self)->MeshCollider::DetectClsn(*(SphereClsn *)sph); }
+{ return ((dBgW_Kc *)self)->dBgW_Kc::DetectClsn(*(dBgCh_SphCrr *)sph); }
 int _ZN16MeshColliderBase9IsEnabledEv(void *self)
-{ return ((MeshColliderBase *)self)->MeshColliderBase::IsEnabled(); }
+{ return ((dBgW *)self)->dBgW::IsEnabled(); }
 int _ZN16MeshColliderBase7DisableEv(void *self)
-{ return ((MeshColliderBase *)self)->MeshColliderBase::Disable(); }
+{ return ((dBgW *)self)->dBgW::Disable(); }
 }
 
 /* ---- gate 16: five more C-named references onto method definitions -------
@@ -289,10 +306,6 @@ int _ZN6Player20IsStateEnteringLevelEv(void *self)
 
 #include "PowerStar.h"
 extern "C" {
-void _ZN12WithMeshClsn20UpdateDiscreteNoLavaEv(void *self)
-{ ((WithMeshClsn *)self)->WithMeshClsn::UpdateDiscreteNoLava(); }
-void _ZN12WithMeshClsn22UpdateDiscreteNoLava_2Ev(void *self)
-{ ((WithMeshClsn *)self)->WithMeshClsn::UpdateDiscreteNoLava_2(); }
 void _ZN9PowerStar13AddStarMarkerEv(void *self)
 { ((PowerStar *)self)->PowerStar::AddStarMarker(); }
 }
@@ -301,29 +314,29 @@ void _ZN9PowerStar13AddStarMarkerEv(void *self)
    Nine C-named references onto method definitions. The registry dispatches
    every one of them through a vtable slot, and every one is a real
    __thiscall method in src against its own generated header. */
-#include "Bird.h"
-#include "CastleWater.h"
-#include "DockPole.h"
+#include "daSBird_c.h"
+#include "daObjMcWater_c.h"
+#include "daMcFlag_c.h"
 extern "C" {
 int _ZN4Bird13InitResourcesEv(void *self)
-{ return ((Bird *)self)->Bird::InitResources(); }
+{ return ((daSBird_c *)self)->daSBird_c::InitResources(); }
 /* Bird::Render and FLAG's are each one line in src -- dispatch slot 5 of the
    ModelAnim at +0xd4 -- and ROM slot 5 is Render while MSVC slot 5 is
    Virtual18. Call the method the ROM means. */
 int _ZN4Bird6RenderEv(void *self)
 { ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
 int _ZN11CastleWater13InitResourcesEv(void *self)
-{ return ((CastleWater *)self)->CastleWater::InitResources(); }
+{ return ((daObjMcWater_c *)self)->daObjMcWater_c::InitResources(); }
 int _ZN11CastleWater8BehaviorEv(void *self)
-{ return ((CastleWater *)self)->CastleWater::Behavior(); }
+{ return ((daObjMcWater_c *)self)->daObjMcWater_c::Behavior(); }
 int _ZN11CastleWater6RenderEv(void *self)
-{ return ((CastleWater *)self)->CastleWater::Render(); }
+{ return ((daObjMcWater_c *)self)->daObjMcWater_c::Render(); }
 int _ZN11CastleWater16CleanupResourcesEv(void *self)
-{ return ((CastleWater *)self)->CastleWater::CleanupResources(); }
+{ return ((daObjMcWater_c *)self)->daObjMcWater_c::CleanupResources(); }
 int _ZN8DockPole13InitResourcesEv(void *self)
-{ return ((DockPole *)self)->DockPole::InitResources(); }
+{ return ((daMcFlag_c *)self)->daMcFlag_c::InitResources(); }
 int _ZN8DockPole8BehaviorEv(void *self)
-{ return ((DockPole *)self)->DockPole::Behavior(); }
+{ return ((daMcFlag_c *)self)->daMcFlag_c::Behavior(); }
 int _ZN8DockPole6RenderEv(void *self)
 { ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
 }
@@ -363,13 +376,13 @@ void _ZN5Model14LoadAndSetFileEtii(void *self, unsigned short id, int a, int b)
    ModelAnim through a local shadow class, which is ROM numbering where the
    host array is MSVC's -- gate 17's Bird/FLAG case with a body attached.
    port/unmatched/Ov085_Renders.cpp. */
-#include "Rabbit.h"
-#include "LakituBro.h"
+#include "daMip_c.h"
+#include "daJgm_c.h"
 extern "C" {
 int _ZN6Rabbit13InitResourcesEv(void *self)
-{ return ((Rabbit *)self)->Rabbit::InitResources(); }
+{ return ((daMip_c *)self)->daMip_c::InitResources(); }
 int _ZN9LakituBro13InitResourcesEv(void *self)
-{ return ((LakituBro *)self)->LakituBro::InitResources(); }
+{ return ((daJgm_c *)self)->daJgm_c::InitResources(); }
 }
 
 /* Three more C-named references onto method definitions, reached through
@@ -419,10 +432,10 @@ int _ZN6Cannon13InitResourcesEv(void *self)
    against include/PoppingLavaBubbles.h (the class the ROM's RTTI calls
    daObjWaterfall_c), so MSVC emits it under ?InitResources@... and the
    vtable fill wants the Itanium name. */
-#include "PoppingLavaBubbles.h"
+#include "daObjWaterfall_c.h"
 extern "C" {
 int _ZN18PoppingLavaBubbles13InitResourcesEv(void *self)
-{ return ((PoppingLavaBubbles *)self)->InitResources(); }
+{ return ((daObjWaterfall_c *)self)->daObjWaterfall_c::InitResources(); }
 }
 
 /* ---- gate 21: ov100's BUTTERFLY and FISH ---------------------------------
@@ -455,10 +468,10 @@ unsigned _ZNK9Animation13GetFrameCountEv(const void *self)
 /* ---- gate 23: ov102's QUESTION_BLOCK -------------------------------------
    Two more of the same shape; its InitResources is already C-named and its
    Render is a host copy (port/unmatched/ModelAnim_Renders.cpp). */
-#include "QuestionBlock.h"
+#include "daObjHatenaBlock_c.h"
 extern "C" {
 int _ZN13QuestionBlock8BehaviorEv(void *self)
-{ return ((QuestionBlock *)self)->QuestionBlock::Behavior(); }
+{ return ((daObjHatenaBlock_c *)self)->daObjHatenaBlock_c::Behavior(); }
 int _ZN13QuestionBlock16CleanupResourcesEv(void *self)
-{ return ((QuestionBlock *)self)->QuestionBlock::CleanupResources(); }
+{ return ((daObjHatenaBlock_c *)self)->daObjHatenaBlock_c::CleanupResources(); }
 }

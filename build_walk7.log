@@ -1,0 +1,6 @@
+ninja: Entering directory `build\port-kit'
+[0/1] Re-running CMake...
+-- Configuring done (18.8s)
+-- Generating done (2.8s)
+-- Build files have been written to: C:/Users/mrmur/sm64ds-port/build/port-kit
+[1/2] Linking CXX executable walk_window.exe

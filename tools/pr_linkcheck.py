@@ -10,9 +10,10 @@ a class definition -- are never checked. That gap let PR #86's
 _ZThn80_N9AnimationD1Ev pass local verify and fail review with WRONG-DEST (its
 tail branch relocated to Animation::~Animation when the ROM slot needs
 ModelAnim2::~ModelAnim2). This tool closes the gap by scope: it takes the exact
-files a PR touched, maps each filename to the symbol it defines (in this repo the
-src filename IS the mangled symbol), resolves that symbol's (addr, size, module)
-from the checked-in config/**/symbols.txt, and runs linkcheck on every slot.
+files a PR touched, asks `srcpath.symbols_for` which symbols each one defines --
+the filename for a one-function file, the enrolment table for a merged translation
+unit that owns several -- resolves each symbol's (addr, size, module) from the
+checked-in config/**/symbols.txt, and runs linkcheck on every slot.
 linkcheck's explicit --addr/--size/--module mode needs no ledger row and returns
 WRONG for a wrong-dest thunk (verified: is_benign forgives a branch diff only when
 the ROM's veneer/twin resolves to the exact address the source names).
@@ -35,6 +36,7 @@ Usage:
   python tools/pr_linkcheck.py --json out.json --fail       # CI mode
 """
 import argparse
+import collections
 import concurrent.futures
 import glob
 import json
@@ -46,7 +48,9 @@ import sys
 REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "tools"))
 import affected_src as A  # noqa: E402
+import asm_policy as AP  # noqa: E402
 import linkcheck as LC  # noqa: E402
+import srcpath as SP  # noqa: E402
 
 SRC_SUFFIXES = (".c", ".cpp")
 HDR_SUFFIXES = (".h", ".hpp")
@@ -167,61 +171,107 @@ def _resolve(name, idx, ledger):
 
 
 def check_file(path, idx, ledger):
-    """Link-check every symbol the file compiles to -- the named function AND its
+    """Link-check every symbol the file compiles to -- the ones it OWNS AND its
     compiler-emitted passengers (this-adjusting thunks, weak dtor/ctor copies, local
     helpers) -- not just the filename stem, and not just ledger rows.
 
-    The file is compiled once; every emitted function symbol that resolves to a ROM
-    slot (via config/ledger) is checked against that slot. This is the class the
+    Every emitted function symbol that resolves to a ROM slot (via config/**/symbols.txt,
+    falling back to progress/matched.jsonl for module disambiguation) is
+    checked against that slot. This is the class the
     ledger-scoped checks miss -- e.g. PR #86's `_ZThn80_N9AnimationD1Ev` thunk, whose
     tail branch relocated to the wrong dtor. Emitted symbols with no ROM slot (inline
-    or local emissions) are simply not ROM functions and are ignored."""
-    sym = pathlib.Path(path).stem
-    slots = _resolve(sym, idx, ledger)
-    if not slots:
-        return {"file": path, "symbol": sym, "results": [], "note": "unresolved"}
+    or local emissions) are simply not ROM functions and are ignored.
 
-    # Compile once (winning version/flags for the named symbol) so the named function
-    # and its passengers are read from the very same object the ROM was matched with.
+    WHICH SYMBOLS THE FILE OWNS is `srcpath.symbols_for`, not `Path.stem`. For a legacy
+    one-function source those are the same string. For a merged translation unit
+    they are not: `src/actors/ActorBase_SceneNode.cpp` holds two functions and is named
+    after neither, so the stem resolved to nothing and the whole file was reported
+    `unresolved` with `0` slots checked -- a file the PR comment listed as examined and
+    that nothing had looked at. It could not fall through to the passenger loop either,
+    since that loop only runs once the lead symbol has produced an object."""
+    owned = SP.symbols_for(path)
+    named = [(sym, _resolve(sym, idx, ledger)) for sym in owned]
+    named = [(sym, slots) for sym, slots in named if slots]
+    if not named:
+        return {"file": path, "symbol": owned[0], "symbols": owned,
+                "results": [], "note": "unresolved"}
+
     import reloc_audit as RA
-    obj = wsym = None
-    for addr, size, mod in slots:
-        obj, wsym, _ = RA.winning_object(sym, addr, size, mod)
-        if obj is not None:
-            break
+    import bytegate as BG
+    results, checked_passengers = [], set()
+    for sym, slots in named:
+        # ONE OBJECT PER OWNED SYMBOL, not one per file. `winning_object` runs the
+        # compiled object through objisolate the way rombuild does, and isolation prunes
+        # it to the one function it was asked for -- so a TU's second function is simply
+        # not in its sibling's object, and reusing it reports NO-SYM on a file that is
+        # perfectly correct. (Measured on ActorBase_SceneNode: shared object ->
+        # Reset VERIFIED, SceneNode() NO-SYM; per-symbol -> both VERIFIED.) For the
+        # ordinary one-function sources this is exactly one call, as before.
+        obj = wsym = None
+        off = 0
+        for addr, size, mod in slots:
+            # Mirror linkcheck.linkcheck's own resolution order exactly, since this loop
+            # pre-supplies obj/sym into LC.linkcheck below instead of letting it call
+            # winning_object itself: correct a zero-size EABI alias record to its sized
+            # twin's real length (bytegate.alias_target_size) BEFORE calling
+            # winning_object, the same substitution linkcheck() applies at its own top --
+            # a raw zero-size request can never resolve here (rom_bytes(...,0) is an
+            # empty target no compiled candidate's length ever equals), which used to
+            # send every alias through the `obj is None` fallback below instead of
+            # resolving directly. And carry `off`, the fourth element winning_object
+            # returns: nonzero when `sym` is a NESTED entry point's CONTAINING symbol
+            # rather than the symbol itself (a hand-asm block packing several ROM
+            # functions into one compiled body, e.g. func_01ff97d8.c). Both matter
+            # together for a symbol like _deq -- an alias (size 0) whose sized twin,
+            # func_01ff9d40, is itself a nested entry point: the size fix is what makes
+            # winning_object see a nonzero range at all, and the offset fix is what
+            # slices that range at the right place once it does.
+            csize = size
+            if csize == 0:
+                alt = BG.alias_target_size(mod, addr)
+                if alt:
+                    csize = alt
+            obj, wsym, _, off = RA.winning_object(sym, addr, csize, mod, name_index=_NAME_INDEX)
+            if obj is not None:
+                break
+        for addr, size, mod in slots:
+            r = LC.linkcheck(sym, addr, size, mod, _NAME_INDEX,
+                             obj=obj, sym=(wsym if obj is not None else None),
+                             off=(off if obj is not None else 0))
+            results.append({"sym": sym, "addr": f"0x{addr:08x}", "module": mod,
+                            **r, "passenger": False})
 
-    results = []
-    for addr, size, mod in slots:
-        r = LC.linkcheck(sym, addr, size, mod, _NAME_INDEX,
-                         obj=obj, sym=(wsym if obj is not None else None))
-        results.append({"sym": sym, "addr": f"0x{addr:08x}", "module": mod,
-                        "verdict": r["verdict"], "diffs": r.get("diffs", []),
-                        "passenger": False})
-
-    # Full-file: every OTHER function symbol this object emits that also owns a ROM
-    # slot. Checked straight out of the object (a thunk has no source file of its own).
-    if obj is not None:
+        # Full-file: every OTHER function symbol this object emits that also owns a ROM
+        # slot. Checked straight out of the object (a thunk has no source file of its
+        # own). Deduped across a TU's objects, which can each carry the same passenger.
+        if obj is None:
+            continue
         import probe_versions as PV
         try:
             emitted = set(PV.funcs_in(obj).keys())
         except Exception:
             emitted = set()
-        for psym in sorted(emitted - {sym, wsym}):
+        for psym in sorted(emitted - {s for s, _ in named} - {wsym} - checked_passengers):
             pslots = _resolve(psym, idx, ledger)
             if not pslots:
                 continue  # emitted symbol with no ROM slot -- normal, nothing to check
+            checked_passengers.add(psym)
             for addr, size, mod in pslots:
                 r = LC.linkcheck(psym, addr, size, mod, _NAME_INDEX, obj=obj, sym=psym)
                 results.append({"sym": psym, "addr": f"0x{addr:08x}", "module": mod,
-                                "verdict": r["verdict"], "diffs": r.get("diffs", []),
-                                "passenger": True})
-    return {"file": path, "symbol": sym, "results": results, "note": ""}
+                                **r, "passenger": True})
+    return {"file": path, "symbol": " + ".join(sym for sym, _ in named),
+            "symbols": [sym for sym, _ in named], "results": results, "note": ""}
 
 
 def worst(results):
-    order = ["WRONG", "NO-REPRO", "NO-SYM", "BLIND", "BENIGN", "VERIFIED"]
+    # A sibling near miss must never hide a hard failure behind DRAFT policy.
+    order = ["WRONG", "NO-SYM", "NO-BIN", "NO-SRC", "ERROR", "NO-REPRO",
+             "BLIND", "BENIGN", "VERIFIED"]
     verdicts = [x["verdict"].split("-")[0] if x["verdict"].startswith("BLIND")
                 else x["verdict"] for x in results]
+    if any(v not in order for v in verdicts):
+        return "ERROR"
     for v in order:
         if v in verdicts:
             return v
@@ -249,6 +299,39 @@ def warm_shared_indexes():
     RA.warm_gate_index()
     LC._ranges()
     RV.mod_for("arm9")
+
+
+def source_policy(worst, text):
+    """Apply the two source-text overrides to a link verdict.
+
+    A file whose head declares "// NONMATCHING" is a self-declared draft: it makes no
+    claim to reproduce the ROM and chaos-db counts it as unmatched, so a NO-REPRO
+    verdict on it is expected, not a gate failure. The gate exists to stop files that
+    CLAIM to be matches from landing red; a declared draft cannot inflate any count.
+    WRONG (a resolvable reloc pointing at the wrong symbol) still fails -- a draft's
+    call graph must be honest even if its bytes differ.
+
+    The test is `not asm_policy.counts_as_matched`, not `has_draft_banner`, because
+    those two stopped meaning the same thing on 2026-09-09. Twenty hand-written
+    assembly primitives carry the word NONMATCHING inside a note that says there is no
+    C to chase, and they DO count now -- so the sentence above, "chaos-db counts it as
+    unmatched", is exactly the condition to ask about, and asking the older question
+    would hand a counted match the downgrade that exists for uncounted drafts.
+
+    Reject unbannered transcription first: it is also excluded from matched
+    counts, but that exclusion does not make it an honest declared draft.
+
+    This lives outside main() because it is only reachable when a file FAILS, which is
+    the one path a green CI run never exercises. `asm_policy.has_draft_banner` was
+    spelled against the unaliased module name from #1367 until a PR finally produced a
+    NO-REPRO -- and then the validator died on a NameError mid-loop, reporting "worker
+    error" instead of grading the file. Untestable because inline, so untested.
+    """
+    if AP.classify(text) == "transcribed":
+        return "RAW-ASM"
+    if worst == "NO-REPRO" and text and not AP.counts_as_matched(text):
+        return "DRAFT"
+    return worst
 
 
 def main():
@@ -305,8 +388,19 @@ def main():
     # A PR "passes" only when every changed file reproduces the ROM with correct
     # relocation targets (VERIFIED/BENIGN, or BLIND where a slot is unverifiable).
     # WRONG-DEST *and* a non-reproducing NO-REPRO near-miss are both failures — a
-    # near-miss is not a match and must not land.
-    FAIL = {"WRONG", "NO-REPRO"}
+    # near-miss is not a match and must not land. RAW-ASM is the third failure: an
+    # unbannered dcd transcription byte-matches vacuously (the dcd words ARE the
+    # ROM bytes re-spelled), so its VERIFIED slots prove nothing and the file is
+    # rejected on policy — see notes/asm-policy.md and tools/asm_policy.py.
+    #
+    # NO-SYM is the fourth, and it was missing. A file that does not compile, or compiles
+    # without emitting its symbol, is graded NO-SYM — and NO-SYM was not in this set, so
+    # the worst possible outcome scored as a pass. src/func_ov002_020d6c60.cpp has been
+    # unbuildable since #866 (`illegal function overloading`, its local declaration
+    # disagreeing with decl_common.h), carries no NONMATCHING banner, and was edited by a
+    # merged PR while broken. A gate that cannot fail the file it could not even build is
+    # not gating; a self-declared draft still gets the DRAFT pass below.
+    FAIL = {"WRONG", "NO-REPRO", "RAW-ASM", "NO-SYM", "NO-BIN", "NO-SRC", "ERROR"}
     reports, bad = [], []
     for path, rep in zip(files, checked):
         reports.append(rep)
@@ -316,25 +410,17 @@ def main():
             continue
         w = worst(rep["results"])
         rep["worst"] = w
-        # A file whose head declares "// NONMATCHING" is a self-declared draft: it makes
-        # no claim to reproduce the ROM and chaos-db counts it as unmatched, so a
-        # NO-REPRO verdict on it is expected, not a gate failure. The gate exists to
-        # stop files that CLAIM to be matches from landing red; a declared draft cannot
-        # inflate any count. WRONG (a resolvable reloc pointing at the wrong symbol)
-        # still fails -- a draft's call graph must be honest even if its bytes differ.
-        declared_draft = False
+        text = ""
         try:
-            head = pathlib.Path(path).read_text(encoding="utf-8", errors="replace")[:200]
-            declared_draft = "NONMATCHING" in head
+            text = pathlib.Path(path).read_text(encoding="utf-8", errors="replace")
         except OSError:
             pass
-        if w == "NO-REPRO" and declared_draft:
-            rep["worst"] = w = "DRAFT"
+        rep["worst"] = w = source_policy(w, text)
         if w in FAIL:
             bad.append((path, w))
         mark = {"WRONG": "WRONG  ", "NO-REPRO": "NOREPRO", "BENIGN": "ok(ben)",
-                "VERIFIED": "ok     ", "BLIND": "ok(bln)",
-                "DRAFT": "ok(drf)"}.get(w, w)
+                "VERIFIED": "ok     ", "BLIND": "ok(bln)", "DRAFT": "ok(drf)",
+                "RAW-ASM": "RAWASM "}.get(w, w)
         npass = sum(1 for r in rep["results"] if r.get("passenger"))
         extra = f", +{npass} passenger" if npass else ""
         print(f"  {mark} {path}  ({len(rep['results'])} slot(s){extra})")
@@ -354,39 +440,60 @@ def main():
 
 
 # Verdict -> a human label for the PR comment. VERIFIED/BENIGN/BLIND are passes;
-# NO-REPRO (near-miss) and WRONG-DEST are the two failures.
+# NO-REPRO (near-miss), WRONG-DEST and RAW-ASM (unbannered transcription) fail.
 _LABEL = {
     "VERIFIED":   "✅ verified",
     "BENIGN":     "✅ benign (equivalent veneer/twin)",
     "BLIND":      "🔶 blind (a reloc slot could not be resolved)",
     "NO-REPRO":   "❌ near-miss (does NOT reproduce the ROM)",
     "WRONG":      "❌ wrong-dest (reloc links to the wrong symbol)",
+    "RAW-ASM":    "🚫 raw-asm (transcription, no banner): dcd words match the ROM "
+                  "vacuously; banner it HAND-ASM PRIMITIVE or NONMATCHING",
     "NO-SYM":     "🔶 no-sym",
     "UNRESOLVED": "🔶 unresolved (symbol not in config/ledger)",
-    "DRAFT":      "ok - declared draft (header says NONMATCHING; non-reproduction expected)",
+    "DRAFT":      "draft - compiled, does not reproduce ROM; excluded from matched counts",
+    "NO-BIN":     "missing ROM bytes (not verified)",
+    "NO-SRC":     "missing source (not verified)",
+    "ERROR":      "validation error (not verified)",
 }
 
 
 def render_md(reports, bad):
     n = len(reports)
     out = []
-    if bad:
-        kinds = ", ".join(sorted({v for _, v in bad}))
-        out.append(f"**{len(bad)} of {n} changed file(s) do not match the ROM** ({kinds}).")
-    else:
+    if n and all(rep.get("worst") == "VERIFIED" for rep in reports):
         out.append(f"**All {n} changed file(s) compile to the ROM byte-for-byte with correct relocation targets.**")
+    else:
+        counts = collections.Counter(rep.get("worst", "UNKNOWN") for rep in reports)
+        summary = ", ".join(f"{count} {verdict}" for verdict, count in sorted(counts.items()))
+        out.append(f"**Checked {n} changed file(s): {summary or 'no results'}.**")
+        if bad:
+            out.append(f"{len(bad)} file(s) failed validation.")
+        if counts.get("DRAFT"):
+            out.append("Drafts compiled but do not reproduce the ROM; their bytes and relocation "
+                       "destinations are not verified, and they remain excluded from matched counts.")
     out += ["", "| File | Symbol | Result | Slots checked |", "|---|---|---|---|"]
     for rep in reports:
         w = rep.get("worst", "?")
         npass = sum(1 for r in rep["results"] if r.get("passenger"))
         checked = f"{len(rep['results'])}" + (f" (+{npass} passenger)" if npass else "")
         out.append(f"| `{rep['file']}` | `{rep['symbol']}` | {_LABEL.get(w, w)} | {checked} |")
-    # list the compiler-emitted passengers that were also verified (thunks / weak copies)
+    # Retain the failure reason and actual extents, including for draft rows.
     for rep in reports:
-        ps = sorted({r["sym"] for r in rep["results"] if r.get("passenger")})
+        for r in rep["results"]:
+            if r.get("reason"):
+                sizes = ""
+                if r.get("emitted_sizes"):
+                    sizes = (f"; emitted {r['emitted_sizes']} byte(s), "
+                             f"expected {r.get('expected_size')}")
+                out += ["", f"- `{rep['file']}` `{r.get('sym', rep['symbol'])}`: "
+                            f"{r['reason']}{sizes}"]
+    # Passengers were checked, not necessarily verified (thunks / weak copies).
+    for rep in reports:
+        ps = sorted({(r["sym"], r["verdict"]) for r in rep["results"] if r.get("passenger")})
         if ps:
-            out += ["", f"- `{rep['file']}` also verified {len(ps)} emitted passenger(s): "
-                        + ", ".join(f"`{p}`" for p in ps)]
+            out += ["", f"- `{rep['file']}` checked emitted passenger(s): "
+                        + ", ".join(f"`{p}` ({v})" for p, v in ps)]
     # spell out every wrong-dest reloc so a reviewer can see the exact bad link
     for rep in reports:
         for r in rep["results"]:

@@ -5,11 +5,13 @@
 /* recovered: named members + shared header, real C++ method */
 #include "Player.h"
 typedef int Fix12i;
+extern "C" {
 extern void func_ov002_020c2f64(void *c);
 extern void _ZN6Player11ChangeStateERNS_5StateE(void *p, void *st);
 extern void _ZN8Particle20RunningSlidingDustAtE5Fix12IiES1_S1_(Fix12i x, Fix12i y, Fix12i z);
 extern int func_0201226c(int a0, int a1, int a2, int a3, int a4, short a5);
 extern void Player_AdvanceAnims(void *p);
+}
 extern unsigned char data_020a0e40;
 extern unsigned char data_0209f49e[];
 extern char data_ov002_0211013c;
@@ -39,7 +41,7 @@ int Player::St_WallSlide_Main()
       char *p = ((char *)this) + 0x600;
       if (*((unsigned short *) (p + 0xa4)))
       {
-        *((short *) ((char *)&mAngleY)) = *((short *) (((char *)&unk_600) + 0x9c));
+        mAngleY = mAngleYSpeed;
       }
       _ZN6Player11ChangeStateERNS_5StateE(((char *)this), &data_ov002_021103dc);
     }

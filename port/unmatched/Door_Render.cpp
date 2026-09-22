@@ -34,7 +34,7 @@
  */
 #include "Model.h"
 #include "ModelAnim.h"
-#include "daDoor_c.h"
+#include "Door.h"
 
 extern "C" {
 unsigned char IsAreaShowing(int idx);
@@ -43,11 +43,10 @@ unsigned char IsAreaShowing(int idx);
 extern "C" int func_ov100_021454c8(void *selfv)
 {
     char *c = (char *)selfv;
-    const daDoor_c *self = (const daDoor_c *)selfv;
 
     /* the door spans two areas and draws while either is showing */
-    if (IsAreaShowing((signed char)self->unk_08c) == 0 &&
-        IsAreaShowing((signed char)self->unk_090) == 0)
+    if (IsAreaShowing(*(signed char *)(c + 0x8c)) == 0 &&
+        IsAreaShowing(*(signed char *)(c + 0x90)) == 0)
         return 1;
 
     ((ModelAnim *)(c + 0xd4))->ModelAnim::Render(0);
@@ -56,7 +55,7 @@ extern "C" int func_ov100_021454c8(void *selfv)
         Model *key = *(Model **)(c + 0x138);
         if (key == 0)
             return 1;
-        key->Model::Virtual10(*(Matrix4x3 *)(size_t)(unsigned)self->unk_0e8);
+        key->Model::Virtual10(*(Matrix4x3 *)(size_t)(unsigned)*(int *)(c + 0xe8));
         key = *(Model **)(c + 0x138);
         key->Model::Render(0);
     }

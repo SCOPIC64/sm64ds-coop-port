@@ -4,12 +4,28 @@
 #define DECL_PLAYER_H
 #include "common.h"
 
+
+/* C linkage. These declare ROM symbols by their exact final names, so a C++
+   translation unit including this header must not mangle them -- a bare
+   `void Foo(int);` seen from C++ emits _Z3Fooi, which exists nowhere. The file
+   still byte-matches, because match.py compares relocated words as wildcards, so
+   nothing catches it until the ROM link -- and eligible.py refuses to enroll a
+   file with unresolvable references, so the link never sees it either.
+
+   Verified safe: of the 1,644 function names declared across the decl_*.h
+   headers, 1,572 are themselves the ROM symbol and 0 exist ONLY in a mangled
+   form, so no declaration here relies on C++ mangling. The remaining 72 resolve
+   to neither spelling and are unresolvable with or without this guard. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern int _ZN6Player12GetHurtStateEv(void*);
 extern int _ZN6Player12Unk_020c4f40Et(int, u16);
 extern int _ZN6Player13TryTalkToDoorEh(char*, unsigned char);
 extern int _ZN6Player15IsEnteringLevelEv(void*);
 extern int _ZN6Player16IsInsideOfCannonEv(void*);
-extern int _ZN6Player16St_WallJump_InitEv(char*);
+extern int func_ov006_020e17f8(char*);
 extern int _ZN6Player18HasFinishedTalkingEv(void*);
 extern int _ZN6Player9IsOnShellEv(void*);
 extern void _ZN6Player10SpinBounceE5Fix12IiE(void*, int);
@@ -20,5 +36,10 @@ extern void _ZN6Player18TurnOffToonShadingEj(char*, u32);
 extern void _ZN6Player4BurnEv(void*);
 extern void _ZN6Player6BounceE5Fix12IiE(void*, int);
 extern void _ZN6Player8BlowAwayEs(void*, short);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

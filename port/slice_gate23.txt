@@ -19,13 +19,13 @@
 # dispatch on both ModelAnim and Model, which the dual fill in
 # hal/cxxname_bridge.cpp already serves on both classes. The door's slot 4
 # problem does not come up.
-src/QuestionBlock_Spawn.c
-src/_ZN13QuestionBlock13InitResourcesEv.c
-src/_ZN13QuestionBlock8BehaviorEv.cpp
+#MISSING(upstream-folded): src/QuestionBlock_Spawn.c
+#MISSING(upstream-folded): src/_ZN13QuestionBlock13InitResourcesEv.c
+#MISSING(upstream-folded): src/_ZN13QuestionBlock8BehaviorEv.cpp
 # _ZN13QuestionBlock6RenderEv IS NOT HERE: the ModelAnim slot-5 case for
 # the third time this session. Host copy in
 # port/unmatched/ModelAnim_Renders.cpp.
-src/_ZN13QuestionBlock16CleanupResourcesEv.cpp
+#MISSING(upstream-folded): src/_ZN13QuestionBlock16CleanupResourcesEv.cpp
 # THE DESTRUCTORS ARE NOT HERE and slots 16/17 trap by name, the gate-17
 # reading: the castle grounds' one block is never destroyed. Slot 12 is
 # ActorBase's own, which is what the ROM's table holds.
@@ -42,15 +42,9 @@ src/_ZN13QuestionBlock16CleanupResourcesEv.cpp
 # bouncing after it is hit -- and that file seats it by name. InitResources
 # enters state 0 and the castle grounds' one block is on the roof, so the trap
 # is not reached as the level runs.
-src/func_ov102_02149d80.c
-src/func_ov102_02149ccc.cpp
-src/func_ov102_02149c78.c
-src/func_ov102_021498c4.c
-src/func_ov102_02149878.c
+src/actors/daObjHatenaBlock_c.cpp
 
 # ---- the two helpers its own Behavior closes over -------------------------
-src/func_ov102_02149ea4.c
-src/func_ov102_02149ff0.c
 
 # ---- the overlay's own static initialisers --------------------------------
 # All four, in ROM order.
@@ -60,5 +54,3 @@ src/__sinit_ov102_0214de70.c
 src/__sinit_ov102_0214dfac.c
 
 # --- linkloop round 0 ---
-src/func_ov102_02149e38.cpp
-src/func_ov102_02149610.cpp

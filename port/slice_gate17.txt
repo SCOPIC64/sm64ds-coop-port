@@ -27,18 +27,17 @@
 # (-3941,254,4257) and (5401,377,584). A four-state bird: its Behavior
 # dispatches data_ov009_02113c48, four {function, delta} pairs the sinit
 # copies out of the overlay's own statics. Host copy, see port/unmatched/.
-src/Bird_Spawn.c
-src/_ZN4Bird13InitResourcesEv.cpp
-src/_ZN4Bird16CleanupResourcesEv.c
-src/_ZN4Bird16OnPendingDestroyEv.c
+#MISSING(upstream-folded): src/Bird_Spawn.c
+#MISSING(upstream-folded): src/_ZN4Bird13InitResourcesEv.cpp
+#MISSING(upstream-folded): src/_ZN4Bird16CleanupResourcesEv.c
+#MISSING(upstream-folded): src/_ZN4Bird16OnPendingDestroyEv.c
 src/func_ov009_02111224.c
 src/func_ov009_02111234.cpp
 # func_ov009_0211145c is NOT here. It is the Bird's state 2 and it is a
 # NONMATCHING asm hatch -- an mwcc `asm { }` block, not C, so MSVC cannot
 # compile it at all. The state is seated with a named trap in
 # hal/ov009_boot.cpp; if a bird ever enters it the walk says which.
-src/func_ov009_021115d8.c
-src/func_ov009_021116ec.cpp
+src/game/actors/d_a_s_bird.cpp
 
 # ---- CASTLE_WATER (actor 338, ov009), x1 ----------------------------------
 # The moat. One instance at the origin. InitResources loads a BMD with a
@@ -46,32 +45,32 @@ src/func_ov009_021116ec.cpp
 # the actor's own matrix, Enables it, and then CLAMPS THE GLOBAL WATER LEVEL
 # (data_0209f32c) to its own Y minus 100 -- which is what the Player's own
 # state machine reads to decide it is swimming.
-src/CastleWater_Spawn.c
-src/func_ov009_02111c74.cpp
-src/func_ov009_02111c4c.cpp
-src/func_ov009_02111c18.cpp
-src/func_ov009_02111bd4.cpp
-src/func_ov009_02111b1c.cpp
+#MISSING(upstream-folded): src/CastleWater_Spawn.c
+#MISSING(upstream-folded): src/func_ov009_02111c74.cpp
+#MISSING(upstream-folded): src/func_ov009_02111c4c.cpp
+#MISSING(upstream-folded): src/func_ov009_02111c18.cpp
+#MISSING(upstream-folded): src/func_ov009_02111bd4.cpp
+src/game/actors/d_a_obj_mc_water.cpp
 
 # ---- METAL_NET (actor 339, ov009), x3 -------------------------------------
 # (2330,140,3920), (-3300,-520,20), (-3760,-1260,-3378) -- the climbable nets
 # under the bridge. The config calls this class CastleWater; the ROM's RTTI
 # calls it daObjMc_Metalnet_c.
-src/DockPole_Spawn.c
-src/_ZN11CastleWater13InitResourcesEv.cpp
-src/_ZN11CastleWater8BehaviorEv.cpp
-src/_ZN11CastleWater6RenderEv.cpp
-src/_ZN11CastleWater16CleanupResourcesEv.cpp
-src/_ZN11CastleWater16OnPendingDestroyEv.c
+#MISSING(upstream-folded): src/DockPole_Spawn.c
+#MISSING(upstream-folded): src/_ZN11CastleWater13InitResourcesEv.cpp
+#MISSING(upstream-folded): src/_ZN11CastleWater8BehaviorEv.cpp
+#MISSING(upstream-folded): src/_ZN11CastleWater6RenderEv.cpp
+#MISSING(upstream-folded): src/_ZN11CastleWater16CleanupResourcesEv.cpp
+#MISSING(upstream-folded): src/_ZN11CastleWater16OnPendingDestroyEv.c
 
 # ---- FLAG (actor 342, ov009), x4 ------------------------------------------
 # The four castle-tower flags, at y 3095 and 3662. The config calls this
 # class DockPole; the ROM's RTTI calls it daMcFlag_c. Its Behavior is one
 # Animation::Advance and a rotation matrix -- the flag waves.
-src/Flag_Spawn.c
-src/_ZN8DockPole13InitResourcesEv.cpp
-src/_ZN8DockPole8BehaviorEv.cpp
-src/_ZN8DockPole16CleanupResourcesEv.c
+#MISSING(upstream-folded): src/Flag_Spawn.c
+#MISSING(upstream-folded): src/_ZN8DockPole13InitResourcesEv.cpp
+#MISSING(upstream-folded): src/_ZN8DockPole8BehaviorEv.cpp
+#MISSING(upstream-folded): src/_ZN8DockPole16CleanupResourcesEv.c
 
 # ---- the overlay's own static initialisers --------------------------------
 # Four sinits, and they are what makes any of the above load anything: every
@@ -95,7 +94,7 @@ src/__sinit_ov009_02112ac8.c
 # CastleWater's InitResources prepares a BTA against its own BMD and its
 # Render Updates it every frame: the moat's surface scrolls. TextureTransformer
 # is the class that does it and this is its first host caller.
-src/_ZN18TextureTransformerC1Ev.c
+src/_ZN18TextureTransformerC1Ev.cpp
 src/_ZN18TextureTransformer6UpdateER15ModelComponents.cpp
 # TextureTransformer::Prepare is NOT here, and the reason is a signature the
 # ROM settles against its own header. include/TextureTransformer.h says the

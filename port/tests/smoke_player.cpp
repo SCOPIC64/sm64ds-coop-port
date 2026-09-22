@@ -227,18 +227,18 @@ int main(void)
     {
         static struct { unsigned short id; unsigned char refs; void *p; } kcl_ptr;
         extern void *_ZN13SharedFilePtr9ConstructEj(void *, unsigned);
-        extern void _ZN12MeshColliderC1Ev(void *);
-        extern void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *);
-        extern void _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(
+        extern void _ZN7dBgW_KcC1Ev(void *);
+        extern void *_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(void *);
+        extern void _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(
             void *, void *, void *);
-        extern int _ZN16MeshColliderBase6EnableEP5Actor(void *, void *);
+        extern int _ZN4dBgW6EnableEP8dActor_c(void *, void *);
         _ZN13SharedFilePtr9ConstructEj(&kcl_ptr, 1941);
         static char mc_storage[0x60];
-        _ZN12MeshColliderC1Ev(mc_storage);
-        char *kcl = (char *)_ZN12MeshCollider8LoadFileER13SharedFilePtr(&kcl_ptr);
+        _ZN7dBgW_KcC1Ev(mc_storage);
+        char *kcl = (char *)_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(&kcl_ptr);
         CHECK(kcl != NULL);
         static char clps_storage[0x100];
-        _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
+        _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
                                                           clps_storage);
         /* ROOT CAUSE (found 2026-08-02): the level collider's OWNER feeds
            func_02035354's self-collision exclusion. Enabling it with the
@@ -249,7 +249,7 @@ int main(void)
            (suspect: the div-52 walk-physics draft's ground branches), so
            real collision stays opt-in until that is run down. */
         static char stage_owner[0x200];
-        _ZN16MeshColliderBase6EnableEP5Actor(
+        _ZN4dBgW6EnableEP8dActor_c(
             mc_storage, getenv("SM64DS_REAL_CLSN") ? (void *)stage_owner
                                                    : (void *)player);
         /* stand Mario inside the octree box, above the floor plane */

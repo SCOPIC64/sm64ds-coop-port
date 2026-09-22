@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(sm64ds-port C CXX)
+include(CTest)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MAP")
 add_compile_options(/Oy-)
 
@@ -8,6 +9,20 @@ add_compile_options(/Oy-)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+
+# The matching toolchain selects C++ by an exact first-line //cpp marker even
+# when a source keeps its historical .c path. Teach the host build the same
+# rule so a verified language-mode migration cannot silently break a slice.
+function(sm64ds_honor_cpp_markers source_var)
+    foreach(source IN LISTS ${source_var})
+        if(source MATCHES "\\.c$")
+            file(STRINGS "${source}" first_line LIMIT_COUNT 1)
+            if(first_line STREQUAL "//cpp")
+                set_source_files_properties("${source}" PROPERTIES LANGUAGE CXX)
+            endif()
+        endif()
+    endforeach()
+endfunction()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate1.txt" SLICE_LINES)
 set(SLICE_SOURCES "")
@@ -18,12 +33,14 @@ foreach(line IN LISTS SLICE_LINES)
     endif()
     list(APPEND SLICE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+sm64ds_honor_cpp_markers(SLICE_SOURCES)
 
 add_executable(smoke
     tests/smoke.cpp
     hal/cstd_div.c
     hal/os_time.cpp
     hal/shims.cpp
+    hal/mem_delete2.cpp
     ${SLICE_SOURCES})
 
 target_include_directories(smoke PRIVATE
@@ -48,6 +65,7 @@ foreach(line IN LISTS SLICE2_LINES)
     endif()
     list(APPEND SLICE2_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+sm64ds_honor_cpp_markers(SLICE2_SOURCES)
 
 add_executable(smoke_heap tests/smoke_heap.cpp hal/heap_globals.cpp ${SLICE2_SOURCES})
 target_include_directories(smoke_heap PRIVATE
@@ -68,9 +86,10 @@ foreach(line IN LISTS SLICE3A_LINES)
     endif()
     list(APPEND SLICE3A_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+sm64ds_honor_cpp_markers(SLICE3A_SOURCES)
 
 add_executable(smoke_roots tests/smoke_roots.cpp
-    hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp
+    hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/mem_delete2.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES})
 target_include_directories(smoke_roots PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -83,7 +102,7 @@ endif()
 # The ntr platform layer: imported host DS hardware (see ntr/README.md).
 # Compiled as its own lib so every gate binary can link the pieces it needs.
 add_library(ntr STATIC
-    ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/ppu_sub.cpp ntr/lz77.cpp
+    ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/lz77.cpp
     ntr/rt.cpp ntr/runtime.cpp ntr/fs.cpp ntr/bmd.cpp)
 target_include_directories(ntr PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ntr/include")
 if(MSVC)
@@ -123,8 +142,51 @@ foreach(line IN LISTS SLICE3B_LINES)
     endif()
     list(APPEND SLICE3B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+sm64ds_honor_cpp_markers(SLICE3B_SOURCES)
 
 get_filename_component(PORT_REPO_ROOT_ABS "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+
+# Resolve hostgen symbols through the decomp's production enrollment table.  A
+# reconstructed translation unit can own several symbols under one source path, so
+# src/<symbol>.c|.cpp probing is no longer a valid source lookup.  Dedupe by resolved
+# path: two requested symbols in the same TU must compile that TU once, not twice.
+function(sm64ds_hostgen_symbols out_var)
+    set(generated "")
+    set(seen_sources "")
+    foreach(sym IN LISTS ARGN)
+        execute_process(
+            COMMAND python "${PORT_REPO_ROOT_ABS}/tools/srcpath.py" "${sym}"
+            WORKING_DIRECTORY "${PORT_REPO_ROOT_ABS}"
+            RESULT_VARIABLE resolve_result
+            OUTPUT_VARIABLE sym_rel
+            ERROR_VARIABLE resolve_error
+            OUTPUT_STRIP_TRAILING_WHITESPACE)
+        if(NOT resolve_result EQUAL 0 OR sym_rel MATCHES ": not in src/$")
+            message(FATAL_ERROR
+                "hostgen source resolution failed for ${sym}: ${sym_rel}${resolve_error}")
+        endif()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/${sym_rel}")
+        if(NOT EXISTS "${sym_src}")
+            message(FATAL_ERROR "hostgen resolved ${sym} to missing ${sym_rel}")
+        endif()
+        list(FIND seen_sources "${sym_src}" seen_index)
+        if(NOT seen_index EQUAL -1)
+            continue()
+        endif()
+        list(APPEND seen_sources "${sym_src}")
+        string(REGEX REPLACE "\\.(c|cpp)$" ".cpp" sym_out_rel "${sym_rel}")
+        set(sym_out "${CMAKE_BINARY_DIR}/host-src/${sym_out_rel}")
+        add_custom_command(OUTPUT "${sym_out}"
+            COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                    --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+            DEPENDS "${sym_src}"
+                    "${PORT_REPO_ROOT_ABS}/tools/srcpath.py"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+            COMMENT "hostgen ${sym_rel}")
+        list(APPEND generated "${sym_out}")
+    endforeach()
+    set(${out_var} "${generated}" PARENT_SCOPE)
+endfunction()
 
 # Gate 4a: the game's display-list submission machinery over the ntr GX.
 # These src/ files touch MMIO textually, so they build from hostgen-emitted
@@ -132,21 +194,7 @@ get_filename_component(PORT_REPO_ROOT_ABS "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOL
 set(GATE4A_SYMS
     func_0205532c func_02055388 func_020553a4 func_02055780
     func_0205a358 func_0205a290 func_0205a21c func_02056e98 func_02059fa8)
-set(GATE4A_GEN "")
-foreach(sym IN LISTS GATE4A_SYMS)
-    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-    else()
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
-    endif()
-    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
-    add_custom_command(OUTPUT "${sym_out}"
-        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
-        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-        COMMENT "hostgen ${sym}")
-    list(APPEND GATE4A_GEN "${sym_out}")
-endforeach()
+sm64ds_hostgen_symbols(GATE4A_GEN ${GATE4A_SYMS})
 
 add_executable(smoke_gx tests/smoke_gx.cpp ${GATE4A_GEN})
 target_include_directories(smoke_gx PRIVATE
@@ -163,21 +211,7 @@ endif()
 # feeders to the hostgen set and the Model/render slice on top of everything.
 set(GATE4B_SYMS func_02044b30 Geometry_MatrixMultiply3x3 func_02055998
     func_02044534 func_0204488c NormalizeVec3)
-set(GATE4B_GEN "")
-foreach(sym IN LISTS GATE4B_SYMS)
-    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-    else()
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
-    endif()
-    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
-    add_custom_command(OUTPUT "${sym_out}"
-        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
-        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-        COMMENT "hostgen ${sym}")
-    list(APPEND GATE4B_GEN "${sym_out}")
-endforeach()
+sm64ds_hostgen_symbols(GATE4B_GEN ${GATE4B_SYMS})
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate4b.txt" SLICE4B_LINES)
 set(SLICE4B_SOURCES "")
@@ -188,6 +222,7 @@ foreach(line IN LISTS SLICE4B_LINES)
     endif()
     list(APPEND SLICE4B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+sm64ds_honor_cpp_markers(SLICE4B_SOURCES)
 
 # ROM constants (sine table, default matrices): generated locally from the
 # extracted arm9 image so Nintendo bytes never enter the repo.
@@ -199,7 +234,7 @@ add_custom_command(OUTPUT "${ROMDATA_C}"
 
 add_executable(smoke_model tests/smoke_model.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_model PRIVATE
@@ -215,7 +250,7 @@ endif()
 # Gate 5: the fiber frame loop -- game-shaped frames, host-rastered.
 add_executable(smoke_frames tests/smoke_frames.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_frames PRIVATE
@@ -231,7 +266,7 @@ endif()
 # Gate 4d: the catalog soak -- every model through the game pipeline.
 add_executable(smoke_soak tests/smoke_soak.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_soak PRIVATE
@@ -248,21 +283,7 @@ endif()
 # drives the hardware sqrt unit through literal MMIO -> hostgen.
 set(GATE8_SYMS _ZN4cstd4sqrtEy _ZN4cstd11fdiv_resultEv _ZN4cstd16reciprocal_asyncE5Fix12IiE
     Matrix4x3_ApplyInPlaceToScale)
-set(GATE8_GEN "")
-foreach(sym IN LISTS GATE8_SYMS)
-    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-    else()
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
-    endif()
-    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
-    add_custom_command(OUTPUT "${sym_out}"
-        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
-        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-        COMMENT "hostgen ${sym}")
-    list(APPEND GATE8_GEN "${sym_out}")
-endforeach()
+sm64ds_hostgen_symbols(GATE8_GEN ${GATE8_SYMS})
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate8.txt" SLICE8_LINES)
 set(SLICE8_SOURCES "")
@@ -273,24 +294,14 @@ foreach(line IN LISTS SLICE8_LINES)
     endif()
     list(APPEND SLICE8_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
-
-# Three files the SPHERE pass needs that later gates already carry: gate 10 has
-# func_02039794 and func_02037e58, gate 13 has DotVec3. The binaries that stop
-# at gate 8/9 (smoke_clsn, smoke_actor) get them here; smoke_player and
-# walk_window get them from their own slices, and adding them in both places
-# would be a duplicate source in one target.
-set(GATE8_EXTRA_SOURCES
-    "${PORT_REPO_ROOT_ABS}/src/func_02039794.c"
-    "${PORT_REPO_ROOT_ABS}/src/func_02037e58.c"
-    "${PORT_REPO_ROOT_ABS}/src/DotVec3.c")
+sm64ds_honor_cpp_markers(SLICE8_SOURCES)
 
 add_executable(smoke_clsn tests/smoke_clsn.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
-    hal/clsn_vtable.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp hal/cstd_div.c
+    hal/clsn_vtable.cpp hal/bg_ctor_bridge.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE8_SOURCES} ${GATE8_EXTRA_SOURCES}
-    ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} "${ROMDATA_C}")
+    ${SLICE8_SOURCES} ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_clsn PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
@@ -311,26 +322,13 @@ foreach(line IN LISTS SLICE7_LINES)
     endif()
     list(APPEND SLICE7_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
-
-# Gate 24: BlendModelAnim -- the cross-fading ModelAnim. Rides on gate 7's
-# stack and is proven by the same smoke; see slice_gate24.txt.
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate24.txt" SLICE24_LINES)
-set(SLICE24_SOURCES "")
-foreach(line IN LISTS SLICE24_LINES)
-    string(STRIP "${line}" line)
-    if(line MATCHES "^#" OR line STREQUAL "")
-        continue()
-    endif()
-    list(APPEND SLICE24_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
-endforeach()
+sm64ds_honor_cpp_markers(SLICE7_SOURCES)
 
 add_executable(smoke_modelanim tests/smoke_modelanim.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/anim_bridge.cpp
-    hal/blend_vtable.cpp hal/cstd_div.c
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp hal/anim_bridge.cpp hal/anim_ctor_bridge.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE7_SOURCES} ${SLICE24_SOURCES} ${GATE4A_GEN} ${GATE4B_GEN}
-    "${ROMDATA_C}")
+    ${SLICE7_SOURCES} ${GATE4A_GEN} ${GATE4B_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_modelanim PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
@@ -344,21 +342,7 @@ endif()
 # Gate 6: the 2D sprite engine's software side. OAM::Load reads POWCNT
 # textually -> hostgen; the rest of the slice is plain.
 set(GATE6_SYMS _ZN3OAM4LoadEv)
-set(GATE6_GEN "")
-foreach(sym IN LISTS GATE6_SYMS)
-    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-    else()
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
-    endif()
-    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
-    add_custom_command(OUTPUT "${sym_out}"
-        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
-        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-        COMMENT "hostgen ${sym}")
-    list(APPEND GATE6_GEN "${sym_out}")
-endforeach()
+sm64ds_hostgen_symbols(GATE6_GEN ${GATE6_SYMS})
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate6.txt" SLICE6_LINES)
 set(SLICE6_SOURCES "")
@@ -372,10 +356,11 @@ foreach(line IN LISTS SLICE6_LINES)
     endif()
     list(APPEND SLICE6_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+sm64ds_honor_cpp_markers(SLICE6_SOURCES)
 
 add_executable(smoke_oam tests/smoke_oam.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp hal/oam_bridge.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE6_SOURCES} ${GATE4A_GEN} ${GATE4B_GEN} ${GATE6_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_oam PRIVATE
@@ -391,7 +376,7 @@ endif()
 # Gate 5b: the animation soak -- every compatible model+BCA pair.
 add_executable(smoke_soak_anim tests/smoke_soak_anim.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_soak_anim PRIVATE
@@ -408,7 +393,7 @@ endif()
 # different driver: the piano posed by its BCA through the game's walk.
 add_executable(smoke_anim tests/smoke_anim.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_anim PRIVATE
@@ -423,7 +408,8 @@ endif()
 
 add_executable(smoke_fs tests/smoke_fs.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} "${ROMDATA_C}")
+    hal/mem_delete2.cpp
+    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES})
 target_include_directories(smoke_fs PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
@@ -436,22 +422,8 @@ endif()
 # Gate 9: the actor framework -- ArrowSignRight's full lifecycle.
 # One .c file carries C++ syntax (mwccarm accepted it); hostgen's
 # emit-as-cpp with extern "C" wrap makes it legal.
-set(GATE9_SYMS _ZN9ActorBase21AfterCleanupResourcesEj)
-set(GATE9_GEN "")
-foreach(sym IN LISTS GATE9_SYMS)
-    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-    else()
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
-    endif()
-    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
-    add_custom_command(OUTPUT "${sym_out}"
-        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
-        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-        COMMENT "hostgen ${sym}")
-    list(APPEND GATE9_GEN "${sym_out}")
-endforeach()
+set(GATE9_SYMS _ZN7fBase_c21AfterCleanupResourcesEj)
+sm64ds_hostgen_symbols(GATE9_GEN ${GATE9_SYMS})
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate9.txt" SLICE9_LINES)
 set(SLICE9_SOURCES "")
@@ -462,14 +434,15 @@ foreach(line IN LISTS SLICE9_LINES)
     endif()
     list(APPEND SLICE9_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+sm64ds_honor_cpp_markers(SLICE9_SOURCES)
 
 add_executable(smoke_actor tests/smoke_actor.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
-    hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp hal/cstd_div.c
+    hal/clsn_vtable.cpp hal/bg_ctor_bridge.cpp hal/actor_vtables.cpp hal/actor_ctor_bridge.cpp hal/anim_bridge.cpp hal/anim_ctor_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${GATE8_EXTRA_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_actor PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -480,6 +453,40 @@ target_compile_definitions(smoke_actor PRIVATE SM64DS_PLATFORM_PC
 if(MSVC)
     target_compile_options(smoke_actor PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
+
+if(BUILD_TESTING)
+    set(PORT_SMOKE_TARGETS
+        smoke
+        smoke_heap
+        smoke_roots
+        smoke_gx
+        smoke_model
+        smoke_frames
+        smoke_soak
+        smoke_clsn
+        smoke_modelanim
+        smoke_oam
+        smoke_soak_anim
+        smoke_anim
+        smoke_fs
+        smoke_actor)
+    foreach(smoke_target IN LISTS PORT_SMOKE_TARGETS)
+        add_test(NAME ${smoke_target} COMMAND $<TARGET_FILE:${smoke_target}>)
+        set_tests_properties(${smoke_target} PROPERTIES
+            WORKING_DIRECTORY "${PORT_REPO_ROOT_ABS}")
+    endforeach()
+endif()
+
+# Three files the SPHERE pass needs that no slice carries (plus func_020396dc,
+# the prism helper the hosted sphere transcription calls): gate 10 has
+# func_02039794 and func_02037e58, gate 13 has DotVec3. walk_window,
+# smoke_player and the hires twin get them here; adding them in both places
+# would be a duplicate source in one target.
+set(GATE8_EXTRA_SOURCES
+    "${PORT_REPO_ROOT_ABS}/src/func_02039794.c"
+    "${PORT_REPO_ROOT_ABS}/src/func_02037e58.c"
+    "${PORT_REPO_ROOT_ABS}/src/DotVec3.c"
+    "${PORT_REPO_ROOT_ABS}/src/func_020396dc.c")
 
 # Gate 10: Player spawns and stands (the walking campaign).
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
@@ -501,25 +508,12 @@ endforeach()
 # resolves a path as well as a bare name, so the fader subdirectory works.
 # func_ov002_020c897c does void-pointer arithmetic (the NoControl body's
 # `*(void**)(c + id * 4 + 0xdc) + 0x50` anim probe), which MSVC C rejects
-# with C2036; hostgen's VOIDPP_ARITH rewrite retypes the deref to char*.
+# with C2036; it folded into src/actors/Player.cpp, which compiles as C++
+# outright, so the slice carries it and the GEN set skips it.
 set(GATE10_SYMS func_ov002_020dec70 func_ov002_020d708c
-    engine/fader/StartExitFaderWipe func_ov002_020c897c
+    engine/fader/StartExitFaderWipe
     engine/fader/StartEntranceFaderWipe)
-set(GATE10_GEN "")
-foreach(sym IN LISTS GATE10_SYMS)
-    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-    else()
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
-    endif()
-    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
-    add_custom_command(OUTPUT "${sym_out}"
-        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
-        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-        COMMENT "hostgen ${sym}")
-    list(APPEND GATE10_GEN "${sym_out}")
-endforeach()
+sm64ds_hostgen_symbols(GATE10_GEN ${GATE10_SYMS})
 
 set(OV002DATA_C "${CMAKE_BINARY_DIR}/host-src/ov002_data.c")
 add_custom_command(OUTPUT "${OV002DATA_C}"
@@ -676,6 +670,20 @@ foreach(line IN LISTS SLICE26_LINES)
     list(APPEND SLICE26_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gate 27: the merge link sweep -- single-function TUs the renamed tree
+# needs that no gate slice names (their old shards folded away). Listed by
+# the undefined-symbol sweep after the origin/main merge, not by gate.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate27.txt" SLICE27_LINES)
+set(SLICE27_SOURCES "")
+foreach(line IN LISTS SLICE27_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE27_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+sm64ds_honor_cpp_markers(SLICE27_SOURCES)
+
 # Gate 13: the real Camera actor. Adds its own slice plus the HAL seam, and
 # swaps three gate-10 files for host copies that only the camera needs
 # (see port/unmatched/): ChangeArea calls HideArea() with no argument and
@@ -818,22 +826,8 @@ set(CAMERA_HOST_SOURCES
 # _ZN12ActorDerived18AfterInitResourcesEj is C++ inside a .c (the gate-9 case
 # again): hostgen emits it as .cpp with the C-linkage wrap, which MSVC accepts.
 set(GATE13_SYMS _ZN6Camera6RenderEv LenVec3 _ZN4cstd11ldiv_resultEv
-    func_02009d90 _ZN12ActorDerived18AfterInitResourcesEj)
-set(GATE13_GEN "")
-foreach(sym IN LISTS GATE13_SYMS)
-    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-    else()
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
-    endif()
-    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
-    add_custom_command(OUTPUT "${sym_out}"
-        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
-        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-        COMMENT "hostgen ${sym}")
-    list(APPEND GATE13_GEN "${sym_out}")
-endforeach()
+    func_02009d90)
+sm64ds_hostgen_symbols(GATE13_GEN ${GATE13_SYMS})
 
 # LenVec3 comes from the hostgen copy now, so drop the plain gate-9 entry.
 set(SLICE9_CAM_SOURCES "")
@@ -847,22 +841,8 @@ endforeach()
 # Gate 14: two more C++-in-a-.c files (the gate-9 case): Actor's
 # AfterInitResources, which the spawn spine's init Process dispatches, and
 # StartEntranceFaderWipe's sibling already in GATE10_SYMS.
-set(GATE14_SYMS _ZN5Actor18AfterInitResourcesEj func_ov002_020c6fe4)
-set(GATE14_GEN "")
-foreach(sym IN LISTS GATE14_SYMS)
-    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-    else()
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
-    endif()
-    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
-    add_custom_command(OUTPUT "${sym_out}"
-        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
-        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-        COMMENT "hostgen ${sym}")
-    list(APPEND GATE14_GEN "${sym_out}")
-endforeach()
+set(GATE14_SYMS _ZN8dActor_c18AfterInitResourcesEj)
+sm64ds_hostgen_symbols(GATE14_GEN ${GATE14_SYMS})
 
 # Gate 14: the real level boot. Stage::LoadClsnAndObjects over ov009's own
 # LVL_Overlay, the fifteen sub-loaders, and the setters they store through.
@@ -880,26 +860,12 @@ endforeach()
 # which is what makes the real WithMeshClsn tracking work -- see the header of
 # slice_gate15.txt for why prev-pos is load-bearing.
 #
-# Actor::BeforeBehavior defines its eight engine BSS symbols at file scope the
-# way mwccarm accepts (tentative definitions the linker merges). MSVC's C++
-# front end makes them strong and they all belong to the HAL, so the file goes
-# through hostgen with --extern-data.
-set(GATE15_SYMS _ZN5Actor14BeforeBehaviorEv)
-set(GATE15_GEN "")
-foreach(sym IN LISTS GATE15_SYMS)
-    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-    else()
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
-    endif()
-    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
-    add_custom_command(OUTPUT "${sym_out}"
-        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" --extern-data ${sym}
-        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-        COMMENT "hostgen ${sym}")
-    list(APPEND GATE15_GEN "${sym_out}")
-endforeach()
+# dActor_c::BeforeBehavior externs its engine BSS (nearest-player cache,
+# world->camera, clipper, thresholds) instead of defining it: the storage
+# belongs to the HAL (hal/auto_bss.cpp), so no --extern-data dance. The
+# clipper only lends its address -- actors spawn with clip radius 0.
+set(GATE15_SYMS _ZN8dActor_c14BeforeBehaviorEv)
+sm64ds_hostgen_symbols(GATE15_GEN ${GATE15_SYMS})
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate15.txt" SLICE15_LINES)
 set(SLICE15_SOURCES "")
@@ -919,23 +885,8 @@ endforeach()
 # a `virtual` shadow class) inside a .c file, which mwccarm accepted and MSVC
 # will not compile as C. hostgen emits .cpp with the symbols wrapped back to
 # C linkage, so the byte-verified tree is never edited.
-set(GATE16_SYMS _ZN5Actor22BeforeCleanupResourcesEv
-    func_ov002_020aefb8)
-set(GATE16_GEN "")
-foreach(sym IN LISTS GATE16_SYMS)
-    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
-    else()
-        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
-    endif()
-    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
-    add_custom_command(OUTPUT "${sym_out}"
-        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
-        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-        COMMENT "hostgen ${sym}")
-    list(APPEND GATE16_GEN "${sym_out}")
-endforeach()
+set(GATE16_SYMS _ZN8dActor_c22BeforeCleanupResourcesEv)
+sm64ds_hostgen_symbols(GATE16_GEN ${GATE16_SYMS})
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate16.txt" SLICE16_LINES)
 set(SLICE16_SOURCES "")
@@ -953,13 +904,13 @@ endforeach()
 # needs the host dispatcher too or the first ChangeState calls a mwcc
 # member-function pointer.
 add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA_C}"
-    hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
+    hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp hal/itanium_faces.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp hal/anim_ctor_bridge.cpp hal/bg_ctor_bridge.cpp hal/mem_delete2.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/stage_bridges.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${GATE8_EXTRA_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
@@ -978,19 +929,19 @@ if(MSVC)
 endif()
 
 # Gate 12: the interactive window (same stack, windowed loop).
-add_executable(walk_window tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loader.cpp hal/logo.cpp hal/lobby.cpp hal/remote_players.cpp assets/logo.rc "${OV002DATA_C}" "${OV009DATA_C}"
+add_executable(walk_window tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loader.cpp hal/logo.cpp hal/lobby.cpp hal/remote_players.cpp hal/itanium_faces.cpp assets/logo.rc "${OV002DATA_C}" "${OV009DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp hal/anim_ctor_bridge.cpp hal/bg_ctor_bridge.cpp hal/mem_delete2.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/spawn_aliases.cpp hal/missing_stubs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${GATE8_EXTRA_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
-    ${SLICE25_SOURCES} ${SLICE26_SOURCES} ${GATE6_GEN}
+    ${SLICE25_SOURCES} ${SLICE26_SOURCES} ${SLICE27_SOURCES} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
@@ -1032,22 +983,23 @@ if(Lua_FOUND)
 endif()
 if(MSVC)
     target_compile_options(walk_window PRIVATE /wd4311 /wd4312 /wd4068)
+    target_link_options(walk_window PRIVATE /FORCE:MULTIPLE /FORCE:UNRESOLVED)
 endif()
 
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
-add_executable(walk_window_hires tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loader.cpp hal/logo.cpp hal/lobby.cpp hal/remote_players.cpp assets/logo.rc "${OV002DATA_C}" "${OV009DATA_C}"
+add_executable(walk_window_hires tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loader.cpp hal/logo.cpp hal/lobby.cpp hal/remote_players.cpp hal/itanium_faces.cpp assets/logo.rc "${OV002DATA_C}" "${OV009DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp hal/anim_ctor_bridge.cpp hal/bg_ctor_bridge.cpp hal/mem_delete2.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/spawn_aliases.cpp hal/missing_stubs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${GATE8_EXTRA_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
-    ${SLICE25_SOURCES} ${SLICE26_SOURCES} ${GATE6_GEN}
+    ${SLICE25_SOURCES} ${SLICE26_SOURCES} ${SLICE27_SOURCES} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
@@ -1075,3 +1027,4 @@ target_compile_definitions(smoke_sdat PRIVATE SM64DS_PLATFORM_PC
 if(MSVC)
     target_compile_options(smoke_sdat PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
+

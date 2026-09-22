@@ -27,24 +27,26 @@ struct Matrix4x3;
 struct CLPS_Block;
 struct SharedFilePtr;
 
+/* New-ABI prototypes behind the stable faces below. The classes were
+   renamed upstream (Actor -> dActor_c, WithMeshClsn -> dBgCh_Actr,
+   CylinderClsn -> dCc_c, MeshCollider -> dBgW_Kc, MovingMeshCollider ->
+   dBgW_KcMbg, Enemy::UpdateWMClsn -> dEnemyBase_c); the objects are the
+   same ROM structs, so pointer-passing needs no translation. */
 extern "C" {
-void _ZN5Actor9UpdatePosEP12CylinderClsn(void *self, void *clsn);
-void _ZN18MovingCylinderClsn4InitEP5Actor5Fix12IiES3_jj(void *self, void *actor,
-                                                        int r, int h,
-                                                        unsigned e,
-                                                        unsigned f);
-void _ZN18MovingMeshCollider7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
+void _ZN8dActor_c9UpdatePosEP5dCc_c(void *self, void *clsn);
+void _ZN10dBgW_KcMbg7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
     void *self, void *kcl, const void *mat, int scale, short angY, void *clps);
-void _ZN12WithMeshClsn4InitEP5Actor5Fix12IiES3_P10Vector3_16S5_(
+void _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(
     void *self, void *actor, int r, int h, void *v, int t);
-void _ZN5Actor28UpdatePosWithHorzSpeedAndAngEv(void *self);
-short _ZN5Actor12ReflectAngleE5Fix12IiES1_s(void *self, int a, int b, short c);
-void _ZN5Enemy12UpdateWMClsnER12WithMeshClsnj(void *self, void *clsn,
-                                              unsigned flags);
-int _ZNK12WithMeshClsn8IsOnWallEv(void *self);
-int _ZNK12WithMeshClsn13JustHitGroundEv(void *self);
+void _ZN8dActor_c28UpdatePosWithHorzSpeedAndAngEv(void *self);
+short _ZN8dActor_c12ReflectAngleE5Fix12IiES1_s(void *self, int a, int b,
+                                               short c);
+void _ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj(void *self, void *clsn,
+                                                    unsigned flags);
+int _ZNK10dBgCh_Actr8IsOnWallEv(void *self);
+int _ZNK10dBgCh_Actr13JustHitGroundEv(void *self);
 void *_ZN5Model8LoadFileER13SharedFilePtr(void *ptr);
-void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *ptr);
+void *_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(void *ptr);
 }
 
 /* Actor: three methods the 1-up's type bodies and the sign's thrown state
@@ -60,26 +62,20 @@ struct Actor {
     short ReflectAngle(int a, int b, short c);
 };
 void Actor::UpdatePos(CylinderClsn *clsn)
-{ _ZN5Actor9UpdatePosEP12CylinderClsn(this, clsn); }
+{ _ZN8dActor_c9UpdatePosEP5dCc_c(this, clsn); }
 void Actor::UpdatePosWithHorzSpeedAndAng()
-{ _ZN5Actor28UpdatePosWithHorzSpeedAndAngEv(this); }
+{ _ZN8dActor_c28UpdatePosWithHorzSpeedAndAngEv(this); }
 short Actor::ReflectAngle(int a, int b, short c)
-{ return _ZN5Actor12ReflectAngleE5Fix12IiES1_s(this, a, b, c); }
+{ return _ZN8dActor_c12ReflectAngleE5Fix12IiES1_s(this, a, b, c); }
 
-/* ?UpdateWMClsn@Enemy@@QAEXAAUWithMeshClsn@@I@Z */
-struct WithMeshClsn;
-struct Enemy { void UpdateWMClsn(WithMeshClsn &clsn, unsigned flags); };
-void Enemy::UpdateWMClsn(WithMeshClsn &clsn, unsigned flags)
-{ _ZN5Enemy12UpdateWMClsnER12WithMeshClsnj(this, &clsn, flags); }
+/* ?UpdateWMClsn@Enemy@@QAEXAAUWithMeshClsn@@I@Z -- dead face: no caller in
+   the tree (the enemy TUs call dEnemyBase_c directly now), and the old
+   class is gone. Dropped rather than repointed; the link will say if
+   anything still wants it. */
 
-/* ?Init@MovingCylinderClsn@@QAEXPAUActor@@HHII@Z */
-struct MovingCylinderClsn {
-    void Init(Actor *actor, int radius, int height, unsigned e, unsigned f);
-};
-void MovingCylinderClsn::Init(Actor *actor, int radius, int height,
-                              unsigned e, unsigned f)
-{ _ZN18MovingCylinderClsn4InitEP5Actor5Fix12IiES3_jj(this, actor, radius,
-                                                     height, e, f); }
+/* ?Init@MovingCylinderClsn@@QAEXPAUActor@@HHII@Z -- dead face, same story:
+   the cylinder is dCc_c now (its Init takes no actor) and nothing calls
+   this. Dropped; see above. */
 
 /* ?SetFile@MovingMeshCollider@@QAEXPAUKCL_File@@ABUMatrix4x3@@HFAAUCLPS_Block@@@Z */
 struct MovingMeshCollider {
@@ -89,7 +85,7 @@ struct MovingMeshCollider {
 void MovingMeshCollider::SetFile(KCL_File *file, const Matrix4x3 &mat,
                                  int scale, short angY, CLPS_Block &clps)
 {
-    _ZN18MovingMeshCollider7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
+    _ZN10dBgW_KcMbg7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
         this, file, &mat, scale, angY, &clps);
 }
 
@@ -100,12 +96,12 @@ struct WithMeshClsn {
     int JustHitGround() const;
 };
 int WithMeshClsn::IsOnWall() const
-{ return _ZNK12WithMeshClsn8IsOnWallEv((void *)this); }
+{ return _ZNK10dBgCh_Actr8IsOnWallEv((void *)this); }
 int WithMeshClsn::JustHitGround() const
-{ return _ZNK12WithMeshClsn13JustHitGroundEv((void *)this); }
+{ return _ZNK10dBgCh_Actr13JustHitGroundEv((void *)this); }
 void WithMeshClsn::Init(Actor *actor, int radius, int height, Vector3_16 *v,
                         int t)
-{ _ZN12WithMeshClsn4InitEP5Actor5Fix12IiES3_P10Vector3_16S5_(this, actor,
+{ _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(this, actor,
                                                              radius, height,
                                                              v, t); }
 
@@ -115,7 +111,7 @@ void WithMeshClsn::Init(Actor *actor, int radius, int height, Vector3_16 *v,
    readable in a map file. */
 void *ModelLoadFile(void *ptr) { return _ZN5Model8LoadFileER13SharedFilePtr(ptr); }
 void *MeshColliderLoadFile(void *ptr)
-{ return _ZN12MeshCollider8LoadFileER13SharedFilePtr(ptr); }
+{ return _ZN7dBgW_Kc8LoadFileER13SharedFilePtr(ptr); }
 
 /* ?TrackInDeathTable@Actor@@QAEXXZ -- the 1-up's collect path. Its own TU
    defines it as a method over a locally-declared Actor; the C-name reference
@@ -140,7 +136,7 @@ void ShadowModel::InitCuboid() { _ZN11ShadowModel10InitCuboidEv(this); }
    include/WithMeshClsn.h), and the sign's thrown and dropped states call it by
    its Itanium name. The C face is the mirror of the shadow-class ones above:
    this side declares the method, forwards to the definition. */
-extern "C" int _ZNK12WithMeshClsn12TouchesWaterEv(const void *self);
+extern "C" int _ZNK10dBgCh_Actr12TouchesWaterEv(const void *self);
 extern "C" int SurfaceInfo_TestFlag0x20(const void *p);
 extern "C" int _ZNK12WithMeshClsn12TouchesWaterEv(const void *self)
 { return SurfaceInfo_TestFlag0x20((const char *)self + 0x34); }

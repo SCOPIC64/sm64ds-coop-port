@@ -6,16 +6,18 @@
 struct Entry { int x; void* bta; char pad[4]; };
 struct Info { char a[0x10]; struct Entry* entries; unsigned char count; };
 extern struct Info* data_0209f340;
+extern "C" {
 extern void* _Znwj(u32);
 extern void _ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File(void* bmd, void* bta);
 extern void* _ZN18TextureTransformerC1Ev(void*);
 extern void _ZN18TextureTransformer7SetFileER8BTA_Filei5Fix12IiEj(void* self, void* bta, int a, int b, u32 c);
+}
 
 void Stage::LoadTextureTransformers()
 {
   struct Entry* e = data_0209f340->entries;
-  void** slot = (void**)((char*)&unk_8bc);
-  void* bmd = *(void**)((char*)&unk_874);
+  void** slot = (void**)mTexAnimSlots;
+  void* bmd = *(void**)((char*)&mModel.data);
   int i;
   for(i=0;i<(int)data_0209f340->count;i++){
     if(e->bta){

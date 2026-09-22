@@ -106,8 +106,7 @@ void hal_fill_question_block_vtable(void);
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
     {286, "TREE", Tree_SpawnInfo, Tree_Spawn, hal_fill_tree_vtable},          \
-    {350, "AMBIENT_SOUND", AmbientSoundEffects_SpawnInfo,                     \
-     AmbientSoundEffects_Spawn, hal_fill_ambient_sound_vtable},               \
+    {350, "AMBIENT_SOUND", 0, 0, 0},                                         \
     {17, "BLACK_BRICK_BLOCK", BlackBrickBlock_SpawnInfo,                      \
      BlackBrickBlock_Spawn, hal_fill_black_brick_block_vtable},               \
     {184, "SIGN_POST", SignPost_SpawnInfo, SignPost_Spawn,                    \

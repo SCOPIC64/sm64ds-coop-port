@@ -75,7 +75,6 @@
     /* CrazedCrate */
     case 0x020e0d48: return ((Player *)self)->Player::St_CrazedCrate_Main();
     case 0x020e0fac: return ((Player *)self)->Player::St_CrazedCrate_Init();
-    case 0x020e0d28: return ((Player *)self)->Player::St_CrazedCrate_Cleanup();
     /* DebugFly */
     case 0x020ca7f4: return ((Player *)self)->Player::St_DebugFly_Main();
     case 0x020ca8d0: return ((Player *)self)->Player::St_DebugFly_Init();

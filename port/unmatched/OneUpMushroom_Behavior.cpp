@@ -42,8 +42,8 @@
 extern "C" {
 
 int _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(void *self, void *clsn);
-void _ZN12CylinderClsn5ClearEv(void *self);
-void _ZN12CylinderClsn6UpdateEv(void *self);
+void _ZN5dCc_c5ClearEv(void *self);
+void _ZN5dCc_c6UpdateEv(void *self);
 void func_ov002_020af4ec(void *self);
 
 /* the fourteen type behaviours, in the order __sinit_ov002_02100adc seats
@@ -101,7 +101,7 @@ extern "C" int _ZN13OneUpMushroom8BehaviorEv(void *selfv)
     char *c = (char *)selfv;
     if (_ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(c, c + 0x144) != 0) {
         func_ov002_020af4ec(c);
-        _ZN12CylinderClsn5ClearEv(c + 0x110);
+        _ZN5dCc_c5ClearEv(c + 0x110);
         return 1;
     }
     *(int *)(c + 0xd0) = 0;                       /* mEatingPlayer */
@@ -121,8 +121,8 @@ extern "C" int _ZN13OneUpMushroom8BehaviorEv(void *selfv)
             *(unsigned short *)(c + 0x300 + 0x8c) = 0;
         }
     }
-    _ZN12CylinderClsn5ClearEv(c + 0x110);
-    _ZN12CylinderClsn6UpdateEv(c + 0x110);
+    _ZN5dCc_c5ClearEv(c + 0x110);
+    _ZN5dCc_c6UpdateEv(c + 0x110);
     func_ov002_020af4ec(c);
     return 1;
 }

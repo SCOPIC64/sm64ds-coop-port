@@ -87,7 +87,7 @@ extern int Vec2_Len(V2 *p);
 extern void func_0203d480(V2 *out, V2 *in);
 extern int RandomIntInternal(int *seed);
 extern void func_ov006_021146f4(V2 *out, void *obj);
-extern void func_02012718(void *id, int x);
+extern void func_02012718(int id, int x);
 extern int func_020126e8(int x);
 extern void func_020126ac(int id, int type, int volume, int arg3, int arg4);
 extern void func_ov006_02111b90(Obj *self, int id, V2 *vel);
@@ -99,9 +99,9 @@ extern int data_0209d4b8;
 
 #define FIX_MUL(a, b) ((int)(((s64)(a) * (b) + 0x800) >> 12))
 #define FIX_MUL_SU(a, b) \
-    ((int)(((s64)((u64)(s64)(a) * (u64)(u32)(b)) + 0x800) >> 12))
+    ((int)(((s64)((u64)(s64)(a) * (b)) + 0x800) >> 12))
 #define FIX_MUL_US(a, b) \
-    ((int)(((s64)((u64)(u32)(a) * (u64)(s64)(b)) + 0x800) >> 12))
+    ((int)(((s64)((a) * (u64)(s64)(b)) + 0x800) >> 12))
 
 static void *GetEntity(Mgr *mgr, int i)
 {
@@ -450,9 +450,8 @@ final_checks:
             V2 *position = (V2 *)self->pos;
             Obj *owner = position
                 ? self : self;
-            int *pz = (int *)(((int)owner + 0xc) &
-                0xffffffffffffffffULL);
-            *(int *)(((int)position) & 0xffffffffffffffffLL) -=
+            int *pz = (int *)((int)owner + 0xc);
+            *(int *)((int)position) -=
                 normal.x;
             *pz -= normal.z;
             Vec2_Sub(&moveDelta, position,
@@ -509,7 +508,7 @@ final_checks:
             responseScale += FIX_MUL_SU(responseScale, randomScale >> 6);
             randomAngle = (u32)RandomIntInternal(&data_0209d4b8);
             func_0203d388(&response,
-                (s16)((((((randomAngle >> 16) & 0x7fff) << 12) >> 15)) - 0x800));
+                (s16)(((((randomAngle >> 16) & 0x7fff) << 12) >> 15) - 0x800));
         } else if (state.flags[3] == 1) {
             u32 randomScale;
             u32 randomAngle;
@@ -521,7 +520,7 @@ final_checks:
             responseScale += FIX_MUL_US(randomScale >> 5, -0x2000);
             randomAngle = (u32)RandomIntInternal(&data_0209d4b8);
             func_0203d388(&response,
-                (s16)((((((randomAngle >> 16) & 0x7fff) << 12) >> 15)) - 0x800));
+                (s16)(((((randomAngle >> 16) & 0x7fff) << 12) >> 15) - 0x800));
         } else if (state.flags[2] == 1) {
             u32 randomScale;
             responseScale = FIX_MUL(dot, 0x1a00);
@@ -536,10 +535,10 @@ final_checks:
             responseScale = FIX_MUL(dot, 0x1200);
         }
         velXPtr = (int *)(int)
-            ((u64)(int)&self->velX & 0xffffffffffffffffULL);
+            (&self->velX);
         *velXPtr -= FIX_MUL(responseScale, response.x);
         velZPtr = (int *)(int)
-            ((u64)(int)&self->velZ & 0xffffffffffffffffULL);
+            (&self->velZ);
         *velZPtr -= FIX_MUL(responseScale, response.z);
     }
 
@@ -568,8 +567,8 @@ final_checks:
 
         if (self->soundTimer == 0) {
             if (self->velZ < -0x6000) {
-                func_02012718((void *)0x16d, self->pos[0]);
-                func_02012718((void *)0x16e, self->pos[0]);
+                func_02012718(0x16d, self->pos[0]);
+                func_02012718(0x16e, self->pos[0]);
             } else {
                 volume = (-self->velZ << 7) / 0x6000;
                 if (volume > 0x7f)
@@ -587,7 +586,7 @@ final_checks:
         if (self->soundPlayed != 0)
             return;
         if (self->velZ < -0x6000)
-            func_02012718((void *)0x16e, self->pos[0]);
+            func_02012718(0x16e, self->pos[0]);
         self->soundPlayed = 1;
         return;
     }
@@ -647,10 +646,10 @@ final_checks:
                 correctionX = correction.x;
                 correctionZ = correction.z;
                 velXPtr = (int *)(int)
-                    ((u64)(int)&self->velX & 0xffffffffffffffffULL);
+                    (&self->velX);
                 *velXPtr -= correctionX;
                 velZPtr = (int *)(int)
-                    ((u64)(int)&self->velZ & 0xffffffffffffffffULL);
+                    (&self->velZ);
                 *velZPtr -= correction.z;
                 return;
             }

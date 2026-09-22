@@ -1,18 +1,22 @@
 //cpp
 // @symbol _ZN9TinyCover16CleanupResourcesEv
-/* recovered: named members + shared header, real C++ method, declarations from a shared header */
-#include "decl_common.h"
-/* recovered: named members + shared header, real C++ method */
 #include "TinyCover.h"
+// recovered name: daObjTtFuta_c_CleanupResources
+/* recovered: renamed to Class_Method, declarations from a shared header */
+#include "decl_common.h"
+/* recovered: renamed to Class_Method */
+/* daObjTtFuta_c::CleanupResources - recovered from vtable slot identity */
+extern "C" {
 extern void _ZN13SharedFilePtr7ReleaseEv(void *);
-extern int data_ov033_021124f0[];
+extern int data_ov033_021124c8[];
+}
 
-int TinyCover::CleanupResources()
-{
-    if (_ZN16MeshColliderBase9IsEnabledEv((char *)&mMeshCollider)) {
-        _ZN16MeshColliderBase7DisableEv((char *)&mMeshCollider);
+s32 TinyCover::CleanupResources() {
+    void * t = (void *)this;
+    if (_ZN4dBgW9IsEnabledEv((char *)t + 0x124)) {
+        _ZN4dBgW7DisableEv((char *)t + 0x124);
     }
-    _ZN13SharedFilePtr7ReleaseEv(data_ov033_021124f0);
-    _ZN13SharedFilePtr7ReleaseEv(data_ov033_021124e8);
+    _ZN13SharedFilePtr7ReleaseEv(data_ov033_021124c8);
+    _ZN13SharedFilePtr7ReleaseEv(data_ov033_021124c0);
     return 1;
 }

@@ -5,9 +5,11 @@
 #include "decl_common.h"
 /* recovered: named members + shared header, real C++ method */
 #include "Player.h"
+extern "C" {
 extern void _ZN6Player7SetAnimEji5Fix12IiEj(char* thiz, u32 anim, int a, int fix, u32 b);
 extern int _ZNK6Player14GetBodyModelIDEjb(char* thiz, u32 a, int b);
 extern void func_ov002_020d93ac(char* thiz);
+}
 extern char* data_0209f318;
 
 int Player::St_Hurt_Init()
@@ -20,7 +22,7 @@ int Player::St_Hurt_Init()
     m = *(char**)(((char*)this) + mid*4 + 0xdc);
     m = (char*)(((unsigned int)m + 0x50) & 0xFFFFFFFFU);
     *(int*)(m + 8) = 0;
-    unk_6e6 = 0;
+    mStatePhase = 0;
     old = mStateWork;
     mStateWork = 0;
     if ((mStateStep & 0xf0) == 0x10) mStateWork = old << 4;

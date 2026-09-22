@@ -1,15 +1,15 @@
+#include "common.h"
 typedef struct { int x, y, z; } Vec3;
-typedef struct { int m[12]; } Mtx43;
 
 extern void Matrix4x3_FromRotationXYZExt(void *m, int x, int y, int z);
 extern void Vec3_Asr(Vec3 *d, Vec3 *s, int sh);
-extern void Matrix4x3_FromTranslation(Mtx43 *m, int x, int y, int z);
+extern void Matrix4x3_FromTranslation(Matrix4x3 *m, int x, int y, int z);
 extern void Matrix4x3_ApplyInPlaceToRotationY(void *mF, short angY);
-extern void _ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
+extern void _ZN8dActor_c18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
     void *self, void *sm, void *mtx, int a, int b, int c, unsigned int g);
 
 extern short data_02082214[];
-extern Mtx43 data_020a0e68;
+extern Matrix4x3 data_020a0e68;
 
 #define FX12(a,b) (int)(((long long)(a) * (int)(b) + 0x800) >> 12)
 
@@ -56,16 +56,16 @@ void func_ov079_02124188(char *self)
     Matrix4x3_ApplyInPlaceToRotationY(&data_020a0e68,
         (short)(*(short *)(self + 0x8e) + *(short *)(self + 0x3e2)));
 
-    *(Mtx43 *)(self + 0x36c) = data_020a0e68;
+    *(Matrix4x3 *)(self + 0x36c) = data_020a0e68;
 
     if (*(unsigned char *)(self + 0x404) == 0)
         return;
 
     if (*(unsigned char *)(self + 0x414) != 0) {
-        _ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
+        _ZN8dActor_c18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
             self, self + 0x344, self + 0x36c, 0x1cc000, 0x190000, shadowRad, 0xf);
     } else {
-        _ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
+        _ZN8dActor_c18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
             self, self + 0x344, self + 0x36c, 0xf0000, 0x190000, shadowRad, 0xf);
     }
     return;

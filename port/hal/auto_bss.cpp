@@ -1,8 +1,26 @@
 // GENERATED-ACCUMULATED zero storage for gate-10/11 BSS ring symbols.
 // Grown by the link-sweep loop; sizes are generous defaults.
+#include "dBgCh_Lin.h"
 extern "C" {
 int MSG_GEN_TEXT_FUNCS[8];
 int VT1[8];
+/* dActor_c spine (gate 15): the renamed Actor gate externs these instead of
+   defining them, so the HAL owns the storage. Sizes generous per file
+   convention; the clipper only lends its address (actors spawn with clip
+   radius 0, same as before the rename). */
+void *data_0209b450;
+void *data_0209b458;
+int data_0209b3ec[12];   /* Matrix4x3 world -> camera */
+int data_0209f43c[24];   /* Clipper instance */
+int data_0209f274[8];
+int data_0209b464[8];
+/* moving-collider scratch: the KcMbg triple's static dBgCh_Lin at
+   0x020a0d0c (+ answer words the old tree verified contiguous). Typed to
+   match the TUs' externs; the ctor runs at boot (level_boot), the way
+   __sinit_0207501c runs it on hardware. dBgPi/Vector3 are POD here. */
+dBgCh_Lin data_020a0d0c;
+dBgPi data_020a0d1c;
+Vector3 data_020a0d60;
 int data_0209b454[8];
 int data_0209b490[8];
 int data_0209b494[8];
@@ -188,6 +206,8 @@ unsigned char data_ov002_02111180[4];
    ModelComponents pointer (Stage+0x874) here, and CopyTexPalFromLevelModel
    reads it back. kind:bss in config, so zero until LoadModel runs. */
 int data_0209f320;
+int data_020a0e68[12];   /* rabbit matrix scratch (Mtx43 view) */
+int data_0209f338[8];    /* type-13 loader stash */
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */

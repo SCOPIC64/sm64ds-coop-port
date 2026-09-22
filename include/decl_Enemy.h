@@ -4,9 +4,30 @@
 #define DECL_ENEMY_H
 #include "common.h"
 
-extern int _ZN5Enemy27SpawnParticlesIfHitOtherObjER12CylinderClsn(void*, void*);
-extern void _ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player(void*, Vector3_16*, void*, int);
-extern void _ZN5Enemy22SpawnMegaCharParticlesER5ActorPc(void*, void*, char*);
-extern void _ZN5EnemyC2Ev(void*);
+
+/* C linkage. These declare ROM symbols by their exact final names, so a C++
+   translation unit including this header must not mangle them -- a bare
+   `void Foo(int);` seen from C++ emits _Z3Fooi, which exists nowhere. The file
+   still byte-matches, because match.py compares relocated words as wildcards, so
+   nothing catches it until the ROM link -- and eligible.py refuses to enroll a
+   file with unresolvable references, so the link never sees it either.
+
+   Verified safe: of the 1,644 function names declared across the decl_*.h
+   headers, 1,572 are themselves the ROM symbol and 0 exist ONLY in a mangled
+   form, so no declaration here relies on C++ mangling. The remaining 72 resolve
+   to neither spelling and are unresolvable with or without this guard. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern int _ZN12dEnemyBase_c27SpawnParticlesIfHitOtherObjER5dCc_c(void*, void*);
+extern void _ZN12dEnemyBase_c20KillByInvincibleCharERK10Vector3_16R6Player5Fix12IiE(void*, Vector3_16*, void*, int);
+extern void _ZN12dEnemyBase_c22SpawnMegaCharParticlesER8dActor_cPc(void*, void*, char*);
+extern void _ZN12dEnemyBase_cC2Ev(void*);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

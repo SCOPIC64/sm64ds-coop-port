@@ -8,7 +8,7 @@
 #include <cstdlib>
 
 #include "Animation.h"
-#include "BgCh.h"
+#include "dBgCh.h"
 #include "NestedHeapIterator.h"
 #include "Player.h"
 #include "ShadowModel.h"
@@ -138,14 +138,14 @@ static void hal_dump_model_tables(Model *m)
         BMD_Texture *t = f->textures + i;
         printf("  tex %2u %-20s flags %08x fmt %u %3dx%-3d size %5u "
                "vramoff %05x\n",
-               i, (const char *)t->unk_00, t->flags, (t->flags >> 26) & 7,
+               i, (const char *)t->name, t->flags, (t->flags >> 26) & 7,
                8 << ((t->flags >> 20) & 7), 8 << ((t->flags >> 23) & 7),
                t->size, (t->flags & 0xffff) << 3);
     }
     for (u32 i = 0; i < f->numPalettes; ++i) {
         BMD_Palette *p = f->palettes + i;
         printf("  pal %2u %-20s size %5u vramoff %05x -> pltt %04x\n", i,
-               (const char *)p->unk_00, p->size, p->vramOffset,
+               (const char *)p->name, p->size, p->vramOffset,
                p->vramOffset >> 4);
     }
     const unsigned char *mm = (const unsigned char *)m->data.materials;
@@ -153,7 +153,7 @@ static void hal_dump_model_tables(Model *m)
         const u32 *e = (const u32 *)(mm + i * 0x30);
         printf("  mat %2u %-20s tex %3d pal %3d teximage %08x pltt %04x "
                "attr %08x difamb %08x\n",
-               i, (const char *)f->materials[i].unk_00, (int)e[0], (int)e[1],
+               i, (const char *)f->materials[i].name, (int)e[0], (int)e[1],
                e[7], e[8], e[9], e[10]);
     }
 }
@@ -476,7 +476,7 @@ int _ZN6Player9GetHealthEv(void *self)
 }
 
 void _ZN4BgCh19StartDetectingWaterEv(void *self)
-{ ((BgCh *)self)->BgCh::StartDetectingWater(); }
+{ ((dBgCh *)self)->dBgCh::StartDetectingWater(); }
 
 /* SHADOW SYSTEM DEFERRED (matches InitCuboid, cxxname_bridge.cpp, which now
    carries the full writeup). The template BMD at data_020ad560 is NOT
@@ -504,7 +504,7 @@ int _ZN18NestedHeapIterator8PreviousEP13HeapAllocator(void *self, void *h)
       (HeapAllocator *)h); }
 
 int _ZN4Heap6RescueEv(void *self)
-{ return ((Heap *)self)->Heap::Rescue(); }
+{ ((Heap *)self)->Heap::Rescue(); return 1; }
 int _ZN4Heap21MaxAllocationUnitSizeEv(void *self)
 { return ((Heap *)self)->Heap::MaxAllocationUnitSize(); }
 int _ZN4Heap6IntactEv(void *self)

@@ -33,7 +33,6 @@ extern void *data_ov002_020ff2f0[];
 }
 extern u8 data_02092128[];
 extern u8 data_0209caa0[];
-extern "C" void func_ov002_020e6330(char *c);
 extern "C" int _ZN6Player6IsAnimEj(void *c, unsigned a);
 extern "C" void _ZN6Player7SetAnimEji5Fix12IiEj(void *c, unsigned a, int b, int f, unsigned d);
 extern "C" void *_ZN13SharedFilePtr8LoadFileEv(SharedFilePtr *self);
@@ -77,7 +76,7 @@ void Player::SetRealCharacter(unsigned int chr_)
     ensure_file(data_ov002_020ff480[0xc4 + (param1 & 3)]);
     func_ov002_020e6330(((char *)this));
     _ZN6Player4HealEi(((char *)this), 0x880);
-    unk_73c = 0;
+    mCapFlags = 0;
 
     m1 = _ZNK6Player14GetBodyModelIDEjb(((char *)this), chr, 0);
     m2 = _ZNK6Player14GetBodyModelIDEjb(((char *)this), param1 & 0xff, 0);

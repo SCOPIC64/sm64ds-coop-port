@@ -20,10 +20,10 @@
 # array hal/actor_classes.cpp fills.
 
 # ---- the six own slots ----------------------------------------------------
-src/Door_Spawn.c
-src/func_ov100_021455a0.c
-src/func_ov100_0214542c.cpp
-src/func_ov100_021454c4.c
+#MISSING(upstream-folded): src/Door_Spawn.c
+#MISSING(upstream-folded): src/func_ov100_021455a0.c
+#MISSING(upstream-folded): src/func_ov100_0214542c.cpp
+#MISSING(upstream-folded): src/func_ov100_021454c4.c
 # func_ov100_02145550 (Behavior) and func_ov100_021453d8 (its callback
 # installer) are NOT here: both form an mwcc pointer-to-member of an
 # INCOMPLETE class, the gate-16 case for the sixth time, and this is the first
@@ -74,7 +74,7 @@ src/func_ov100_021452e4.c
 # SharedFilePtr table, which the port already carries as zeroed storage in
 # hal/cxx_aliases.cpp -- the castle grounds' three doors take the branch that
 # does not read it).
-src/LoadKeyModels.cpp
+#DUP(first in slice_gate10): src/LoadKeyModels.cpp
 src/UnloadKeyModels.cpp
 # THE PLAYER SIDE OF OPENING A DOOR. These are the arm9 entry points the
 # door's callbacks call when Mario reaches one: the star check, the two talk
@@ -83,26 +83,19 @@ src/UnloadKeyModels.cpp
 # at, the same wall SIGN_POST's read branch and the RABBIT's catch path meet
 # (hal/actor_vtables.cpp). Nothing on the castle grounds reaches them with the
 # entrance gate the level boot leaves in place.
-src/_ZN6Player11OpenBigDoorEv.cpp
-src/_ZN6Player12Unk_020ca488Ev.cpp
-src/_ZN6Player13TryTalkToDoorEh.cpp
-src/_ZN6Player16TryTalkToKeyDoorEv.cpp
+#DUP(first in slice_gate10): src/actors/Player.cpp
 # _ZN6Player16SetRealCharacterEj is hosted: the ROM releases the outgoing
 # anim file first, which frees it outright on the host while stale slots
 # still reference it. The host keeps the file (leaked, once per switch)
 # and is otherwise identical.
 port/unmatched/Player_SetRealCharacter.cpp
-src/_ZN6Player17PlayMammaMiaSoundEv.cpp
-src/_ZN6Player21IsOpeningDoorWithStarEv.cpp
 src/_ZN6Camera14GoBehindPlayerEj.cpp
-src/_ZN8SaveData17SetCharacterIntroEi.c
+src/_ZN8SaveData17SetCharacterIntroEi.cpp
 src/func_0201277c.c
 
 # --- linkloop round 1 ---
 # func_020ca78c is ov002's own func_ov002_020ca78c; the door's TU declares it
 # without the overlay prefix, the same slip as func_02132894 above.
-src/func_ov002_020ca78c.c
-src/_ZN6Player24TryExitWhiteDoorWithStarEv.cpp
 src/SetTouchScreenDelay.c
 # src/_ZN6Player12CanEnterDoorEh.c IS DELIBERATELY NOT HERE. Its own header
 # says NONMATCHING -- "register allocation (div=13) ... counts as decompiled,

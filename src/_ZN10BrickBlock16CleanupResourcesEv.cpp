@@ -4,18 +4,18 @@
 #include "decl_common.h"
 /* recovered: named members + shared header, real C++ method */
 #include "BrickBlock.h"
-extern int _ZN13SharedFilePtr7ReleaseEv(void*);
+#include "SharedFilePtr.h"
 extern char data_ov002_0210d9d8[];
 extern char data_ov002_0210da30[];
 extern char data_ov002_0210da18[];
 
 int BrickBlock::CleanupResources()
 {
-  int v = unk_00c;
+  int v = actorID;
   switch(v){
-  case 0x141: _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210d9d8); break;
-  case 0x142: _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210da30); break;
-  case 0x143: _ZN13SharedFilePtr7ReleaseEv(data_ov002_0210da18); break;
+  case 0x141: ((SharedFilePtr *)(data_ov002_0210d9d8))->Release(); break;
+  case 0x142: ((SharedFilePtr *)(data_ov002_0210da30))->Release(); break;
+  case 0x143: ((SharedFilePtr *)(data_ov002_0210da18))->Release(); break;
   case 0x144: UnloadSilverStarAndNumber(); break;
   }
   return 1;

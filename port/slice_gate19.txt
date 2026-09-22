@@ -17,14 +17,14 @@
 # save's cannon-unlock bit before it will open; with a fresh save the lid
 # stays shut, which is exactly what the level looks like before Bob-omb Buddy
 # opens it. Nothing here chases the cannon-entry path.
-src/Cannon_Spawn.c
+src/d_a_cnn.cpp
 src/_ZN6Cannon13InitResourcesEv.cpp
 # _ZN6Cannon8BehaviorEv is NOT here either: it dispatches an mwcc
 # pointer-to-member out of a four-entry state table, the gate-16 case for the
 # fourth time, and one of the four states (ov098 0x0213ade8, the lid opening)
 # has no C in src/ at all. Host copy plus the state seat and the named trap in
 # port/unmatched/Cannon_Behavior.cpp.
-src/_ZN6Cannon16CleanupResourcesEv.c
+src/_ZN6Cannon16CleanupResourcesEv.cpp
 # _ZN6Cannon6RenderEv is NOT here: it dispatches Model slots 3 and 5 through
 # a local shadow class, which is ROM numbering, and the host _ZTV5Model is
 # MSVC's. Slot 5 the host array already serves both ways (the dual fill in
@@ -56,13 +56,12 @@ src/func_ov098_0213ad08.c
 src/func_ov098_0213b0a4.cpp
 
 # --- linkloop round 1 ---
-src/_ZN5Actor10EarthquakeERK7Vector35Fix12IiE.cpp
+#MISSING(upstream-folded): src/_ZN5Actor10EarthquakeERK7Vector35Fix12IiE.cpp
 src/func_ov002_020df300.c
 src/func_ov002_020df34c.cpp
-src/func_ov102_0214ae1c.c
+src/actors/daBmb_c.cpp
 
 # --- linkloop round 2 ---
 src/func_0200d438.c
 src/func_0200d474.c
 src/func_ov002_020ef228.cpp
-src/func_ov102_0214baa0.c

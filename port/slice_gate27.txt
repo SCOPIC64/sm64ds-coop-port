@@ -1,0 +1,212 @@
+src/__cxa_vec_ctor.cpp
+#DUP(first in slice_gate13): src/_Z13CopyToViewMatPK9Matrix4x3.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_Actr13SetGroundFlagEv.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_Actr13SetLimMovFlagEv.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_Actr15ClearGroundFlagEv.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_Actr15ClearLimMovFlagEv.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_Actr18StopDetectingWaterEv.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_Actr19ClearAllGroundFlagsEv.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_Actr19StartDetectingWaterEv.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_Actr20UpdateExtraContinousEv.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_Actr22UpdateContinuousNoLavaEv.cpp
+src/_ZN10dBgCh_Actr22UpdateDiscreteNoLava_2Ev.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_ActrC1Ev.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgCh_ActrD1Ev.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgW_KcMbg10DetectClsnER12dBgCh_SphCrr.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgW_KcMbg10DetectClsnER9dBgCh_Gnd.cpp
+#DUP(first in slice_gate15): src/_ZN10dBgW_KcMbg10DetectClsnER9dBgCh_Lin.cpp
+#DUP(first in slice_gate9): src/_ZN10dBgW_KcMbg9TransformERK9Matrix4x3s.cpp
+#DUP(first in slice_gate15): src/_ZN10dCcAcPos_c21SetPosRelativeToActorERK7Vector3.cpp
+#DUP(first in slice_gate15): src/_ZN10dCcAcPos_c4InitEP8dActor_cRK7Vector35Fix12IiES6_jj.cpp
+#DUP(first in slice_gate15): src/_ZN10dCcAcPos_cC1Ev.cpp
+#DUP(first in slice_gate10): src/_ZN10ModelAnim2C1Ev.cpp
+#DUP(first in slice_gate9): src/_ZN11ShadowModelC1Ev.cpp
+#DUP(first in slice_gate16): src/_ZN11ShadowModelD1Ev.cpp
+#DUP(first in slice_gate15): src/_ZN12dBgCh_SphCrr15SetObjAndSphereERK7Vector35Fix12IiEP8dActor_c.cpp
+#DUP(first in slice_gate15): src/_ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj.cpp
+src/_ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr.cpp
+src/_ZN12dEnemyBase_c20KillByInvincibleCharERK10Vector3_16R6Player5Fix12IiE.cpp
+src/_ZN12dEnemyBase_c27SpawnParticlesIfHitOtherObjER5dCc_c.cpp
+#DUP(first in slice_gate16): src/_ZN13BigBrickBlock13InitResourcesEv.cpp
+#DUP(first in slice_gate16): src/_ZN13BigBrickBlockD0Ev.cpp
+#DUP(first in slice_gate16): src/_ZN13BigBrickBlockD1Ev.cpp
+#DUP(first in slice_gate16): src/_ZN14EnemySwitchTag16CleanupResourcesEv.cpp
+#DUP(first in slice_gate10): src/_ZN15MaterialChangerC1Ev.cpp
+#DUP(first in slice_gate10): src/_ZN15MaterialChangerD1Ev.cpp
+#DUP(first in slice_gate10): src/_ZN15TextureSequenceC1Ev.cpp
+#DUP(first in slice_gate10): src/_ZN15TextureSequenceD1Ev.cpp
+#DUP(first in slice_gate2): src/_ZN18NestedHeapIterator5AddAtEP13HeapAllocatorS1_.cpp
+#DUP(first in slice_gate10): src/_ZN18SolidHeapAllocator5ResetEj.cpp
+#DUP(first in slice_gate10): src/_ZN18SolidHeapAllocator8AllocateEji.cpp
+#DUP(first in slice_gate10): src/_ZN18SolidHeapAllocator9LoadStateEj.cpp
+#DUP(first in slice_gate10): src/_ZN18SolidHeapAllocator9SaveStateEj.cpp
+#DUP(first in slice_gate10): src/_ZN2G212GetBG1ScrPtrEv.cpp
+#DUP(first in slice_gate25): src/_ZN2G212GetBG2ScrPtrEv.cpp
+#DUP(first in slice_gate10): src/_ZN2G212GetBG3ScrPtrEv.cpp
+#DUP(first in slice_gate25): src/_ZN2G213GetBG2CharPtrEv.cpp
+#DUP(first in slice_gate10): src/_ZN2GX10LoadBGPlttEPKvjj.cpp
+#DUP(first in slice_gate10): src/_ZN2GX11LoadBG1CharEPKvjj.cpp
+#DUP(first in slice_gate10): src/_ZN2GX6DispOnEv.cpp
+#DUP(first in slice_gate25): src/_ZN3G2S12GetBG0ScrPtrEv.cpp
+#DUP(first in slice_gate10): src/_ZN3G2S12GetBG1ScrPtrEv.cpp
+#DUP(first in slice_gate25): src/_ZN3G2S12GetBG2ScrPtrEv.cpp
+#DUP(first in slice_gate10): src/_ZN3G2S13GetBG0CharPtrEv.cpp
+#DUP(first in slice_gate10): src/_ZN3G2S13GetBG1CharPtrEv.cpp
+#DUP(first in slice_gate10): src/_ZN3G2x18SetBlendBrightnessEPVtts.cpp
+#DUP(first in slice_gate6): src/_ZN3OAM11GetObjWidthEii.cpp
+#DUP(first in slice_gate25): src/_ZN3OAM12EnableSubOAMEv.cpp
+#DUP(first in slice_gate6): src/_ZN3OAM12GetObjHeightEii.cpp
+#DUP(first in slice_gate6): src/_ZN3OAM16LoadAffineParamsEP7OamAttrPiP9Matrix2x2.cpp
+src/_ZN3OAM4LoadEv.cpp
+src/_ZN4cstd11ldiv_resultEv.cpp
+#DUP(first in slice_gate10): src/_ZN4cstd6strlenEPKc.cpp
+#DUP(first in slice_gate10): src/_ZN4cstd7strncpyEPcPKcj.cpp
+#DUP(first in slice_gate9): src/_ZN4dBgW7DisableEv.cpp
+#DUP(first in slice_gate9): src/_ZN4dBgW9IsEnabledEv.cpp
+#DUP(first in slice_gate16): src/_ZN4Fish16OnPendingDestroyEv.cpp
+src/_ZN5dBgCh19StartDetectingToxicEv.cpp
+src/_ZN5dBgCh19StartDetectingWaterEv.cpp
+src/_ZN5dBgCh21StopDetectingOrdinaryEv.cpp
+src/_ZN5dBgPiaSERKS_.cpp
+#DUP(first in slice_gate15): src/_ZN5dBgPiD1Ev.cpp
+#DUP(first in slice_gate15): src/_ZN5dCc_c5ClearEv.cpp
+#DUP(first in slice_gate15): src/_ZN5dCc_c6UpdateEv.cpp
+#DUP(first in slice_gate16): src/_ZN5Event6GetBitEj.cpp
+#DUP(first in slice_gate16): src/_ZN5Event6SetBitEj.cpp
+src/_ZN5Event8ClearBitEj.cpp
+#DUP(first in slice_gate4b): src/_ZN5Model27LoadCompressedTextureToVramEPcjS0_.cpp
+#DUP(first in slice_gate4b): src/_ZN5ModelD1Ev.cpp
+#DUP(first in slice_gate10): src/_ZN5Sound13PlayCharVoiceEjjRK7Vector3.cpp
+#DUP(first in slice_gate10): src/_ZN5Sound17InfoSequenceEntry9GetWithIDEj.cpp
+#DUP(first in slice_gate10): src/_ZN5Sound22LoadAndSetMusic_Layer1Ei.cpp
+#DUP(first in slice_gate10): src/_ZN5Sound23InfoInstrumentBankEntry9GetWithIDEj.cpp
+#DUP(first in slice_gate10): src/_ZN5Sound6Play2DEjj.cpp
+#DUP(first in slice_gate10): src/_ZN5Sound8EndMusicEjj.cpp
+src/_ZN5Sound8PlayLongEjjjRK7Vector3s.cpp
+#DUP(first in slice_gate10): src/_ZN5Sound8SetMusicEjj.cpp
+#DUP(first in slice_gate10): src/_ZN5Sound9PlayBank0EjRK7Vector3.cpp
+#DUP(first in slice_gate10): src/_ZN5Sound9PlayBank3EjRK7Vector3.cpp
+#DUP(first in slice_gate10): src/_ZN5Stage10CheckInputEv.cpp
+#DUP(first in slice_gate26): src/_ZN5Stage9LoadModelEv.cpp
+src/_ZN6Camera10LookAtExitER8dActor_c.cpp
+#DUP(first in slice_gate10): src/_ZN6Camera11ChangeStateEPNS_5StateE.cpp
+#DUP(first in slice_gate13): src/_ZN6Camera16CleanupResourcesEv.cpp
+#DUP(first in slice_gate18): src/_ZN6Camera6SetPosERK7Vector3.cpp
+#DUP(first in slice_gate18): src/_ZN6Camera9SetLookAtERK7Vector3.cpp
+src/_ZN6CameraD0Ev.cpp
+src/_ZN6CameraD1Ev.cpp
+#DUP(first in slice_gate19): src/_ZN6Cannon16CleanupResourcesEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player12St_Hurt_MainEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player12St_Jump_InitEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player12St_Spin_MainEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player13St_Throw_InitEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player14St_Thrown_InitEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player15St_Balloon_MainEv.cpp
+src/_ZN6Player16IsInsideOfCannonEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player16St_BurnFire_InitEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player16St_BurnFire_MainEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player16St_BurnLava_MainEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player16St_LongJump_InitEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player17St_PunchKick_InitEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player17St_SweepKick_InitEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player18St_DizzyStars_MainEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player18St_Grabbed_CleanupEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player18St_YoshiPower_MainEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player19St_Electrocute_MainEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player19St_GroundPound_MainEv.cpp
+#DUP(first in slice_gate10): src/_ZN6Player19St_TornadoSpin_MainEv.cpp
+src/_ZN6Player6BounceE5Fix12IiE.cpp
+#DUP(first in slice_gate10): src/_ZN6Player7IsStateERNS_5StateE.cpp
+src/_ZN6Player7TryGrabER8dActor_c.cpp
+src/_ZN7Clipper13Func_020156DCEitii.cpp
+#DUP(first in slice_gate8): src/_ZN7dBgW_Kc17UpdateFileOffsetsER8KCL_File.cpp
+src/_ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj.cpp
+#DUP(first in slice_gate15): src/_ZN7fBase_c18MarkForDestructionEv.cpp
+#DUP(first in slice_gate18): src/_ZN7Message11PrepareTalkEv.cpp
+#DUP(first in slice_gate18): src/_ZN7Message13DisplaySavingEt.cpp
+#DUP(first in slice_gate18): src/_ZN7Message7EndTalkEv.cpp
+#DUP(first in slice_gate10): src/_ZN7PathPtrC1Ev.cpp
+src/_ZN7Vector3D1Ev.cpp
+src/_ZN8dActor_c10EarthquakeERK7Vector35Fix12IiE.cpp
+#DUP(first in slice_gate15): src/_ZN8dActor_c10FindWithIDEj.cpp
+src/_ZN8dActor_c10SpawnCoinsERK7Vector3j5Fix12IiEs.cpp
+src/_ZN8dActor_c11LandingDustEb.cpp
+src/_ZN8dActor_c11SpawnNumberERK7Vector3jbtPS_.cpp
+src/_ZN8dActor_c11UntrackStarERa.cpp
+src/_ZN8dActor_c11UpdateCarryER6PlayerRK7Vector3.cpp
+#DUP(first in slice_gate15): src/_ZN8dActor_c12BeforeRenderEv.cpp
+src/_ZN8dActor_c13DistToCPlayerEv.cpp
+#DUP(first in slice_gate15): src/_ZN8dActor_c13OnYoshiTryEatEv.cpp
+src/_ZN8dActor_c13SpawnSoundObjEj.cpp
+#DUP(first in slice_gate15): src/_ZN8dActor_c14BeforeBehaviorEv.cpp
+src/_ZN8dActor_c15FindWithActorIDEjPS_.cpp
+src/_ZN8dActor_c15IsPlayerInRangeEi.cpp
+src/_ZN8dActor_c16JumpedOnByPlayerER5dCc_cR6Player.cpp
+src/_ZN8dActor_c18AfterInitResourcesEj.cpp
+src/_ZN8dActor_c18HorzAngleToCPlayerEv.cpp
+#DUP(first in slice_gate15): src/_ZN8dActor_c19BeforeInitResourcesEv.cpp
+src/_ZN8dActor_c19DisappearPoofDustAtERK7Vector3.cpp
+src/_ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j.cpp
+src/_ZN8dActor_c22IsTooFarAwayFromPlayerE5Fix12IiE.cpp
+#DUP(first in slice_gate15): src/_ZN8dActor_c22UpdatePosWithOnlySpeedEP5dCc_c.cpp
+src/_ZN8dActor_c24KillAndTrackInDeathTableEv.cpp
+#DUP(first in slice_gate15): src/_ZN8dActor_c28UpdatePosWithHorzSpeedAndAngEv.cpp
+src/_ZN8dActor_c4NextEPKS_.cpp
+src/_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as.cpp
+src/_ZN8dActor_c7FindEggER5dCc_c.cpp
+#DUP(first in slice_gate15): src/_ZN8dActor_c9UpdatePosEP5dCc_c.cpp
+#DUP(first in slice_gate9): src/_ZN8dActor_cC2Ev.cpp
+#DUP(first in slice_gate15): src/_ZN8dCcPos_c4InitERK7Vector35Fix12IiES4_jj.cpp
+#DUP(first in slice_gate15): src/_ZN8dCcPos_cC1Ev.cpp
+src/_ZN8dScene_c14StartSceneFadeEjjt.cpp
+src/_ZN8dScene_c20SetAndStopColorFaderEv.cpp
+src/_ZN8dScene_c22ResetHardwareRegistersEv.cpp
+#DUP(first in slice_gate10): src/_ZN8SaveData16CanPlayerHaveCapEv.cpp
+#DUP(first in slice_gate10): src/_ZN8SaveData16HasPlayerLostCapEv.cpp
+#DUP(first in slice_gate22): src/_ZN8SaveData17SetCharacterIntroEi.cpp
+#DUP(first in slice_gate10): src/_ZN8SaveData19IsCharacterUnlockedEj.cpp
+#DUP(first in slice_gate18): src/_ZN8SaveData22NumGlowingRabbitsFoundEv.cpp
+#DUP(first in slice_gate14): src/_ZN8SaveData26CountStarsCollectedInLevelEj.cpp
+#DUP(first in slice_gate16): src/_ZN8SignPost8BehaviorEv.cpp
+#DUP(first in slice_gate16): src/_ZN8SignPostD0Ev.cpp
+#DUP(first in slice_gate16): src/_ZN8SignPostD1Ev.cpp
+#DUP(first in slice_gate7): src/_ZN9Animation8GetFlagsEv.cpp
+#DUP(first in slice_gate21): src/_ZN9Butterfly16CleanupResourcesEv.cpp
+#DUP(first in slice_gate21): src/_ZN9Butterfly16OnPendingDestroyEv.cpp
+#DUP(first in slice_gate21): src/_ZN9Butterfly8BehaviorEv.cpp
+#DUP(first in slice_gate15): src/_ZN9dBgCh_Gnd10DetectClsnEv.cpp
+src/_ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c.cpp
+src/_ZN9dBgCh_GndC1Ev.cpp
+src/_ZN9dBgCh_GndD1Ev.cpp
+#DUP(first in slice_gate15): src/_ZN9dBgCh_Lin10DetectClsnEv.cpp
+src/_ZN9dBgCh_Lin10GetClsnPosEv.cpp
+#DUP(first in slice_gate15): src/_ZN9dBgCh_Lin13SetObjAndLineERK7Vector3S2_P8dActor_c.cpp
+#DUP(first in slice_gate15): src/_ZN9dBgCh_LinC1Ev.cpp
+src/_ZN9dBgCh_LinD1Ev.cpp
+#DUP(first in slice_gate7): src/_ZN9ModelAnimD1Ev.cpp
+src/_ZNK10dBgCh_Actr10IsOnGroundEv.cpp
+#DUP(first in slice_gate15): src/_ZNK10dBgCh_Actr12TouchesWaterEv.cpp
+src/_ZNK10dBgCh_Actr13GetLimMovFlagEv.cpp
+#DUP(first in slice_gate15): src/_ZNK10dBgCh_Actr13JustHitGroundEv.cpp
+#DUP(first in slice_gate15): src/_ZNK10dBgCh_Actr8IsOnWallEv.cpp
+#DUP(first in slice_gate15): src/_ZNK5dBgPi9GetClsnIDEv.cpp
+#DUP(first in slice_gate13): src/_ZNK6Camera12IsUnderwaterEv.cpp
+#DUP(first in slice_gate14): src/_ZNK7dBgW_Kc13GetUnkOctreeYEv.cpp
+#DUP(first in slice_gate14): src/_ZNK7dBgW_Kc16GetOctreeOriginYEv.cpp
+#DUP(first in slice_gate10): src/_ZNK7PathPtr7GetNodeER7Vector3j.cpp
+src/dBgCh_Actr_UpdateContinuous_Veneer.c
+src/dBgCh_Actr_UpdateDiscreteNoLava_veneer.c
+src/func_0200d5c0.c
+src/func_0200d5fc.c
+src/func_0200eec8.c
+src/func_02010304.cpp
+#DUP(first in slice_gate8): src/func_0203794c.c
+#DUP(first in slice_gate8): src/func_02037a6c.c
+#DUP(first in slice_gate6): src/func_02056674.c
+#DUP(first in slice_gate6): src/func_020566dc.c
+src/func_ov002_020d0948.c
+src/func_ov002_020f0e54.c
+src/GetActorDebugName.c
+#DUP(first in slice_gate27): src/_ZN6Player6BounceE5Fix12IiE.cpp
+src/_ZN10dBgCh_Actr16UpdateContinuousEv.cpp
+src/_ZN12dEnemyBase_c22SpawnMegaCharParticlesER8dActor_cPc.cpp

@@ -16,23 +16,23 @@ struct Vector3_16;
 struct State;
 
 extern "C" {
-void _ZN13RaycastGroundC1Ev(void *self);
-void _ZN13RaycastGroundD1Ev(void *self);
-void _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(void *self,
+void _ZN9dBgCh_GndC1Ev(void *self);
+void _ZN9dBgCh_GndD1Ev(void *self);
+void _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(void *self,
                                                         const void *v,
                                                         void *a);
-void _ZN11RaycastLineC1Ev(void *self);
-void _ZN11RaycastLineD1Ev(void *self);
-void _ZN11RaycastLine13SetObjAndLineERK7Vector3S2_P5Actor(void *self,
+void _ZN9dBgCh_LinC1Ev(void *self);
+void _ZN9dBgCh_LinD1Ev(void *self);
+void _ZN9dBgCh_Lin13SetObjAndLineERK7Vector3S2_P8dActor_c(void *self,
                                                           const void *a,
                                                           const void *b,
                                                           void *actor);
-void _ZN11RaycastLine10GetClsnPosEv(void *res, void *self);
+void _ZN9dBgCh_Lin10GetClsnPosEv(void *res, void *self);
 int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
 int _ZN6Player7IsStateERNS_5StateE(void *self, void *st);
-struct Actor *_ZN5Actor10FindWithIDEj(unsigned id);
-int _ZNK10ClsnResult9GetClsnIDEv(const void *self);
-int _ZNK12WithMeshClsn10IsOnGroundEv(const void *self);
+struct Actor *_ZN8dActor_c10FindWithIDEj(unsigned id);
+int _ZNK5dBgPi9GetClsnIDEv(const void *self);
+int _ZNK10dBgCh_Actr10IsOnGroundEv(const void *self);
 unsigned char _ZN3OAM11GetObjWidthEii(int a, int b);
 unsigned char _ZN3OAM12GetObjHeightEii(int a, int b);
 int _ZN3OAM16LoadAffineParamsEP7OamAttrPiP9Matrix2x2(void *attr, int *p,
@@ -40,9 +40,9 @@ int _ZN3OAM16LoadAffineParamsEP7OamAttrPiP9Matrix2x2(void *attr, int *p,
 int _ZN8SaveData19IsCharacterUnlockedEj(unsigned ch);
 int _ZN4cstd4fdivEii(int a, int b);
 /* gate 18 */
-void *_ZN5Actor13ClosestPlayerEv(void *self);
-short _ZN5Actor18HorzAngleToCPlayerEv(void *self);
-int _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
+void *_ZN8dActor_c13ClosestPlayerEv(void *self);
+short _ZN8dActor_c18HorzAngleToCPlayerEv(void *self);
+int _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
     void *self, void *sm, void *m, int rad, int h, unsigned f);
 }
 
@@ -51,10 +51,10 @@ struct RaycastGround {
     ~RaycastGround();
     void SetObjAndPos(const Vector3 &v, Actor *a);
 };
-RaycastGround::RaycastGround() { _ZN13RaycastGroundC1Ev(this); }
-RaycastGround::~RaycastGround() { _ZN13RaycastGroundD1Ev(this); }
+RaycastGround::RaycastGround() { _ZN9dBgCh_GndC1Ev(this); }
+RaycastGround::~RaycastGround() { _ZN9dBgCh_GndD1Ev(this); }
 void RaycastGround::SetObjAndPos(const Vector3 &v, Actor *a)
-{ _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(this, &v, a); }
+{ _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(this, &v, a); }
 
 struct RaycastLine {
     RaycastLine();
@@ -63,15 +63,15 @@ struct RaycastLine {
     void SetObjAndLine(const Vector3 &a, const Vector3 &b, Actor *actor);
     Vector3 GetClsnPos();
 };
-RaycastLine::RaycastLine() { _ZN11RaycastLineC1Ev(this); }
-RaycastLine::~RaycastLine() { _ZN11RaycastLineD1Ev(this); }
+RaycastLine::RaycastLine() { _ZN9dBgCh_LinC1Ev(this); }
+RaycastLine::~RaycastLine() { _ZN9dBgCh_LinD1Ev(this); }
 void RaycastLine::SetObjAndLine(const Vector3 &a, const Vector3 &b,
                                 Actor *actor)
-{ _ZN11RaycastLine13SetObjAndLineERK7Vector3S2_P5Actor(this, &a, &b, actor); }
+{ _ZN9dBgCh_Lin13SetObjAndLineERK7Vector3S2_P8dActor_c(this, &a, &b, actor); }
 Vector3 RaycastLine::GetClsnPos()
 {
     Vector3 tmp;
-    _ZN11RaycastLine10GetClsnPosEv(&tmp, this);
+    _ZN9dBgCh_Lin10GetClsnPosEv(&tmp, this);
     return tmp;
 }
 
@@ -97,7 +97,7 @@ void Player::SetAnim(unsigned a, int b, int f, unsigned d)
 { _ZN6Player7SetAnimEji5Fix12IiEj(this, a, b, f, d); }
 
 struct ClsnResult { int GetClsnID() const; };
-int ClsnResult::GetClsnID() const { return _ZNK10ClsnResult9GetClsnIDEv(this); }
+int ClsnResult::GetClsnID() const { return _ZNK5dBgPi9GetClsnIDEv(this); }
 
 struct WithMeshClsn {
     int IsOnGround() const;
@@ -105,7 +105,7 @@ struct WithMeshClsn {
     int GetFloorResult() const;
 };
 int WithMeshClsn::IsOnGround() const
-{ return _ZNK12WithMeshClsn10IsOnGroundEv(this); }
+{ return _ZNK10dBgCh_Actr10IsOnGroundEv(this); }
 
 struct Actor_statics_shadow;   /* Actor is only a return type here */
 struct Actor2 { static Actor *FindWithID(unsigned id); };
@@ -125,7 +125,7 @@ struct Actor {
                              unsigned f);
 };
 Actor *Actor::FindWithID(unsigned id)
-{ return (Actor *)_ZN5Actor10FindWithIDEj(id); }
+{ return (Actor *)_ZN8dActor_c10FindWithIDEj(id); }
 /* THE OTHER DIRECTION, in the same place for the same reason.
    src/_ZN5Actor11UpdateCarryER6PlayerRK7Vector3.cpp defines UpdateCarry as a
    method of its OWN local `class Actor` -- include/Actor.h does not declare
@@ -138,12 +138,12 @@ extern "C" Matrix4x3 *_ZN5Actor11UpdateCarryER6PlayerRK7Vector3(
 { return ((Actor *)self)->UpdateCarry(*(Player *)player,
                                       *(const Vector3 *)vec); }
 Player *Actor::ClosestPlayer()
-{ return (Player *)_ZN5Actor13ClosestPlayerEv(this); }
+{ return (Player *)_ZN8dActor_c13ClosestPlayerEv(this); }
 short Actor::HorzAngleToCPlayer()
-{ return _ZN5Actor18HorzAngleToCPlayerEv(this); }
+{ return _ZN8dActor_c18HorzAngleToCPlayerEv(this); }
 void Actor::DropShadowRadHeight(ShadowModel &sm, Matrix4x3 &m, int rad, int h,
                                 unsigned f)
-{ _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
+{ _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
       this, &sm, &m, rad, h, f); }
 
 template <typename T> struct Fix12 { T val; };
@@ -233,13 +233,13 @@ void *_ZN8Particle6System12NewBigSplashE5Fix12IiES2_S2_(int, int, int)
 
 extern "C" int _ZN11RaycastLine10DetectClsnEv(void *self)
 { return ((RaycastLine *)self)->DetectClsn(); }
-extern "C" int _ZNK12WithMeshClsn13GetWallResultEv(const void *self)
+extern "C" int _ZNK10dBgCh_Actr13GetWallResultEv(const void *self)
 { return ((const WithMeshClsn *)self)->GetWallResult(); }
-extern "C" int _ZNK12WithMeshClsn14GetFloorResultEv(const void *self)
+extern "C" int _ZNK10dBgCh_Actr14GetFloorResultEv(const void *self)
 { return ((const WithMeshClsn *)self)->GetFloorResult(); }
 
 struct SphereClsn { int DetectClsn(); };
-extern "C" int _ZN10SphereClsn10DetectClsnEv(void *self)
+extern "C" int _ZN12dBgCh_SphCrr10DetectClsnEv(void *self)
 { return ((SphereClsn *)self)->DetectClsn(); }
 
 struct Message { void Update(); static void AddChar(char c); };
@@ -261,9 +261,11 @@ extern "C" void *_ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii(
 }
 
 /* shadow-defined in their own TUs (struct CylinderClsn / struct Camera) */
+extern "C" void _ZN8dActor_c22UpdatePosWithOnlySpeedEP5dCc_c(void *self,
+                                                             void *cl);
 extern "C" void _ZN5Actor22UpdatePosWithOnlySpeedEP12CylinderClsn(void *self,
                                                                   void *cl)
-{ ((Actor *)self)->UpdatePosWithOnlySpeed((CylinderClsn *)cl); }
+{ _ZN8dActor_c22UpdatePosWithOnlySpeedEP5dCc_c(self, cl); }
 struct Camera { void SetFlag_3(); };
 extern "C" void _ZN6Camera9SetFlag_3Ev(void *self)
 { ((Camera *)self)->SetFlag_3(); }

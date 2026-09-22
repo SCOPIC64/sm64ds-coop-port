@@ -8,21 +8,13 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "ActorBase.h"
-#include "ActorDerived.h"
+#include "fBase_c.h"
 #include "Camera.h"
 #include "PathPtr.h"
 
-/* Camera::Render calls View::Render() as a METHOD (its TU declares a local
-   `struct View`); src defines the function at C linkage. Same shape as the
-   method faces in method_faces.cpp, kept here because the local View has no
-   header. */
-struct View {
-    int render();
-    int Render();
-};
-extern "C" int _ZN4View6RenderEv(void *self);
-int View::Render() { return _ZN4View6RenderEv(this); }
+/* Camera::Render calls View::Render() as a METHOD; the real View class and
+   its Render live upstream (include/View.h, src/_ZN4View6RenderEv.cpp),
+   so no local shadow is needed. */
 
 extern "C" {
 
@@ -63,27 +55,33 @@ void *_ZTV4View[20];
 static int __fastcall cs_init(void *s, void *)
 { return _ZN6Camera13InitResourcesEv(s); }
 static int __fastcall cs_binit(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::BeforeInitResources(); }
+{ return ((fBase_c *)s)->fBase_c::BeforeInitResources(); }
 static void __fastcall cs_ainit(void *s, void *, unsigned a)
-{ ((ActorDerived *)s)->ActorDerived::AfterInitResources(a); }
+{
+    /* old ActorDerived::AfterInitResources was fail-check + base call;
+       same shape on the renamed bases, kept so a failed camera init still
+       destroys itself instead of lingering half-born. */
+    if (a == 1) ((fBase_c *)s)->fBase_c::MarkForDestruction();
+    ((fBase_c *)s)->fBase_c::AfterInitResources(a);
+}
 static int __fastcall cs_cleanup(void *s, void *)
 { return _ZN6Camera16CleanupResourcesEv(s); }
 static int __fastcall cs_bclean(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::BeforeCleanupResources(); }
+{ return ((fBase_c *)s)->fBase_c::BeforeCleanupResources(); }
 static void __fastcall cs_aclean(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+{ ((fBase_c *)s)->fBase_c::AfterCleanupResources(a); }
 static int __fastcall cs_behavior(void *s, void *)
 { return _ZN6Camera8BehaviorEv(s); }
 static int __fastcall cs_bbeh(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::BeforeBehavior(); }
+{ return ((fBase_c *)s)->fBase_c::BeforeBehavior(); }
 static void __fastcall cs_abeh(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
 static int __fastcall cs_render(void *s, void *)
 { return _ZN6Camera6RenderEv(s); }
 static int __fastcall cs_bren(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::BeforeRender(); }
+{ return ((fBase_c *)s)->fBase_c::BeforeRender(); }
 static void __fastcall cs_aren(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
 static int __fastcall cs_pdes(void *s, void *)
 { _ZN6Camera16OnPendingDestroyEv(s); return 0; }
 /* Slots 13/14 trap, the ArrowSignRight rule: they are the two heap-creating
@@ -95,7 +93,7 @@ static void __fastcall cs_trap13(void *, void *)
 static void __fastcall cs_trap14(void *, void *)
 { std::fprintf(stderr, "FATAL: Camera vtable slot 14 trap\n"); std::abort(); }
 static int __fastcall cs_heap(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::OnHeapCreated(); }
+{ return ((fBase_c *)s)->fBase_c::OnHeapCreated(); }
 static void *__fastcall cs_d1(void *s, void *) { return _ZN6CameraD1Ev(s); }
 static void *__fastcall cs_d0(void *s, void *) { return _ZN6CameraD0Ev(s); }
 

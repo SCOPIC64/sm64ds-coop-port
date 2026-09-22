@@ -30,34 +30,34 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "Actor.h"
-#include "ActorBase.h"
+#include "fBase_c.h"
+#include "dActor_c.h"
 
 extern "C" {
-int _ZN5Actor19BeforeInitResourcesEv(void *self);      /* slot 1  */
-void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a); /* slot 2 */
-int _ZN5Actor14BeforeBehaviorEv(void *self);           /* slot 7  */
-int _ZN5Actor12BeforeRenderEv(void *self);             /* slot 10 */
-int _ZN5Actor13OnYoshiTryEatEv(void *self);            /* slot 18 */
+int _ZN8dActor_c19BeforeInitResourcesEv(void *self);      /* slot 1  */
+void _ZN8dActor_c18AfterInitResourcesEj(void *self, unsigned a); /* slot 2 */
+int _ZN8dActor_c14BeforeBehaviorEv(void *self);           /* slot 7  */
+int _ZN8dActor_c12BeforeRenderEv(void *self);             /* slot 10 */
+int _ZN8dActor_c13OnYoshiTryEatEv(void *self);            /* slot 18 */
 }
 
 static int __fastcall ac_binit(void *s, void *)
-{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+{ return _ZN8dActor_c19BeforeInitResourcesEv(s); }
 static void __fastcall ac_ainit(void *s, void *, unsigned a)
-{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+{ _ZN8dActor_c18AfterInitResourcesEj(s, a); }
 static int __fastcall ac_bclean(void *s, void *)
-{ return ((Actor *)s)->Actor::BeforeCleanupResources(); }
+{ return ((dActor_c *)s)->dActor_c::BeforeCleanupResources(); }
 /* Slots 5, 8 and 11 are ARM tail-call veneers on the ROM -- two instructions
    that drop into ActorBase's implementation with the argument still riding in
    r1. A host forward through the veneer's own C face would lose it, so the
    thunk calls the target directly, the same reading the Player's AfterBehavior
    slot already takes. */
 static void __fastcall ac_aclean(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+{ ((fBase_c *)s)->fBase_c::AfterCleanupResources(a); }
 static int __fastcall ac_bbeh(void *s, void *)
-{ return _ZN5Actor14BeforeBehaviorEv(s); }
+{ return _ZN8dActor_c14BeforeBehaviorEv(s); }
 static void __fastcall ac_abeh(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
 /* SM64DS_ACTOR_PROBE=2: why an actor did or did not reach its own Render.
    Actor::BeforeRender is the gate -- it refuses on WRONG_AREA (0x20) and on
    OFF_SCREEN (0x8) when the actor asked to be culled off screen (0x2) -- and
@@ -65,7 +65,7 @@ static void __fastcall ac_abeh(void *s, void *, unsigned a)
    radius and cull distance. Printed once per actor id. */
 static int __fastcall ac_bren(void *s, void *)
 {
-    int r = _ZN5Actor12BeforeRenderEv(s);
+    int r = _ZN8dActor_c12BeforeRenderEv(s);
     static int on = -1;
     if (on < 0) {
         const char *e = std::getenv("SM64DS_ACTOR_PROBE");
@@ -95,13 +95,13 @@ static int __fastcall ac_bren(void *s, void *)
     return r;
 }
 static void __fastcall ac_aren(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
 static int __fastcall ac_heap(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::OnHeapCreated(); }
+{ return ((fBase_c *)s)->fBase_c::OnHeapCreated(); }
 static int __fastcall ac_yoshi(void *s, void *)
-{ return _ZN5Actor13OnYoshiTryEatEv(s); }
+{ return _ZN8dActor_c13OnYoshiTryEatEv(s); }
 static void __fastcall ac_pdes_base(void *s, void *)
-{ ((ActorBase *)s)->ActorBase::OnPendingDestroy(); }
+{ ((fBase_c *)s)->fBase_c::OnPendingDestroy(); }
 
 /* The trap. Slots 13/14 are the actor's own solid-heap creation, 19 is
    OnTurnIntoEgg, and 16/17 are the destructors where a class leaves them
@@ -153,7 +153,7 @@ extern "C" {
 void _ZN11ShadowModelD1Ev(void *);
 void _ZN9ModelAnimD1Ev(void *);
 void _ZN5ModelD1Ev(void *);
-void _ZN12WithMeshClsnD1Ev(void *);
+void _ZN10dBgCh_ActrD1Ev(void *);
 void _ZN25MovingCylinderClsnWithPosD1Ev(void *);
 void *_ZN5ActorD2Ev(void *);
 }
@@ -188,23 +188,18 @@ static void ac_fill_shared(void **vt)
 // at data_ov002_02110a48 rather than anything on `this`, so mwcc's r0 went
 // unread. Twenty-one Tree actors therefore all run the same body and the
 // cylinders are ticked twenty-one times over -- also the ROM's behaviour.
-#include "Tree.h"
+#include "daTree_c.h"
 extern "C" {
-int _ZN4Tree13InitResourcesEv(char *self);
-int _ZN4Tree8BehaviorEv(void);
-void _ZN4Tree16OnPendingDestroyEv(void);
-int _ZN4TreeD1Ev(char *self);
-void *_ZN4TreeD0Ev(char *self);
 void *_ZTV4Tree[20];
 extern int data_ov002_02110a48[5];   /* the five variant cylinder lists */
 }
 
 static int __fastcall tree_init(void *s, void *)
-{ return _ZN4Tree13InitResourcesEv((char *)s); }
+{ return ((daTree_c *)s)->daTree_c::InitResources(); }
 static int __fastcall tree_clean(void *s, void *)
-{ return ((Tree *)s)->Tree::CleanupResources(); }
-static int __fastcall tree_behavior(void *, void *)
-{ return _ZN4Tree8BehaviorEv(); }
+{ return ((daTree_c *)s)->daTree_c::CleanupResources(); }
+static int __fastcall tree_behavior(void *s, void *)
+{ return ((daTree_c *)s)->daTree_c::Behavior(); }
 /* SM64DS_TREE_PROBE=1: the five variant lists as InitResources built them --
    one CylinderClsnWithPos per Tree actor, its position stored in SCENE units
    (Vec3_AsrInPlace by 3) with the trunk's 30-unit lift already added, which is
@@ -243,13 +238,13 @@ static void tree_probe_harness(void *self)
 }
 
 static int __fastcall tree_render(void *s, void *)
-{ tree_probe(); tree_probe_harness(s); return ((Tree *)s)->Tree::Render(); }
-static int __fastcall tree_pdes(void *, void *)
-{ _ZN4Tree16OnPendingDestroyEv(); return 0; }
+{ tree_probe(); tree_probe_harness(s); return ((daTree_c *)s)->daTree_c::Render(); }
+static int __fastcall tree_pdes(void *s, void *)
+{ ((daTree_c *)s)->daTree_c::OnPendingDestroy(); return 0; }
 static int __fastcall tree_d1(void *s, void *)
-{ return _ZN4TreeD1Ev((char *)s); }
+{ ((daTree_c *)s)->daTree_c::~daTree_c(); return (int)(size_t)s; }
 static int __fastcall tree_d0(void *s, void *)
-{ return (int)(size_t)_ZN4TreeD0Ev((char *)s); }
+{ ((daTree_c *)s)->daTree_c::~daTree_c(); return (int)(size_t)s; }
 
 extern "C" void hal_fill_cylinder_withpos_vtable(void);
 
@@ -515,39 +510,35 @@ extern "C" void hal_fill_sign_post_vtable(void)
 // Behavior is the HOST COPY in port/unmatched/OneUpMushroom_Behavior.cpp: the
 // ROM's dispatches the mushroom type through an mwcc pointer-to-member table
 // and MSVC has no representation for one. See that file's header.
-#include "OneUpMushroom.h"
+#include "da1up_c.h"
+struct Player;
 extern "C" {
 int _ZN13OneUpMushroom8BehaviorEv(void *self);       /* port/unmatched */
-void _ZN13OneUpMushroom16OnPendingDestroyEv(void);
-int *_ZN13OneUpMushroomD1Ev(int *self);
-int *_ZN13OneUpMushroomD0Ev(int *self);
-int func_ov002_020af3a0(void);                       /* OnYoshiTryEat */
-void func_ov002_020af2b0(char *self, int arg);       /* OnTurnIntoEgg */
 void *_ZTV13OneUpMushroom[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV7da1up_c=__ZTV13OneUpMushroom")
 
 static int __fastcall oum_init(void *s, void *)
-{ return ((OneUpMushroom *)s)->OneUpMushroom::InitResources(); }
+{ return ((da1up_c *)s)->da1up_c::InitResources(); }
 static int __fastcall oum_clean(void *s, void *)
-{ return ((OneUpMushroom *)s)->OneUpMushroom::CleanupResources(); }
+{ return ((da1up_c *)s)->da1up_c::CleanupResources(); }
 static int __fastcall oum_behavior(void *s, void *)
 { return _ZN13OneUpMushroom8BehaviorEv(s); }
 static int __fastcall oum_render(void *s, void *)
 {
     port_actor_render_probe("ONE_UP_MUSHROOM", (char *)s + 0x300);
-    return (int)((OneUpMushroom *)s)->OneUpMushroom::Render();
+    return (int)((da1up_c *)s)->da1up_c::Render();
 }
-static int __fastcall oum_pdes(void *, void *)
-{ _ZN13OneUpMushroom16OnPendingDestroyEv(); return 0; }
+static int __fastcall oum_pdes(void *s, void *)
+{ ((da1up_c *)s)->da1up_c::OnPendingDestroy(); return 0; }
 static int __fastcall oum_d1(void *s, void *)
-{ return (int)(size_t)_ZN13OneUpMushroomD1Ev((int *)s); }
+{ ((da1up_c *)s)->da1up_c::~da1up_c(); return (int)(size_t)s; }
 static int __fastcall oum_d0(void *s, void *)
-{ return (int)(size_t)_ZN13OneUpMushroomD0Ev((int *)s); }
-static int __fastcall oum_yoshi(void *, void *)
-{ return func_ov002_020af3a0(); }
+{ ((da1up_c *)s)->da1up_c::~da1up_c(); return (int)(size_t)s; }
+static int __fastcall oum_yoshi(void *s, void *)
+{ return ((da1up_c *)s)->da1up_c::OnYoshiTryEat(); }
 static int __fastcall oum_egg(void *s, void *, int a)
-{ func_ov002_020af2b0((char *)s, a); return 0; }
+{ ((da1up_c *)s)->da1up_c::OnTurnIntoEgg(*(Player *)a); return 0; }
 
 extern "C" void port_one_up_mushroom_types_seat(void);   /* port/unmatched */
 
@@ -580,20 +571,18 @@ extern "C" void hal_fill_one_up_mushroom_vtable(void)
 // time Mario walked near a trunk.
 extern "C" {
 void *_ZTV19CylinderClsnWithPos[4];
-void *_ZN19CylinderClsnWithPosD1Ev(void *self);
-void *_ZN19CylinderClsnWithPosD0Ev(void *self);
-void *_ZN19CylinderClsnWithPos6GetPosEv(void *self);
 }
-#include "CylinderClsnWithPos.h"
+#include "dCcPos_c.h"
+#include "dCcAcPos_c.h"
 
 static void *__fastcall ccp_d1(void *s, void *)
-{ return _ZN19CylinderClsnWithPosD1Ev(s); }
+{ ((dCcPos_c *)s)->dCcPos_c::~dCcPos_c(); return s; }
 static void *__fastcall ccp_d0(void *s, void *)
-{ return _ZN19CylinderClsnWithPosD0Ev(s); }
+{ ((dCcPos_c *)s)->dCcPos_c::~dCcPos_c(); return s; }
 static void *__fastcall ccp_getpos(void *s, void *)
-{ return _ZN19CylinderClsnWithPos6GetPosEv(s); }
+{ return &((dCcPos_c *)s)->dCcPos_c::GetPos(); }
 static unsigned __fastcall ccp_ownerid(void *s, void *)
-{ return ((CylinderClsnWithPos *)s)->CylinderClsnWithPos::GetOwnerID(); }
+{ return ((dCcPos_c *)s)->dCcPos_c::GetOwnerID(); }
 
 extern "C" void hal_fill_cylinder_withpos_vtable(void)
 {
@@ -1069,21 +1058,19 @@ extern "C" void hal_fill_exit_vtable(void)
 // particle subsystem is seated, so the seven actors spawn at the ROM's own
 // positions, sit in both lists and tick. Every one of their eighteen slots is
 // matched src; nothing here changes when the particles arrive.
-#include "PoppingLavaBubbles.h"
+#include "daObjWaterfall_c.h"
 extern "C" {
-int _ZN18PoppingLavaBubbles13InitResourcesEv(void *self);   /* face */
-int _ZN18PoppingLavaBubbles8BehaviorEv(char *self);
 void *_ZTV18PoppingLavaBubbles[20];
 }
 
 static int __fastcall wm_init(void *s, void *)
-{ return _ZN18PoppingLavaBubbles13InitResourcesEv(s); }
+{ return ((daObjWaterfall_c *)s)->daObjWaterfall_c::InitResources(); }
 static int __fastcall wm_clean(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::CleanupResources(); }
+{ return ((fBase_c *)s)->fBase_c::CleanupResources(); }
 static int __fastcall wm_behavior(void *s, void *)
-{ return _ZN18PoppingLavaBubbles8BehaviorEv((char *)s); }
+{ return ((daObjWaterfall_c *)s)->daObjWaterfall_c::Behavior(); }
 static int __fastcall wm_render(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::Render(); }
+{ return ((fBase_c *)s)->fBase_c::Render(); }
 
 extern "C" void hal_fill_waterfall_mist_vtable(void)
 {
@@ -1152,8 +1139,8 @@ static int __fastcall bf_pdes(void *, void *)
 static void *__fastcall bf_d1(void *s, void *)
 {
     *(int *)s = (int)(size_t)_ZTV9Butterfly;
-    _ZN25MovingCylinderClsnWithPosD1Ev((char *)s + 0x394);
-    _ZN12WithMeshClsnD1Ev((char *)s + 0x1d8);
+    ((dCcAcPos_c *)((char *)s + 0x394))->~dCcAcPos_c();
+    _ZN10dBgCh_ActrD1Ev((char *)s + 0x1d8);
     _ZN11ShadowModelD1Ev((char *)s + 0x1b0);
     _ZN11ShadowModelD1Ev((char *)s + 0x188);
     _ZN5ModelD1Ev((char *)s + 0x138);

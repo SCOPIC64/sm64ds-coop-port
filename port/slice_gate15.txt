@@ -25,4 +25,119 @@
 # already the HAL's, so the file goes through hostgen --extern-data; see
 # GATE15_SYMS in CMakeLists.txt.
 src/IsAreaShowing.c
-src/_ZN7Clipper13Func_020150E8ER7Vector35Fix12IiEPh.c
+src/_ZN7Clipper13Func_020150E8ER7Vector35Fix12IiEPh.cpp
+
+# Spine lifecycle singles (dActor_c/fBase_c renames of the old Actor/ActorBase gate)
+#DUP(first in slice_gate9): src/_ZN7fBase_c19BeforeInitResourcesEv.cpp
+#DUP(first in slice_gate9): src/_ZN7fBase_c22BeforeCleanupResourcesEv.cpp
+src/_ZN7fBase_c21AfterCleanupResourcesEj.cpp
+#DUP(first in slice_gate9): src/_ZN7fBase_c14BeforeBehaviorEv.cpp
+#DUP(first in slice_gate9): src/_ZN7fBase_c13AfterBehaviorEj.cpp
+#DUP(first in slice_gate9): src/_ZN7fBase_c12BeforeRenderEv.cpp
+#DUP(first in slice_gate9): src/_ZN7fBase_c11AfterRenderEj.cpp
+#DUP(first in slice_gate9): src/_ZN7fBase_c16OnPendingDestroyEv.cpp
+#DUP(first in slice_gate9): src/_ZN7fBase_c13OnHeapCreatedEv.cpp
+src/_ZN7fBase_c16CleanupResourcesEv.cpp
+src/_ZN7fBase_c6RenderEv.cpp
+src/_ZN7fBase_c18MarkForDestructionEv.cpp
+src/_ZN8dActor_c19BeforeInitResourcesEv.cpp
+src/_ZN8dActor_c22BeforeCleanupResourcesEv.cpp
+src/_ZN8dActor_c14BeforeBehaviorEv.cpp
+src/_ZN8dActor_c13AfterBehaviorEj.cpp
+src/_ZN8dActor_c12BeforeRenderEv.cpp
+src/_ZN8dActor_c11AfterRenderEj.cpp
+src/_ZN8dActor_c13OnYoshiTryEatEv.cpp
+src/_ZN8dActor_c18GetBitInDeathTableEv.cpp
+src/_ZN9dBgCh_LinC1Ev.cpp
+src/_ZN5dBgPiC1Ev.cpp
+src/_ZN10dBgW_KcMbg10DetectClsnER9dBgCh_Lin.cpp
+src/_ZN10dBgW_KcMbg10DetectClsnER9dBgCh_Gnd.cpp
+src/_ZN10dBgW_KcMbg10DetectClsnER12dBgCh_SphCrr.cpp
+src/_ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_.c
+src/_ZNK10dBgCh_Actr8IsOnWallEv.cpp
+src/_ZNK10dBgCh_Actr13JustHitGroundEv.cpp
+src/_ZNK10dBgCh_Actr12TouchesWaterEv.cpp
+#DUP(first in slice_gate9): src/_ZN4dBgW6EnableEP8dActor_c.cpp
+#DUP(first in slice_gate8): src/_ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block.cpp
+#DUP(first in slice_gate8): src/_ZN7dBgW_KcC1Ev.cpp
+src/_ZN5dCc_c4InitE5Fix12IiES1_jj.cpp
+src/_ZN5dCc_c5ClearEv.cpp
+src/_ZN5dCc_c6UpdateEv.cpp
+src/_ZN8dActor_c22UpdatePosWithOnlySpeedEP5dCc_c.cpp
+src/_ZN8dActor_c9UpdatePosEP5dCc_c.cpp
+src/_ZN8dActor_c28UpdatePosWithHorzSpeedAndAngEv.cpp
+src/_ZN8dActor_c12ReflectAngleE5Fix12IiES1_s.cpp
+src/_ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj.cpp
+#DUP(first in slice_gate15): src/_ZN5dCc_c5ClearEv.cpp
+#DUP(first in slice_gate15): src/_ZN5dCc_c6UpdateEv.cpp
+#DUP(first in slice_gate15): src/_ZN5dCc_c4InitE5Fix12IiES1_jj.cpp
+src/_ZN10dBgCh_Actr13SetGroundFlagEv.cpp
+src/_ZN10dBgCh_Actr13SetLimMovFlagEv.cpp
+src/_ZN10dBgCh_Actr15ClearGroundFlagEv.cpp
+src/_ZN10dBgCh_Actr15ClearLimMovFlagEv.cpp
+src/_ZN10dBgCh_Actr18StopDetectingWaterEv.cpp
+src/_ZN10dBgCh_Actr19ClearAllGroundFlagsEv.cpp
+src/_ZN10dBgCh_Actr19StartDetectingWaterEv.cpp
+src/_ZN10dBgCh_ActrD1Ev.cpp
+src/_ZNK5dBgPi9GetClsnIDEv.cpp
+src/_ZN8dActor_c10FindWithIDEj.cpp
+src/_ZN10dBgCh_Actr20UpdateExtraContinousEv.cpp
+src/_ZN10dBgCh_Actr22UpdateContinuousNoLavaEv.cpp
+src/_ZN10dBgCh_ActrC1Ev.cpp
+src/_ZN9dBgCh_Gnd10DetectClsnEv.cpp
+src/_ZN9dBgCh_Lin10DetectClsnEv.cpp
+src/_ZN5dCc_cC2Ev.cpp
+src/_ZN5dBgPiD1Ev.cpp
+#DUP(first in slice_gate15): src/_ZN5dBgPiC1Ev.cpp
+src/_ZN12dBgCh_SphCrrC1Ev.cpp
+src/_ZN12dBgCh_SphCrrD1Ev.cpp
+src/_ZN12dBgCh_SphCrr15SetObjAndSphereERK7Vector35Fix12IiEP8dActor_c.cpp
+src/_ZN9dBgCh_Lin13SetObjAndLineERK7Vector3S2_P8dActor_c.cpp
+src/_ZN10dCcAcPos_cC1Ev.cpp
+src/_ZN10dCcAcPos_c4InitEP8dActor_cRK7Vector35Fix12IiES6_jj.cpp
+src/_ZN10dCcAcPos_c21SetPosRelativeToActorERK7Vector3.cpp
+src/_ZN8dCcPos_cC1Ev.cpp
+src/_ZN8dCcPos_c4InitERK7Vector35Fix12IiES4_jj.cpp
+src/_ZN8dCcPos_cD1Ev.cpp
+src/_ZN8dCcPos_cD0Ev.cpp
+#DUP(first in slice_gate9): src/actors/ActorBase_SceneNode.cpp
+#DUP(first in slice_gate15): src/_ZN5dCc_cC2Ev.cpp
+port/unmatched/_ZN5Sound9PlayBank0EjRK7Vector3.cpp
+port/unmatched/_ZN5Sound9PlayBank3EjRK7Vector3.cpp
+port/unmatched/_ZN5Sound13PlayCharVoiceEjjRK7Vector3.cpp
+port/unmatched/_ZN5Sound6Play2DEjj.cpp
+port/unmatched/_ZN5Sound17InfoSequenceEntry9GetWithIDEj.cpp
+port/unmatched/_ZN5Sound23InfoInstrumentBankEntry9GetWithIDEj.cpp
+port/unmatched/_ZN2G212GetBG1ScrPtrEv.c
+port/unmatched/_ZN2G212GetBG2ScrPtrEv.c
+port/unmatched/_ZN2G212GetBG3ScrPtrEv.cpp
+port/unmatched/_ZN2G213GetBG2CharPtrEv.c
+port/unmatched/_ZN2GX10LoadBGPlttEPKvjj.c
+port/unmatched/_ZN2GX11LoadBG1CharEPKvjj.c
+port/unmatched/_ZN2GX15DisableAllBanksEv.c
+port/unmatched/_ZN2GX15SetGraphicsModeEiii.c
+port/unmatched/_ZN2GX6DispOnEv.c
+port/unmatched/_ZN3G2S12GetBG0ScrPtrEv.c
+port/unmatched/_ZN3G2S12GetBG1ScrPtrEv.c
+port/unmatched/_ZN3G2S12GetBG2ScrPtrEv.c
+port/unmatched/_ZN3G2S13GetBG0CharPtrEv.c
+port/unmatched/_ZN3G2S13GetBG1CharPtrEv.c
+port/unmatched/_ZN3G2x12SetBGyAffineEPVtP9Matrix2x2iiii.cpp
+port/unmatched/_ZN3G2x18SetBlendBrightnessEPVtts.cpp
+port/unmatched/_ZN3OAM11GetObjWidthEii.c
+port/unmatched/_ZN3OAM12EnableSubOAMEv.c
+port/unmatched/_ZN3OAM12GetObjHeightEii.c
+port/unmatched/_ZN3OAM16LoadAffineParamsEP7OamAttrPiP9Matrix2x2.c
+port/unmatched/_ZN3OAM4LoadEv.c
+port/unmatched/_ZN4cstd11ldiv_resultEv.c
+port/unmatched/_ZN4cstd6strlenEPKc.c
+port/unmatched/_ZN4cstd7strncpyEPcPKcj.c
+src/_ZN8dActor_c9TrackStarEjj.cpp
+src/_ZN5dCc_cC2Ev.cpp
+src/_ZN5dCc_cD0Ev.cpp
+src/_ZN5dCc_cD1Ev.cpp
+src/_ZN5dCc_cD2Ev.cpp
+src/_ZN5Stage10CheckInputEv.cpp
+src/_ZN5Stage9LoadModelEv.cpp
+src/_ZN5Model27LoadCompressedTextureToVramEPcjS0_.cpp
+src/_ZN4cstd11ldiv_resultEv.cpp

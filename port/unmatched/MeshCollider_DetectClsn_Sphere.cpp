@@ -65,8 +65,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "MeshCollider.h"
+#include "dBgW_Kc.h"
 #include "ntr/mmio.h"
+
+struct dBgCh_SphCrr;
 
 /* Completed here the way the line walk next door completes it: the 8-byte CLPS
    entry then the face normal, pinned by SurfaceInfo::CopyNormalTo (0x02037dcc).
@@ -124,7 +126,7 @@ typedef char SphereClsnLayout_maxNormalY_at_108[
     (offsetof(struct SphereClsnLayout, maxNormalY) == 0x108) ? 1 : -1];
 
 extern "C" {
-s32  func_020396dc(MeshCollider *self, KCL_Tri *prism);
+s32  func_020396dc(dBgW_Kc *self, KCL_Tri *prism);
 s32  func_02039794(s32 normalY);
 s32  func_020397dc(s32 x);
 s32  func_02037e58(const void *info);
@@ -193,7 +195,7 @@ static s32 hw_sqrt64(u64 v)
    Transform overwrite it with the collider's own transformed axis, which is
    what makes the slope gate mean anything on a rotated platform. Nothing
    aliases these three words any more -- see BASIS CONVENTION. */
-static void collider_up(const MeshCollider *self, Vector3 *out)
+static void collider_up(const dBgW_Kc *self, Vector3 *out)
 {
     out->x = self->unk_28;
     out->y = self->unk_2c;
@@ -232,7 +234,7 @@ static int corner_offset(const s16 *P, s32 dP, const s16 *Q, s32 dQ, s32 cosPQ,
 
 /* EDGE gate, 0x01ffc1ec / 0x01ffc35c / 0x01ffc4cc -- three identical ROM copies
    folded the same way. Returns 1 to accept the contact. */
-static int edge_gate(MeshCollider *self, SphereClsnLayout *sph, s32 d,
+static int edge_gate(dBgW_Kc *self, SphereClsnLayout *sph, s32 d,
                      s32 faceDot, s32 kind, const Vector3 *normal)
 {
     if (sph->flags & 2) {                                   /* 0x01ffc310 */
@@ -266,7 +268,7 @@ static int edge_gate(MeshCollider *self, SphereClsnLayout *sph, s32 d,
 
 /* ---------------------------------------------------------------------- */
 
-s32 MeshCollider::DetectClsn(SphereClsn &sphere)
+s32 dBgW_Kc::DetectClsn(dBgCh_SphCrr &sphere)
 {
     SphereClsnLayout *sph = (SphereClsnLayout *)&sphere;
     KCL_File *file = this->kclFile;
@@ -451,7 +453,7 @@ s32 MeshCollider::DetectClsn(SphereClsn &sphere)
                        ldr r3,[r3,#0xc]; blx r3). The port calls it direct --
                        same target; the precedent and the reasoning are in
                        MeshCollider_DetectClsn_RaycastLine.cpp. */
-                    MeshCollider::GetSurfaceInfo(
+                    dBgW_Kc::GetSurfaceInfo(
                         (s16)triIdx, *(SurfaceInfo *)data_020a0cec);
                     _ZNK11SurfaceInfo12CopyNormalToER7Vector3(data_020a0cec,
                                                               &normal);

@@ -22,13 +22,15 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "MeshCollider.h"
+#include "dBgW_Kc.h"
 
 extern "C" {
 void port_ov009_patch(void);
 void *port_ov009_at(unsigned ds);
 extern unsigned char port_ov009_image[];
 extern const unsigned port_ov009_ds_base, port_ov009_ds_end;
+void _ZN9dBgCh_LinC1Ev(void *o);
+extern char data_020a0d0c[];
 }
 
 /* Castle grounds, level 1. */
@@ -256,14 +258,8 @@ void *LoadFile(int handle)
     return s->filePtr;
 }
 
-/* Method faces: the three MeshCollider helpers the boot calls by their
-   Itanium names while their definitions are real MSVC members. */
-void _ZN12MeshCollider17UpdateFileOffsetsER8KCL_File(void *file)
-{ MeshCollider::UpdateFileOffsets(*(KCL_File *)file); }
-int _ZNK12MeshCollider16GetOctreeOriginYEv(const void *self)
-{ return ((const MeshCollider *)self)->MeshCollider::GetOctreeOriginY(); }
-int _ZNK12MeshCollider13GetUnkOctreeYEv(const void *self)
-{ return ((const MeshCollider *)self)->MeshCollider::GetUnkOctreeY(); }
+/* (MeshCollider helper faces lived here; the renamed dBgW_Kc TUs in the
+   slices provide them now.) */
 
 // ---- the globals the sub-loaders store through -----------------------------
 //
@@ -462,9 +458,9 @@ extern "C" void *port_stage_object(void);
 extern "C" {
 unsigned char data_ov002_0210a83c[];
 int _ZN6Player13InitResourcesEv(void *self);
-int _ZN5Actor19BeforeInitResourcesEv(void *self);
-void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned r);
-int _ZN5Actor14BeforeBehaviorEv(void *self);
+int _ZN8dActor_c19BeforeInitResourcesEv(void *self);
+void _ZN8dActor_c18AfterInitResourcesEj(void *self, unsigned r);
+int _ZN8dActor_c14BeforeBehaviorEv(void *self);
 int hal_player_behavior(void *self);
 int func_02043288(void *self);         /* port/unmatched: the behaviour Process */
 }
@@ -473,9 +469,9 @@ int func_02043288(void *self);         /* port/unmatched: the behaviour Process 
    reached by its Itanium name from a .c TU, i.e. cdecl, while these three
    definitions are real MSVC __thiscall methods -- a linker alias would hand
    the body an ecx that never held `this`. */
-#include "ActorBase.h"
+#include "fBase_c.h"
 extern "C" int _ZN9ActorBase19BeforeInitResourcesEv(void *self)
-{ return ((ActorBase *)self)->ActorBase::BeforeInitResources() ? 1 : 0; }
+{ return ((fBase_c *)self)->fBase_c::BeforeInitResources() ? 1 : 0; }
 
 
 static int __fastcall ps_init(void *s, void *)
@@ -492,9 +488,9 @@ static int __fastcall ps_init(void *s, void *)
     return r;
 }
 static int __fastcall ps_binit(void *s, void *)
-{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+{ return _ZN8dActor_c19BeforeInitResourcesEv(s); }
 static void __fastcall ps_ainit(void *s, void *, unsigned a)
-{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+{ _ZN8dActor_c18AfterInitResourcesEj(s, a); }
 static int __fastcall ps_behavior(void *s, void *)
 { return hal_player_behavior(s); }
 /* Slots 7 and 8, read out of ov002's own _ZTV6Player at 0x0210a83c with its
@@ -504,9 +500,9 @@ static int __fastcall ps_behavior(void *s, void *)
    directly -- a host forward through the veneer's own C face would drop the
    argument the ARM tail call rides through in r0/r1. */
 static int __fastcall ps_bbeh(void *s, void *)
-{ return _ZN5Actor14BeforeBehaviorEv(s); }
+{ return _ZN8dActor_c14BeforeBehaviorEv(s); }
 static void __fastcall ps_abeh(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
 /* Slots 9/10/11. The render bucket (processing list 5) now dispatches every
    actor's Render through its vtable, and the Player is on that list like
    everything else -- so slot 9 can no longer be a trap. It is a no-op that
@@ -514,12 +510,12 @@ static void __fastcall ps_abeh(void *s, void *, unsigned a)
    particle chain and only its body walk is hosted, so the harness still draws
    him itself (hal_render_player_world) right after the bucket. The two hooks
    around it are the game's own. */
-extern "C" int _ZN5Actor12BeforeRenderEv(void *self);
+extern "C" int _ZN8dActor_c12BeforeRenderEv(void *self);
 static int __fastcall ps_render(void *, void *) { return 1; }
 static int __fastcall ps_bren(void *s, void *)
-{ return _ZN5Actor12BeforeRenderEv(s); }
+{ return _ZN8dActor_c12BeforeRenderEv(s); }
 static void __fastcall ps_aren(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
 
 static const char *const hal_player_slot_name[20] = {
     "InitResources", "BeforeInitResources", "AfterInitResources",
@@ -626,8 +622,12 @@ extern "C" void port_stage_a2_seat(void)
 
     /* The actor classes bring the first MOVING colliders onto the level's own
        collider list, so their vtable's own overrides go in before anything can
-       spawn. hal/clsn_vtable.cpp has already seeded it with MeshCollider's. */
+       spawn. hal/clsn_vtable.cpp has already seeded it with dBgW_Kc's. */
     hal_fill_moving_mesh_collider_vtable();
+    /* The KcMbg triple's static scratch dBgCh_Lin: constructed here the way
+       __sinit_0207501c constructs it on hardware (its vptr must be live
+       before any moving-collider dispatch). */
+    _ZN9dBgCh_LinC1Ev(data_020a0d0c);
 
     /* ov009's own four static initialisers, where the DS runs them: after the
        overlay is mounted and before anything spawns. Every SharedFilePtr the
@@ -737,7 +737,7 @@ void _ZNK7PathPtr7GetNodeER7Vector3j(const void *self, int *out, unsigned idx);
 
 void port_stage_a_probe(void *mc_)
 {
-    MeshCollider *mc = (MeshCollider *)mc_;
+    dBgW_Kc *mc = (dBgW_Kc *)mc_;
     const PortLvlOverlay *o = (const PortLvlOverlay *)port_ov009_mount();
 
     /* CLPS: "CLPS" magic, u16 entry size, u16 count, then the records --
