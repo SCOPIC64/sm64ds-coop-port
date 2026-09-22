@@ -104,6 +104,9 @@ _glmwork/
 
 # --- Build artifacts ---
 *.o
+build_walk*.log
+cmake_conf.log
+faces_build.log
 
 # --- Ghidra scaffolds (derived from ROM; local only) ---
 ghidra_out/
