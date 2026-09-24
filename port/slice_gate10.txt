@@ -413,7 +413,7 @@ src/func_020393b4.c
 src/_ZN5Sound8EndMusicEjj.cpp
 src/_ZN5Sound8SetMusicEjj.cpp
 src/_ZN9ModelBaseD2Ev.cpp
-src/_ZdlPv.cpp
+#DROPPED(host owns global delete; src/_ZdlPv.cpp hijacked ??3 into the game heap pre-SetupRootHeap): src/_ZdlPv.cpp
 src/func_02037f5c.c
 src/func_ov002_020db8bc.c
 src/Deallocate.c

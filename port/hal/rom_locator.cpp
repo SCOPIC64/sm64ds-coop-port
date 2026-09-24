@@ -5,8 +5,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
+#define RCK(msg) do { fprintf(stderr, "[rck] %s\n", msg); fflush(stderr); } while (0)
 
 namespace sm64ds::port {
 namespace {
@@ -29,23 +31,33 @@ bool has_nds_extension(const std::filesystem::path &path)
 std::filesystem::path executable_directory()
 {
     char buffer[MAX_PATH];
+    RCK("pre-gmfn");
     DWORD length = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
+    RCK("post-gmfn");
     if (length == 0 || length >= MAX_PATH) return {};
-    return std::filesystem::path(buffer).parent_path();
+    std::filesystem::path p(buffer);
+    RCK("path-made");
+    std::filesystem::path pp = p.parent_path();
+    RCK("parent-made");
+    return pp;
 }
 
 }
 
 bool locate_rom_next_to_exe(RomInfo &out, std::string &error)
 {
+    RCK("enter");
     const std::filesystem::path directory = executable_directory();
+    RCK("have-dir");
     if (directory.empty()) {
         error = "cannot determine the executable directory";
         return false;
     }
 
     std::filesystem::path found;
+    RCK("pre-iterate");
     for (const auto &entry : std::filesystem::directory_iterator(directory)) {
+        RCK("entry");
         if (!entry.is_regular_file() || !has_nds_extension(entry.path())) continue;
         if (!found.empty()) {
             error = "more than one .nds file is next to the executable; leave only your SM64DS dump there";
@@ -54,11 +66,13 @@ bool locate_rom_next_to_exe(RomInfo &out, std::string &error)
         found = entry.path();
     }
     if (found.empty()) {
+        RCK("no-rom");
         error = "no .nds file is next to the executable; copy your own SM64DS dump beside walk_window.exe";
         return false;
     }
 
     std::ifstream rom(found, std::ios::binary);
+    RCK("opened");
     char header[0x80] = {};
     if (!rom.read(header, sizeof header)) {
         error = "the .nds file is too small to be a Nintendo DS cartridge dump";

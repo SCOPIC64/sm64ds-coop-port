@@ -22,13 +22,19 @@
  */
 extern "C" {
 
+#include <cstdio>
+
 int func_02043098(unsigned id, void *node, unsigned param1, int flags);
 
 int func_02042ffc(unsigned id, void *parent, unsigned param1, int flags)
 {
     if (parent == 0)
         return 0;
-    return func_02043098(id, (char *)parent + 0x14, param1, flags);
+    int r = func_02043098(id, (char *)parent + 0x14, param1, flags);
+    std::fprintf(stderr, "[spine] id=0x%x parent=%p p1=0x%x flags=%d -> 0x%x\n",
+                 id, parent, param1, flags, (unsigned)r);
+    std::fflush(stderr);
+    return r;
 }
 
 void *_ZN12ActorDerived5SpawnEjP9ActorBaseii(unsigned id, void *parent,

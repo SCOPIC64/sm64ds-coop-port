@@ -49,13 +49,59 @@ unsigned int Player::GetBodyModelID(unsigned int a, bool b_) const
    file changes or Default returns, so retinting never compounds. The head
    keeps its own colors. */
 extern "C" const float *port_outfit_tint(void);
+extern "C" int port_outfit_is_custom(void);
 namespace {
 const BMD_File *g_tint_file;
 unsigned *g_tint_mats;
 unsigned g_tint_orig[128];
 unsigned g_tint_n;
 int g_tint_applied;
+/* SM64DS_DUMP_OUTFIT=1: one-shot palette/material dump of each body file
+   seen here, so per-part colors map to real palette entries. */
+const BMD_File *g_dump_done[8];
+int g_dump_n;
+int g_dump_want = -1;
 }  // namespace
+
+/* BGR555 entry -> printable; DS stores r0-4/g5-9/b10-14. */
+static void hal_dump_outfit_tables(BMD_File *f)
+{
+    if (g_dump_want < 0)
+        g_dump_want = std::getenv("SM64DS_DUMP_OUTFIT") ? 1 : 0;
+    if (!g_dump_want || !f) return;
+    for (int i = 0; i < g_dump_n; ++i)
+        if (g_dump_done[i] == f) return;
+    if (g_dump_n < 8) g_dump_done[g_dump_n++] = f;
+    std::printf("[outfit] file=%p tex=%u pal=%u mat=%u\n", (void *)f,
+                f->numTextures, f->numPalettes, f->numMaterials);
+    for (u32 i = 0; i < f->numTextures; ++i) {
+        BMD_Texture *t = f->textures + i;
+        std::printf("[outfit] tex %2u %-20s fmt %u %3dx%-3d size %5u\n", i,
+                    t->name ? (const char *)t->name : "?",
+                    (t->flags >> 26) & 7, 8 << ((t->flags >> 20) & 7),
+                    8 << ((t->flags >> 23) & 7), t->size);
+    }
+    for (u32 i = 0; i < f->numMaterials; ++i) {
+        BMD_Material *m = f->materials + i;
+        std::printf("[outfit] mat %2u %-20s tex %d pal %d\n", i,
+                    m->name ? (const char *)m->name : "?", (int)m->textureId,
+                    (int)m->paletteId);
+    }
+    for (u32 i = 0; i < f->numPalettes; ++i) {
+        BMD_Palette *p = f->palettes + i;
+        unsigned short *e = (unsigned short *)p->data;
+        unsigned n = p->size / 2;
+        if (n > 256) n = 256;
+        std::printf("[outfit] pal %2u %-20s n=%u\n", i,
+                    p->name ? (const char *)p->name : "?", n);
+        for (unsigned k = 0; k < n; ++k) {
+            if ((k & 7) == 0) std::printf("[outfit]   %3u:", k);
+            std::printf(" (%2u,%2u,%2u)", e[k] & 31, (e[k] >> 5) & 31,
+                        (e[k] >> 10) & 31);
+            if ((k & 7) == 7 || k + 1 == n) std::printf("\n");
+        }
+    }
+}
 
 static void hal_tint_body(ModelAnim *ma)
 {
@@ -64,6 +110,7 @@ static void hal_tint_body(ModelAnim *ma)
     unsigned *mats = (ma && f) ? (unsigned *)ma->data.materials : 0;
     unsigned n = f ? f->numMaterials : 0;
     if (n > 128) n = 128;
+    hal_dump_outfit_tables(f);
     if (g_tint_applied &&
         (f != g_tint_file || mats != g_tint_mats || n != g_tint_n)) {
         for (unsigned i = 0; i < g_tint_n; ++i)

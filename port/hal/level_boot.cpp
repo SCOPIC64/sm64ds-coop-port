@@ -811,10 +811,20 @@ void port_stage_a_probe(void *mc_)
                     *(int *)((char *)mc_ + 0x2c), *(int *)((char *)mc_ + 0x38));
     }
 
-    /* Paths: the table the two CLPS entries 16/17 bind to. */
+    /* Paths: the table the two CLPS entries 16/17 bind to. The node pool
+       pointer (data_020a0d88) can point past the mounted ov009 window --
+       the pool lives further along the ROM than the mount covers -- so the
+       GetNode walk is gated on the pool sitting inside the image. Without
+       the gate the probe reads wild memory (node 46 of 17) and dies here,
+       before the spawn the boot is actually trying to prove. */
     std::printf("[path] table %p count %d nodes %p\n",
                 (void *)(size_t)data_020a0d84[0], data_020a0d8c[0],
                 (void *)(size_t)data_020a0d88[0]);
+    const unsigned char *img_lo = port_ov009_image;
+    const unsigned char *img_hi =
+        port_ov009_image + (port_ov009_ds_end - port_ov009_ds_base);
+    const unsigned char *pool = (const unsigned char *)(size_t)data_020a0d88[0];
+    const int pool_ok = pool >= img_lo && pool < img_hi;
     for (unsigned id = 0; id < 2; ++id) {
         static const unsigned probe_ids[2] = {5, 3};
         int path[2] = {0, 0};
@@ -823,6 +833,10 @@ void port_stage_a_probe(void *mc_)
         std::printf("[path] FromID(%u) -> rec %p firstNode %u count %u\n",
                     probe_ids[id], (void *)(size_t)path[0],
                     *(unsigned short *)(size_t)path[0], nodes);
+        if (!pool_ok) {
+            std::printf("        (node pool outside mounted image, walk skipped)\n");
+            continue;
+        }
         for (unsigned k = 0; k < nodes && k < 4; ++k) {
             int v[3];
             _ZNK7PathPtr7GetNodeER7Vector3j(path, v, k);

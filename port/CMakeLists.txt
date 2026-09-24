@@ -933,9 +933,10 @@ add_executable(walk_window tests/walk_window.cpp hal/rom_locator.cpp hal/mod_loa
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp hal/anim_ctor_bridge.cpp hal/bg_ctor_bridge.cpp hal/mem_delete2.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/spawn_aliases.cpp hal/missing_stubs.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/spawn_aliases.cpp hal/missing_stubs.cpp hal/host_newdelete.cpp hal/base_methods.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
+    ${SLICE6_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${GATE8_EXTRA_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
@@ -991,9 +992,10 @@ add_executable(walk_window_hires tests/walk_window.cpp hal/rom_locator.cpp hal/m
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/ctor_bridge.cpp hal/anim_ctor_bridge.cpp hal/bg_ctor_bridge.cpp hal/mem_delete2.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/spawn_aliases.cpp hal/missing_stubs.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/spawn_aliases.cpp hal/missing_stubs.cpp hal/host_newdelete.cpp hal/base_methods.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
+    ${SLICE6_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${GATE8_EXTRA_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}

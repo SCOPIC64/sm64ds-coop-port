@@ -16,7 +16,7 @@ int requested_sub_scale(void);   // 1..4, -1 unset
 int requested_widescreen(void);  // 0/1, -1 unset
 int requested_arena(void);       // 0/1, -1 unset
 int requested_camera(void);      // 0 analog, 1 freecam, 2 DS-exact, -1 unset
-int requested_color(void);       // 0..7 outfit tint, -1 unset
+int requested_color(void);       // 0..8 outfit (8 = Custom parts), -1 unset
 
 // Native-backed mod registry. A mod is INSTALLED when its folder exists
 // under mods/ and ENABLED when it is not off_-prefixed; toggling renames

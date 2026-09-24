@@ -227,11 +227,11 @@ static int mod_set_outfit(lua_State *state)
 {
     int ok = 0;
     long long v = lua_tointegerx(state, 1, &ok);
-    if (ok && v >= 0 && v <= 7) {
+    if (ok && v >= 0 && v <= 8) {
         g_want_color = (int)v;
         std::printf("[lua] requested outfit %d\n", g_want_color);
     } else {
-        std::printf("[lua] set_outfit: want 0..7\n");
+        std::printf("[lua] set_outfit: want 0..8 (8 = Custom parts)\n");
     }
     return 0;
 }

@@ -231,6 +231,7 @@ void hal_fill_model_vtable(void);
 void hal_fill_shadow_vtable(void);
 void hal_fill_mmc_vtable(void);
 void hal_fill_modelanim2_vtable(void);
+void hal_fill_dbase_vtable(void);
 int hal_player_init_resources(void *p);
 int hal_player_st_wait_init(void *p);
 int hal_player_st_wait_main(void *p);
@@ -1063,6 +1064,14 @@ static float g_dt_scale = 1.f;        /* display dt / 30Hz tick, for look rates 
 static float g_interp_t = 1.f;        /* 0 = previous tick, 1 = current tick */
 static int g_do_tick = 1;             /* this display frame runs a 30Hz game tick */
 static int g_jump_edge;               /* jump button edge this frame (post-tick boost) */
+/* pressed-edge latch: the button block runs every display frame but the
+   sim only ticks some of them (60fps/uncapped). A tap that starts and
+   ends on a no-tick frame used to vanish before the ROM ever saw it.
+   Edges OR-accumulate here and clear after a tick consumes them. */
+static unsigned short g_btn_pressed_latch;
+static unsigned short g_btn_held_prev;  /* held word, previous display frame:
+   the dive needs dash HELD before the punch edge, not starting the same
+   frame (stick flicker + B used to read as a jump: "B does a small A"). */
 /* gamepad button bindings: 0..15 = XInput button bit, 100 = LT, 101 = RT */
 static int g_pad_jump = 12;           /* A */
 static int g_pad_run = 14;            /* X */
@@ -1074,7 +1083,7 @@ static int g_key_jump = VK_SPACE;
 static int g_key_run = VK_SHIFT;
 static int g_key_crouch = VK_CONTROL;
 static int g_key_punch = 'X';
-static int g_color;                   /* outfit tint preset 0..7 (MODS/F5) */
+static int g_color;                   /* outfit preset 0..8 (MODS/F5); 8 = Custom parts */
 
 /* ---- toasts: one-line CoopDX-style notifications, bottom-center ---- */
 static char g_toast[3][96];
@@ -1399,27 +1408,36 @@ static int front_row_count(void)
     }
 }
 
-/* outfit tints (multipliers over the body's DIF_AMB channels) */
-static const float g_color_tints[8][3] = {
+/* outfit tints (multipliers over the body's DIF_AMB channels).
+   Index 8 (Custom) is identity here: the per-part colors live in the
+   palette remap in hal/player_bridges.cpp, not in DIF_AMB. */
+static const float g_color_tints[9][3] = {
     {1.0f, 1.0f, 1.0f}, {1.5f, 0.55f, 0.55f}, {1.5f, 0.9f, 0.45f},
     {1.4f, 1.25f, 0.5f}, {0.6f, 1.4f, 0.6f}, {0.55f, 0.75f, 1.5f},
-    {1.25f, 0.6f, 1.4f}, {0.32f, 0.32f, 0.45f},
+    {1.25f, 0.6f, 1.4f}, {0.32f, 0.32f, 0.45f}, {1.0f, 1.0f, 1.0f},
 };
 static const char *color_name(int c)
 {
     static const char *names[] = {"Default", "Red",   "Orange", "Yellow",
-                                  "Green",   "Blue",  "Purple", "Shadow"};
-    return names[c < 0 ? 0 : (c > 7 ? 7 : c)];
+                                  "Green",   "Blue",  "Purple", "Shadow",
+                                  "Custom"};
+    return names[c < 0 ? 0 : (c > 8 ? 8 : c)];
 }
 
 static PortLogo g_logo;
 static int g_logo_tried;
 
-/* outfit tint for hal/player_bridges.cpp: null = Default (no tint) */
+/* outfit tint for hal/player_bridges.cpp: null = Default (no tint).
+   Custom (8) returns the identity tint; the bridges check
+   port_outfit_is_custom() and recolor by palette instead. */
 extern "C" const float *port_outfit_tint(void)
 {
-    if (g_color <= 0 || g_color > 7) return 0;
+    if (g_color <= 0 || g_color > 8) return 0;
     return g_color_tints[g_color];
+}
+extern "C" int port_outfit_is_custom(void)
+{
+    return g_color == 8;
 }
 
 static std::string front_state_path(void)
@@ -1459,7 +1477,7 @@ static void front_load_state(void)
         if (kr > 0 && kr < 256) g_key_run = kr;
         if (kc > 0 && kc < 256) g_key_crouch = kc;
         if (kp > 0 && kp < 256) g_key_punch = kp;
-        if (col >= 0 && col <= 7) g_color = col;
+        if (col >= 0 && col <= 8) g_color = col;
         g_vsync = vs != 0;
         if ((pj >= 0 && pj <= 15) || pj == 100 || pj == 101) g_pad_jump = pj;
         if ((pr >= 0 && pr <= 15) || pr == 100 || pr == 101) g_pad_run = pr;
@@ -2232,15 +2250,29 @@ static void push_camera(const float eye_w[3], const float at_w[3])
     NTR_MMIO(uint32_t, 0x04000454) = 0;
 }
 
+/* crash-proof boot checkpoints: stderr + fflush survives an AV, unlike
+   piped stdout. If the trail stops at static-init, a C++ global's ctor
+   (actor registry/vtable fills) is calling an unresolved stub. */
+#define CK(msg) do { fprintf(stderr, "[ck] %s\n", msg); fflush(stderr); } while (0)
+struct CkStatic {
+    CkStatic() { fprintf(stderr, "[ck] static-init\n"); fflush(stderr); }
+};
+static CkStatic g_ckstatic;
+
 int main(void)
 {
+    CK("main-enter");
     sm64ds::port::RomInfo rom;
     std::string rom_error;
-    if (!sm64ds::port::locate_rom_next_to_exe(rom, rom_error)) {
+    CK("pre-locate");
+    const bool rom_found = sm64ds::port::locate_rom_next_to_exe(rom, rom_error);
+    CK("post-locate");
+    if (!rom_found) {
         fprintf(stderr, "ROM required: %s\n", rom_error.c_str());
         return 2;
     }
     SetEnvironmentVariableA("SM64DS_ROM", rom.path.c_str());
+    CK("rom-ok");
     printf("ROM: %s (%s)\n", rom.title.c_str(), rom.game_code.c_str());
     std::string mod_error;
     const std::string mods_directory =
@@ -2251,6 +2283,7 @@ int main(void)
         return 2;
     }
     front_load_state();
+    CK("mods-ok");
     /* lobby transport: UI callbacks in, display name out, headless env
        hooks for the two-instance test (NAME/HOST/JOIN; CHAT fires once
        a peer is actually connected, see the poll site) */
@@ -2370,12 +2403,20 @@ int main(void)
     if (!_ZN4Heap13SetupRootHeapEv()) return 2;
     memset(data_0209b3ec, 0, 48);
     data_0209b3ec[0] = data_0209b3ec[4] = data_0209b3ec[8] = 0x1000;
+    CK("heap-ok");
     hal_fill_model_vtable();
+    CK("fill-model-ok");
     hal_fill_shadow_vtable();
+    CK("fill-shadow-ok");
     hal_fill_mmc_vtable();
+    CK("fill-mmc-ok");
     hal_fill_modelanim2_vtable();
+    CK("fill-ma2-ok");
+    hal_fill_dbase_vtable();
+    CK("fill-dbase-ok");
 
     port_ov002_patch();
+    CK("ov002-patch-ok");
     __sinit_ov002_02100560(); __sinit_ov002_02100938();
     __sinit_ov002_02100adc(); __sinit_ov002_02100c50();
     __sinit_ov002_02100d44(); __sinit_ov002_02100e50();
@@ -2384,11 +2425,18 @@ int main(void)
     __sinit_ov002_021014e4(); __sinit_ov002_02101588();
     __sinit_ov002_02101738(); __sinit_ov002_02101894();
     __sinit_ov002_02101900(); __sinit_ov002_02101968();
+    CK("sinit-mid1-ok");
     __sinit_ov002_021019d0(); __sinit_ov002_02106e40();
-    __sinit_ov002_02107118(); __sinit_ov002_021071f4();
+    CK("sinit-a-ok");
+    __sinit_ov002_02107118();
+    CK("sinit-7118-ok");
+    __sinit_ov002_021071f4();
+    CK("sinit-b-ok");
     __sinit_ov002_02107298(); __sinit_ov002_02107304();
+    CK("sinit-mid2-ok");
     __sinit_ov002_02107370(); __sinit_ov002_02107f88();
     __sinit_ov002_0210804c(); __sinit_ov002_02108094();
+    CK("sinit-ok");
 
     /* THE GAME'S OWN LEVEL BOOT, now the default: ov009 mounted,
        Stage::LoadClsnAndObjects run against it, and the level's own entrance
@@ -2401,6 +2449,7 @@ int main(void)
     const int boot_spawns = real_boot && getenv("SM64DS_BOOT_NOSPAWN") == 0;
     if (real_boot)
         port_ov009_probe();
+    CK("ov009-probe-ok");
 
     data_02092144[0] = 8 << 8;
     if (!boot_spawns) {
@@ -2432,6 +2481,7 @@ int main(void)
     if (real_boot) {
         stage = (char *)port_stage_create();
         g_mc = stage + 0x91c;
+        CK("stage-ok");
     } else {
         g_mc = mc_storage;
          _ZN7dBgW_KcC1Ev(mc_storage);
@@ -2442,6 +2492,7 @@ int main(void)
            sub-table is dropped, which is stage A1: geometry only. */
         if (boot_spawns)
             port_stage_a2_seat();
+        CK("a2-seat-ok");
         /* character select at boot: the seat defaults to Mario (0); the
            entrance spawn reads the per-player slot, so park the choice
            before the boot runs. The save byte mirrors it. */
@@ -2452,6 +2503,7 @@ int main(void)
                    character_name(g_character));
         }
         void *lvl = port_stage_a_boot(g_mc, boot_spawns);
+        CK("aboot-ok");
         level_bmd = *(unsigned short *)((char *)lvl + 8);
         port_stage_a_probe(g_mc);
         if (boot_spawns) {
@@ -2598,6 +2650,7 @@ int main(void)
              port_watch_words(c + 0x358, 1);
     }
     g_live_player = player;
+    CK("player-ok");
     /* THE RADIUS LEVER IS NOT HERE. WithMeshClsn+0x18 is the radius
        UpdateExtraContinous hands to SphereClsn::SetObjAndSphere and +0x1c the
        vertical offset it adds to pos first, but Player::Behavior RECOMPUTES
@@ -3010,9 +3063,23 @@ int main(void)
         if (W.GetAsyncKeyState_('A') < 0 || W.GetAsyncKeyState_(VK_LEFT) < 0) dx -= 1;
         if (W.GetAsyncKeyState_('D') < 0 || W.GetAsyncKeyState_(VK_RIGHT) < 0) dx += 1;
         }
-        /* gamepad: left stick / d-pad walk, right stick orbits + tilts */
+        /* gamepad: left stick / d-pad walk, right stick orbits + tilts.
+           Poll slots 0..3 and latch the first live pad: a pad enumerated
+           on slot 1+ read as dead on slot 0 forever ("controls sometimes
+           don't work" on gamepad). */
         static XPad pad;
-        int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
+        static int g_pad_slot = 0;
+        int pad_live = 0;
+        if (XInputGetState_) {
+            for (int s = 0; s < 4; ++s) {
+                int slot = (g_pad_slot + s) & 3;
+                if (XInputGetState_(slot, &pad) == 0) {
+                    g_pad_slot = slot;
+                    pad_live = 1;
+                    break;
+                }
+            }
+        }
         int orbiting = 0;
         /* gamepad rebind capture: first pressed button/trigger wins.
            Keyboard Esc still cancels (wndproc), pad START cancels too. */
@@ -3131,7 +3198,7 @@ int main(void)
                     front_save_state();
                     break;
                 case 2:
-                    g_color = (g_color + dir + 8) % 8;
+                    g_color = (g_color + dir + 9) % 9;
                     front_save_state();
                     break;
                 case 3:
@@ -3161,7 +3228,7 @@ int main(void)
                 default: break;
                 }
                 else if (front_page == FRONT_PLAYER && front_sel == 1) {
-                    g_color = (g_color + dir + 8) % 8;
+                    g_color = (g_color + dir + 9) % 9;
                     front_save_state();
                 } else if (front_page == FRONT_CAMERA) {
                     if (front_sel == 0) {
@@ -3267,7 +3334,7 @@ int main(void)
                         front_page = FRONT_CHARACTER;
                         front_sel = g_character;
                     } else if (front_sel == 1) {
-                        g_color = (g_color + 1) % 8;
+                        g_color = (g_color + 1) % 9;
                         fprintf(stderr, "[mod] color %s\n",
                                 color_name(g_color));
                         front_save_state();
@@ -3613,7 +3680,7 @@ int main(void)
                         front_save_state();
                         break;
                     case MENU_COLOR:
-                        g_color = dec ? (g_color + 7) % 8 : (g_color + 1) % 8;
+                        g_color = dec ? (g_color + 8) % 9 : (g_color + 1) % 9;
                         fprintf(stderr, "[mod] color %s\n",
                                 color_name(g_color));
                         front_save_state();
@@ -3733,7 +3800,7 @@ int main(void)
                 g_character = atoi(ts) & 3;
                 const char *comma = strchr(ts, ',');
                 if (comma) {
-                    g_color = atoi(comma + 1) & 7;
+                    g_color = atoi(comma + 1) % 9;
                     fprintf(stderr, "[test] outfit %s\n",
                             color_name(g_color));
                 }
@@ -4310,8 +4377,13 @@ int main(void)
             g_jump_edge = (btn & (unsigned short)~btn_was) & 2;
             if (menu_on) { btn = 0; g_jump_edge = 0; }
             *(unsigned short *)(data_0209f49c + 0) = btn;
-            *(unsigned short *)(data_0209f49e + 0) =
-                (unsigned short)(btn & (unsigned short)~btn_was);
+            /* latched pressed word: survives no-tick display frames, clears
+               after the tick loop below consumes it (see game_ticked). */
+            g_btn_pressed_latch |= (unsigned short)
+                (btn & (unsigned short)~btn_was);
+            if (menu_on) g_btn_pressed_latch = 0;
+            *(unsigned short *)(data_0209f49e + 0) = g_btn_pressed_latch;
+            g_btn_held_prev = btn_was;
             btn_was = btn;
         }
 
@@ -4336,7 +4408,8 @@ int main(void)
             const int spd = *(int *)(c + 0x98);
             static int dive_t, dive_on, dive_spd;
             if (!menu_on && !front_on && (pressed & 1) &&
-                (held & 0x800) && (spd > (8 << 12) || spd < -(8 << 12)) &&
+                (held & 0x800) && (g_btn_held_prev & 0x800) &&
+                (spd > (8 << 12) || spd < -(8 << 12)) &&
                 *(unsigned char *)(c + 0x6de) == 0 &&
                 *(unsigned char *)(c + 0x706) == 0 &&
                 sm64ds::mods::mod_enabled("sm64_movement")) {
@@ -4353,6 +4426,7 @@ int main(void)
                 dive_on = 0;
                 dive_spd = spd;
                 fprintf(stderr, "[mod] sm64 dive\n");
+                toast("Dive!");
             }
             /* ride: while the dive is airborne, hold entry speed exactly
                (N64 preserves momentum; the ROM would bleed it down) and
@@ -4505,6 +4579,10 @@ int main(void)
                     hal_player_st_wait_main(player);
                 }
             }
+            /* the tick consumed this frame's pressed edges: release the
+               latch so the next display frame starts clean. No tick (menu
+               or uncapped no-tick frame) keeps the latch for later. */
+            if (game_ticked) g_btn_pressed_latch = 0;
         }
 
         /* until the first ChangeState seats the current-state pointer,

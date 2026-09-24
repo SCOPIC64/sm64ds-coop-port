@@ -22,6 +22,11 @@
  */
 struct View : dBase_c {
     Matrix4x3 viewMat; /* 0x50 */
+#ifdef SM64DS_PLATFORM_PC
+    /* HOST: referenced (as ??0View@@QAE@XZ) by subclass C1s but emitted
+       nowhere; defined in port/hal/base_methods.cpp. ROM build unaffected. */
+    View();
+#endif
 
     virtual ~View() {}
     virtual s32 Render();

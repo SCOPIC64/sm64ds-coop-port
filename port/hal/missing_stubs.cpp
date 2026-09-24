@@ -6,21 +6,35 @@
 #include "SharedFilePtr.h"
 #include "common.h"
 
+#include <new>
+
+#include "dActor_c.h"
+#include "dBgActor_c.h"
+#include "dCcAc_c.h"
+
 extern "C" {
 
 /* ---- C++ Itanium-ABI names (C linkage on MSVC) ---- */
+extern void *func_0203cc0c(unsigned size); /* real ROM allocator entry */
 void _ZN8dActor_cD2Ev(void *s) { (void)s; }
-void *_ZN9ActorBasenwEj(unsigned size) { (void)size; return (void*)0; }
+/* ActorBase::operator new: was a null-returning stub, which made EVERY
+   actor spawn fail. Forward to the real allocator like operator_new2. */
+void *_ZN9ActorBasenwEj(unsigned size) { return func_0203cc0c(size); }
 void _ZN13RaycastGroundD1Ev(void *) {}
 void _ZNK5dBgPi6CopyToERS_(void *, void *) {}
-void _ZN8dActor_cC2Ev(void *s) { *(void**)s = (void*)0; }
-void _ZN10dBgActor_cC2Ev(void *s) { _ZN8dActor_cC2Ev(s); }
-void _ZN7dCcAc_cC1Ev(void *) {}
+/* Base-object ctors: were vptr-nulling/empty stubs, leaving every actor
+   without vtable, spawn context or tree link. Placement-forward through
+   the real MSVC C1/C2 (gated TUs) so the dActor->dBase->fBase chain runs. */
+void _ZN8dActor_cC2Ev(void *s) { ::new (s) dActor_c(); }
+void _ZN10dBgActor_cC2Ev(void *s) { ::new (s) dBgActor_c(); }
+void _ZN7dCcAc_cC1Ev(void *s) { ::new (s) dCcAc_c(); }
 void _ZN7fBase_c9SceneNodeC1Ev(void *) {}
 
-/* ---- hal_fill_modelanim2_vtable ---- */
+/* ---- hal_fill_modelanim2_vtable ----
+   NOTE: no leading underscore in source: extern "C" adds MSVC's one,
+   and walk_window.cpp declares hal_fill_modelanim2_vtable. */
 void *_ZTV10ModelAnim2[];
-void _hal_fill_modelanim2_vtable(void) {
+void hal_fill_modelanim2_vtable(void) {
     for (int i = 0; i < 12; ++i)
         _ZTV10ModelAnim2[i] = (void *)0;
 }
@@ -38,6 +52,10 @@ int data_ov002_0210a8b8[8];
 int data_ov002_0210e164[8];
 int data_ov002_0210f308[8];
 int data_ov002_0210f344[8];
+/* __sinit_ov002_021071f4's Dest (p0@0, p1@8, gap@0x10, p2@0x14, p3@0x1c,
+   gap@0x24, p4@0x28, p5@0x30): 0x38 bytes, generous 64. The enrolling data
+   TU is not in the tree yet; without this the sinit writes to address 0. */
+int data_ov002_0210af2c[16];
 
 /* ---- ov077 (daJgm_c) data symbols ---- */
 int data_ov077_02127230[8];

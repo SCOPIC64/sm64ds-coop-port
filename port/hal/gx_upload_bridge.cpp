@@ -71,17 +71,10 @@ void _ZN15ModelComponents11UpdateBonesEP8BCA_Filei(
 
 
 // The compressed-texture loader keeps its C-named terminal-floor definition.
-// That draft is typed void (the ARM contract returned the block offset in a
-// register the C shape never names), so the bridge supplies the return the
-// caller depends on: the PRE-bump block cursor is where this texture landed.
-extern "C" void _ZN5Model27LoadCompressedTextureToVramEPcjS0_(char *, u32, char *);
-extern "C" u32 data_020a4bc8;
-struct Model {
-    static u32 LoadCompressedTextureToVram(char *src, u32 size, char *idx);
-};
-u32 Model::LoadCompressedTextureToVram(char *src, u32 size, char *idx)
-{
-    const u32 offset = data_020a4bc8;
-    _ZN5Model27LoadCompressedTextureToVramEPcjS0_(src, size, idx);
-    return offset;
-}
+// RETIRED: src/_ZN5Model27LoadCompressedTextureToVramEPcjS0_.cpp is gated
+// (gate4b) and provides the real MSVC static, including the pre-bump
+// return this bridge used to reconstruct by hand. Keeping this wrapper
+// meant link order (/FORCE:MULTIPLE keeps the first definition, and hal/
+// sorts before src/) shadowed the real uploader with a forwarder onto the
+// still-undefined Itanium name -- every format-5 texture jumped to the
+// image base during Player::InitResources.

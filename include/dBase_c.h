@@ -38,6 +38,13 @@
  * exactly as the ROM records at 0x02013e80..0x02013edc.
  */
 struct dBase_c : fBase_c {
+#ifdef SM64DS_PLATFORM_PC
+    /* HOST: the implicit default ctor is referenced (as ??0dBase_c@@QAE@XZ)
+       by subclass C2s but emitted nowhere. Declared here so the host seam
+       (port/hal/base_methods.cpp) can define it; the ROM build is
+       unaffected (mwccarm emits the implicit form). */
+    dBase_c();
+#endif
     /* Declared first, deliberately -- see KEY FUNCTION above. Overrides slots
        16 (D1) and 17 (D0); the position in this list does not affect that.
        DEFINED INLINE on purpose: subclass destructors inline it. */

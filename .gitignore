@@ -106,7 +106,12 @@ _glmwork/
 *.o
 build_walk*.log
 cmake_conf.log
+cmake_reconf*.log
+cmake_restore.log
+build_noforce.log
+build_relink*.log
 faces_build.log
+sm64ds-coop-v*.exe
 
 # --- Ghidra scaffolds (derived from ROM; local only) ---
 ghidra_out/

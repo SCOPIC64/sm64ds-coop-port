@@ -237,6 +237,14 @@ extern "C" int _ZNK10dBgCh_Actr13GetWallResultEv(const void *self)
 { return ((const WithMeshClsn *)self)->GetWallResult(); }
 extern "C" int _ZNK10dBgCh_Actr14GetFloorResultEv(const void *self)
 { return ((const WithMeshClsn *)self)->GetFloorResult(); }
+/* WithMeshClsn::Init is dBgCh_Actr::Init under the merge rename: identical
+   (actor, radius, height, ?, ?, vec, vec) shape, plain ints/pointers, so a
+   direct forward is exact. First call in Player::InitResources. */
+extern "C" void _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(
+    void *self, int a1, int a2, int a3, int a4, int a5);
+extern "C" void _ZN12WithMeshClsn4InitEP5Actor5Fix12IiES3_P10Vector3_16S5_(
+    void *self, int a1, int a2, int a3, int a4, int a5)
+{ _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(self, a1, a2, a3, a4, a5); }
 
 struct SphereClsn { int DetectClsn(); };
 extern "C" int _ZN12dBgCh_SphCrr10DetectClsnEv(void *self)

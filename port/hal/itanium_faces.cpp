@@ -4,6 +4,7 @@
 // (?Name@Class@@...), so every Itanium C reference needs one of these.
 // Signatures come from the class headers; bodies are one-line forwards.
 #include <stddef.h>
+#include <cstdio>
 #include <new>
 
 #include "dBgCh_Actr.h"
@@ -111,6 +112,10 @@ void _ZN10dBgW_KcMbg9TransformERK9Matrix4x3s(void *s, const void *m, short a)
 { ((dBgW_KcMbg *)s)->dBgW_KcMbg::Transform(*(const Matrix4x3 *)m, a); }
 void _ZN7dBgW_Kc17UpdateFileOffsetsER8KCL_File(void *f)
 { dBgW_Kc::UpdateFileOffsets(*(KCL_File *)f); }
+int _ZNK7dBgW_Kc16GetOctreeOriginYEv(const void *s)
+{ return ((const dBgW_Kc *)s)->dBgW_Kc::GetOctreeOriginY(); }
+int _ZNK7dBgW_Kc13GetUnkOctreeYEv(const void *s)
+{ return ((const dBgW_Kc *)s)->dBgW_Kc::GetUnkOctreeY(); }
 void _ZN4dBgW7DisableEv(void *s)
 { ((dBgW *)s)->dBgW::Disable(); }
 int _ZN4dBgW9IsEnabledEv(void *s)
@@ -183,6 +188,16 @@ void _ZN7Clipper13Func_020156DCEitii(void *s, int a, unsigned short b, int c,
 extern "C" {
 void *_ZN8dActor_c10FindWithIDEj(unsigned id)
 { return dActor_c::FindWithID(id); }
+/* init/behavior spine faces: the processing-list callbacks (ac_bbeh in
+   actor_classes.cpp, ps_binit/ps_ainit in level_boot.cpp) and the spawn
+   init Process reach BeforeInitResources/AfterInitResources/BeforeBehavior
+   by Itanium name; the real MSVC methods live in the gated TUs. */
+int _ZN8dActor_c14BeforeBehaviorEv(void *s)
+{ return ((dActor_c *)s)->dActor_c::BeforeBehavior(); }
+int _ZN8dActor_c19BeforeInitResourcesEv(void *s)
+{ return ((dActor_c *)s)->dActor_c::BeforeInitResources() ? 1 : 0; }
+void _ZN8dActor_c18AfterInitResourcesEj(void *s, unsigned v)
+{ ((dActor_c *)s)->dActor_c::AfterInitResources(v); }
 void _ZN8dActor_c13SpawnSoundObjEj(void *s, unsigned p)
 { ((dActor_c *)s)->dActor_c::SpawnSoundObj(p); }
 void _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
@@ -216,8 +231,25 @@ void *_ZN8dActor_c4NextEPKS_(const void *after)
 void *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
     unsigned id, unsigned param, const void *pos, const void *rot, short area,
     short death)
-{ return dActor_c::Spawn(id, param, *(const Vector3 *)pos,
-                         (const Vector3_16 *)rot, area, death); }
+{ void *r = dActor_c::Spawn(id, param, *(const Vector3 *)pos,
+                            (const Vector3_16 *)rot, area, death);
+  std::fprintf(stderr, "[spawn] new id=0x%x param=0x%x area=%d death=%d -> %p\n",
+               id, param, area, death, r);
+  std::fflush(stderr);
+  return r; }
+/* pre-rename spelling used by every port/unmatched object loader
+   (Door/Exit/Simple/Entrance/Standard/Teleport): same contract, the two
+   trailing words are (area, death) = -1/-1 for "none", truncated to the
+   short/short the renamed overload takes. */
+void *_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
+    unsigned id, unsigned param, const void *pos, const void *rot, int area,
+    int death)
+{ void *r = dActor_c::Spawn(id, param, *(const Vector3 *)pos,
+                            (const Vector3_16 *)rot, (short)area, (short)death);
+  std::fprintf(stderr, "[spawn] old id=0x%x param=0x%x area=%d death=%d -> %p\n",
+               id, param, area, death, r);
+  std::fflush(stderr);
+  return r; }
 void *_ZN8dActor_c7FindEggER5dCc_c(void *s, void *clsn)
 { return ((dActor_c *)s)->dActor_c::FindEgg(*(dCc_c *)clsn); }
 int _ZN8dActor_c16JumpedOnByPlayerER5dCc_cR6Player(void *s, void *clsn,
@@ -327,8 +359,17 @@ int _ZN6Player12ShowMessage2ER7fBase_cjPK7Vector3hh(void *s, void *a,
 { return ((Player *)s)->Player::ShowMessage2(*(fBase_c *)a, b,
                                              (const Vector3 *)v, (u8)d,
                                              (u8)e); }
-void _ZN6PlayerC3Ev(void *s)
-{ ::new (s) Player(); }
+/* Player::C3 as FACTORY (matches the registry: allocates its own object,
+   like the ROM's 0x020e6c0c). Placement-constructs through the real C1Ev
+   TU (gated), which runs the member-wise init the spawn then continues. */
+extern "C" void *_ZN6PlayerC1Ev(void *c);
+extern "C" void *func_0203cc0c(unsigned size);
+void *_ZN6PlayerC3Ev(void)
+{
+    void *s = func_0203cc0c((unsigned)sizeof(Player));
+    if (!s) return 0;
+    return _ZN6PlayerC1Ev(s);
+}
 }  // extern "C"
 
 /* ---- Camera ---- */
@@ -343,8 +384,23 @@ void _ZN6Camera6SetPosERK7Vector3(void *s, const void *v)
 { ((Camera *)s)->Camera::SetPos(*(const Vector3 *)v); }
 void _ZN6Camera9SetLookAtERK7Vector3(void *s, const void *v)
 { ((Camera *)s)->Camera::SetLookAt(*(const Vector3 *)v); }
-void _ZN6CameraC1Ev(void *s)
-{ ::new (s) Camera(); }
+/* No enrolled TU implements Camera::InitResources (the src shadow TU uses a
+   local struct and a different mangling). Honest no-op success: the object
+   arrives zeroed with a vptr, and Behavior/Render (real TUs) cope. */
+int _ZN6Camera13InitResourcesEv(void *s)
+{ ((void)s); return 1; }
+/* Camera::C1 as FACTORY (matches the registry's port_factory_camera,
+   which passes 0). Allocates, then placement-constructs through the
+   minimal host Camera::Camera (port/hal/base_methods.cpp): the dActor
+   chain is real, the derived part starts zeroed for InitResources. */
+void *_ZN6CameraC1Ev(void *s)
+{
+    (void)s;
+    void *p = func_0203cc0c((unsigned)sizeof(Camera));
+    if (!p) return 0;
+    ::new (p) Camera();
+    return p;
+}
 void _ZN6CameraD1Ev(void *s)
 { ((Camera *)s)->~Camera(); }
 void _ZN6CameraD0Ev(void *s)
@@ -361,8 +417,27 @@ void _ZN5Stage10CheckInputEv()
 { Stage::CheckInput(); }
 void _ZN5Stage9LoadModelEv(void *s)
 { ((Stage *)s)->Stage::LoadModel(); }
-void _ZN5StageC1Ev(void *s)
-{ ::new (s) Stage(); }
+/* Stage::Stage as FACTORY (matches stage_bridges.cpp's caller: no args,
+   returns the object). The matched src TU was never enrolled, and no
+   MSVC Stage::Stage exists, so placement-new is impossible. Minimal
+   viable Stage: 0x9c8 zeroed bytes via the real allocator, vptr on the
+   trap table (first dispatch names its slot instead of jumping wild),
+   dBgW_Kc constructed at +0x91c where the ROM keeps it. ActorBase list
+   nodes stay empty (Stage rides no processing list) and the tree head
+   seats later; both print warnings, not faults. */
+extern "C" void *func_0203cc0c(unsigned size);
+extern "C" void _ZN7dBgW_KcC1Ev(void *self);
+extern "C" void *_ZTV5Stage[];
+#include <cstring>
+void *_ZN5StageC1Ev(void)
+{
+    char *s = (char *)func_0203cc0c(0x9c8);
+    if (!s) return 0;
+    std::memset(s, 0, 0x9c8);
+    *(void **)s = _ZTV5Stage;
+    _ZN7dBgW_KcC1Ev(s + 0x91c);
+    return s;
+}
 void _ZN8dScene_c14StartSceneFadeEjjt(unsigned a, unsigned b, int c)
 { dScene_c::StartSceneFade(a, b, (unsigned short)c); }
 void _ZN8dScene_c20SetAndStopColorFaderEv()
@@ -397,7 +472,11 @@ void _ZN7Message7EndTalkEv()
 { Message::EndTalk(); }
 void _ZN7PathPtrC1Ev(void *s)
 { ::new (s) PathPtr(); }
-void _ZNK7PathPtr7GetNodeER7Vector3j(void *res, const void *s, unsigned idx)
+/* NOTE: `this` is FIRST. Every caller (Player, daMip_c, daMky_c,
+   daBgSnmBdy_c, level_boot's probe) passes (path, out, idx); an earlier
+   revision had (res, s) swapped, which built a fine link and then read
+   the output vector as the object. */
+void _ZNK7PathPtr7GetNodeER7Vector3j(const void *s, void *res, unsigned idx)
 { ((const PathPtr *)s)->PathPtr::GetNode(*(Vector3 *)res, idx); }
 int _ZN9Animation8GetFlagsEv(void *s)
 { return ((Animation *)s)->Animation::GetFlags(); }

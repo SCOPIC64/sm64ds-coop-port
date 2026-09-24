@@ -315,10 +315,14 @@ extern "C" void _ZN4Heap10DeallocateEPv(void *self, void *ptr);
 void Heap::_Deallocate(void *ptr) { _ZN4Heap10DeallocateEPv(this, ptr); }
 
 /* RaycastGround::DetectClsn is defined against a local shadow in its own
-   TU; mirror the shadow (no real header here) so the manglings agree. */
-class RaycastGround { public: int DetectClsn(); };
-extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
-{ return ((RaycastGround *)self)->DetectClsn(); }
+   TU; mirror the shadow (no real header here) so the manglings agree.
+   RETIRED: the shadow method was never defined anywhere (LNK2019), so this
+   called a /FORCE stub. The hosted implementation lives in
+   port/hal/base_methods.cpp now; this copy is kept out so the linker can
+   only see one. */
+// class RaycastGround { public: int DetectClsn(); };
+// extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
+// { return ((RaycastGround *)self)->DetectClsn(); }
 #pragma comment(linker, "/alternatename:?data_0209f254@@3EA=_data_0209f254")
 #pragma comment(linker, "/alternatename:?data_0209f4a6@@3FA=_data_0209f4a6")
 #pragma comment(linker, "/alternatename:?func_ov002_020bdd9c@@YAXPAX@Z=_func_ov002_020bdd9c")
