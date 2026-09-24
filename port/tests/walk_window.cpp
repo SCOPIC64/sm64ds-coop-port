@@ -1457,12 +1457,12 @@ static void front_load_state(void)
         wide = 0, arena = 0, camd = 100, fps = 0, kj = VK_SPACE,
         kr = VK_SHIFT, kc = VK_CONTROL, kp = 'X', col = 0, vs = 1,
         pj = 12, pr = 14, pp = 13, pc = 101, ivy = 0, snd = 1, mut = 0,
-        tst = 1;
+        tst = 1, cmm = 3, ovl = 0;
     /* old files still load: missing fields keep their defaults */
-    if (std::fscanf(f, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+    if (std::fscanf(f, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
                     &analog, &invert, &ch, &spd, &jmp, &sub, &wide, &arena,
                     &camd, &fps, &kj, &kr, &kc, &kp, &col, &vs, &pj, &pr,
-                    &pp, &pc, &ivy, &snd, &mut, &tst) >= 2) {
+                    &pp, &pc, &ivy, &snd, &mut, &tst, &cmm, &ovl) >= 2) {
         g_analog_controls = analog != 0;
         front_invert_x = invert != 0;
         if (ch >= 0 && ch <= 3) g_character = ch;
@@ -1487,6 +1487,8 @@ static void front_load_state(void)
         g_sound_on = snd != 0;
         g_mute_unfocused = mut != 0;
         g_toasts_on = tst != 0;
+        if (cmm >= 0 && cmm <= 3) cam_mode = cmm;
+        g_overlay_on = ovl != 0;
     }
     /* username rides on line 2 (absent in old files -> default stays),
        join-target IP on line 3 (blank = must type one to join) */
@@ -1513,7 +1515,7 @@ static void front_save_state(void)
     std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
     FILE *f = std::fopen(path.c_str(), "wb");
     if (!f) return;
-    std::fprintf(f, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
+    std::fprintf(f, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
                  g_analog_controls ? 1 : 0, front_invert_x ? 1 : 0,
                  g_character, g_speed_pct, g_jump_pct, g_sub_scale,
                  g_widescreen ? 1 : 0, g_arena ? 1 : 0, g_cam_dist_pct,
@@ -1521,7 +1523,8 @@ static void front_save_state(void)
                  g_key_punch, g_color, g_vsync ? 1 : 0, g_pad_jump,
                  g_pad_run, g_pad_punch, g_pad_crouch,
                  front_invert_y ? 1 : 0, g_sound_on ? 1 : 0,
-                 g_mute_unfocused ? 1 : 0, g_toasts_on ? 1 : 0);
+                 g_mute_unfocused ? 1 : 0, g_toasts_on ? 1 : 0,
+                 cam_mode, g_overlay_on ? 1 : 0);
     std::fprintf(f, "%s\n", g_username);
     std::fprintf(f, "%s\n", g_lobby_ip);
     std::fclose(f);
@@ -3240,6 +3243,7 @@ int main(void)
                                 an_pivot_live = 0;
                             fprintf(stderr, "[cam] mode %s\n",
                                     cam_mode_name(cam_mode));
+                            front_save_state();
                         }
                     } else if (front_sel == 3) {
                         static const int presets[] = {70, 85, 100, 120,
@@ -3388,6 +3392,7 @@ int main(void)
                                 an_pivot_live = 0;
                             fprintf(stderr, "[cam] mode %s\n",
                                     cam_mode_name(cam_mode));
+                            front_save_state();
                         }
                     } else if (front_sel == 1) {
                         front_invert_x = !front_invert_x;
@@ -3924,6 +3929,7 @@ int main(void)
                 if (cam_mode == CAM_ANALOG || cam_mode == CAM_SM64)
                     an_pivot_live = 0;
                 fprintf(stderr, "[cam] mode %s\n", cam_mode_name(cam_mode));
+                if (!selftest) front_save_state();
             }
             fc_edge = now;
         }
