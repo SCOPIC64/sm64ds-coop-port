@@ -158,7 +158,7 @@
 src/func_ov080_02125104.cpp
 src/_ZN13PrincessPeach17CallStateBehaviorEv.cpp
 src/_ZN13PrincessPeach13CallStateInitEv.cpp
-src/func_ov085_0212d268.cpp
+src/actors/daObj_Mip_Key_c.cpp
 src/func_ov094_02136188.cpp
 src/actors/daBombking_c.cpp
 
@@ -283,8 +283,8 @@ src/actors/daBombking_c.cpp
 # what held YoshiEgg back, and adding a second directive would change nothing.
 #
 # ---- THE FOURTEEN ---------------------------------------------------------
-src/func_ov002_020ba4d8.cpp
-src/func_ov002_020ba520.cpp
+src/actors/daObjSwitch_c.cpp
+src/actors/daObjSwitch_c.cpp
 src/func_ov002_020bbd5c.cpp
 src/func_ov002_020bbda4.cpp
 src/_ZN13TreasureChest8SetStateEi.cpp

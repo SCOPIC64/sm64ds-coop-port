@@ -133,7 +133,7 @@
 # owes its decomp-side marker correction and retires when that line goes.
 #
 # ==== THE SLICE: 79 TUs (91 - 12 host copies) =============================
-src/d_a_popoi.c
+src/actors/daPopoi_c.cpp
 src/d_a_jgm.c
 src/d_a_tgz.c
 src/_ZN5Spiny13InitResourcesEv.cpp
@@ -147,12 +147,12 @@ src/_ZN6Lakitu16OnPendingDestroyEv.cpp
 src/_ZN6Lakitu8BehaviorEv.cpp
 # RETIRED at SLICE1: body now in src/_ZN6LakituD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
 #src/_ZN6LakituD0Ev.cpp
-src/_ZN7HeaveHo13InitResourcesEv.cpp
-src/_ZN7HeaveHo16CleanupResourcesEv.cpp
-src/_ZN7HeaveHo16OnPendingDestroyEv.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
 # RETIRED at SLICE1: body now in src/_ZN7HeaveHoD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
 #src/_ZN7HeaveHoD0Ev.cpp
-src/_ZN7HeaveHoD1Ev.cpp
+src/actors/daPopoi_c.cpp
 src/__sinit_ov077_02127240.c
 src/__sinit_ov077_0212749c.c
 src/__sinit_ov077_021275fc.c
@@ -202,16 +202,16 @@ src/func_ov077_02125bb4.c
 src/func_ov077_02125dd4.c
 src/func_ov077_02125e94.c
 src/_ZN5Spiny13OnTurnIntoEggER6Player.cpp
-src/func_ov077_02126300.c
-src/func_ov077_02126528.cpp
-src/func_ov077_02126640.cpp
-src/func_ov077_02126758.cpp
-src/func_ov077_0212679c.c
-src/func_ov077_02126930.cpp
-src/func_ov077_021269a8.cpp
-src/func_ov077_02126a04.c
-src/func_ov077_02126a50.c
-src/func_ov077_02126a84.c
-src/func_ov077_02126ad0.c
-src/func_ov077_02126cd4.cpp
-src/func_ov077_02126dac.c
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp
+src/actors/daPopoi_c.cpp

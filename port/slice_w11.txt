@@ -166,7 +166,7 @@ src/d_a_obj_simple_lift_km2_rifut02.c
 src/d_a_obj_simple_lift_rc_rift01.c
 src/d_a_obj_rotate_updown_lift_hs_updown_lift.c
 src/d_a_krb_kuribo_s.c
-src/d_a_nknk_nokonoko_s.c
+src/game/actors/d_a_nknk.cpp
 src/d_a_obj_seesaw_km2_yokoseesaw.c
 src/d_a_obj_seesaw_seesaw.c
 src/d_a_obj_seesaw_rc_seesaw.c

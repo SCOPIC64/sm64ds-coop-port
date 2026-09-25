@@ -239,5 +239,5 @@ src/_ZN9PowerStar8BehaviorEv.cpp
 # src/func_ov002_020aea30.cpp is a //cpp-marked .c -- `typedef void (C::*PMF)
 # (int, int);` is not C -- and is given LANGUAGE CXX in CMake block R10a, the
 # same treatment the tree gives every other //cpp-marked .c it compiles.
-src/_ZN12dEnemyBase_c11UpdateDeathER10dBgCh_Actr.cpp
-src/func_ov002_020aea30.cpp
+src/actors/dEnemyBase_c.cpp
+src/actors/dEnemyBase_c.cpp

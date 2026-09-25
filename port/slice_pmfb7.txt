@@ -98,7 +98,7 @@
 # MantaRay, Shark and Skeeter define the flat extern "C" name themselves.
 # ===========================================================================
 src/_ZN7Skeeter8BehaviorEv.cpp
-src/_ZN10CheepCheep8BehaviorEv.cpp
+src/actors/daPukupuku_c.cpp
 src/_ZN8MantaRay8BehaviorEv.cpp
 src/_ZN5Shark8BehaviorEv.cpp
 src/_ZN9JetStream8BehaviorEv.cpp
@@ -174,7 +174,7 @@ src/_ZN7Chuckya8BehaviorEv.cpp
 # row returns when the host copy covers the whole consolidated TU.
 #src/actors/Eyerok.cpp
 src/_ZN11ChiefChilly8BehaviorEv.cpp
-src/_ZN7HeaveHo8BehaviorEv.cpp
+src/actors/daPopoi_c.cpp
 src/actors/daBombking_c.cpp
 src/_ZN9LakituBro8BehaviorEv.cpp
 src/_ZN6Fwoosh8BehaviorEv.cpp
