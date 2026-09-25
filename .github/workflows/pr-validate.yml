@@ -62,6 +62,7 @@ jobs:
           gh api "repos/$REPO/contents/tools/submit_pr_validation.py?ref=$WORKFLOW_SHA" \
             -H 'Accept: application/vnd.github.raw+json' > "$RUNNER_TEMP/submit_pr_validation.py"
       - name: Recheck pins and submit validation job
+        if: github.repository == 'tangosdev/sm64ds-decomp'
         env:
           GH_TOKEN: ${{ github.token }}
           RELAY: ${{ secrets.PR_VALIDATE_RELAY }}
@@ -70,3 +71,6 @@ jobs:
         # validationRelevant remains advisory. Even wholly inert PRs are sent to
         # the relay; this workflow never posts, waives or replaces its verdict.
         run: python3 "$RUNNER_TEMP/submit_pr_validation.py" submit
+      - name: Private validator is canonical-repository only
+        if: github.repository != 'tangosdev/sm64ds-decomp'
+        run: echo "Skipping Tango's private validation relay in fork ${{ github.repository }}; fork-local CI remains authoritative."

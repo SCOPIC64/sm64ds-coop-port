@@ -605,7 +605,7 @@ set(PORT_HOSTGEN_TU
     #
     # IRQ::SetIRQs pokes IME 0x4000208 and IE 0x4000210 through literal casts and
     # needs the MMIO routing, two rewrites.
-    src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp
+    src/actors/daObjYajirusi_c.cpp
     src/_ZN3IRQ7SetIRQsEj.cpp
     # Run link100, lane CRASH6. THE SIX VPTR STORES THAT ARE MEASURABLY WRONG,
     # and the first run-time conviction of the defect tools/vptr_addend_guard.py
@@ -1276,6 +1276,28 @@ port_configure_input("${CMAKE_CURRENT_SOURCE_DIR}/tools/tierscan.py")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+
+# Resource-pack scripts are part of the shipped port, so Lua is built from the
+# pinned vendored source instead of depending on a user's machine-wide install.
+file(GLOB LUA_RESOURCE_PACK_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src/*.c")
+list(FILTER LUA_RESOURCE_PACK_SOURCES EXCLUDE REGEX "/lua\.c$")
+list(FILTER LUA_RESOURCE_PACK_SOURCES EXCLUDE REGEX "/luac\.c$")
+list(FILTER LUA_RESOURCE_PACK_SOURCES EXCLUDE REGEX "/ltests\.c$")
+list(FILTER LUA_RESOURCE_PACK_SOURCES EXCLUDE REGEX "/onelua\.c$")
+add_library(lua_resource_pack STATIC ${LUA_RESOURCE_PACK_SOURCES})
+target_include_directories(lua_resource_pack PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua/src")
+if(MSVC)
+    target_compile_options(lua_resource_pack PRIVATE /wd4244 /wd4267 /wd4996)
+endif()
+
+add_executable(resource_pack_probe
+    tests/resource_pack_probe.cpp
+    hal/resource_pack.cpp)
+target_include_directories(resource_pack_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/hal")
+target_link_libraries(resource_pack_probe PRIVATE lua_resource_pack)
 
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate1.txt" SLICE_LINES)
 set(SLICE_SOURCES "")
@@ -3158,7 +3180,7 @@ set_source_files_properties(
 # ov081 seat. One ROM address, 0x020ada40, resolved two ways in one binary.
 #
 # The port defines both occupants: _func_ov002_020ada40 out of
-# src/_ZN12dEnemyBase_c20KillByInvincibleCharERK10Vector3_16R6Player5Fix12IiE.cpp (the real 0x100-byte body, 0x020ada40..0x020adb40
+# src/actors/dEnemyBase_c.cpp (the real 0x100-byte body, 0x020ada40..0x020adb40
 # in ov002's delinks) and _func_ov004_020ada40
 # out of the ov004 TU. dsd tagged every level-overlay call into that address
 # module:overlays(2,4) because it cannot tell the occupants apart, and ov004
@@ -3188,7 +3210,7 @@ set_source_files_properties(
 # Arity, measured rather than assumed. The ROM body reads r0/r1/r2 and never
 # reads r3 on entry (it recomputes the slot-0x74 result itself at 0x020adaf0),
 # so 0x020ada40 takes THREE parameters, which is what src/func_ov081_021243cc.cpp
-# declares and what src/_ZN12dEnemyBase_c20KillByInvincibleCharERK10Vector3_16R6Player5Fix12IiE.cpp defines. The ROM's own call at
+# declares and what src/actors/dEnemyBase_c.cpp defines. The ROM's own call at
 # 0x02123988 still loads r3 from the vcall it just made, and the recovered
 # .cpp mirrors that, so the caller passes a fourth argument the callee ignores.
 # Both sides are cdecl, so the caller cleans it up and the extra argument is
@@ -11593,7 +11615,7 @@ set(LEVELBOOT_HOST_SOURCES
     # to carry. It rides this slice, next to the enemy Behaviors that call it.
     # RETIRED (run link100 wave 14, lane SHADOWS3). The 6o ordering floor this
     # file's header called unmatchable was crossed by PR #2369 (adf091af7);
-    # src/_ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr.cpp is on
+    # src/actors/dEnemyBase_c.cpp is on
     # port/slice_shadows3.txt and the flat Itanium name its callers use is
     # published by the generated reverse face its port/faces_sync.txt row now
     # asks for (that row was a FORWARD row while this host copy owned the flat
@@ -17349,7 +17371,8 @@ endforeach()
 # a special build of it. Inert unless SM64DS_IO_PRESSURE_AT is set in the
 # environment, and nothing in the tree sets it.
 
-add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
+add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp
+    hal/resource_pack.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # run link100 lane BOOT: the ROM's own boot chain, called from the four
     # port_boot_rom_* seams in tests/walk_window.cpp's main. See the gate-214
     # block above and the header of hal/boot_os.cpp.
@@ -17638,7 +17661,7 @@ target_include_directories(walk_window PRIVATE
 # exe, the Aspect settings key (a ratio, 0 = native) picks it at boot. Was ntr_2x
 # (NTR_HIRES2, the fixed 512x384 tier); the wide-max buffer with a 4:3 default
 # active size is byte-for-byte that build when the key is off.
-target_link_libraries(walk_window PRIVATE ntr_wide_rt)
+target_link_libraries(walk_window PRIVATE ntr_wide_rt lua_resource_pack)
 target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
     ${PORT_REPO_ROOT_DEF}
     # GATE STARSEL (run link100, lane STARSELENTRY): this target carries
@@ -17756,7 +17779,8 @@ add_custom_command(TARGET walk_window POST_BUILD
     COMMENT "arm9_globals_guard: no ROM write runs past a hosted arm9 global")
 
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
-add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
+add_executable(walk_window_hires tests/walk_window.cpp hal/resource_pack.cpp
+    "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # run link100 lane BOOT: same slice as walk_window, for the same reason --
     # this target compiles tests/walk_window.cpp, which carries the boot calls.
     ${SLICE214_SOURCES} ${SLICE_IPCSEND_SOURCES}
@@ -18025,7 +18049,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(walk_window_hires PRIVATE ntr_hires)
+target_link_libraries(walk_window_hires PRIVATE ntr_hires lua_resource_pack)
 target_compile_definitions(walk_window_hires PRIVATE SM64DS_PLATFORM_PC
     ${PORT_REPO_ROOT_DEF}
     # GATE STARSEL (run link100, lane STARSELENTRY): this target carries
@@ -21115,7 +21139,7 @@ set(PORT_FALLS_OFF_END_SOURCES
     # into the absence of the call, and what is left is the ordinary C4716 shape
     # the other two have. It is a PORT_HOSTGEN_TU row, so the loop below puts the
     # option on the generated path as well.
-    src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp
+    src/actors/daObjYajirusi_c.cpp
     )
 # A WHOLE-TU HOSTGEN SUBSTITUTION MOVES THE COMPILE, AND A PER-SOURCE PROPERTY
 # DOES NOT FOLLOW IT. Run link100, lane HOSTGEN2, measured: putting
@@ -22124,18 +22148,12 @@ set(PORT_TAILPAD_DBGACTOR_SOURCES
     # BOTH WAYS, the rule this block states: all seven rows below move under the
     # wrapper (InitResources 32 assembly lines, Behavior 30, the destructor pair
     # 12 each, CleanupResources 4, Render and OnGroundPounded 2), and every moved
-    # line lands on the offset include/StarSwitch.h records. The other three TUs
+    # line lands on the offset include/daObjSwitch_c.h records. The other three TUs
     # that name StarSwitch were compiled both ways too and are deliberately NOT
     # here, because nothing in them moves: unmatched/ExclamationSwitch_StateDispatch.cpp,
     # hal/actorport_dtor_bridge.cpp and hal/actor_classes_bob_world.cpp, the last
     # of which this block already excludes by name.
-    src/_ZN10StarSwitch13InitResourcesEv.cpp
-    src/_ZN10StarSwitch15OnGroundPoundedER8dActor_c.cpp
-    src/_ZN10StarSwitch16CleanupResourcesEv.cpp
-    src/_ZN10StarSwitch6RenderEv.cpp
-    src/_ZN10StarSwitch8BehaviorEv.cpp
-    src/_ZN10StarSwitchD0Ev.cpp
-    src/_ZN10StarSwitchD1Ev.cpp
+    src/actors/daObjSwitch_c.cpp
     src/_ZN10SlidingIce13InitResourcesEv.cpp
     src/_ZN10SlidingIce15OnHitByMegaCharER6Player.cpp
     src/_ZN10SlidingIce16CleanupResourcesEv.cpp

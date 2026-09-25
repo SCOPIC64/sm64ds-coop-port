@@ -37,6 +37,11 @@ concurrency:
 
 jobs:
   check:
+    # This audit follows branches and merged PRs in the canonical Tango
+    # repository. Forks inherit the workflow file but cannot repair or delete
+    # branches owned by tangosdev, so running it there only produces permanent
+    # false-red checks unrelated to the fork's pull requests.
+    if: github.repository == 'tangosdev/sm64ds-decomp'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

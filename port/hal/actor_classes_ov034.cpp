@@ -262,7 +262,7 @@ extern "C" char port_ov015_kdp_clsn_files[];
      src/_ZN8dActor_c9UpdatePosEP5dCc_c.cpp        `(struct Actor *, struct CylinderClsn *)`
      src/_ZNK10dBgCh_Actr10IsOnGroundEv.cpp           `(const struct WithMeshClsn *)`
      src/_ZNK10dBgCh_Actr13JustHitGroundEv.cpp        `(const struct WithMeshClsn *)`
-     src/_ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj.cpp `(struct Enemy *, struct WithMeshClsn *, u32)`
+     src/actors/dEnemyBase_c.cpp `(struct Enemy *, struct WithMeshClsn *, u32)`
    The two CylinderClsn ones are REAL C++ METHODS in src (`CylinderClsn::Clear`
    and `::Update`, which MSVC mangles and calls __thiscall), so the C name the
    ROM uses is not theirs -- it is the cdecl FACE in hal/method_faces.cpp:125

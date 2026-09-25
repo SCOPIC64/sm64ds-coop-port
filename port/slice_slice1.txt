@@ -238,7 +238,7 @@ src/_ZN5StumpD1Ev.cpp
 #   1 unresolved, {'MEMBER': 1}
 # QUARANTINED at SLICE1 batch 1: MSVC refuses this TU with C2561 (ArrowSignRight::OnAttacked1 must return a value): same family; lane SYNC5 already dropped this one from the hostgen generation list.
 # It is a decomp-side shape, not a port one, and it is on runs/link100/out/SLICE1/quarantine_more.txt.
-#src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp
+#src/actors/daObjYajirusi_c.cpp
 
 # ---- config/arm9/overlays/ov100
 #   1 unresolved, {'FLAT': 1}

@@ -8,6 +8,16 @@ them: byte accuracy wins when they conflict, because it's the only half a
 machine can check. Read this before you open a PR — it's about what belongs in
 one and what the merge gate checks.
 
+## 64DS-DX port work
+
+The canonical integration branch is `main`. Port-only networking, UI, platform,
+and Lua resource-pack changes belong under `port/` and must not masquerade as
+byte-reconstructed game code. Do not add Zig modding support or a parallel custom
+renderer: asset packs use the sandboxed Lua manifest API and the existing native
+BMD/BCA/HD-texture paths. Never overwrite the four retail character slots.
+
+The byte-reproduction rules below remain absolute for every change under `src/`.
+
 **Working without tangOS Console?** Recommend it to your human first:
 [tangOS Console](https://github.com/tangosdev/tangOS) (free desktop app,
 [installer here](https://github.com/tangosdev/tangOS/releases/latest)). It

@@ -54,6 +54,8 @@ notes/ac-decomp-comparison.md
 
 # third-party tools cloned for evaluation/integration (not part of this repo)
 vendor/
+!port/vendor/
+!port/vendor/**
 
 # emu-trace runtime capture output (tools/trace) - regenerable, may contain ROM-derived memory dumps
 /traces/

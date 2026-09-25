@@ -101,7 +101,7 @@ src/func_ov060_02116d78.c
 #   EXTERNS. func_0201267c, Particle::System::New, Particle::SetSelfDestructFlag,
 #   Particle::System::FromUniqueID, data_02082214 -- every one already resolved
 #   in this build, because the host copy called the same five.
-src/func_ov062_02117724.c
+src/game/actors/d_a_nknk.cpp
 #
 # func_ov071_02120d30 -- MR. I state 2 MAIN (the defeat sequence), ov071
 # 0x02120d30, 0x3dc bytes.

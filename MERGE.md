@@ -5,6 +5,11 @@ human maintainers and AI sessions alike. If you are landing a PR or working a
 function or class, follow this. See [`AGENTS.md`](AGENTS.md) for what a change
 looks like and what the merge gate checks.
 
+The repository has one integration branch: `main`. The former `coop-port` and
+feature branches are historical and must not be recreated as parallel release
+lines. Keep decomp/source reconstruction PRs separate from port-only co-op or
+resource-pack PRs so each can run the correct validation.
+
 ## 1. Claims (before you touch a function or class)
 
 For the coordinated v2 class/TU fleet, follow
@@ -53,6 +58,10 @@ coordinated v2 fleet.
   not a PR problem** — pull on the box and re-run, never override it.
 - **Near-miss DB / notes / tooling PRs** have no `src` match to byte-check; review for sanity
   and merge.
+- **Port-only PRs** must keep their implementation under `port/`, build the affected
+  MSVC targets, and run the relevant standalone probes. Lua modding remains
+  declarative and sandboxed; changes that introduce arbitrary native/script access,
+  a Zig runtime, or a second renderer require a separate design review.
 - **`port/` reference breaks.** A rename, `.c`-to-`.cpp` migration, or file move in `src/`/
   `include/` can strand a `port/` reference (`slice_gate*.txt`, `CMakeLists.txt` hostgen
   symbol lists, `port/hal/*.cpp` linkage bridges) — nothing in `validate` catches this since

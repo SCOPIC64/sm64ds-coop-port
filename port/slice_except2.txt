@@ -150,13 +150,13 @@ src/_ZN6Lakitu6RenderEv.cpp
 #   referrer  _ZTV7HeaveHo[9] @ 02127abc = 02126e38   (overlay_0077.bin, base 02123740)
 #   record    _ZN7HeaveHo6RenderEv kind:function(arm,size=0x50) addr:0x02126e38   (overlays/ov077/symbols.txt:85)
 #   retires   port/unmatched/HeaveHo_HostSites.cpp (body cut)
-src/_ZN7HeaveHo6RenderEv.cpp
+src/actors/daPopoi_c.cpp
 #
 # CheepCheep (ov090) OK
 #   referrer  _ZTV10CheepCheep[9] @ 02134348 = 021333e0   (overlay_0090.bin, base 02130f00)
 #   record    _ZN10CheepCheep6RenderEv kind:function(arm,size=0x50) addr:0x021333e0   (overlays/ov090/symbols.txt:50)
 #   retires   port/unmatched/CheepCheep_HostSites.cpp (body cut)
-src/_ZN10CheepCheep6RenderEv.cpp
+src/actors/daPukupuku_c.cpp
 #
 # Stump (ov091) OK
 #   referrer  _ZTV5Stump[9] @ 021353d0 = 02134184   (overlay_0091.bin, base 02130f00)

@@ -208,7 +208,6 @@ OV65_TRAP(13) OV65_TRAP(14) OV65_TRAP(17)
 #pragma comment(linker, "/alternatename:?data_ov065_0211d720@@3HA=_data_ov065_0211d720")
 #pragma comment(linker, "/alternatename:?data_ov065_0211d720@@3USharedFilePtr@@A=_data_ov065_0211d720")
 #pragma comment(linker, "/alternatename:?data_ov075_0211d608@@3USharedFilePtr@@A=_data_ov065_0211d608")
-#pragma comment(linker, "/alternatename:?data_ov075_0211d610@@3USharedFilePtr@@A=_data_ov065_0211d610")
 #pragma comment(linker, "/alternatename:?data_ov002_0210d9c0@@3HA=_data_ov002_0210d9c0")
 #pragma comment(linker, "/alternatename:?data_ov002_0210d9c0@@3UG@@A=_data_ov002_0210d9c0")
 #pragma comment(linker, "/alternatename:?data_ov002_0210d9c0@@3USharedFilePtr@@A=_data_ov002_0210d9c0")
@@ -1040,9 +1039,7 @@ void hal_fill_platform_vtable(void);
  */
 /* the four .text-pool CLPS blocks -> ov035's per-symbol mount */
 #pragma comment(linker, "/alternatename:?func_02112118@@3UCLPS_Block@@A=_data_ov035_02112118")
-#pragma comment(linker, "/alternatename:_func_02112198=_data_ov035_02112198")
 #pragma comment(linker, "/alternatename:_func_021121b8=_data_ov035_021121b8")
-#pragma comment(linker, "/alternatename:_func_02112258=_data_ov035_02112258")
 /* decorated free-function spellings -> the one C name each body defines */
 #pragma comment(linker, "/alternatename:?_ZN11ShadowModel10InitCuboidEv@@YAXPAX@Z=__ZN11ShadowModel10InitCuboidEv")
 #pragma comment(linker, "/alternatename:?_ZN7dBgW_Kc8LoadFileER13SharedFilePtr@@YAPAUKCL_File@@AAUSharedFilePtr@@@Z=__ZN7dBgW_Kc8LoadFileER13SharedFilePtr")

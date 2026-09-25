@@ -71,7 +71,7 @@ src/_ZN11BobOmbBuddy6RenderEv.cpp
 # is a sixth row for that list, not a compile-family quarantine.
 #src/game/actors/d_a_wanwan.cpp
 src/game/actors/d_a_obj_wanwan_shutter.cpp
-src/_ZN13KoopaTheQuick6RenderEv.cpp
+src/actors/daRNk_c.cpp
 src/_ZN9KoopaFlag6RenderEv.cpp
 # ---------------------------------------------------------------------------
 # THE REST (host copies were unmatched/ModelAnim_Renders.cpp)

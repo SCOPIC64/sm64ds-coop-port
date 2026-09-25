@@ -16,7 +16,7 @@
 # D1/D0 both call it as their own base-class D2). Self-contained (already-
 # hosted _ZN8dActor_cD2Ev + the already-hosted data_ov002_021081e4 vtable
 # array). Not previously mounted anywhere in the port. ----
-src/_ZN12dEnemyBase_cD1Ev.cpp
+src/actors/dEnemyBase_c.cpp
 #
 # ---- func_ov081_02123910's (Spindrift's player-bump helper) own callee
 # closure: func_ov004_020ada40 and its
