@@ -1,5 +1,7 @@
 //cpp
-/* Genuine production translation unit for ov030/daMky_c.
+/* daMky_c -- the two Ukiki monkeys of Tall, Tall Mountain, ov030:
+ * UKIKI_THIEF (267) and UKIKI_STAR (268). func_ov030_02112578, a talk
+ * sequence, finds UKIKI_CAGE (actor 103) and moves it at the end.
  *
  * The cartridge names this class daMky_c: ov030 0x02115b78 holds the bytes
  * '7daMky_c' NUL-terminated, the length-prefixed _ZTS payload that
@@ -7,6 +9,23 @@
  * word appears nowhere in the ROM.  This TU, include/daMky_c.h and the nine
  * mangled member rows in config/arm9/overlays/ov030/symbols.txt were renamed
  * to the cartridge spelling in the commit before this one.
+ *
+ * Known limits:
+ *   The func_ov030_* helpers keep their address-derived repository labels
+ *   (tick PMFs and free functions). The image preserves no original mangled
+ *   symbol table, so the labels are not evidence that these were free
+ *   functions, and their original spellings are unknown. EnterState0..10 are
+ *   already members; do not coin names for the rest. 0211124c is not this
+ *   TU's: it is defined in src/game/actors/d_a_obj_hm_bskt.cpp and is also
+ *   called from daObjHmBskt_c::Behavior.
+ *   SetAnim / dCcAc_c::Init / dBgCh_Actr::Init / DropShadowRadHeight /
+ *   IsTooFarAwayFromPlayer stay mangled (Fix12 by value,
+ *   notes/mwccarm-codegen.md 6az; the dBgCh Init header's Fix12i mangles as
+ *   int).
+ *   func_ov030_02112094 copies via a local M4x3, not Matrix4x3, so include
+ *   order is free. Player+8 param1 and cap +0xc8 belong on those classes, as
+ *   do the data_ov030_* handles. The factories live in d_a_mky_monkey_*.c
+ *   (after this TU's .text).
  *
  * THE SOURCE IS WRITTEN ROM-ASCENDING and the file opens with
  * `#pragma defer_codegen off`.  The two go together: with codegen deferred
@@ -65,13 +84,15 @@
  */
 #pragma defer_codegen off
 
-#include "common.h"
 #include "types.h"
 #include "daMky_c.h"
+#include "common.h"
+#include "SharedFilePtr.h"
 #include "decl_PathPtr.h"
 #include "decl_SaveData.h"
 #include "dBgCh_Gnd.h"
 #include "dBgCh_Actr.h"
+#include "SaveData.h"
 
 /* ==========================================================================
  * The eleven state-entry members.
@@ -125,7 +146,7 @@
  *
  * That makes these visible to every wrapped func_ov030_* member below, several
  * of which recovered the same symbol with a different spelling at block scope
- * (Vec3_Dist as (void *, void *), _ZN5dCc_c5ClearEv returning void, SetAnim
+ * (Vec3_Dist as (void *, void *), SetAnim
  * with an int second parameter).  mwccarm accepts the disagreement: a
  * block-scope redeclaration inherits the C linkage of the visible file-scope
  * one, and with -gccext,on the differing spellings do not collide.  This is
@@ -154,23 +175,12 @@
 extern "C" {
 
 void  _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(void *self, void *file, int idx, int speed, unsigned int flags);
-char *_ZN8dActor_c13ClosestPlayerEv(void *self);
-int   _ZN8SaveData16HasPlayerLostCapEv(void);
 short Vec3_HorzAngle(const void *a, const void *b);
 int   Vec3_Dist(const void *a, const void *b);
-void  _ZN10dBgCh_Actr13SetLimMovFlagEv(void *self);
-void  _ZN10dBgCh_Actr15ClearGroundFlagEv(void *self);
-void  _ZN8dActor_c13SpawnSoundObjEj(void *self, unsigned int id);
-void  _ZN5dCc_c5ClearEv(void *self);
-void  _ZN7PathPtr6FromIDEj(void *self, unsigned int id);
-int   _ZN8dActor_c17DetectRaycastClsnER7Vector3S1_b(void *self, void *a, void *out, int flag);
 void func_0201267c(unsigned int id, const Vector3 *pos);
 
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 0 -- _ZN7daMky_cD1Ev + _ZN7daMky_cD0Ev, 0x02111688 / 0x021116d0, size 0x48 / 0x5c */
-/* -------------------------------------------------------------------------- */
 /* ~daMky_c is the first virtual DECLARED in include/daMky_c.h and it is
  * defined here, out of line, so it is this class's key function: this TU owns
  * _ZTV7daMky_c, _ZTI7daMky_c and _ZTS7daMky_c.
@@ -192,9 +202,6 @@ daMky_c::~daMky_c()
 {
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 2 -- _ZN7daMky_c13OnYoshiTryEatEv, 0x0211172c, size 0x8 */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMky_c13OnYoshiTryEatEv
 /* Vtable slot 18.  Two instructions: mov r0,#7; bx lr. */
 s32 daMky_c::OnYoshiTryEat()
@@ -202,14 +209,10 @@ s32 daMky_c::OnYoshiTryEat()
     return 7;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 3 -- func_ov030_02111734, 0x02111734, size 0x15c */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02111734
 extern "C" {
 void func_ov030_02111734(char* c)
 {
-    /* recovered: shared common types */
     extern unsigned char DecIfAbove0_Byte(unsigned char* p);
     extern void _ZN9dBgCh_LinC1Ev(void* self);
     extern void _ZN9dBgCh_Lin13SetObjAndLineERK7Vector3S2_P8dActor_c(void* self, void* a, void* b, void* actor);
@@ -266,9 +269,6 @@ done:
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 4 -- func_ov030_02111890, 0x02111890, size 0x78 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02111890
 extern "C" {
 void func_ov030_02111890(char *c)
@@ -284,9 +284,6 @@ void func_ov030_02111890(char *c)
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 5 -- func_ov030_02111908, 0x02111908, size 0xf8 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02111908
 extern "C" {
 void func_ov030_02111908(char* c)
@@ -297,36 +294,33 @@ void func_ov030_02111908(char* c)
     extern void func_0201267c(unsigned int id, const Vector3 *pos);
 
     enum Bool { FALSE, TRUE };
-    int r3 = (short)(((unsigned)(*(int*)(c + 0x12c) << 4)) >> 16);
+    int frame = (short)(((unsigned)(*(int*)(c + 0x12c) << 4)) >> 16);
     int v = *(int*)(c + 0x134);
     enum Bool b;
 
     b = (enum Bool)(v == data_ov030_02115cf0[1]);
     if (b) {
-        if (r3 != 7) {
-            if (r3 != 0x28) return;
+        if (frame != 7) {
+            if (frame != 0x28) return;
         }
         func_0201267c(0xeb, (const ::Vector3 *)(c + 0x74));
         return;
     }
     b = (enum Bool)(v == data_ov030_02115cd0[1]);
     if (b) {
-        if (r3 != 1) return;
+        if (frame != 1) return;
         func_0201267c(0xf1, (const ::Vector3 *)(c + 0x74));
         func_0201267c(0xe8, (const ::Vector3 *)(c + 0x74));
         return;
     }
     b = (enum Bool)(v == data_ov030_02115cf8[1]);
     if (b) {
-        if (r3 != 8) return;
+        if (frame != 8) return;
         func_0201267c(0xe9, (const ::Vector3 *)(c + 0x74));
     }
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 6 -- func_ov030_02111a00, 0x02111a00, size 0x120 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02111a00
 extern "C" {
 int func_ov030_02111a00(char* c)
@@ -363,14 +357,9 @@ fail:
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 7 -- func_ov030_02111b20, 0x02111b20, size 0xa4 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02111b20
 extern "C" {
 int func_ov030_02111b20(char* c) {
-    /* recovered: shared common types, declarations from a shared header */
-    /* recovered: shared common types */
     typedef short s16;
 
     extern void _ZNK7PathPtr7GetNodeER7Vector3j(void* self, struct Vector3* v, unsigned int i);
@@ -398,19 +387,15 @@ int func_ov030_02111b20(char* c) {
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 8 -- func_ov030_02111bc4, 0x02111bc4, size 0x20c */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02111bc4
 extern "C" {
 int func_ov030_02111bc4(void *thiz)
 {
     extern int func_ov030_021141a8(void *a, int b);
-    extern void *_ZN8dActor_c13ClosestPlayerEv(void *a);
     extern void *_ZN8dActor_c10FindWithIDEj(unsigned int id);
     extern int _ZN6Player7TryGrabER8dActor_c(void *p, void *a);
     unsigned char *c = (unsigned char *)thiz;
-    unsigned char *r4;
+    unsigned char *player;
     int b;
 
     b = (int)((*(int *)(c + 0xb0) & 0x20000) != 0);
@@ -431,28 +416,28 @@ int func_ov030_02111bc4(void *thiz)
         return 0;
 
     if ((*(int *)(c + 0x180) & 0x40000) && *(int *)(c + 0x3b4) != 2) {
-        *(void **)(c + 0x3a8) = _ZN8dActor_c13ClosestPlayerEv(c);
+        *(void **)(c + 0x3a8) = ((dActor_c *)c)->ClosestPlayer();
         *(int *)(c + 0x3b8) = *(int *)(c + 0x3b4);
         func_ov030_021141a8(c, 2);
         return 1;
     }
 
-    r4 = (unsigned char *)_ZN8dActor_c10FindWithIDEj(*(unsigned int *)(c + 0x184));
-    if (r4 == 0 || (b = (int)(*(unsigned short *)(r4 + 0xc) == 0xbf)) == 0)
+    player = (unsigned char *)_ZN8dActor_c10FindWithIDEj(*(unsigned int *)(c + 0x184));
+    if (player == 0 || (b = (int)(*(unsigned short *)(player + 0xc) == 0xbf)) == 0)
         return 0;
 
-    if (*(unsigned char *)(r4 + 0x706) != 0)
+    if (*(unsigned char *)(player + 0x706) != 0)
         return 0;
-    if (*(unsigned char *)(r4 + 0x6f9) != 0)
+    if (*(unsigned char *)(player + 0x6f9) != 0)
         return 0;
-    if (*(unsigned char *)(r4 + 0x6fb) != 0)
+    if (*(unsigned char *)(player + 0x6fb) != 0)
         return 0;
-    if (*(unsigned char *)(r4 + 0x6ff) != 0)
+    if (*(unsigned char *)(player + 0x6ff) != 0)
         return 0;
 
     if (*(int *)(c + 0x180) & 0x1000) {
-        if (_ZN6Player7TryGrabER8dActor_c(r4, c)) {
-            *(void **)(c + 0x3a8) = r4;
+        if (_ZN6Player7TryGrabER8dActor_c(player, c)) {
+            *(void **)(c + 0x3a8) = player;
             b = (int)(*(unsigned short *)(c + 0xc) == 0x10b);
             if (b != 0) {
                 func_ov030_021141a8(c, 3);
@@ -467,9 +452,6 @@ int func_ov030_02111bc4(void *thiz)
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 9 -- func_ov030_02111dd0, 0x02111dd0, size 0xd4 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02111dd0
 extern "C" {
 int func_ov030_02111dd0(char* c)
@@ -502,14 +484,10 @@ int func_ov030_02111dd0(char* c)
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 10 -- func_ov030_02111ea4, 0x02111ea4, size 0xc8 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02111ea4
 extern "C" {
 int func_ov030_02111ea4(char* thiz)
 {
-    /* recovered: shared common types */
 
     extern int _ZNK10dBgCh_Actr10IsOnGroundEv(void*);
 
@@ -541,9 +519,6 @@ int func_ov030_02111ea4(char* thiz)
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 11 -- func_ov030_02111f6c, 0x02111f6c, size 0x128 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02111f6c
 extern "C" {
 void func_ov030_02111f6c(char* c, dBgCh_Actr* w){
@@ -579,19 +554,13 @@ void func_ov030_02111f6c(char* c, dBgCh_Actr* w){
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 12 -- func_ov030_02112094, 0x02112094, size 0x21c */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02112094
 extern "C" {
 void func_ov030_02112094(void* self)
 {
     /* from include/decl_common.h:255, which this TU does not include. */
     extern char data_ov030_02115ddc[];
-    /* recovered: shared common types, declarations from a shared header */
-    /* recovered: shared common types */
     typedef struct M4x3 { int w[12]; } M4x3;
-
 
 
     struct Bundle { Vector3_16 rot; short _p; Vector3 trans; int _tail[2]; };
@@ -670,9 +639,6 @@ void func_ov030_02112094(void* self)
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 13 -- func_ov030_021122b0, 0x021122b0, size 0xf4 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_021122b0
 extern "C" {
 int func_ov030_021122b0(dActor_c *self)
@@ -711,27 +677,20 @@ int func_ov030_021122b0(dActor_c *self)
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 14 -- func_ov030_021123a4, 0x021123a4, size 0x5c */
-/* -------------------------------------------------------------------------- */
 /* state 10 entry handler.  Member-ness is read from the ROM: 021123a4 is pointer-to-member record 6 of the 22 at 0x02115ac8. */
 /* The number 10 is read from the ROM too: this body writes the immediate 10 to the state word at +0x3b4, and it is the only one of the 44 that writes 10.  "EnterState" is coined; see the block above. */
 // @symbol _ZN7daMky_c12EnterState10Ev
 int daMky_c::EnterState10(){
-    char *c = (char *)this;
     struct S { int w[2]; };
     extern struct S data_ov030_02115d18;
-  _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c+0xd4, (void*)data_ov030_02115d18.w[1], 0, 0x1000, 0);
-  *(int*)(c+0x130) = 0x1000;
-  *(int*)(c+0x98) = 0x13000;
-  *(unsigned char*)(c+0x3c6) = 0x1e;
-  *(int*)(c+0x3b4) = 0xa;
+  _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(&mModelAnim, (void*)data_ov030_02115d18.w[1], 0, 0x1000, 0);
+  *(int*)((char *)this + 0x130) = 0x1000;
+  mHorzSpeed = 0x13000;
+  mActionTimer = 0x1e;
+  mState = 0xa;
   return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 15 -- func_ov030_02112400, 0x02112400, size 0x160 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02112400
 extern "C" {
 int func_ov030_02112400(char* c)
@@ -800,29 +759,22 @@ int func_ov030_02112400(char* c)
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 16 -- func_ov030_02112560, 0x02112560, size 0x18 */
-/* -------------------------------------------------------------------------- */
 /* state 9 entry handler.  Member-ness is read from the ROM: 02112560 is pointer-to-member record 8 of the 22 at 0x02115ac8. */
 /* The number 9 is read from the ROM too: this body writes the immediate 9 to the state word at +0x3b4, and it is the only one of the 44 that writes 9.  "EnterState" is coined; see the block above. */
 // @symbol _ZN7daMky_c11EnterState9Ev
 int daMky_c::EnterState9()
 {
     char *p = (char *)this;
-    *(int *)(p + 0x98) = 0;
+    mHorzSpeed = 0;
     mState = 9;
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 17 -- func_ov030_02112578, 0x02112578, size 0x49c */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02112578
 extern "C" {
 int func_ov030_02112578(void *arg0)
 {
     void *_ZN8dActor_c15FindWithActorIDEjPS_(unsigned int id, void *p);
-    void *_ZN8dActor_c13ClosestPlayerEv(void *self);
     int func_ov030_02111b20(void *self);
     void _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(void *thiz, void *bca, int a, int fx, unsigned int f);
     void func_ov030_02111890(void *c);
@@ -844,7 +796,6 @@ int func_ov030_02112578(void *arg0)
     void _ZN9Animation7AdvanceEv(void *thiz);
     void _ZN8dActor_c9UpdatePosEP5dCc_c(void *self, void *clsn);
     void func_ov030_02111f6c(void *c, void *w);
-    void _ZN5dCc_c5ClearEv(void *thiz);
 
     extern void *data_ov030_02115cd0[];
     extern void *data_ov030_02115cf8[];
@@ -852,8 +803,8 @@ int func_ov030_02112578(void *arg0)
     extern void *data_ov030_02115d10[];
     extern void *data_ov030_02115d18[];
     u8 *c = (u8 *)arg0;
-    void *r4 = _ZN8dActor_c15FindWithActorIDEjPS_(0x67, 0);
-    void *r6 = _ZN8dActor_c13ClosestPlayerEv(arg0);
+    void *cage = _ZN8dActor_c15FindWithActorIDEjPS_(0x67, 0);
+    void *player = ((dActor_c *)arg0)->ClosestPlayer();
     s32 v[3];
     *(s32 *)((u8 *)v + 0) = 0x981;
     *(s32 *)((u8 *)v + 4) = 0x77a;
@@ -870,9 +821,9 @@ int func_ov030_02112578(void *arg0)
         func_ov030_02111890(arg0);
         break;
     case 1:
-        _Z14ApproachLinearRsss((s16 *)(c + 0x8e), Vec3_HorzAngle(c + 0x5c, (u8 *)r6 + 0x5c), 0x300);
-        if (Vec3_Dist(c + 0x5c, (u8 *)r6 + 0x5c) < 0x96000) {
-            if (_ZN6Player9StartTalkER7fBase_cb(r6, arg0, 1) != 0) {
+        _Z14ApproachLinearRsss((s16 *)(c + 0x8e), Vec3_HorzAngle(c + 0x5c, (u8 *)player + 0x5c), 0x300);
+        if (Vec3_Dist(c + 0x5c, (u8 *)player + 0x5c) < 0x96000) {
+            if (_ZN6Player9StartTalkER7fBase_cb(player, arg0, 1) != 0) {
                 { u8 *p = (u8 *)((unsigned int)c + 0x3c7); *p = *p + 1; }
             }
         }
@@ -884,7 +835,7 @@ int func_ov030_02112578(void *arg0)
         sp[1] = *(s32 *)(c + 0x60);
         sp[2] = *(s32 *)(c + 0x64);
         sp[1] += 0x50000;
-        if (_ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(r6, arg0, 0xbd, sp, 1, 0) != 0) {
+        if (_ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(player, arg0, 0xbd, sp, 1, 0) != 0) {
             _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xd4, data_ov030_02115cf8[1], 0, 0x1000, 0);
             _ZN9Animation8SetFlagsEi(c + 0x124, 0);
             func_0201267c(0xd1, (const ::Vector3 *)(c + 0x74));
@@ -894,7 +845,7 @@ int func_ov030_02112578(void *arg0)
     }
     case 3:
         if (_ZN6Player12GetTalkStateEv() == 2) {
-            _ZN6Player18HasFinishedTalkingEv(r6);
+            _ZN6Player18HasFinishedTalkingEv(player);
             _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xd4, data_ov030_02115d18[1], 0, 0x1000, 0);
             { u8 *p = (u8 *)((unsigned int)c + 0x3c7); *p = *p + 1; }
         }
@@ -920,7 +871,7 @@ int func_ov030_02112578(void *arg0)
         if (_ZN9Animation8FinishedEv(c + 0x124) != 0) {
             _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xd4, data_ov030_02115cd0[1], 0, 0x1000, 0);
             *(s32 *)(c + 0x130) = 0x1000;
-            *(s32 *)((u8 *)r4 + 0x98) = 0x400;
+            *(s32 *)((u8 *)cage + 0x98) = 0x400;
             _ZN5Sound7PlaySubEjjj5Fix12IiEb(0x20, 0x14, 0x7f, 0x15666, 0);
             c[0x3c6] = 0x78;
             { u8 *p = (u8 *)((unsigned int)c + 0x3c7); *p = *p + 1; }
@@ -942,8 +893,8 @@ int func_ov030_02112578(void *arg0)
         break;
     case 9:
         _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xd4, data_ov030_02115d08[1], 0x40000000, 0x1000, 0);
-        *(s32 *)((u8 *)r4 + 0x9c) = -0x2000;
-        *(s32 *)((u8 *)r4 + 0xa0) = -0x3c000;
+        *(s32 *)((u8 *)cage + 0x9c) = -0x2000;
+        *(s32 *)((u8 *)cage + 0xa0) = -0x3c000;
         { u8 *p = (u8 *)((unsigned int)c + 0x3c7); *p = *p + 1; }
         break;
     case 10:
@@ -958,14 +909,11 @@ int func_ov030_02112578(void *arg0)
     _ZN9Animation7AdvanceEv(c + 0x124);
     _ZN8dActor_c9UpdatePosEP5dCc_c(arg0, c + 0x160);
     func_ov030_02111f6c(arg0, c + 0x194);
-    _ZN5dCc_c5ClearEv(c + 0x160);
+    ((dCc_c *)(c + 0x160))->Clear();
     return 1;
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 18 -- func_ov030_02112a14, 0x02112a14, size 0x70 */
-/* -------------------------------------------------------------------------- */
 /* state 8 entry handler.  Member-ness is read from the ROM: 02112a14 is pointer-to-member record 0 of the 22 at 0x02115ac8. */
 /* The number 8 is read from the ROM too: this body writes the immediate 8 to the state word at +0x3b4, and it is the only one of the 44 that writes 8.  "EnterState" is coined; see the block above. */
 /* This shard used to be labelled daObjHmMaruta_c::AfterClsn and read through a
@@ -985,7 +933,7 @@ int daMky_c::EnterState8() {
     extern struct G data_ov030_02115d18;
     _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c+0xd4, data_ov030_02115d18.b, 0, 0x1000, 0);
     *(int *)(c + 0x130) = 0x1000;
-    _ZN7PathPtr6FromIDEj(c+0x398, *(int*)(c+8) & 0xff);
+    ((PathPtr *)(c+0x398))->FromID(*(int*)(c+8) & 0xff);
     mPathNode = 1;
     unk_3c7 = 0;
     *(int *)(c + 0x98) = 0x6000;
@@ -993,9 +941,6 @@ int daMky_c::EnterState8() {
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 19 -- func_ov030_02112a84, 0x02112a84, size 0x190 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02112a84
 extern "C" {
 int func_ov030_02112a84(char *a)
@@ -1020,7 +965,6 @@ int func_ov030_02112a84(char *a)
     extern void _ZN9Animation7AdvanceEv(void *p);
     extern void _ZN8dActor_c9UpdatePosEP5dCc_c(void *a, void *c);
     extern void func_ov030_02111bc4(void *a);
-    extern void _ZN5dCc_c5ClearEv(void *p);
     extern void *data_02099368[];
     dBgPi res;
 
@@ -1068,20 +1012,17 @@ int func_ov030_02112a84(char *a)
     _ZN9Animation7AdvanceEv(a + 0x124);
     _ZN8dActor_c9UpdatePosEP5dCc_c(a, a + 0x160);
     func_ov030_02111bc4(a);
-    _ZN5dCc_c5ClearEv(a + 0x160);
+    ((dCc_c *)(a + 0x160))->Clear();
     return 1;
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 20 -- func_ov030_02112c14, 0x02112c14, size 0x18c */
-/* -------------------------------------------------------------------------- */
 /* state 7 entry handler.  Member-ness is read from the ROM: 02112c14 is pointer-to-member record 4 of the 22 at 0x02115ac8. */
 /* The number 7 is read from the ROM too: this body writes the immediate 7 to the state word at +0x3b4, and it is the only one of the 44 that writes 7.  "EnterState" is coined; see the block above. */
 // @symbol _ZN7daMky_c11EnterState7Ev
 int daMky_c::EnterState7()
 {
-    void *arg0 = (void *)this;
+    void *self = (void *)this;
     typedef unsigned char u8;
     typedef unsigned short u16;
     typedef short s16;
@@ -1095,7 +1036,7 @@ int daMky_c::EnterState7()
     extern short data_02082214[];
     extern void *data_ov030_02115d08[];
   u8 *new_var;
-  u8 *c = (u8 *) arg0;
+  u8 *c = (u8 *) self;
   int *pos;
   int *py;
   int *pz;
@@ -1105,7 +1046,7 @@ int daMky_c::EnterState7()
   s16 s;
   int mul = 0x4b000;
   int rnd = 0x800;
-  *((int *) ((int) (((s64) ((int) (c + 0xb0)))))) &= ~0x80000;
+  mFlags &= ~0x80000;
   _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xd4, data_ov030_02115d08[1], 0x40000000, 0x1000, 0);
   *((int *) (c + 0x98)) = 0xa000;
   *((int *) (c + 0xa8)) = 0;
@@ -1143,16 +1084,13 @@ int daMky_c::EnterState7()
     v.y = mul;
     v.z = oz;
   }
-  _ZN8dActor_c17DetectRaycastClsnER7Vector3S1_b(c, &v, (struct Vector3 *) pos, 1);
+  ((dActor_c *)c)->DetectRaycastClsn(*(::Vector3 *)&v, *(::Vector3 *)pos, 1);
   *((int *) (c + 0xd0)) = 0;
   *((int *) (c + 0x3a8)) = 0;
   *((int *) (c + 0x3b4)) = 7;
   return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 21 -- func_ov030_02112da0, 0x02112da0, size 0x258 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02112da0
 extern "C" {
 int func_ov030_02112da0(char *a) {
@@ -1244,9 +1182,6 @@ int func_ov030_02112da0(char *a) {
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 22 -- func_ov030_02112ff8, 0x02112ff8, size 0x9c */
-/* -------------------------------------------------------------------------- */
 /* state 6 entry handler.  Member-ness is read from the ROM: 02112ff8 is pointer-to-member record 3 of the 22 at 0x02115ac8. */
 /* The number 6 is read from the ROM too: this body writes the immediate 6 to the state word at +0x3b4, and it is the only one of the 44 that writes 6.  "EnterState" is coined; see the block above. */
 // @symbol _ZN7daMky_c11EnterState6Ev
@@ -1255,30 +1190,25 @@ int daMky_c::EnterState6()
     char *c = (char *)this;
     *(int *)(c + 0xb0) &= ~0x80000;
     if (Vec3_Dist(c + 0x380, c + 0x5c) < 0x514000 &&
-        *(int *)(c + 0x60) > mPerchPosY - 0x12c000) {
+        mPosY > mPerchPosY - 0x12c000) {
         unk_3c7 = 0;
-        _ZN8dActor_c13SpawnSoundObjEj(c, 1);
+        ((dActor_c *)c)->SpawnSoundObj(1);
     } else {
         unk_3c7 = 3;
     }
-    *(int *)(c + 0x98) = 0;
+    mHorzSpeed = 0;
     mActionTimer = 0x3c;
-    _ZN5dCc_c5ClearEv(c + 0x160);
+    ((dCc_c *)(c + 0x160))->Clear();
     mPrevState = mState;
     mState = 6;
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 23 -- func_ov030_02113094, 0x02113094, size 0x240 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02113094
 extern "C" {
 int func_ov030_02113094(char* self)
 {
-    /* recovered: shared common types */
     struct dActor_c;
-
 
 
     extern struct dActor_c* _ZN8dActor_c10FindWithIDEj(u32 id);
@@ -1361,9 +1291,6 @@ int func_ov030_02113094(char* self)
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 24 -- func_ov030_021132d4, 0x021132d4, size 0x50 */
-/* -------------------------------------------------------------------------- */
 /* state 5 entry handler.  Member-ness is read from the ROM: 021132d4 is pointer-to-member record 18 of the 22 at 0x02115ac8. */
 /* The number 5 is read from the ROM too: this body writes the immediate 5 to the state word at +0x3b4, and it is the only one of the 44 that writes 5.  "EnterState" is coined; see the block above. */
 // @symbol _ZN7daMky_c11EnterState5Ev
@@ -1373,23 +1300,19 @@ int daMky_c::EnterState5() {
     int tmp = *p;
     *p = tmp & ~0x80000;
     unk_3c7 = 0;
-    void* arg1 = (void*)(c + 0x160);
+    void* clsn = (void*)(c + 0x160);
     *(int*)(c + 0x98) = 0;
-    _ZN5dCc_c5ClearEv(arg1);
-    _ZN10dBgCh_Actr15ClearGroundFlagEv((void*)(c + 0x194));
+    ((dCc_c *)clsn)->Clear();
+    ((dBgCh_Actr *)((void*)(c + 0x194)))->ClearGroundFlag();
     mPrevState = mState;
     mState = 5;
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 25 -- func_ov030_02113324, 0x02113324, size 0x2e8 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02113324
 extern "C" {
 int func_ov030_02113324(void* thiz)
 {
-    extern int _ZN8dActor_c17DetectRaycastClsnER7Vector3S1_b(void* self, Vector3* a, Vector3* out, int doStore);
     extern int Vec3_Dist(const Vector3* a, const Vector3* b);
     extern void func_ov030_021141a8(char* c, int v);
     extern int _ZN6Player9StartTalkER7fBase_cb(void* self, void* actor, int b);
@@ -1402,7 +1325,6 @@ int func_ov030_02113324(void* thiz)
     extern int _ZN6Player12GetTalkStateEv(void* self);
     extern int _ZN6Player9DropActorEv(void* self);
     extern void _ZN9Animation7AdvanceEv(void* self);
-    extern void _ZN5dCc_c5ClearEv(void* self);
     extern unsigned char DecIfAbove0_Byte(unsigned char* p);
 
     extern void* data_0209f318;
@@ -1435,7 +1357,7 @@ do_raycast:
         v.x = *(int*)(other + 0x5c);
         v.y = vy;
         v.z = oz;
-        _ZN8dActor_c17DetectRaycastClsnER7Vector3S1_b(c, &v, (Vector3*)(c + 0x5c), 1);
+        ((dActor_c *)c)->DetectRaycastClsn(v, *(Vector3*)(c + 0x5c), 1);
 
         if (Vec3_Dist((Vector3*)(c + 0x380), (Vector3*)(c + 0x5c)) < 0x514000 &&
             *(int*)(c + 0x60) > *(int*)(c + 0x384) - 0x12c000) {
@@ -1503,14 +1425,11 @@ skip_raycast:
     }
 
     _ZN9Animation7AdvanceEv(c + 0x124);
-    _ZN5dCc_c5ClearEv(c + 0x160);
+    ((dCc_c *)(c + 0x160))->Clear();
     return 1;
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 26 -- func_ov030_0211360c, 0x0211360c, size 0xa4 */
-/* -------------------------------------------------------------------------- */
 /* state 4 entry handler.  Member-ness is read from the ROM: 0211360c is pointer-to-member record 9 of the 22 at 0x02115ac8. */
 /* The number 4 is read from the ROM too: this body writes the immediate 4 to the state word at +0x3b4, and it is the only one of the 44 that writes 4.  "EnterState" is coined; see the block above. */
 // @symbol _ZN7daMky_c11EnterState4Ev
@@ -1522,7 +1441,7 @@ int daMky_c::EnterState4(){
     if (Vec3_Dist(c+0x380, c+0x5c) < 0x514000
         && *(int*)(c+0x60) > mPerchPosY - 0x12c000) {
         unk_3c7 = 0;
-        _ZN8dActor_c13SpawnSoundObjEj(c, 1);
+        ((dActor_c *)c)->SpawnSoundObj(1);
     } else {
         unk_3c7 = 2;
     }
@@ -1531,9 +1450,6 @@ int daMky_c::EnterState4(){
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 27 -- func_ov030_021136b0, 0x021136b0, size 0x3d0 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_021136b0
 extern "C" {
 int func_ov030_021136b0(char *c)
@@ -1546,7 +1462,7 @@ int func_ov030_021136b0(char *c)
 
 
     extern void _ZN8SaveData13PlayerLoseCapEv(void);
-    /* ROM symbol is Vector3_16 (not Vector3s) — wrong mangling left this BLIND and broke mwldarm. */
+    /* The arm9 symbols.txt row spells this Vector3_16 (not Vector3s) — a wrong mangling here left the reloc BLIND and broke mwldarm. */
     extern void *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
         u32 actorID, u32 param1, const Vector3 *pos,
         const void *rot, int areaID, int deathTableID);
@@ -1565,7 +1481,6 @@ int func_ov030_021136b0(char *c)
     extern void *_ZN8dActor_c10FindWithIDEj(u32 id);
     extern void func_ov030_021141a8(char *c, int v);
     extern void _ZN9Animation7AdvanceEv(void *self);
-    extern void _ZN5dCc_c5ClearEv(void *self);
 
     extern void *data_0209f318;
     extern Matrix4x3 data_020a0e68;
@@ -1732,14 +1647,11 @@ int func_ov030_021136b0(char *c)
     }
 
     _ZN9Animation7AdvanceEv(c + 0x124);
-    _ZN5dCc_c5ClearEv(c + 0x160);
+    ((dCc_c *)(c + 0x160))->Clear();
     return 1;
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 28 -- func_ov030_02113a80, 0x02113a80, size 0xb8 */
-/* -------------------------------------------------------------------------- */
 /* state 3 entry handler.  Member-ness is read from the ROM: 02113a80 is pointer-to-member record 16 of the 22 at 0x02115ac8. */
 /* The number 3 is read from the ROM too: this body writes the immediate 3 to the state word at +0x3b4, and it is the only one of the 44 that writes 3.  "EnterState" is coined; see the block above. */
 // @symbol _ZN7daMky_c11EnterState3Ev
@@ -1758,7 +1670,7 @@ int daMky_c::EnterState3()
     extern char data_ov030_02115ce0[];
     _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xd4, *(void **)(data_ov030_02115ce0 + 4), 0, 0x1000, 0);
     *(int*)(c + 0x130) = 0x1000;
-    if (mHasSpawnedCap == 0 && _ZN8SaveData16HasPlayerLostCapEv()) {
+    if (mHasSpawnedCap == 0 && SaveData::HasPlayerLostCap()) {
         unk_3c7 = 5;
     } else {
         char* p = *(char**)(c + 0x3a8);
@@ -1776,9 +1688,6 @@ int daMky_c::EnterState3()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 29 -- func_ov030_02113b38, 0x02113b38, size 0xb0 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02113b38
 extern "C" {
 int func_ov030_02113b38(char* c){
@@ -1790,7 +1699,6 @@ int func_ov030_02113b38(char* c){
     extern void _ZN10dBgCh_Actr15ClearLimMovFlagEv(char* w);
     extern void _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(char* ma, void* f, int b, Fix12i c, unsigned int d);
     extern void func_ov030_021141a8(char* c, int v);
-    extern void _ZN5dCc_c5ClearEv(char* cl);
     extern void func_ov030_02111bc4(char* c);
     extern int data_ov030_02115d18[];
   _ZN9Animation7AdvanceEv(c+0x124);
@@ -1805,15 +1713,12 @@ int func_ov030_02113b38(char* c){
     *(int*)(c+0x394) = *(int*)(c+0x64);
     func_ov030_021141a8(c, *(int*)(c+0x3b8));
   }
-  _ZN5dCc_c5ClearEv(c+0x160);
+  ((dCc_c *)(c+0x160))->Clear();
   func_ov030_02111bc4(c);
   return 1;
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 30 -- func_ov030_02113be8, 0x02113be8, size 0x138 */
-/* -------------------------------------------------------------------------- */
 /* state 2 entry handler.  Member-ness is read from the ROM: 02113be8 is pointer-to-member record 7 of the 22 at 0x02115ac8. */
 /* The number 2 is read from the ROM too: this body writes the immediate 2 to the state word at +0x3b4, and it is the only one of the 44 that writes 2.  "EnterState" is coined; see the block above. */
 // @symbol _ZN7daMky_c11EnterState2Ev
@@ -1828,7 +1733,7 @@ int daMky_c::EnterState2() {
 
     p = *(void **)((char *)c + 0x3a8);
     if (p == 0)
-        p = _ZN8dActor_c13ClosestPlayerEv(c);
+        p = ((dActor_c *)c)->ClosestPlayer();
 
     b = (int)(*(unsigned short *)((char *)c + 0xc) == 0x10b);
     if (b != 0) {
@@ -1845,7 +1750,7 @@ int daMky_c::EnterState2() {
     b = (int)(*(unsigned short *)((char *)c + 0xc) == 0x10b);
     *(int *)((char *)c + 0xa8) = b ? 0x23000 : 0x1e000;
 
-    _ZN10dBgCh_Actr13SetLimMovFlagEv((char *)c + 0x194);
+    ((dBgCh_Actr *)((char *)c + 0x194))->SetLimMovFlag();
     _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj((char *)c + 0xd4,
         ((void **)&data_ov030_02115d08)[1], 0x40000000, 0x1000, 0);
     func_0201267c(0xd1, (const ::Vector3 *)((char *)c + 0x74));
@@ -1854,16 +1759,12 @@ int daMky_c::EnterState2() {
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 31 -- func_ov030_02113d20, 0x02113d20, size 0x2b8 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02113d20
 extern "C" {
 int func_ov030_02113d20(void *c) {
     typedef int Fix12i;
     typedef short s16;
 
-    extern void *_ZN8dActor_c13ClosestPlayerEv(void *c);
     extern Fix12i Vec3_Dist(const void *a, const void *b);
     extern s16 Vec3_HorzAngle(const void *v0, const void *v1);
     extern void _Z14ApproachLinearRsss(s16 *dst, s16 target, s16 step);
@@ -1878,7 +1779,6 @@ int func_ov030_02113d20(void *c) {
     extern int func_ov030_02111ea4(void *c);
     extern int _ZN6Player7IsInAirEv(void *p);
     extern void func_ov030_021141a8(void *c, int mode);
-    extern void _ZN5dCc_c5ClearEv(void *c);
     extern void _ZN5dCc_c6UpdateEv(void *c);
     extern void func_ov030_02111890(void *c);
     extern void *data_ov030_02115d18;
@@ -1890,7 +1790,7 @@ int func_ov030_02113d20(void *c) {
 
     p = *(void **)((char *)c + 0x3a8);
     if (p == 0)
-        p = _ZN8dActor_c13ClosestPlayerEv(c);
+        p = ((dActor_c *)c)->ClosestPlayer();
 
     dist = Vec3_Dist((char *)c + 0x5c, (char *)p + 0x5c);
 
@@ -1955,7 +1855,7 @@ int func_ov030_02113d20(void *c) {
         }
     }
 
-    _ZN5dCc_c5ClearEv((char *)c + 0x160);
+    ((dCc_c *)((char *)c + 0x160))->Clear();
     if (*(int *)((char *)c + 0x3b4) == 1)
         _ZN5dCc_c6UpdateEv((char *)c + 0x160);
     func_ov030_02111890(c);
@@ -1963,9 +1863,6 @@ int func_ov030_02113d20(void *c) {
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 32 -- func_ov030_02113fd8, 0x02113fd8, size 0x18 */
-/* -------------------------------------------------------------------------- */
 /* state 1 entry handler.  Member-ness is read from the ROM: 02113fd8 is pointer-to-member record 5 of the 22 at 0x02115ac8. */
 /* The number 1 is read from the ROM too: this body writes the immediate 1 to the state word at +0x3b4, and it is the only one of the 44 that writes 1.  "EnterState" is coined; see the block above. */
 // @symbol _ZN7daMky_c11EnterState1Ev
@@ -1975,9 +1872,6 @@ int daMky_c::EnterState1(){
   return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 33 -- func_ov030_02113ff0, 0x02113ff0, size 0x134 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02113ff0
 extern "C" {
 int func_ov030_02113ff0(char* c){
@@ -1994,7 +1888,6 @@ int func_ov030_02113ff0(char* c){
     extern void func_ov030_02111f6c(char* c, char* w);
     extern void func_ov030_02111bc4(char* c);
     extern void func_ov030_02111ea4(char* c);
-    extern void _ZN5dCc_c5ClearEv(char* cl);
     extern void _ZN5dCc_c6UpdateEv(char* cl);
     extern void func_ov030_02111890(char* c);
     extern int data_ov030_02115d18[];
@@ -2023,16 +1916,13 @@ int func_ov030_02113ff0(char* c){
     func_ov030_02111bc4(c);
     func_ov030_02111ea4(c);
   }
-  _ZN5dCc_c5ClearEv(c+0x160);
+  ((dCc_c *)(c+0x160))->Clear();
   _ZN5dCc_c6UpdateEv(c+0x160);
   func_ov030_02111890(c);
   return 1;
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 34 -- func_ov030_02114124, 0x02114124, size 0x10 */
-/* -------------------------------------------------------------------------- */
 /* state 0 entry handler.  Member-ness is read from the ROM: 02114124 is pointer-to-member record 20 of the 22 at 0x02115ac8. */
 /* The number 0 is read from the ROM too: this body writes the immediate 0 to the state word at +0x3b4, and it is the only one of the 44 that writes 0.  "EnterState" is coined; see the block above. */
 // @symbol _ZN7daMky_c11EnterState0Ev
@@ -2042,48 +1932,35 @@ int daMky_c::EnterState0()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 35 -- func_ov030_02114134, 0x02114134, size 0x3c */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02114134
-struct C4134;
-typedef void (C4134::*PMF4134)();
-struct C4134 { char pad[0x3a4]; PMF4134 *pp; };
+typedef void (daMky_c::*PMF)();
 extern "C" {
-void func_ov030_02114134(C4134 *c)
+void func_ov030_02114134(daMky_c *self)
 {
-    PMF4134 *p = c->pp + 1;
-    (c->**p)();
+    PMF *p = (PMF *)self->mStateDesc + 1;
+    (self->* *p)();
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 36 -- func_ov030_02114170, 0x02114170, size 0x38 */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_02114170
-struct C4170;
-typedef void (C4170::*PMF4170)();
-struct C4170 { char pad[0x3a4]; PMF4170 *pp; };
 extern "C" {
-void func_ov030_02114170(C4170 *c)
+void func_ov030_02114170(daMky_c *self)
 {
-    PMF4170 *p = c->pp;
-    (c->**p)();
+    PMF *p = (PMF *)self->mStateDesc;
+    (self->* *p)();
 }
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 37 -- func_ov030_021141a8, 0x021141a8, size 0x1c */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov030_021141a8
 extern "C" {
-void func_ov030_021141a8(char *self, int idx)
+void func_ov030_021141a8(char *c, int idx)
 {
     typedef struct { int a, b, c, d; } Item16;
     extern Item16 data_ov030_02115e0c[];
+    daMky_c *self = (daMky_c *)c;
 
-    *(Item16 **)(self + 0x3a4) = &data_ov030_02115e0c[idx];
-    func_ov030_02114170((C4170 *)self);
+    self->mStateDesc = &data_ov030_02115e0c[idx];
+    func_ov030_02114170(self);
 }
 }
 
@@ -2115,28 +1992,17 @@ void func_ov030_021141a8(char *self, int idx)
  * ========================================================================== */
 extern "C" {
 
-struct SharedFilePtr_ { u32 data[4]; };
-
-void  _ZN13SharedFilePtr7ReleaseEv(SharedFilePtr_ *self);
-void *_ZN5Model8LoadFileER13SharedFilePtr(void *fp);
-int   _ZN5Model6RenderEPK7Vector3(void *self, void *ofs);
-int   _ZN9ModelBase7SetFileEP8BMD_Fileii(void *self, void *file, int a, int b);
-void *_ZN9Animation8LoadFileER13SharedFilePtr(void *fp);
-int   _ZN11ShadowModel12InitCylinderEv(void *self);
 void  _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(void *self, void *file, int idx, int speed, u32 flags);
 void  _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj(void *self, void *actor, int a, int b, u32 c, u32 d);
 void  _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(void *self, void *actor, int a, int b, void *v0, void *v1);
 int   _ZN8dActor_c22IsTooFarAwayFromPlayerE5Fix12IiE(void *self, int d);
-char *_ZN8dActor_c13ClosestPlayerEv(void *self);
-char *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(u32 id, u32 param, const void *pos, const void *rot, int areaID, int deathTableID);
-int   _ZN8SaveData16HasPlayerLostCapEv(void);
 
-extern SharedFilePtr_  data_ov002_0210da40;
-extern SharedFilePtr_  data_ov002_0210d9a0;
-extern SharedFilePtr_  data_ov002_0210d9c0;
-extern SharedFilePtr_  data_ov030_02115d00;
-extern SharedFilePtr_ *data_ov030_02114824[10];
-extern void           *data_ov030_02115cf0[];
+extern SharedFilePtr  data_ov002_0210da40;
+extern SharedFilePtr  data_ov002_0210d9a0;
+extern SharedFilePtr  data_ov002_0210d9c0;
+extern SharedFilePtr  data_ov030_02115d00;
+extern SharedFilePtr *data_ov030_02114824[10];
+extern void          *data_ov030_02115cf0[];
 
 }
 
@@ -2149,9 +2015,6 @@ struct VObj {
     virtual void v3();
 };
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 38 -- _ZN7daMky_c16CleanupResourcesEv, 0x021141c4, size 0x68 */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMky_c16CleanupResourcesEv
 /* Vtable slot 3.  Releases the four shared files the class holds plus its
  * ten-entry table; it never touches `this`, which is why the legacy C form
@@ -2159,18 +2022,15 @@ struct VObj {
 s32 daMky_c::CleanupResources()
 {
     int i;
-    _ZN13SharedFilePtr7ReleaseEv(&data_ov002_0210da40);
-    _ZN13SharedFilePtr7ReleaseEv(&data_ov002_0210d9a0);
-    _ZN13SharedFilePtr7ReleaseEv(&data_ov002_0210d9c0);
-    _ZN13SharedFilePtr7ReleaseEv(&data_ov030_02115d00);
+    data_ov002_0210da40.Release();
+    data_ov002_0210d9a0.Release();
+    data_ov002_0210d9c0.Release();
+    data_ov030_02115d00.Release();
     for (i = 0; i < 10; i++)
-        _ZN13SharedFilePtr7ReleaseEv(data_ov030_02114824[i]);
+        data_ov030_02114824[i]->Release();
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 39 -- _ZN7daMky_c16OnPendingDestroyEv, 0x0211422c, size 0x4 */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMky_c16OnPendingDestroyEv
 /* Vtable slot 12.  The ROM body is one `bx lr`: the override exists only to
  * occupy the slot. */
@@ -2178,60 +2038,51 @@ void daMky_c::OnPendingDestroy()
 {
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 40 -- _ZN7daMky_c6RenderEv, 0x02114230, size 0x48 */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMky_c6RenderEv
 /* Vtable slot 9. */
 s32 daMky_c::Render()
 {
     int b = (mFlags & 0x40000) != 0;
     if (b) return 1;
-    _ZN5Model6RenderEPK7Vector3(((char *)this) + 0xd4, 0);
+    mModelAnim.Model::Render(0);
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 41 -- _ZN7daMky_c8BehaviorEv, 0x02114278, size 0x100 */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMky_c8BehaviorEv
 /* Vtable slot 6. */
 s32 daMky_c::Behavior()
 {
-    char *c = (char *)((dActor_c *)this);
-    if (_ZN8dActor_c22IsTooFarAwayFromPlayerE5Fix12IiE(((dActor_c *)this), 0x5dc000) != 0 &&
-        *(int *)(c + 0x3b4) != 8) {
-        int b = (*(unsigned short *)(c + 0xc) == 0x10b);
-        if (b != 0 && *(unsigned char *)(c + 0x3c8) == 0 && _ZN8SaveData16HasPlayerLostCapEv() != 0) {
-            char *pl = _ZN8dActor_c13ClosestPlayerEv(((dActor_c *)this));
-            unsigned cp = *(unsigned *)(pl + 8);
+    char *c = (char *)this;
+    if (_ZN8dActor_c22IsTooFarAwayFromPlayerE5Fix12IiE(this, 0x5dc000) != 0 &&
+        mState != 8) {
+        int b = (actorID == 0x10b);
+        if (b != 0 && mHasSpawnedCap == 0 && SaveData::HasPlayerLostCap() != 0) {
+            Player *pl = ClosestPlayer();
+            unsigned cp = *(unsigned *)((char *)pl + 8);
             if (cp < 3) {
-                char *spawned;
-                *(int *)(c + 0x3b0) = cp;
-                spawned = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
+                dActor_c *spawned;
+                mCapPlayerNo = cp;
+                spawned = Spawn(
                     0x10d,
-                    ((unsigned)*(int *)(c + 0x3b0) << 8) | 2,
-                    (const void *)(c + 0x5c),
-                    (const void *)0,
-                    (int)*(signed char *)(c + 0xcc),
+                    (mCapPlayerNo << 8) | 2,
+                    *(const Vector3 *)&mPosX,
+                    0,
+                    mAreaId,
                     -1);
-                *(int *)(c + 0x3ac) = *(int *)(spawned + 4);
-                *(unsigned char *)(c + 0x3c8) = 1;
+                mCapUniqueID = spawned->uniqueID;
+                mHasSpawnedCap = 1;
                 func_ov030_021141a8(c, 1);
             }
         }
         func_ov030_02111734(c);
     } else {
-        func_ov030_02114134((C4134 *)c);
-        ((VObj *)(c + 0xd4))->v3();
+        func_ov030_02114134(this);
+        mModelAnim.UpdateVerts();
         func_ov030_02112094(c);
     }
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 42 -- _ZN7daMky_c13InitResourcesEv, 0x02114378, size 0x25c */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMky_c13InitResourcesEv
 /* Vtable slot 0. */
 s32 daMky_c::InitResources()
@@ -2239,27 +2090,26 @@ s32 daMky_c::InitResources()
     int i;
     int b;
     u16 h;
-    int *py;
+    char *c = (char *)this;
 
-    _ZN5Model8LoadFileER13SharedFilePtr(&data_ov002_0210da40);
-    _ZN5Model8LoadFileER13SharedFilePtr(&data_ov002_0210d9a0);
-    _ZN5Model8LoadFileER13SharedFilePtr(&data_ov002_0210d9c0);
-    _ZN9ModelBase7SetFileEP8BMD_Fileii(((char *)this) + 0xd4, _ZN5Model8LoadFileER13SharedFilePtr(&data_ov030_02115d00), 1, 1);
+    Model::LoadFile(data_ov002_0210da40);
+    Model::LoadFile(data_ov002_0210d9a0);
+    Model::LoadFile(data_ov002_0210d9c0);
+    mModelAnim.SetFile((BMD_File *)Model::LoadFile(data_ov030_02115d00), 1, 1);
     for (i = 0; i < 10; i++)
-        _ZN9Animation8LoadFileER13SharedFilePtr(data_ov030_02114824[i]);
-    if (_ZN11ShadowModel12InitCylinderEv((char *)&mShadowModel) == 0)
+        Animation::LoadFile(*data_ov030_02114824[i]);
+    if (mShadowModel.InitCylinder() == 0)
         return 0;
-    _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(((char *)this) + 0xd4, data_ov030_02115cf0[1], 0, 0x1000, 0);
+    _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(&mModelAnim, data_ov030_02115cf0[1], 0, 0x1000, 0);
     mModelAnim.speed = 0x1000;
-    _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj(((char *)this) + 0x160, ((char *)this), 0x28000, 0x64000, 0x800004, 0x49000);
-    _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(((char *)this) + 0x194, ((char *)this), 0x32000, 0x32000, 0, 0);
+    _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj(&mdCcAc_c, this, 0x28000, 0x64000, 0x800004, 0x49000);
+    _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(&mWithMeshClsn, this, 0x32000, 0x32000, 0, 0);
     mVertAccel = -0x2000;
     mTerminalVelocity = -0x3c000;
-    py = (int *)(((int)((char *)this) + 0x384));
-    unk_380 = mPosX;
-    unk_384 = mPosY;
-    unk_388 = mPosZ;
-    *py += 0x64000;
+    mPerchPosX = mPosX;
+    mPerchPosY = mPosY;
+    mPerchPosZ = mPosZ;
+    mPerchPosY += 0x64000;
     mSpawnPosX = mPosX;
     mSpawnPosY = mPosY;
     mSpawnPosZ = mPosZ;
@@ -2274,38 +2124,35 @@ s32 daMky_c::InitResources()
     if (h == 0x10b)
         b = 1;
     if (b != 0) {
-        if (_ZN8SaveData16HasPlayerLostCapEv() != 0) {
-            char *player = _ZN8dActor_c13ClosestPlayerEv(((char *)this));
-            if (*(u32 *)(player + 8) >= 3)
+        if (SaveData::HasPlayerLostCap() != 0) {
+            Player *player = ClosestPlayer();
+            if (*(u32 *)((char *)player + 8) >= 3)
                 goto ov030_no_spawn;
             {
-                char *spawned;
-                mCapPlayerNo = *(u32 *)(player + 8);
-                spawned = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(0x10d, (mCapPlayerNo << 8) | 2, ((char *)this) + 0x5c, 0, mAreaId, -1);
-                mCapUniqueID = *(int *)(spawned + 4);
+                dActor_c *spawned;
+                mCapPlayerNo = *(u32 *)((char *)player + 8);
+                spawned = Spawn(0x10d, (mCapPlayerNo << 8) | 2, *(const Vector3 *)&mPosX, 0, mAreaId, -1);
+                mCapUniqueID = spawned->uniqueID;
                 mHasSpawnedCap = 1;
-                func_ov030_021141a8(((char *)this), 1);
+                func_ov030_021141a8(c, 1);
                 goto ov030_cap_done;
             }
 ov030_no_spawn:
-            func_ov030_021141a8(((char *)this), 0);
+            func_ov030_021141a8(c, 0);
 ov030_cap_done:
             ;
         } else {
-            func_ov030_021141a8(((char *)this), 0);
+            func_ov030_021141a8(c, 0);
         }
     } else {
         int t = (int)(h == 0x10c);
         if (t != 0)
-            func_ov030_021141a8(((char *)this), 1);
+            func_ov030_021141a8(c, 1);
     }
-    func_ov030_02112094(((char *)this));
+    func_ov030_02112094(c);
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* ROM ordinal 43 -- _ZN7daMky_c13OnTurnIntoEggER6Player, 0x021145d4, size 0xc */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMky_c13OnTurnIntoEggER6Player
 /* Vtable slot 19.  The cartridge's twelve bytes at this address are a linker
  * long-branch veneer to _ZN7fBase_c18MarkForDestructionEv in arm9 -- r0 still

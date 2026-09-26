@@ -4,33 +4,9 @@
     .ctor       start:0x02112fc4 end:0x02112fd4 kind:rodata align:4
     .data       start:0x02112fe0 end:0x02113be0 kind:data align:32
     .bss        start:0x02113be0 end:0x02113d20 kind:bss align:32
-src/_ZN10SlidingIceD1Ev.cpp:
+src/actors/daObjSlIceBlock_c.cpp:
     complete
-    .text start:0x021111a0 end:0x021111e4
-
-src/_ZN10SlidingIceD0Ev.cpp:
-    complete
-    .text start:0x021111e4 end:0x0211123c
-
-src/_ZN10SlidingIce15OnHitByMegaCharER6Player.cpp:
-    complete
-    .text start:0x0211123c end:0x02111264
-
-src/_ZN10SlidingIce16CleanupResourcesEv.cpp:
-    complete
-    .text start:0x02111264 end:0x021112b4
-
-src/_ZN10SlidingIce6RenderEv.cpp:
-    complete
-    .text start:0x021112b4 end:0x02111304
-
-src/_ZN10SlidingIce8BehaviorEv.cpp:
-    complete
-    .text start:0x02111304 end:0x02111440
-
-src/_ZN10SlidingIce13InitResourcesEv.cpp:
-    complete
-    .text start:0x02111440 end:0x02111564
+    .text start:0x021111a0 end:0x02111564
 
 src/d_a_obj_sl_ice_block_sl_iceblock_shot.c:
     complete
@@ -48,69 +24,9 @@ src/actors/daPgDfdr_c.cpp:
     complete
     .text start:0x021118c8 end:0x021120c4
 
-src/_ZN13SnowmanBreathD1Ev.cpp:
+src/actors/daSnmBth_c.cpp:
     complete
-    .text start:0x021120c4 end:0x02112104
-
-src/_ZN13SnowmanBreathD0Ev.cpp:
-    complete
-    .text start:0x02112104 end:0x02112158
-
-src/_ZN21SnowmanBreathParticleD1Ev.cpp:
-    complete
-    .text start:0x02112158 end:0x02112170
-
-src/_ZN21SnowmanBreathParticle9HitPlayerEv.cpp:
-    complete
-    .text start:0x02112170 end:0x0211233c
-
-src/_ZN21SnowmanBreathParticle12CheckSnowmanEv.cpp:
-    complete
-    .text start:0x0211233c end:0x021123b0
-
-src/_ZN21SnowmanBreathParticle14UpdatePositionEv.cpp:
-    complete
-    .text start:0x021123b0 end:0x02112424
-
-src/_ZN21SnowmanBreathParticle6RenderEv.cpp:
-    complete
-    .text start:0x02112424 end:0x02112480
-
-src/_ZN21SnowmanBreathParticle8BehaviorEv.cpp:
-    complete
-    .text start:0x02112480 end:0x021124e4
-
-src/_ZN21SnowmanBreathParticle8TrySpawnER6Player.cpp:
-    complete
-    .text start:0x021124e4 end:0x021125a8
-
-src/_ZN21SnowmanBreathParticleC1Ev.cpp:
-    complete
-    .text start:0x021125a8 end:0x02112618
-
-src/_ZN13SnowmanBreath15IsPlayerInRangeEv.cpp:
-    complete
-    .text start:0x02112618 end:0x02112700
-
-src/_ZN13SnowmanBreath16CleanupResourcesEv.cpp:
-    complete
-    .text start:0x02112700 end:0x0211273c
-
-src/_ZN13SnowmanBreath16OnPendingDestroyEv.cpp:
-    complete
-    .text start:0x0211273c end:0x02112740
-
-src/_ZN13SnowmanBreath6RenderEv.cpp:
-    complete
-    .text start:0x02112740 end:0x021127a4
-
-src/_ZN13SnowmanBreath8BehaviorEv.cpp:
-    complete
-    .text start:0x021127a4 end:0x021129dc
-
-src/_ZN13SnowmanBreath13InitResourcesEv.cpp:
-    complete
-    .text start:0x021129dc end:0x02112ab4
+    .text start:0x021120c4 end:0x02112ab4
 
 src/d_a_snm_bth.c:
     complete

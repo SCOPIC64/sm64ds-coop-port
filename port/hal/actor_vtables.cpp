@@ -111,7 +111,7 @@ void *data_0208e3a4[31];
 }
 
 // ---- fBase_c::fBase_c() transcription ---------------------------------
-// The ROM ctor is a hand-asm block (src/_ZN7fBase_cC2Ev.cpp); this is its
+// The ROM ctor is a hand-asm block (src/actors/ActorBase.cpp); this is its
 // C transcription, field for field against the disassembly there. The spawn
 // CONTEXT globals it reads (pending actor ID, area byte, the spawn-info
 // pointer table for the two processing-list priorities) are storage here;

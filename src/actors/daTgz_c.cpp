@@ -1,0 +1,1028 @@
+//cpp
+/* daTgz_c -- the Spiny on the castle roof, ov077.
+ *
+ * Six PMF state records (func_ov077_02125e94 picks one). State 0 is the
+ * spinning bounce that settles back into the walk (state 1); state 4 spins
+ * the same way after its carrier lets go. State 5 is the knock-up: it springs
+ * up at vertical speed 40.0, flips backward 0x1000 a frame, and on landing
+ * (or 45 frames later) drops a coin, poofs and is destroyed. It caches the
+ * water surface under it once, splashes on entry, and poofs away if it sinks
+ * too far or drops below course 0x1c's floor. Outside states 4 and 5, while
+ * it is more than 1500.0 from the player it stops updating and counts
+ * mDespawnTimer down from 44 frames, then is destroyed with no poof.
+ *
+ * Cartridge names: _ZTS7daTgz_c at 0x02127948, _ZTI7daTgz_c at 0x02127954,
+ * vtable address point _ZTV7daTgz_c at 0x02127984. Thirty-four functions,
+ * 0x02124b64..0x0212624c, between daJgm_c and daPopoi_c.
+ *
+ * DO NOT "TIDY" THESE -- each one is load-bearing:
+ *
+ *   Function order is ROM-ascending. `#pragma defer_codegen off` makes
+ *   CodeWarrior emit each definition where it stands, and the destructor pair
+ *   comes out D1 then D0.
+ *
+ *   decl_common.h comes before any actor header, so Matrix4x3 stays the flat
+ *   12-word struct. A class Matrix4x3 makes the copy in func_ov077_021251d0
+ *   call an assignment operator the cartridge does not.
+ *
+ *   The two dBgCh_Gnd views (0x54 bytes in rg54, 0x50 at file scope) are
+ *   stack-frame sizes; each function's frame depends on its own.
+ *
+ *   Base, the 30-slot vtable stand-in, is how the OnAimedAtWithEgg calls
+ *   reach slot 29 from C-linkage code.
+ */
+#include "decl_common.h"
+
+#pragma defer_codegen off
+
+// @symbol _ZN7daTgz_cD1Ev
+/* Vtable slot 16. The compiler writes the whole body: one vtable store, the
+ * members in reverse, then ~dActor_c. */
+#include "daTgz_c.h"
+#include "Player.h"
+#include "SharedFilePtr.h"
+
+daTgz_c::~daTgz_c()
+{
+}
+
+extern "C" {
+// @symbol _ZN7daTgz_cD0Ev
+#include "decl_Actor.h"
+#include "decl_Model.h"
+#include "decl_ModelAnim.h"
+#include "decl_dCcAc_c.h"
+#include "decl_ShadowModel.h"
+#include "decl_dBgCh_Actr.h"
+/* No separate definition: the one ~daTgz_c() above emits both the D0 and the
+ * D1 variant. A hand-mangled D0 body next to the real destructor is the known
+ * mwccarm ICE (ELFgen.c:483). */
+}
+
+// @symbol _ZN7daTgz_c13OnYoshiTryEatEv
+/* Vtable slot 18. */
+int daTgz_c::OnYoshiTryEat()
+{
+    return 6;
+}
+
+// @symbol _ZN7daTgz_c16OnAimedAtWithEggEv
+/* Vtable slot 29: the height an egg aims at (30.0). */
+int daTgz_c::OnAimedAtWithEgg()
+{
+    return 122880;
+}
+
+// @symbol func_ov077_02124c28
+#include "common.h"
+
+struct dActor_c;
+
+namespace rg54 {  /* this function's 0x54-byte dBgCh_Gnd view is stack-frame-load-bearing;
+                     func_ov077_02124d08 uses a 0x50-byte view of the same name -- the
+                     namespace keeps both, binding the same C symbols */
+struct dBgCh_Gnd {
+    char pad0[0x14];
+    int m14[12];
+    int m44;
+    char pad48[0xc];
+};
+extern "C" void _ZN9dBgCh_GndC1Ev(dBgCh_Gnd*);
+/* local extern: takes this TU's shadow dBgCh_Gnd, which collides with dBgCh_Gnd.h */
+extern "C" void _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(dBgCh_Gnd*, const Vector3&, dActor_c*);
+/* local extern: takes this TU's shadow dBgCh_Gnd, which collides with dBgCh_Gnd.h */
+extern "C" void _ZN5dBgCh19StartDetectingWaterEv(void*);
+/* local extern: takes this TU's shadow dBgCh_Gnd, which collides with dBgCh_Gnd.h */
+extern "C" int _ZN9dBgCh_Gnd10DetectClsnEv(dBgCh_Gnd*);
+extern "C" int SurfaceInfo_TestFlag0x20(int* p);
+extern "C" void _ZN9dBgCh_GndD1Ev(dBgCh_Gnd*);
+/* local extern: takes this TU's shadow dBgCh_Gnd, which collides with dBgCh_Gnd.h */
+extern "C" void _ZN5dBgCh18StopDetectingWaterEv(void*);
+}
+
+/* Until one is found, probe for a water surface below the Spiny and cache
+ * its height at +0x3dc. Returns how far above it the Spiny is (0 while
+ * nothing has been found). */
+extern "C" int func_ov077_02124c28(void* vc)
+{
+    char* c = (char*)vc;
+    if (*(int*)(c + 0x3dc) == 0) {
+        rg54::dBgCh_Gnd rg;
+        Vector3 pos;
+        int r;
+        rg54::_ZN9dBgCh_GndC1Ev(&rg);
+        {
+            int y = *(int*)(c + 0x60);
+            int z = *(int*)(c + 0x64);
+            int y2 = y + 0xc8000;
+            int x = *(int*)(c + 0x5c);
+            pos.x = x;
+            pos.y = y2;
+            pos.z = z;
+        }
+        rg54::_ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(&rg, pos, (dActor_c*)c);
+        rg54::_ZN5dBgCh19StartDetectingWaterEv(&rg);
+        if (rg54::_ZN9dBgCh_Gnd10DetectClsnEv(&rg) == 0) goto fail;
+        r = rg54::SurfaceInfo_TestFlag0x20(rg.m14);
+        if (r != 0) {
+            *(int*)(c + 0x3dc) = rg.m44;
+        } else {
+        fail:
+            rg54::_ZN9dBgCh_GndD1Ev(&rg);
+            return 0;
+        }
+        rg54::_ZN5dBgCh18StopDetectingWaterEv(&rg);
+        rg54::_ZN9dBgCh_GndD1Ev(&rg);
+    }
+    return *(int*)(c + 0x60) - *(int*)(c + 0x3dc);
+}
+
+extern "C" {
+/* Is the Spiny below the cached water surface? */
+int func_ov077_02124ce4(void* vc){
+  char* c = (char*)vc;
+  int waterY=*(int*)(c+0x3dc);
+  if(waterY==0) return 0;
+  return waterY > *(int*)(c+0x60);
+}
+}
+
+// @symbol func_ov077_02124d08
+typedef short s16;
+
+struct dBgCh_Actr;
+struct dActor_c;
+struct dBgCh_Gnd { char buf0[0x14]; int floor[12]; char buf1[0x50-0x14-0x30]; };
+struct dBgPi;
+struct SurfaceInfo;
+
+extern "C" void dBgCh_Actr_UpdateDiscreteNoLava_veneer(void* p);
+extern "C" void _ZN9dBgCh_GndC1Ev(dBgCh_Gnd* self);
+/* local extern: takes this TU's shadow dBgCh_Gnd, which collides with dBgCh_Gnd.h */
+extern "C" void _ZN5dBgCh19StartDetectingToxicEv(void* self);
+/* local extern: takes this TU's shadow dBgCh_Gnd, which collides with dBgCh_Gnd.h */
+extern "C" void _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(dBgCh_Gnd* self, const Vector3& v, void* actor);
+/* local extern: takes this TU's shadow dBgCh_Gnd, which collides with dBgCh_Gnd.h */
+extern "C" int _ZN9dBgCh_Gnd10DetectClsnEv(dBgCh_Gnd* self);
+extern "C" void func_02012694(unsigned int id, const Vector3* pos);
+extern "C" void _ZN9dBgCh_GndD1Ev(dBgCh_Gnd* self);
+extern "C" void* _ZNK10dBgCh_Actr14GetFloorResultEv(void* self);
+extern "C" int _ZN4cstd4fdivEii(int a, int b);
+extern "C" s32 func_02010844(void* unused, Vector3* v, s16 angle);
+
+extern "C" void func_ov077_02124d08(void* va, void* vw) {
+    char* a = (char*)va; char* w = (char*)vw;
+    dBgCh_Gnd rc;
+    Vector3 pos;
+    Vector3 normal;
+    Vector3 wallnormal;
+
+    dBgCh_Actr_UpdateDiscreteNoLava_veneer(w);
+    if (((dBgCh_Actr *)w)->IsOnGround()) {
+        _ZN9dBgCh_GndC1Ev(&rc);
+        {
+            int actorY = *(int*)(a+0x60);
+            int pz = *(int*)(a+0x64);
+            int py = actorY + 0xc8000;
+            pos.x = *(int*)(a+0x5c);
+            pos.y = py;
+            pos.z = pz;
+        }
+        _ZN5dBgCh19StartDetectingToxicEv(&rc);
+        _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(&rc, pos, a);
+        if (_ZN9dBgCh_Gnd10DetectClsnEv(&rc)) {
+            if (func_02037e20(rc.floor) != 0 && *(int*)(a+0x60) < rc.floor[(0x44-0x14)/4]) {
+                ((dActor_c *)a)->PoofDust();
+                func_02012694(0xc4, (const Vector3*)(a+0x74));
+                ((fBase_c *)a)->MarkForDestruction();
+                _ZN9dBgCh_GndD1Ev(&rc);
+                return;
+            }
+            {
+                void* fr = _ZNK10dBgCh_Actr14GetFloorResultEv(w);
+                ((SurfaceInfo *)((char*)fr + 4))->CopyNormalTo(normal);
+            }
+            if (normal.y != 0) {
+                *(int*)(a+0xa8) = -(_ZN4cstd4fdivEii(
+                    (int)(((long long)normal.x * *(int*)(a+0xa4) + 0x800) >> 12)
+                  + (int)(((long long)normal.z * *(int*)(a+0xac) + 0x800) >> 12),
+                    normal.y) + 0x8000);
+            }
+            *(s16*)(a+0x8c) = func_02010844(a, &normal, *(s16*)(a+0x8e));
+            *(s16*)(a+0x90) = func_02010844(a, &normal, (s16)(*(s16*)(a+0x8e) - 0x4000));
+        }
+        _ZN9dBgCh_GndD1Ev(&rc);
+    }
+    if (((dBgCh_Actr *)w)->IsOnWall()) {
+        void* wr = _ZNK10dBgCh_Actr13GetWallResultEv(w);
+        ((SurfaceInfo *)((char*)wr + 4))->CopyNormalTo(wallnormal);
+    }
+}
+
+extern "C" void _ZN8dActor_c10SpawnCoinsERK7Vector3j5Fix12IiEs(void *self, const Vector3 *pos, unsigned int a, int fix, short b);
+extern "C" void func_02012694(unsigned int id, const Vector3* pos);
+extern "C" void func_ov077_02125e94(void *c, int i);
+extern "C" void _ZN5Sound9PlayBank0EjRK7Vector3(unsigned int id, const Vector3 &pos);
+extern "C" short Vec3_HorzAngle(void *a, void *b);
+extern "C" int _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(void *self, const Vector3 *pos, unsigned int a, int fix, u8 b, u8 cc, u8 d);
+
+extern "C" void func_ov077_02124eb0(void *thiz)
+{
+    unsigned char *c = (unsigned char *)thiz;
+    unsigned char *player;
+    int b;
+
+    if (((dActor_c *)c)->FindEgg(*(dCc_c *)(c + 0x1b0)) != 0) {
+        int v[3];
+        v[0] = *(int *)(c + 0x5c);
+        v[1] = *(int *)(c + 0x60);
+        v[2] = *(int *)(c + 0x64);
+        _ZN8dActor_c10SpawnCoinsERK7Vector3j5Fix12IiEs(c, (const Vector3 *)v, 1, 0x2000, 0);
+        ((dActor_c *)c)->PoofDust();
+        func_02012694(0xc4, (const Vector3*)(c + 0x74));
+        ((fBase_c *)c)->MarkForDestruction();
+        return;
+    }
+
+    {
+        unsigned int id = *(unsigned int *)(c + 0x1d4);
+        if (id == 0)
+            return;
+        player = (unsigned char *)dActor_c::FindWithID(id);
+    }
+    if (player == 0)
+        return;
+
+    b = (int)(*(unsigned short *)(player + 0xc) == 0xbf);
+    if (b == 0)
+        return;
+
+    b = (int)((*(int *)(c + 0xb0) & 0x20000) != 0);
+    if (b != 0) {
+        func_ov077_02125e94(c, 3);
+        return;
+    }
+
+    if ((*(int *)(c + 0x1d0) & 0x403c0)
+        || ((Player *)player)->IsOnShell() != 0
+        || *(unsigned char *)(player + 0x6f9) != 0) {
+        if (*(int *)(c + 0x3d8) != 1)
+            return;
+        _ZN5Sound9PlayBank0EjRK7Vector3(0xb5, *(const Vector3 *)(c + 0x74));
+        *(unsigned char **)(c + 0x3d4) = player;
+        func_ov077_02125e94(c, 2);
+        return;
+    }
+
+    if (*(int *)(c + 0x1d0) & 0x10) {
+        *(short *)(c + 0x94) = Vec3_HorzAngle(player + 0x5c, c + 0x5c);
+        ((Player *)player)->IncMegaKillCount();
+        func_ov077_02125e94(c, 5);
+        return;
+    }
+
+    if (*(int *)(c + 0x3d8) == 4)
+        return;
+
+    {
+        int v[3];
+        v[0] = *(int *)(c + 0x5c);
+        v[1] = *(int *)(c + 0x60);
+        v[2] = *(int *)(c + 0x64);
+        _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(player, (const Vector3 *)v, 2, 0xc000, 1, 0, 1);
+    }
+}
+
+extern "C" {
+typedef struct dActor_c dActor_c;
+typedef struct Player Player;
+void func_ov077_02125e94(void* c, int a);
+short Vec3_HorzAngle(void* a, void* b);
+int _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(void* p, const Vector3* v, unsigned int a, int b, u8 d, u8 e, u8 f);
+
+void func_ov077_021250a8(void* vc){
+  char* c = (char*)vc;
+  unsigned int id = *(unsigned int*)(c+0x1d4);
+  if (id == 0) return;
+  char* player = (char*)dActor_c::FindWithID(id);
+  if (player == 0) return;
+  int b1 = (int)(*(unsigned short*)(player+0xc) == 0xbf);
+  if (b1 == 0) return;
+  int b2 = (int)((*(int*)(c+0xb0) & 0x20000) != 0);
+  if (b2 != 0) {
+    func_ov077_02125e94(c, 3);
+    return;
+  }
+  int flags = *(int*)(c+0x1d0);
+  if ((flags & 0x10) != 0) {
+    *(short*)(c+0x94) = Vec3_HorzAngle((Vector3*)(player+0x5c), (Vector3*)(c+0x5c));
+    *(short*)(c+0x8e) = *(short*)(c+0x94) + 0x8000;
+    ((Player*)player)->IncMegaKillCount();
+    func_ov077_02125e94(c, 5);
+    return;
+  }
+  if ((flags & 0x40000) != 0) return;
+  Vector3 v;
+  v.x = *(int*)(c+0x5c);
+  v.y = *(int*)(c+0x60);
+  v.z = *(int*)(c+0x64);
+  _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj((Player*)player, &v, 2, 0xc000, 1, 0, 1);
+}
+}
+
+// @symbol func_ov077_021251d0
+extern "C" {
+void Vec3_Asr(void* d, void* s, int sh);
+void Matrix4x3_FromTranslation(void* m, int x, int y, int z);
+void Matrix4x3_ApplyInPlaceToTranslation(void* m, int x, int y, int z);
+void Matrix4x3_ApplyInPlaceToRotationZXYExt(void* m, int x, int y, int z);
+
+extern Matrix4x3 data_020a0e68;
+}
+/* 30-slot stand-in so the virtual call lands in slot 29, OnAimedAtWithEgg --
+ * the height an egg aims at, which the tumble also pivots around. Defined
+ * before the first function that casts through it. */
+struct Base {
+    virtual void v0();
+    virtual void v1();
+    virtual void v2();
+    virtual void v3();
+    virtual void v4();
+    virtual void v5();
+    virtual void v6();
+    virtual void v7();
+    virtual void v8();
+    virtual void v9();
+    virtual void v10();
+    virtual void v11();
+    virtual void v12();
+    virtual void v13();
+    virtual void v14();
+    virtual void v15();
+    virtual void v16();
+    virtual void v17();
+    virtual void v18();
+    virtual void v19();
+    virtual void v20();
+    virtual void v21();
+    virtual void v22();
+    virtual void v23();
+    virtual void v24();
+    virtual void v25();
+    virtual void v26();
+    virtual void v27();
+    virtual void v28();
+    virtual int OnAimedAtWithEgg();
+};
+extern "C" void func_ov077_021251d0(void* c)
+{
+  char* self = (char*)c;
+  int v[3];
+  Vec3_Asr(v, self+0x5c, 3);
+  Matrix4x3_FromTranslation(&data_020a0e68, v[0], v[1], v[2]);
+  Base* b = (Base*)c;
+  int aimHeight = b->OnAimedAtWithEgg();
+  Matrix4x3_ApplyInPlaceToTranslation(&data_020a0e68, 0, aimHeight >> 3, 0);
+  Matrix4x3_ApplyInPlaceToRotationZXYExt(&data_020a0e68,
+      *(short*)(self+0x8c), *(short*)(self+0x8e), *(short*)(self+0x90));
+  int aimHeightAgain = b->OnAimedAtWithEgg();
+  Matrix4x3_ApplyInPlaceToTranslation(&data_020a0e68, 0, (-aimHeightAgain) >> 3, 0);
+  *(Matrix4x3*)(self+0x140) = data_020a0e68;
+}
+
+extern "C" {
+extern void Matrix4x3_FromRotationZXYExt(void *, int, int, int);
+void func_ov077_02125290(char *t)
+{
+    int v = *(int *)(t + 0x3d8);
+    int b = 1;
+    char *m;
+    if (v != 0) b = (v == 4);
+    if (b) m = t + 0xf0;
+    else m = t + 0x140;
+    Matrix4x3_FromRotationZXYExt(m, *(short *)(t + 0x8c), *(short *)(t + 0x8e), *(short *)(t + 0x90));
+    *(int *)(m + 0x24) = *(int *)(t + 0x5c) >> 3;
+    *(int *)(m + 0x28) = *(int *)(t + 0x60) >> 3;
+    *(int *)(m + 0x2c) = *(int *)(t + 0x64) >> 3;
+}
+}
+
+extern "C" {
+void func_ov077_021251d0(void *t);
+void func_ov077_02125290(char *t);
+void _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(void *thisp, void *sm, void *mtx, int rad, int t, u8 j);
+void func_ov077_02125304(char *c) {
+    int b = (int)((*(int*)(c+0xb0) & 0x40000) != 0);
+    if (b != 0) return;
+    if (*(int*)(c+0x3d8) == 5) func_ov077_021251d0(c);
+    else func_ov077_02125290(c);
+    *(int*)(c+0x3c4) = *(int*)(c+0x5c) >> 3;
+    *(int*)(c+0x3c8) = *(int*)(c+0x60) >> 3;
+    *(int*)(c+0x3cc) = *(int*)(c+0x64) >> 3;
+    _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(c, c+0x188, c+0x3a0, 0x50000, 0x320000, 0xf);
+}
+}
+
+// @symbol func_ov077_021253a4
+
+extern "C" {
+extern void dBgCh_Actr_UpdateContinuous_Veneer(void*);
+extern void dBgCh_Actr_UpdateDiscreteNoLava_veneer(void*);
+extern unsigned char DecIfAbove0_Byte(unsigned char* p);
+extern void _ZN8dActor_c10SpawnCoinsERK7Vector3j5Fix12IiEs(void*, const Vector3*, unsigned int, int, short);
+extern void func_02012694(unsigned int id, const Vector3* pos);
+
+int func_ov077_021253a4(char* c)
+{
+    *(short*)(c + 0x8c) = *(short*)(c + 0x8c) - 0x1000;
+    ((Animation *)(c + 0x174))->Advance();
+    ((dActor_c *)c)->UpdatePos((dCc_c *)(c + 0x1b0));
+
+    if (*(int*)(c + 0x98) >= *(int*)(c + 0x1fc) || *(int*)(c + 0xa8) >= *(int*)(c + 0x1fc)) {
+        dBgCh_Actr_UpdateContinuous_Veneer(c + 0x1e4);
+    } else {
+        dBgCh_Actr_UpdateDiscreteNoLava_veneer(c + 0x1e4);
+    }
+
+    if (((dBgCh_Actr *)(c + 0x1e4))->JustHitGround() || DecIfAbove0_Byte((unsigned char*)(c + 0x3e8)) == 0) {
+        Vector3 v;
+        v.x = *(int*)(c + 0x5c);
+        v.y = *(int*)(c + 0x60);
+        v.z = *(int*)(c + 0x64);
+        _ZN8dActor_c10SpawnCoinsERK7Vector3j5Fix12IiEs(c, &v, 1, 0x2000, 0);
+        ((dActor_c *)c)->PoofDust();
+        func_02012694(0xc4, (const Vector3*)(c + 0x74));
+        ((fBase_c *)c)->MarkForDestruction();
+    }
+    return 1;
+}
+}
+
+// @symbol func_ov077_02125480
+extern "C" {
+
+extern void _ZN5Sound9PlayBank0EjRK7Vector3(unsigned int n, const Vector3& v);
+extern void _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(void* thiz, void* f, int a, int b, u16 e);
+extern void* _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(unsigned int n, int a, int b, int c);
+}
+
+extern SharedFilePtr data_ov077_02127b48;
+extern SharedFilePtr data_ov077_02127b38;
+extern SharedFilePtr data_ov077_02127c14;
+
+extern "C" int func_ov077_02125480(char* c)
+{
+    _ZN5Sound9PlayBank0EjRK7Vector3(9, *(Vector3*)(c + 0x74));
+    *(int*)(c + 0x98) = 0xa000;
+    *(int*)(c + 0xa8) = 0x28000;
+    *(short*)(c + 0x8c) = 0;
+    *(short*)(c + 0x90) = 0;
+    *(unsigned char*)(c + 0x3e8) = 0x2d;
+    _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0x124, *(void**)((char*)&data_ov077_02127c14 + 4), 0, 0x1000, 0);
+    *(int*)(c + 0x180) = 0x4000;
+    Base* b = (Base*)c;
+    int aimHeight = b->OnAimedAtWithEgg();
+    _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(0x43, *(int*)(c + 0x5c), *(int*)(c + 0x60) + aimHeight, *(int*)(c + 0x64));
+    int aimHeightAgain = b->OnAimedAtWithEgg();
+    _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(0x44, *(int*)(c + 0x5c), *(int*)(c + 0x60) + aimHeightAgain, *(int*)(c + 0x64));
+    *(int*)(c + 0x3d8) = 5;
+    return 1;
+}
+
+// @symbol func_ov077_02125550
+
+
+extern "C" {
+extern void dBgCh_Actr_UpdateContinuous_Veneer(void* p);
+extern void dBgCh_Actr_UpdateDiscreteNoLava_veneer(void* p);
+extern void* _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(unsigned int n, int a, int b, int c);
+extern void func_0201267c(unsigned int id, const Vector3* pos);
+extern void func_ov077_02125e94(void* c, int a);
+extern void func_02012694(unsigned int id, const Vector3* pos);
+}
+
+extern "C" int func_ov077_02125550(char* c)
+{
+    Vector3 vec;
+    int x, y, z;
+    int d;
+
+    *(short*)(c + 0x8c) = *(short*)(c + 0x8c) + 0x4e20;
+
+    if (*(int*)(c + 0x98) >= *(int*)(c + 0x1fc) || *(int*)(c + 0xa8) >= *(int*)(c + 0x1fc)) {
+        dBgCh_Actr_UpdateContinuous_Veneer(c + 0x1e4);
+    } else {
+        dBgCh_Actr_UpdateDiscreteNoLava_veneer(c + 0x1e4);
+    }
+
+    if (((dBgCh_Actr *)(c + 0x1e4))->JustHitGround()) {
+        *(int*)(c + 0xa8) = *(int*)(c + 0xa8) * -0x3c / 100;
+        if (*(int*)(c + 0xa8) > 0x8000) {
+            x = *(int*)(c + 0x5c);
+            y = *(int*)(c + 0x60) + 0x28000;
+            z = *(int*)(c + 0x64);
+            ((int*)&vec)[0] = x;
+            ((int*)&vec)[1] = y;
+            ((int*)&vec)[2] = z;
+            _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(0xb2, vec.x, vec.y, vec.z);
+            func_0201267c(0x109, (const Vector3*)(c + 0x74));
+        } else {
+            *(int*)(c + 0xa8) = 0;
+            *(short*)(c + 0x8c) = 0;
+            ((dBgCh_Actr *)(c + 0x1e4))->ClearLimMovFlag();
+            func_ov077_02125e94(c, 1);
+        }
+    }
+
+    d = *(int*)(c + 0x3dc) ? *(int*)(c + 0x60) - *(int*)(c + 0x3dc) : 0;
+    if (d < -0xc8000) {
+        ((dActor_c *)c)->PoofDust();
+        func_02012694(0x166, (const Vector3*)(c + 0x74));
+        ((fBase_c *)c)->MarkForDestruction();
+    }
+
+    ((dActor_c *)c)->UpdatePos((dCc_c *)(c + 0x1b0));
+    func_ov077_02124eb0(c);
+    ((dCc_c *)(c + 0x1b0))->Clear();
+    ((dCc_c *)(c + 0x1b0))->Update();
+    return 1;
+}
+
+extern "C" {
+#include "types.h"
+// @symbol func_ov077_021256b4
+extern s16 data_02082214[];
+#define LA(p) ((int)(p))
+int func_ov077_021256b4(char *o)
+{
+    char *carrier;
+    int *pPosX;
+    int *pPosY;
+    int *pPosZ;
+    int *src;
+    int idx;
+    s16 sinv;
+    s16 cosv;
+    s16 carrierYaw;
+    struct Vector3 v;
+    int one;
+    int y;
+    int z;
+    int x;
+
+    *(int *)LA(o + 0xb0) &= ~0x80000;
+    *(int *)(o + 0x98) = 0xa000;
+    *(int *)(o + 0xa8) = 0;
+
+    carrier = *(char **)(o + 0xd0);
+    pPosX = (int *)LA(o + 0x5c);
+    carrierYaw = *(s16 *)(carrier + 0x8e);
+    *(s16 *)(o + 0x8c) = 0;
+    *(s16 *)(o + 0x8e) = carrierYaw;
+    *(s16 *)(o + 0x90) = 0;
+
+    *(s16 *)(o + 0x94) = *(s16 *)(o + 0x8e);
+    pPosY = (int *)LA(o + 0x60);
+    pPosZ = (int *)LA(o + 0x64);
+
+    carrier = *(char **)(o + 0xd0);
+    src = (int *)LA(carrier + 0x5c);
+    one = 1;
+    *(int *)(o + 0x5c) = src[0];
+    *(int *)(o + 0x60) = src[1];
+    *(int *)(o + 0x64) = src[2];
+
+    idx = ((int)*(u16 *)(o + 0x8e)) >> 4;
+    sinv = data_02082214[idx * 2];
+    *pPosX = *pPosX + (int)(((s64)sinv * 0x3c000 + 0x800) >> 12);
+    *pPosY = *pPosY + 0x85000;
+    idx = ((int)*(u16 *)(o + 0x8e)) >> 4;
+    cosv = data_02082214[idx * 2 + 1];
+    *pPosZ = *pPosZ + (int)(((s64)cosv * 0x3c000 + 0x800) >> 12);
+
+    carrier = *(char **)(o + 0xd0);
+
+    {
+        int ty = *(int *)(carrier + 0x60);
+        int tz = *(int *)(carrier + 0x64);
+        int ty2 = ty + 0x50000;
+        int tx = *(int *)(carrier + 0x5c);
+        v.x = tx; v.y = ty2; v.z = tz;
+    }
+
+    ((dActor_c*)o)->DetectRaycastClsn(v, *(Vector3*)(o + 0x5c), one);
+
+    *(int *)(o + 0xd0) = 0;
+    ((dBgCh_Actr *)(o + 0x1e4))->SetLimMovFlag();
+
+    *(int *)(o + 0x3d8) = 4;
+    return 1;
+}
+}
+
+extern "C" {
+extern void func_ov077_02125e94(void *c, int v);
+
+int func_ov077_02125830(char *c)
+{
+    if (((*(int *)(c + 0xb0) & 0x40000) ? 1 : 0) != 0)
+    {
+        char *p = *(char **)(c + 0xd0);
+        int *src = (int *)(p + 0x5c);
+        *(int *)(c + 0x5c) = src[0];
+        *(int *)(c + 0x60) = src[1];
+        *(int *)(c + 0x64) = src[2];
+    }
+    {
+        int flags = *(int *)(c + 0xb0);
+        if (((flags & 0x80000) ? 1 : 0) != 0)
+        {
+            func_ov077_02125e94(c, 4);
+        }
+        else if (((flags & 0x20000) ? 1 : 0) == 0 && ((flags & 0x40000) ? 1 : 0) == 0)
+        {
+            *(int *)(c + 0xd0) = 0;
+            func_ov077_02125e94(c, 1);
+        }
+    }
+    return 1;
+}
+}
+
+extern "C" {
+// @symbol func_ov077_021258dc
+/* State 3 entry handler: PMF record data_ov077_021278e8 is copied into
+ * data_ov077_02127c28 at +0x30 by __sinit_ov077_0212749c. */
+int func_ov077_021258dc(char *c)
+{
+    *(int *)(c + 0x98) = 0;
+    ((dCc_c *)((char *)c + 0x1b0))->Clear();
+    *(int *)(c + 0x3d8) = 3;
+    return 1;
+}
+}
+
+extern "C" {
+extern void dBgCh_Actr_UpdateDiscreteNoLava_veneer(void *p);
+extern void func_02012694(unsigned int id, const Vector3* pos);
+extern void func_ov077_02125e94(void *p, int v);
+extern void func_ov077_02124eb0(void *p);
+
+int func_ov077_02125908(char *c)
+{
+    int v;
+
+    dBgCh_Actr_UpdateDiscreteNoLava_veneer(c + 0x1e4);
+    if (((dBgCh_Actr *)(c + 0x1e4))->JustHitGround() != 0)
+    {
+        *(int *)(c + 0xa8) = *(int *)(c + 0xa8) * -50 / 100;
+    }
+    else if (((dBgCh_Actr *)(c + 0x1e4))->IsOnGround() != 0)
+    {
+        *(int *)(c + 0xa8) = 0;
+        ((dBgCh_Actr *)(c + 0x1e4))->ClearLimMovFlag();
+        *(int *)(c + 0x3d4) = 0;
+        *(short *)(c + 0x94) = *(short *)(c + 0x8e);
+        func_ov077_02125e94(c, 1);
+    }
+
+    if (*(int *)(c + 0x3dc) != 0)
+        v = *(int *)(c + 0x60) - *(int *)(c + 0x3dc);
+    else
+        v = 0;
+
+    if (v < -0xc8000)
+    {
+        ((dActor_c *)c)->PoofDust();
+        func_02012694(0x166, (const Vector3*)(c + 0x74));
+        ((fBase_c *)c)->MarkForDestruction();
+    }
+
+    ((Animation *)(c + 0x174))->Advance();
+    ((dActor_c *)c)->UpdatePos((dCc_c *)(c + 0x1b0));
+    func_ov077_02124eb0(c);
+    ((dCc_c *)(c + 0x1b0))->Clear();
+    ((dCc_c *)(c + 0x1b0))->Update();
+    return 1;
+}
+}
+
+extern "C" {
+extern short Vec3_HorzAngle(void*, void*);
+int func_ov077_02125a0c(char *c) {
+    *(int*)(c+0x98) = 0x5000;
+    *(int*)(c+0xa8) = 0xd000;
+    short ang = (short)Vec3_HorzAngle((char*)*(int*)(c+0x3d4)+0x5c, c+0x5c);
+    *(short*)(c+0x94) = ang;
+    ((dBgCh_Actr *)(c+0x1e4))->SetLimMovFlag();
+    *(int*)(c+0x3d8) = 2;
+    return 1;
+}
+}
+
+extern "C" {
+extern int _Z14ApproachLinearRsss(short *a, short b, short c);
+extern void func_ov077_02124eb0(void *c);
+extern void func_02012694(unsigned int id, const Vector3* pos);
+extern void func_ov077_02124d08(void *c, void *p);
+extern unsigned char DecIfAbove0_Byte(unsigned char* p);
+extern void func_ov077_02125e94(void *c, int a);
+
+int func_ov077_02125a54(char *c){
+  int d;
+  _Z14ApproachLinearRsss((short*)(c + 0x8e), *(short*)(c + 0x3e6), 0x64);
+  *(short*)(c + 0x94) = *(short*)(c + 0x8e);
+  ((Animation *)(c + 0x174))->Advance();
+  func_ov077_02124eb0(c);
+  if(*(int*)(c + 0x3dc))
+    d = *(int*)(c + 0x60) - *(int*)(c + 0x3dc);
+  else
+    d = 0;
+  if(d < -0xc8000){
+    ((dActor_c *)c)->PoofDust();
+    func_02012694(0x166, (const Vector3*)(c + 0x74));
+    ((fBase_c *)c)->MarkForDestruction();
+  }
+  ((dActor_c *)c)->UpdatePos((dCc_c *)(c + 0x1b0));
+  func_ov077_02124d08(c, c + 0x1e4);
+  ((dCc_c *)(c + 0x1b0))->Clear();
+  ((dCc_c *)(c + 0x1b0))->Update();
+  if(DecIfAbove0_Byte((unsigned char*)(c + 0x3e8)) == 0)
+    func_ov077_02125e94(c, 1);
+  return 1;
+}
+}
+
+extern "C" {
+extern void _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(void* ma, void* bca, int a, int f, u16 j);
+extern void func_02035684(int* p, int v);
+extern int RandomIntInternal(int* seed);
+extern int data_0209e650;
+void func_ov077_02125b1c(char* c) {
+  *(int*)(c + 0x9c) = -0x2000;
+  *(int*)(c + 0xa0) = -0x3c000;
+  _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0x124, ((void**)&data_ov077_02127c14)[1], 0, 0x1000, 0);
+  *(int*)(c + 0x180) = 0x1000;
+  func_02035684((int*)(c + 0x1e4), 0x28000);
+  *(int*)(c + 0x98) = 0x1b33;
+  *(short*)(c + 0x3e6) = RandomIntInternal(&data_0209e650);
+  *(unsigned char*)(c + 0x3e8) = RandomIntInternal(&data_0209e650);
+  *(int*)(c + 0x3d8) = 1;
+}
+}
+
+extern "C" {
+// @symbol func_ov077_02125bb4
+#include "decl_Particle.h"
+typedef int Fix12i;
+
+
+extern void dBgCh_Actr_UpdateContinuous_Veneer(void *p);
+extern void func_02012694(unsigned int id, const Vector3* pos);
+extern unsigned int _ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(
+    unsigned int uniqueID, unsigned int effectID,
+    Fix12i x, Fix12i y, Fix12i z,
+    const void *dir, void *callback);
+extern void func_ov077_02125e94(void *c, int a);
+extern void* _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(unsigned int id, Fix12i x, Fix12i y, Fix12i z);
+extern void func_0201267c(unsigned int id, const Vector3* pos);
+
+extern int data_0209f32c;
+
+int func_ov077_02125bb4(char *c)
+{
+    int underwater;
+    int d;
+    int x, y, z;
+    struct Vector3 vec;
+
+    *(short *)(c + 0x8c) = *(short *)(c + 0x8c) + 0x4e20;
+    ((dActor_c *)c)->UpdatePos((dCc_c *)(c + 0x1b0));
+    func_ov077_021250a8(c);
+    ((dBgCh_Actr *)(c + 0x1e4))->SetLimMovFlag();
+    dBgCh_Actr_UpdateContinuous_Veneer(c + 0x1e4);
+
+    underwater = func_ov077_02124ce4(c);
+    if (underwater) {
+        if (*(unsigned char *)(c + 0x3e4) == 0) {
+            func_02012694(0xe2, (const Vector3*)(c + 0x74));
+            _ZN8Particle6System12NewBigSplashE5Fix12IiES2_S2_(
+                *(int *)(c + 0x5c), data_0209f32c, *(int *)(c + 0x64));
+            *(unsigned int *)(c + 0x3e0) =
+                _ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(
+                    *(unsigned int *)(c + 0x3e0), 0x109,
+                    *(int *)(c + 0x5c), data_0209f32c, *(int *)(c + 0x64),
+                    0, 0);
+        }
+        *(int *)(c + 0x9c) = -0x400;
+        *(int *)(c + 0xa0) = -0x5000;
+        *(int *)(c + 0x98) = 0x2000;
+    } else {
+        *(int *)(c + 0x9c) = -0x2000;
+        *(int *)(c + 0xa0) = -0x3c000;
+        *(int *)(c + 0x98) = 0x4000;
+    }
+    *(unsigned char *)(c + 0x3e4) = (unsigned char)underwater;
+
+    if (((dBgCh_Actr *)(c + 0x1e4))->JustHitGround()) {
+        *(int *)(c + 0xa8) = (*(int *)(c + 0xa8) * -0x3c) / 100;
+        d = *(int *)(c + 0x3dc) ? *(int *)(c + 0x60) - *(int *)(c + 0x3dc) : 0;
+        if (d < -0xc8000) {
+            ((dActor_c *)c)->PoofDust();
+            func_02012694(0x166, (const Vector3*)(c + 0x74));
+            ((fBase_c *)c)->MarkForDestruction();
+        } else if (*(int *)(c + 0xa8) < 0xa000) {
+            *(int *)(c + 0xa8) = 0;
+            *(short *)(c + 0x8c) = *(short *)(c + 0x92);
+            *(short *)(c + 0x8e) = *(short *)(c + 0x94);
+            *(short *)(c + 0x90) = *(short *)(c + 0x96);
+            ((dBgCh_Actr *)(c + 0x1e4))->ClearLimMovFlag();
+            *(unsigned int *)(c + 0xb0) |= 0x10000000u;
+            func_ov077_02125e94(c, 1);
+        } else {
+            x = *(int *)(c + 0x5c);
+            y = *(int *)(c + 0x60) + 0x28000;
+            z = *(int *)(c + 0x64);
+            ((int *)&vec)[0] = x;
+            ((int *)&vec)[1] = y;
+            ((int *)&vec)[2] = z;
+            _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(0xb2, vec.x, vec.y, vec.z);
+            func_0201267c(0x109, (const Vector3*)(c + 0x74));
+        }
+    }
+
+    ((dCc_c *)(c + 0x1b0))->Clear();
+    ((dCc_c *)(c + 0x1b0))->Update();
+    return 1;
+}
+}
+
+extern "C" {
+int func_ov077_02125dd4(char *c)
+{
+    *(int *)(c + 0x9c) = -0x2000;
+    *(int *)(c + 0xa0) = -0x3c000;
+    *(int *)(c + 0x98) = 0x4000;
+    *(int *)(c + 0xa8) = 0x19000;
+    ((dBgCh_Actr *)((char *)c + 0x1e4))->SetLimMovFlag();
+    *(int *)(c + 0x3d8) = 0;
+    return 1;
+}
+}
+
+struct C; typedef void (C::*PMF)();
+struct C { char pad[0x3d0]; PMF *pp; };
+extern "C" void func_ov077_02125e20(void *vc) { C *c = (C *)vc; PMF *p = c->pp + 1; (c->**p)(); }
+
+extern "C" void func_ov077_02125e5c(void *vc) { C *c = (C *)vc; PMF *p = c->pp; (c->**p)(); }
+
+extern "C" {
+extern char data_ov077_02127c28[];
+extern void func_ov077_02125e5c(void* c);
+
+void func_ov077_02125e94(void* vc, int i) {
+    char* c = (char*)vc;
+    *(char**)(c + 0x3d0) = data_ov077_02127c28 + (i << 4);
+    func_ov077_02125e5c(c);
+}
+}
+
+extern "C" {
+int _ZN7daTgz_c16CleanupResourcesEv(void)
+{
+    data_ov077_02127b48.Release();
+    data_ov077_02127b38.Release();
+    data_ov077_02127c14.Release();
+    return 1;
+}
+}
+
+extern "C" {
+void _ZN7daTgz_c16OnPendingDestroyEv(void)
+{
+}
+}
+
+// @symbol _ZN7daTgz_c6RenderEv
+
+int daTgz_c::Render()
+{
+  if((mFlags & 0x40000) ? 1 : 0) return 1;
+  int s=mState;
+  if(s==0 || s==4) mModel.Render(0);
+  else mModelAnim.Render(0);
+  return 1;
+}
+
+// @symbol _ZN7daTgz_c8BehaviorEv
+extern "C" {
+int _ZN8dActor_c22IsTooFarAwayFromPlayerE5Fix12IiE(void* c, int d);
+unsigned char DecIfAbove0_Byte(unsigned char* p);
+int func_ov077_02124c28(void* c);
+void func_ov077_02125e20(void* c);
+void func_ov077_02125304(char* c);
+void func_02012694(unsigned int id, const Vector3* pos);
+
+extern signed char data_0209f2f8;
+}
+
+int daTgz_c::Behavior()
+{
+    int s = mState;
+    if (s != 1 || mWithMeshClsn.IsOnGround()) {
+        s = mState;
+        if (s != 4 && s != 5 && _ZN8dActor_c22IsTooFarAwayFromPlayerE5Fix12IiE(this, 0x5dc000)) {
+            if (DecIfAbove0_Byte(&mDespawnTimer) == 0) {
+                MarkForDestruction();
+                return 1;
+            }
+            goto done;
+        }
+    }
+    func_ov077_02124c28(this);
+    func_ov077_02125e20(this);
+    MakeVanishLuigiWork(mdCcAc_c);
+    func_ov077_02125304((char *)this);
+    if (data_0209f2f8 == 0x1c && mPosY <= -0x1600000) {
+        PoofDust();
+        func_02012694(0xc4, (const Vector3*)&mCamSpacePosX);
+        MarkForDestruction();
+    }
+done:
+    return 1;
+}
+
+// @symbol _ZN7daTgz_c13InitResourcesEv
+struct SharedFilePtr;
+struct BMD_File;
+struct BCA_File;
+struct dActor_c;
+struct Vector3_16;
+
+/* The scalar definition takes a 16-bit start frame; the shared native
+   declaration still takes u32. Keep its measured ABI bridge here. */
+extern "C" void _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(void *self, void *f, int a, int b, u16 c);
+extern "C" void _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj(void *self, dActor_c *a, int b, int c, unsigned int d, unsigned int e);
+extern "C" void _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(void *self, dActor_c *a, int b, int c, Vector3_16 *d, Vector3_16 *e);
+extern "C" void func_ov077_02125e94(void *c, int state);
+
+extern char IDENTITY_MATRIX4X3;
+
+struct M48 { int w[12]; };
+
+int daTgz_c::InitResources()
+{
+    BMD_File *bmd;
+    bmd = (BMD_File *)Model::LoadFile(data_ov077_02127b48);
+    mModel.SetFile(bmd, 1, -1);
+    bmd = (BMD_File *)Model::LoadFile(data_ov077_02127b38);
+    mModelAnim.SetFile(bmd, 1, -1);
+    Animation::LoadFile(data_ov077_02127c14);
+    _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(&mModelAnim, *(BCA_File **)((char *)&data_ov077_02127c14 + 4), 0, 0x1000, 0);
+    if (!mShadowModel.InitCylinder())
+        return 0;
+    _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj(&mdCcAc_c, this, 0x2d000, 0x3c000, 0x200000, 0x4a3d0);
+    _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(&mWithMeshClsn, this, 0x2d000, 0, (Vector3_16 *)&mPrevAngleX, (Vector3_16 *)&mAngleX);
+    mScaleX = 0x1000;
+    mScaleY = 0x1000;
+    mScaleZ = 0x1000;
+    mDespawnTimer = 0x2c;
+    func_ov077_02125e94(this, 0);
+    *(M48 *)&mMatrix = *(M48 *)&IDENTITY_MATRIX4X3;
+    func_ov077_02125304((char *)this);
+    return 1;
+}
+
+// @symbol _ZN7daTgz_c13OnTurnIntoEggER6Player
+/* Vtable slot 19. Yoshi's egg is worth one coin -- paid directly while the
+ * player is collecting a cap, otherwise counted as an egg coin. */
+#include "Player.h"
+
+void daTgz_c::OnTurnIntoEgg(Player &player)
+{
+    if (player.IsCollectingCap())
+        GivePlayerCoins(player, 1, 0);
+    else
+        player.RegisterEggCoinCount(1, 0, 0);
+    MarkForDestruction();
+}
+
+extern "C" {
+// @symbol daTgz_c_classInit
+#include "decl_ActorBase.h"
+int *daTgz_c_classInit(void)
+{
+    int *p = (int *)_ZN7fBase_cnwEj(1004);
+    if (p) {
+        _ZN8dActor_cC2Ev(p);
+        p[0] = (int)&_ZTV7daTgz_c[2]; /* +8: this TU defines the vtable */
+        _ZN5ModelC1Ev((char *)p + 0xd4);
+        _ZN9ModelAnimC1Ev((char *)p + 0x124);
+        _ZN11ShadowModelC1Ev((char *)p + 0x188);
+        _ZN7dCcAc_cC1Ev((char *)p + 0x1b0);
+        _ZN10dBgCh_ActrC1Ev((char *)p + 0x1e4);
+    }
+    return p;
+}
+}
+

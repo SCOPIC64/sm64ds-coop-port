@@ -7,18 +7,18 @@ _ZN17daObjWlPolelift_c6RenderEv kind:function(arm,size=0x28) addr:0x02111308
 _ZN17daObjWlPolelift_c8BehaviorEv kind:function(arm,size=0x268) addr:0x02111330
 _ZN17daObjWlPolelift_c13InitResourcesEv kind:function(arm,size=0xe0) addr:0x02111598
 daObjWlPolelift_c_classInit kind:function(arm,size=0x50) addr:0x02111678
-_ZN13BowserShutterD1Ev kind:function(arm,size=0x44) addr:0x021116c8
-_ZN13BowserShutterD0Ev kind:function(arm,size=0x58) addr:0x0211170c
-_ZN13BowserShutter16CleanupResourcesEv kind:function(arm,size=0x44) addr:0x02111764
-_ZN13BowserShutter6RenderEv kind:function(arm,size=0x28) addr:0x021117a8
-_ZN13BowserShutter8BehaviorEv kind:function(arm,size=0x8) addr:0x021117d0
-_ZN13BowserShutter13InitResourcesEv kind:function(arm,size=0xb0) addr:0x021117d8
+_ZN21daObjWlKoopaShutter_cD1Ev kind:function(arm,size=0x44) addr:0x021116c8
+_ZN21daObjWlKoopaShutter_cD0Ev kind:function(arm,size=0x58) addr:0x0211170c
+_ZN21daObjWlKoopaShutter_c16CleanupResourcesEv kind:function(arm,size=0x44) addr:0x02111764
+_ZN21daObjWlKoopaShutter_c6RenderEv kind:function(arm,size=0x28) addr:0x021117a8
+_ZN21daObjWlKoopaShutter_c8BehaviorEv kind:function(arm,size=0x8) addr:0x021117d0
+_ZN21daObjWlKoopaShutter_c13InitResourcesEv kind:function(arm,size=0xb0) addr:0x021117d8
 daObjWlKoopaShutter_c_classInit kind:function(arm,size=0x30) addr:0x02111888
-_ZN9SubmarineD1Ev kind:function(arm,size=0x44) addr:0x021118b8
-_ZN9SubmarineD0Ev kind:function(arm,size=0x58) addr:0x021118fc
-_ZN9Submarine16CleanupResourcesEv kind:function(arm,size=0x44) addr:0x02111954
-_ZN9Submarine6RenderEv kind:function(arm,size=0x28) addr:0x02111998
-_ZN9Submarine13InitResourcesEv kind:function(arm,size=0xb0) addr:0x021119c0
+_ZN18daObjWlSubmarine_cD1Ev kind:function(arm,size=0x44) addr:0x021118b8
+_ZN18daObjWlSubmarine_cD0Ev kind:function(arm,size=0x58) addr:0x021118fc
+_ZN18daObjWlSubmarine_c16CleanupResourcesEv kind:function(arm,size=0x44) addr:0x02111954
+_ZN18daObjWlSubmarine_c6RenderEv kind:function(arm,size=0x28) addr:0x02111998
+_ZN18daObjWlSubmarine_c13InitResourcesEv kind:function(arm,size=0xb0) addr:0x021119c0
 daObjWlSubmarine_c_classInit kind:function(arm,size=0x30) addr:0x02111a70
 _ZN9WhirlpoolD1Ev kind:function(arm,size=0x38) addr:0x02111aa0
 _ZN9WhirlpoolD0Ev kind:function(arm,size=0x4c) addr:0x02111ad8
@@ -34,18 +34,18 @@ _ZN9Whirlpool6RenderEv kind:function(arm,size=0x34) addr:0x02111fd8
 _ZN9Whirlpool8BehaviorEv kind:function(arm,size=0xe0) addr:0x0211200c
 _ZN9Whirlpool13InitResourcesEv kind:function(arm,size=0xd0) addr:0x021120ec
 daWater_Tatumaki_c_classInit kind:function(arm,size=0x40) addr:0x021121bc
-_ZN12WaterSuctionD1Ev kind:function(arm,size=0x38) addr:0x021121fc
-_ZN12WaterSuctionD0Ev kind:function(arm,size=0x4c) addr:0x02112234
+_ZN17daWater_Suikomi_cD1Ev kind:function(arm,size=0x38) addr:0x021121fc
+_ZN17daWater_Suikomi_cD0Ev kind:function(arm,size=0x4c) addr:0x02112234
 func_ov026_02112280 kind:function(arm,size=0x30) addr:0x02112280
 func_ov026_021122b0 kind:function(arm,size=0x1c) addr:0x021122b0
 func_ov026_021122cc kind:function(arm,size=0x8) addr:0x021122cc
 func_ov026_021122d4 kind:function(arm,size=0x50) addr:0x021122d4
 func_ov026_02112324 kind:function(arm,size=0x4) addr:0x02112324
-_ZN12WaterSuction16CleanupResourcesEv kind:function(arm,size=0x8) addr:0x02112328
-_ZN12WaterSuction16OnPendingDestroyEv kind:function(arm,size=0x4) addr:0x02112330
-_ZN12WaterSuction6RenderEv kind:function(arm,size=0x8) addr:0x02112334
-_ZN12WaterSuction8BehaviorEv kind:function(arm,size=0x8c) addr:0x0211233c
-_ZN12WaterSuction13InitResourcesEv kind:function(arm,size=0x88) addr:0x021123c8
+_ZN17daWater_Suikomi_c16CleanupResourcesEv kind:function(arm,size=0x8) addr:0x02112328
+_ZN17daWater_Suikomi_c16OnPendingDestroyEv kind:function(arm,size=0x4) addr:0x02112330
+_ZN17daWater_Suikomi_c6RenderEv kind:function(arm,size=0x8) addr:0x02112334
+_ZN17daWater_Suikomi_c8BehaviorEv kind:function(arm,size=0x8c) addr:0x0211233c
+_ZN17daWater_Suikomi_c13InitResourcesEv kind:function(arm,size=0x88) addr:0x021123c8
 daWater_Suikomi_c_classInit kind:function(arm,size=0x40) addr:0x02112450
 data_ov026_02112490 kind:data(any) addr:0x02112490
 data_ov026_02112494 kind:data(any) addr:0x02112494
@@ -181,7 +181,7 @@ _ZTS21daObjWlKoopaShutter_c kind:data(any) addr:0x02113b68
 data_ov026_02113b7c kind:data(any) addr:0x02113b7c ambiguous
 g_profile_WL_KOOPA_SHUTTER kind:data(any) addr:0x02113b80 ambiguous
 data_ov026_02113b90 kind:data(any) addr:0x02113b90 ambiguous
-_ZTV13BowserShutter kind:data(any) addr:0x02113ba4
+_ZTV21daObjWlKoopaShutter_c kind:data(any) addr:0x02113ba4
 data_ov026_02113c08 kind:data(any) addr:0x02113c08 ambiguous
 data_ov026_02113c14 kind:data(any) addr:0x02113c14 ambiguous
 data_ov026_02113c20 kind:data(any) addr:0x02113c20 ambiguous
@@ -189,7 +189,7 @@ _ZTI18daObjWlSubmarine_c kind:data(any) addr:0x02113c24
 data_ov026_02113c28 kind:data(any) addr:0x02113c28 ambiguous
 _ZTS18daObjWlSubmarine_c kind:data(any) addr:0x02113c30
 g_profile_WL_SUBMARINE kind:data(any) addr:0x02113c48 ambiguous
-_ZTV9Submarine kind:data(any) addr:0x02113c6c
+_ZTV18daObjWlSubmarine_c kind:data(any) addr:0x02113c6c
 data_ov026_02113ccc kind:data(any) addr:0x02113ccc ambiguous
 data_ov026_02113cd4 kind:data(any) addr:0x02113cd4 ambiguous
 data_ov026_02113cec kind:data(any) addr:0x02113cec
@@ -209,7 +209,6 @@ data_ov026_02113dd8 kind:data(any) addr:0x02113dd8
 _ZTI17daWater_Suikomi_c kind:data(any) addr:0x02113de0
 _ZTS17daWater_Suikomi_c kind:data(any) addr:0x02113dec
 g_profile_WATER_SUIKOMI kind:data(any) addr:0x02113e00 ambiguous
-_ZTV12WaterSuction kind:data(any) addr:0x02113e24
 _ZTV17daWater_Suikomi_c kind:data(any) addr:0x02113e24
 data_ov026_02113e50 kind:data(any) addr:0x02113e50 ambiguous
 data_ov026_02113e6c kind:data(any) addr:0x02113e6c ambiguous

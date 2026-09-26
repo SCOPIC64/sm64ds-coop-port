@@ -44,9 +44,9 @@ about the codegen they produced. What no byte gate does is compare ONE translati
 unit's declaration against ANOTHER's definition: the link resolves by NAME, the ROM
 records no types, and `check_references.py` only asks whether the name exists. That
 cross-TU contract is the gap this fills, and it is the whole of it.
-`.claude/skills/decomp-match-review` calls it "the highest-value unbuilt item"; read
-"the one the byte gate can never do" as being about that comparison, not about whether
-a compiler ever sees a declaration.
+See `notes/source-review-observations.md` for declaration and source-review pitfalls.
+The cross-TU comparison is separate from byte proof; neither establishes that an
+inferred declaration is the original source type.
 
 WHY IT IS WORTH FIXING. The host port compiles these same files with a compiler that
 DOES check across the tree, where `signature-mismatch` is the largest non-trivial
@@ -113,6 +113,18 @@ and writes that `this` out by hand, in roughly equal thirds as `void *`, `char *
 and nothing else does. Without that, every correct flat extern of a member would be billed
 for an arity disagreement -- 1,451 of them, across the 1,216 member definitions the tree
 holds. It still catches the case that matters, a `this` declared `int`.
+
+A STATIC MEMBER HAS NO `this`, AND ITS DEFINITION CANNOT SAY SO. C++ forbids repeating
+`static` on an out-of-line definition, so `fBase_c *dBase_c::Spawn(u32, fBase_c *, int,
+int)` is character-for-character what a non-static member's definition looks like, and the
+keyword survives only in the class body. Reading the qualified name alone and prepending a
+`this` invents a fifth parameter and bills three correct four-argument declarations for an
+arity disagreement -- which is exactly what `dBase_c::Spawn` did the day it gained an
+`@symbol` marker and became visible at all. `static_member_index()` therefore scans every
+header's class bodies for the keyword and keys the answer on (class, method). Headers only,
+because a class body re-declared inside one shard is that shard's private reconstruction;
+and when the index disagrees with itself about a pair, the definition states no arity at
+all rather than pick a side.
 
 TYPEDEF ALIASES ARE NOT DISAGREEMENTS. `include/types.h` is parsed for its scalar typedefs
 and they are resolved transitively before comparison, so `u32` and `unsigned int` and
@@ -241,7 +253,7 @@ INT_CANON = {
 
 # ------------------------------------------------------------------ scrubbing
 
-def scrub(text):
+def scrub(text, preserve_directives=False):
     """(code, marks). Comments become spaces; string and char literals become spaces.
 
     Line structure is preserved exactly, so an index into `code` maps to the same line
@@ -320,7 +332,8 @@ def scrub(text):
                     continue
                 i = end
                 break
-            out.append("".join(c if c == "\n" else " " for c in text[start:i]))
+            out.append(text[start:i] if preserve_directives else
+                       "".join(c if c == "\n" else " " for c in text[start:i]))
             continue
         out.append(ch)
         i += 1
@@ -440,6 +453,21 @@ def normalise_type(text, aliases, decay_arrays):
     expanded = []
     for t in toks:
         expanded.extend(aliases[t].split() if t in aliases else [t])
+    # East const and west const spell ONE type. A `const` standing before the first
+    # `*`/`&` qualifies the base type, so `Vector3 const &` and `const Vector3 &` are
+    # the same reference and reading them as a contradiction is a false positive --
+    # one that outranks a real definition once the mark-adoption pass below lets the
+    # tree's own converted definitions be seen.
+    #
+    # A `const` AFTER a pointer token qualifies that pointer level instead, and
+    # hoisting it would conflate genuinely different types: `T * const *` is a
+    # pointer to a const pointer to T, which is not `const T **`. Those stay put.
+    first_ptr = next((i for i, tok in enumerate(expanded) if tok in ("*", "&")),
+                     len(expanded))
+    head = expanded[:first_ptr]
+    if "const" in head:
+        expanded = (["const"] + [tok for tok in head if tok != "const"]
+                    + expanded[first_ptr:])
     ptr = [t for t in expanded if t in ("*", "&")]
     base = [t for t in expanded if t not in ("*", "&")]
     base = _canon_scalar(base)
@@ -529,11 +557,15 @@ def parse_params(text, aliases, cxx):
 
 
 def parse_declarator(text, aliases, cxx=True):
-    """(name, return_type, params, is_function) for one declarator, or None.
+    """(name, return_type, params, is_function, is_member, owner) or None.
 
     `text` is a single declaration with its leading specifiers already stripped:
     `void *_ZN7fBase_cnwEj(unsigned int size)`, `SharedFilePtr data_ov102_0214e9c0`,
     `int _ZTV7daBmb_c[]`.
+
+    `owner` is the innermost class an out-of-line `Class::method` names, or `None`.
+    It is the key the static-member index is read with, and it is separate from
+    `is_member` because a bare `::f` qualifier is a member of nothing.
     """
     text = " ".join(text.split())
     if not text:
@@ -558,7 +590,7 @@ def parse_declarator(text, aliases, cxx=True):
         typ = "%s (%s%s)(%s)" % (
             normalise_type(fp.group("pre"), aliases, decay_arrays=False),
             fp.group("stars"), fp.group("arr"), shown)
-        return fp.group("name"), " ".join(typ.split()), None, False, False
+        return fp.group("name"), " ".join(typ.split()), None, False, False, None
     # Trailing cv-qualifiers, exception specifications and attributes. `__attribute__`
     # is stripped repeatedly because the tree writes `((long_call, target(...)))` and
     # the inner parentheses survive the string blanking as `target( )`.
@@ -610,7 +642,14 @@ def parse_declarator(text, aliases, cxx=True):
         # returning `int daBmb_c::` and disagree with every flat declaration of it.
         lead = head[:m.start()].rstrip()
         member = lead.endswith("::")
+        owner = None
         if member:
+            # The innermost qualifier, which is what an out-of-line definition of a
+            # nested class spells: `A::B::f` is a member of `B`. A bare `::f` names
+            # no class, so it has no owner and the index cannot be asked about it.
+            qual = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*::\s*$", lead)
+            if qual:
+                owner = qual.group(1)
             lead = re.sub(r"[A-Za-z_][A-Za-z0-9_]*\s*::\s*$", "", lead)
         ret = normalise_type(lead, aliases, decay_arrays=False)
         if not ret:
@@ -618,7 +657,7 @@ def parse_declarator(text, aliases, cxx=True):
         params, ok = parse_params(params_text, aliases, cxx)
         if not ok:
             return None
-        return name, ret, params, True, member
+        return name, ret, params, True, member, owner
 
     # Data. Strip an array bound before hunting for the identifier.
     stripped = re.sub(r"(\[[^\[\]]*\])+\s*$", "", text).strip()
@@ -635,7 +674,7 @@ def parse_declarator(text, aliases, cxx=True):
     typ = normalise_type(before + suffix, aliases, decay_arrays=False)
     if not typ:
         return None
-    return name, typ, None, False, False
+    return name, typ, None, False, False, None
 
 
 # ------------------------------------------------------------------- unit walk
@@ -788,11 +827,19 @@ def _strip_specifiers(text):
 class Record(object):
     """One declaration or definition, reduced to what the linker would see.
 
-    `is_member` marks an out-of-line member definition (`int daBmb_c::Behavior()`).
-    The tree declares those flat, with the `this` pointer written out as an explicit
-    first parameter, so a member's declared arity is one MORE than its definition's.
-    Recording the fact instead of guessing is what keeps 3,000 correct flat externs
-    out of the report.
+    `is_member` marks an out-of-line member definition that HAS a `this`
+    (`int daBmb_c::Behavior()`). The tree declares those flat, with the `this`
+    pointer written out as an explicit first parameter, so such a member's declared
+    arity is one MORE than its definition's. Recording the fact instead of guessing
+    is what keeps 3,000 correct flat externs out of the report.
+
+    A STATIC member function is out-of-line member syntax with no `this`, and C++
+    forbids repeating the `static` keyword on the definition, so the text in front of
+    the tool cannot tell the two apart. `static_member_index()` reads the keyword off
+    the class body instead; a definition it calls static gets `is_member=False` and
+    is compared exactly like a free function. `this_unknown` is the third answer: the
+    index contradicts itself about this `(class, method)` pair, so `flat_params()`
+    declines to state an arity at all rather than guess one.
 
     `raw_types` is every identifier the declaration SPELLS, before any alias is
     resolved, plus the words of its file's own typedefs. It is what answers "does this
@@ -804,10 +851,12 @@ class Record(object):
     """
 
     __slots__ = ("symbol", "file", "line", "ret", "params", "is_function",
-                 "linkage", "is_definition", "is_member", "raw_types")
+                 "linkage", "is_definition", "is_member", "raw_types",
+                 "this_unknown")
 
     def __init__(self, symbol, file, line, ret, params, is_function, linkage,
-                 is_definition, is_member=False, raw_types=()):
+                 is_definition, is_member=False, raw_types=(),
+                 this_unknown=False):
         self.symbol = symbol
         self.file = file
         self.line = line
@@ -818,6 +867,7 @@ class Record(object):
         self.is_definition = is_definition
         self.is_member = is_member
         self.raw_types = frozenset(raw_types)
+        self.this_unknown = this_unknown
 
     def flat_params(self):
         """The parameter list a FLAT declaration of this symbol would carry.
@@ -825,8 +875,14 @@ class Record(object):
         `None` when unspecified. A member gets its implicit `this` back, spelled as
         a wildcard: the tree writes it `void *`, `char *` and `<Class> *` in roughly
         equal thirds, and none of those three is more right than the others.
+
+        `None` again when `this_unknown`: the class body disagrees with itself about
+        whether this member is static, so BOTH arities are defensible and stating
+        either would bill an honest declaration for the tool's guess. The comparison
+        already treats an unspecified list as claiming nothing, which is what an
+        answer nobody can give should look like.
         """
-        if self.params is UNSPECIFIED:
+        if self.params is UNSPECIFIED or self.this_unknown:
             return UNSPECIFIED
         if self.is_member:
             return ("<this>",) + tuple(self.params)
@@ -837,8 +893,104 @@ class Record(object):
             return self.ret
         params = self.flat_params()
         if params is UNSPECIFIED:
+            if self.this_unknown and self.params is not UNSPECIFIED:
+                return "%s (%s)" % (
+                    self.ret, ", ".join(("<this?>",) + tuple(self.params)))
             return "%s (unspecified)" % self.ret
         return "%s (%s)" % (self.ret, ", ".join(params) if params else "void")
+
+
+def _native_lifecycle_head(text):
+    """A qualified nullary lifecycle definition, before any ABI identity claim.
+
+    Restrict inference to ordinary identifier owners and C++98 initializer lists.
+    Parameterized constructors, templates, thunks and shorthand names stay outside
+    this recognition. In particular, a wrapper's native destructor can never be
+    relabeled as its array element's destructor by a nearby @symbol comment.
+    """
+    text = " ".join(text.split())
+    match = re.fullmatch(
+        r"(?P<owner>[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)"
+        r"::\s*(?P<dtor>~)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*"
+        r"\(\s*(?:void\s*)?\)"
+        r"(?:\s*(?:throw\s*\([^)]*\)|noexcept))?"
+        r"(?P<init>\s*:\s*.+)?", text)
+    if not match or match.group("owner").split("::")[-1] != match.group("name"):
+        return None
+    if match.group("dtor") and match.group("init"):
+        return None
+    return ("destructor" if match.group("dtor") else "constructor",
+            match.group("owner"), match.group("name"))
+
+
+def _parse_native_constructor(text, symbol):
+    """An exactly mapped native nullary C1/C2; no source-visible return type."""
+    head = _native_lifecycle_head(text)
+    if not head or head[0] != "constructor":
+        return None
+    _kind, owner, name = head
+    encoded = "_ZN" + "".join(str(len(part)) + part for part in owner.split("::"))
+    if symbol not in (encoded + "C1Ev", encoded + "C2Ev"):
+        return None
+    return name, "<constructor " + owner + ">", (), True, True, name
+
+
+def _native_constructor_abi(record):
+    """Direct Arm C1/C2 entries return this; native C++ writes no return type."""
+    if not (record.is_definition and record.is_member and record.is_function
+            and record.linkage == "C++" and record.params == ()):
+        return None
+    match = re.fullmatch(r"<constructor ([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)>", record.ret)
+    if not match:
+        return None
+    owner = match.group(1)
+    encoded = "_ZN" + "".join(str(len(part)) + part for part in owner.split("::"))
+    if record.symbol in (encoded + "C1Ev", encoded + "C2Ev"):
+        return owner, owner + " *"
+    return None
+
+
+def _parse_native_destructor(text, symbol):
+    """Native syntax only when its qualified owner exactly names a D0/D1/D2 entry.
+
+    Preserve existing handling for thunks, force-emission wrappers, templates,
+    namespace shorthand and ambiguous identities rather than guessing a mapping.
+    """
+    text = " ".join(text.split())
+    text = re.sub(r"\)\s*(?:throw\s*\([^)]*\)|noexcept)\s*$", ")", text)
+    dtor = re.fullmatch(r"(?P<owner>[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)"
+                        r"::\s*~(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\(\s*(?:void\s*)?\)", text)
+    if not dtor or dtor.group("owner").split("::")[-1] != dtor.group("name"):
+        return None
+    owner = dtor.group("owner")
+    encoded = "_ZN" + "".join(str(len(part)) + part for part in owner.split("::"))
+    if symbol not in tuple(encoded + variant + "Ev" for variant in ("D0", "D1", "D2")):
+        return None
+    # There is no written source return type. ABI comparison happens separately.
+    return "~" + dtor.group("name"), "<destructor " + owner + ">", (), True, True, dtor.group("name")
+
+
+def _native_destructor_abi(record):
+    """(owner, ABI result) only for an exactly mapped native destructor definition.
+
+    The source has no return type. Direct Arm D1/D2 ABI entries return this;
+    D0 has a void result. This does not infer constructors, thunks, or the
+    contracts of explicitly written flat functions, even with lifecycle names.
+    Arm cppabi32, GC++ABI 3.1.5 and the helper-function compatibility rules:
+    https://github.com/ARM-software/abi-aa/blob/main/cppabi32/cppabi32.rst
+    """
+    if not (record.is_definition and record.is_member and record.is_function
+            and record.linkage == "C++" and record.params == ()):
+        return None
+    match = re.fullmatch(r"<destructor ([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)>", record.ret)
+    if not match:
+        return None
+    owner = match.group(1)
+    encoded = "_ZN" + "".join(str(len(part)) + part for part in owner.split("::"))
+    for variant in ("D0", "D1", "D2"):
+        if record.symbol == encoded + variant + "Ev":
+            return owner, "void" if variant == "D0" else owner + " *"
+    return None
 
 
 def scan_targets(root=REPO):
@@ -1038,9 +1190,153 @@ def _raw_types(text, name):
     return {t for t in IDENT.findall(text) if t != name and t not in TYPE_KEYWORDS}
 
 
-def parse_file(rel, text, aliases):
-    """(declarations, definitions, unparsed_count) found in one file."""
+# --------------------------------------------------------- static member index
+
+# The verdicts `static_member_index` returns. A pair it has never seen is absent,
+# which is a fourth state and deliberately not one of these: "no class body in any
+# header declares this" is not the same claim as "the class bodies disagree".
+STATIC_MEMBER = "static"
+INSTANCE_MEMBER = "instance"
+AMBIGUOUS_MEMBER = "ambiguous"
+
+# The head in front of a class body's `{`: `struct dBase_c : fBase_c`,
+# `class Heap`, `struct SceneNode`. Anchored at the end so the name is the one the
+# brace opens, and `$`-anchored after an optional base-clause. A head ending in `)`
+# is a function, not a class, even when it spells one of these keywords in a
+# parameter list.
+CLASS_BODY_HEAD = re.compile(
+    r"\b(?:class|struct|union)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^;{]*)?$")
+# `public:` and friends carry no `;`, so without this they glue themselves to the
+# front of the next member and `_strip_specifiers` stops before the `static`.
+ACCESS_LABEL = re.compile(r"^\s*(?:public|private|protected)\s*:\s*")
+
+
+def class_body_statements(code):
+    """Yield (class_name, statement) for every statement a CLASS BODY declares.
+
+    SCOPE IS THE WHOLE POINT. `static` means three different things in C++ and only
+    one of them is a static member: at file scope it is internal linkage, inside a
+    function body it is a local with static storage, and inside a class body it is
+    "no `this`". So this walks braces with a stack and reports a statement only when
+    the INNERMOST open brace is a class/struct/union body -- a `static` in a member
+    function's body sits one scope deeper and is never yielded.
+
+    The class name is the innermost one: `struct A { struct B { ... }; };` reports
+    `B` for B's members, which is what an out-of-line `A::B::f` definition spells.
+    An anonymous body has no name to key on, so it pushes a scope that yields
+    nothing rather than lending its members to the class around it.
+
+    A member function DEFINED in the class body terminates with `}` and not `;`, so
+    its head is yielded when its brace opens and the body is then skipped as an
+    unnamed scope.
+    """
+    i = 0
+    n = len(code)
+    start = 0
+    paren = 0
+    stack = []
+    while i < n:
+        ch = code[i]
+        if ch in "([":
+            paren += 1
+        elif ch in ")]":
+            paren -= 1
+        elif paren <= 0 and ch == ";":
+            if stack and stack[-1]:
+                yield stack[-1], code[start:i]
+            start = i + 1
+        elif paren <= 0 and ch == "{":
+            head = " ".join(code[start:i].split())
+            m = CLASS_BODY_HEAD.search(head)
+            if m and not head.endswith(")"):
+                stack.append(m.group(1))
+            else:
+                if stack and stack[-1]:
+                    yield stack[-1], head
+                stack.append(None)
+            start = i + 1
+        elif paren <= 0 and ch == "}":
+            if stack:
+                stack.pop()
+            start = i + 1
+        i += 1
+
+
+def static_member_index(root=REPO, files=None):
+    """{(class, method): STATIC_MEMBER | INSTANCE_MEMBER | AMBIGUOUS_MEMBER}.
+
+    C++ forbids repeating `static` on an out-of-line definition, so `fBase_c
+    *dBase_c::Spawn(u32, fBase_c *, int, int)` is character-for-character what a
+    NON-static member's definition looks like. The keyword exists only in the class
+    body, and this is the pass that goes and reads it.
+
+    HEADERS ONLY, and that is a judgement rather than a shortcut. A header is the
+    interface the tree shares; a class body re-declared inside one `.c` shard is that
+    shard's private reconstruction, exactly as likely to be a guess as the flat
+    `extern` this tool is judging it against, and letting one shard's guess decide
+    would silence findings tree-wide. Measured on this tree the two populations do
+    not even agree: the 504 headers produce 3,141 pairs with ZERO self-disagreements,
+    while folding in the 8,662 sources adds three -- `Message::Update`,
+    `Stage::CheckInput` and `Stage::UpdateMessage`, each one a shard contradicting a
+    header or another shard.
+
+    AMBIGUITY CLAIMS NOTHING. Two classes can each declare a `Spawn`, one static and
+    one not, a class can be declared in more than one header, and an overload set can
+    hold both kinds under one name; this index is keyed on the NAME and cannot tell
+    those apart. When the pairs disagree the verdict is AMBIGUOUS_MEMBER and the
+    caller stops stating an arity for that definition at all -- neither reading is
+    privileged, and inventing a `this` for an honest declaration is the defect this
+    whole pass exists to remove.
+    """
+    index = {}
+    targets = files if files is not None else scan_targets(root)
+    for rel in targets:
+        if not rel.endswith(HEADER_SUFFIXES):
+            continue
+        path = pathlib.Path(root) / rel
+        if not path.exists():
+            continue
+        code, _marks = scrub(path.read_text(encoding="utf-8", errors="replace"))
+        for cls, stmt in class_body_statements(code):
+            body = " ".join(stmt.split())
+            while True:
+                shorter = ACCESS_LABEL.sub("", body)
+                if shorter == body:
+                    break
+                body = shorter
+            if not body or re.match(r"^(typedef|using|template|friend)\b", body):
+                continue
+            rest, _extern, saw_static, _override = _strip_specifiers(body)
+            if not rest:
+                continue
+            parsed = parse_declarator(rest, {}, True)
+            if parsed is None:
+                continue
+            name, _ret, _params, is_fn, member, _owner = parsed
+            # Data members are not asked about: an out-of-line static data member
+            # definition never gets a `this` in the first place.
+            if not is_fn or member:
+                continue
+            verdict = STATIC_MEMBER if saw_static else INSTANCE_MEMBER
+            previous = index.get((cls, name))
+            if previous is None:
+                index[(cls, name)] = verdict
+            elif previous != verdict:
+                index[(cls, name)] = AMBIGUOUS_MEMBER
+    return index
+
+
+def parse_file(rel, text, aliases, statics=None):
+    """(declarations, definitions, unparsed_count) found in one file.
+
+    `statics` is `static_member_index()`'s answer, consulted for every out-of-line
+    member DEFINITION so a static member is not billed an implicit `this` it does
+    not have. `None` means "no index was built", which is the pre-index behaviour:
+    every out-of-line member is read as an instance member.
+    """
     code, marks = scrub(text)
+    orphans = []
+    unbound_lifecycles = 0
     newlines = line_index(text)
     default_linkage = "C" if rel.endswith(".c") else "C++"
     # `int f()` means zero parameters in C++ and nothing at all in C. A `.h` is
@@ -1102,22 +1398,56 @@ def parse_file(rel, text, aliases):
             # carries one, and otherwise the flat identifier it declares. Only marks
             # between the PREVIOUS statement and this declarator count, so one
             # marked function in a file does not lend its name to the next.
-            parsed = parse_declarator(rest, aliases, cxx)
+            marked = [s for idx, s in marks if start <= idx < decl_start]
+            # A sole file marker can name an orphan only in the existing
+            # unambiguous adoption pass below. It can never rename another owner.
+            lifecycle_symbol = marked[-1] if marked else (marks[0][1] if len(marks) == 1 else None)
+            parsed = None
+            if cxx and linkage == "C++":
+                parsed = (_parse_native_destructor(rest, lifecycle_symbol)
+                          or _parse_native_constructor(rest, lifecycle_symbol))
+                if parsed is None and _native_lifecycle_head(rest):
+                    # The qualified owner and marked ABI entry disagree. Falling
+                    # through misreads Wrapper::~Wrapper() as returning Wrapper::,
+                    # then falsely assigns an element D1 marker to that body.
+                    # Preserve orphan ambiguity even though this body is rejected.
+                    if not marked:
+                        unbound_lifecycles += 1
+                    continue
+            if parsed is None:
+                parsed = parse_declarator(rest, aliases, cxx)
             if parsed is None:
                 continue
-            name, ret, params, is_fn, member = parsed
+            name, ret, params, is_fn, member, owner = parsed
             if not is_fn:
                 continue
+            # Does this out-of-line member have a `this`? The definition cannot say
+            # -- C++ forbids repeating `static` here -- so the class body is asked.
+            # An owner the index has never heard of keeps the old reading, which is
+            # the common case and the right one: nearly every member is an instance
+            # member, and this pass may only ever REMOVE a phantom, never add one.
+            this_unknown = False
+            if member and owner and statics:
+                verdict = statics.get((owner, name))
+                if verdict == STATIC_MEMBER:
+                    member = False
+                elif verdict == AMBIGUOUS_MEMBER:
+                    this_unknown = True
             marked = [s for idx, s in marks if start <= idx < decl_start]
             symbol = marked[-1] if marked else name
             if ("::" in rest or mangled_scope) and not marked:
                 # An out-of-line member, or a function inside `namespace N { ... }`,
                 # with no `@symbol` line: the linker name is mangled and not
-                # recoverable from the text, so claim nothing.
+                # recoverable from the text, so claim nothing -- unless the file
+                # carries a single `@symbol` line and this is its single such
+                # definition, in which case the mark names it. See the adoption
+                # pass at the end of this function.
+                orphans.append((symbol, rel, line, ret, params, linkage, member,
+                                _raw_types(rest, name) | file_types, this_unknown))
                 continue
             defs.append(Record(symbol, rel, line, ret, params, True,
                                "C" if linkage == "C" else linkage, True, member,
-                               _raw_types(rest, name) | file_types))
+                               _raw_types(rest, name) | file_types, this_unknown))
             continue
 
         if saw_static and not saw_extern:
@@ -1136,7 +1466,7 @@ def parse_file(rel, text, aliases):
                 if reaches_decls and not IDENT.fullmatch(piece.strip()):
                     unparsed += 1
                 continue
-            name, ret, params, is_fn, _member = parsed
+            name, ret, params, is_fn, _member, _owner = parsed
             if has_init and is_fn:
                 # A parenthesised head with an initialiser is a constructor call or a
                 # parse this tool should not guess at. Claim nothing.
@@ -1176,6 +1506,30 @@ def parse_file(rel, text, aliases):
                 continue
             decls.append(Record(name, rel, line, ret, params, is_fn, linkage,
                                 False, False, _raw_types(piece, name) | file_types))
+    # A delinked shard is one function in a file named for its mangled symbol, and
+    # it states that symbol on an `@symbol` line at the top. The loop above only
+    # honours a mark sitting between the previous statement and the declarator, so
+    # the moment such a file declares a helper above its definition -- which the
+    # converted ones routinely do -- the mark falls out of window and the definition
+    # is discarded as unnameable. That silently cost 1180 of this tree's real C++
+    # definitions their say: `_reference()` then has no definition to consult and
+    # falls back to a plurality vote among the very unconverted shards the
+    # conversion campaign exists to retire, so a converted `const Vector3 &` loses
+    # to twenty-odd reconstructed `Vector3 *` spellings that the ROM's own mangled
+    # name (`RK7Vector3`) refutes.
+    #
+    # Adopt the mark only when it is unambiguous: exactly one `@symbol` line in the
+    # file, exactly one definition that went unnamed, and no definition already
+    # claiming that symbol. A file with two marks or two orphans says nothing about
+    # which belongs to which, and still claims nothing.
+    if len(marks) == 1 and len(orphans) == 1 and not unbound_lifecycles:
+        symbol = marks[0][1]
+        if not any(d.symbol == symbol for d in defs):
+            (_, o_rel, o_line, o_ret, o_params, o_linkage, o_member, o_types,
+             o_unknown) = orphans[0]
+            defs.append(Record(symbol, o_rel, o_line, o_ret, o_params, True,
+                               "C" if o_linkage == "C" else o_linkage, True,
+                               o_member, o_types, o_unknown))
     return decls, defs, unparsed
 
 
@@ -1306,9 +1660,336 @@ def demangled_arity(symbol, root=REPO):
     return info.get("nargs")
 
 
+def _direct_destructor_marker(text):
+    """One ordinary, exactly encoded direct D1/D2 identity; no ABI guess yet."""
+    _code, marks = scrub(text)
+    if len(marks) != 1:
+        return None
+    symbol = marks[0][1]
+    if not symbol.startswith("_ZN") or not symbol.endswith(("D1Ev", "D2Ev")):
+        return None
+    encoded = symbol[3:-4]
+    parts = []
+    while encoded:
+        size = re.match(r"[1-9][0-9]*", encoded)
+        if size is None:
+            return None
+        length = int(size.group())
+        encoded = encoded[size.end():]
+        name, encoded = encoded[:length], encoded[length:]
+        if len(name) != length or IDENT.fullmatch(name) is None:
+            return None
+        parts.append(name)
+    return (symbol, "::".join(parts)) if parts else None
+
+
+def _inline_directive_text(line):
+    if re.match(r"\s*#", line):
+        return re.sub(r"/\*.*?\*/|//[^\n]*", "", line).strip()
+    return line.strip()
+
+
+def _inline_header_guard(code):
+    nonempty = [_inline_directive_text(line) for line in code.splitlines()
+                if _inline_directive_text(line)]
+    if len(nonempty) >= 3:
+        first = re.fullmatch(r"#\s*ifndef\s+([A-Za-z_][A-Za-z0-9_]*)", nonempty[0])
+        if (first and re.fullmatch(r"#\s*define\s+" + re.escape(first.group(1)), nonempty[1])
+                and re.fullmatch(r"#\s*endif", nonempty[-1])):
+            return first.group(1)
+    return None
+
+
+def _inline_cpp_view(text, header=False, keep_includes=False):
+    """Code, certainty mask, literal includes and macros for bounded inline lookup.
+
+    This is not a preprocessor. Only an ordinary whole-file header guard,
+    __cplusplus, and literal 0/1 conditions are known. This direct Arm ABI check
+    targets the ROM compiler, where _MSC_VER is absent and __cplusplus is set;
+    any attempted definition or undefinition of either selector anywhere in the
+    available include context poisons those assumptions. Unknown branches retain
+    their text but poison any class body they touch; known inactive branches are
+    blanked. Comments/strings keep the existing lexer's handling and offsets.
+    """
+    code, _marks = scrub(text, preserve_directives=True)
+    lines = code.splitlines(True)
+    # The main lexer keeps directive text intact for this pass. Directive-tail
+    # comments are syntax whitespace, including the usual #endif /* GUARD */.
+    guard = _inline_header_guard(code) if header else None
+    states, out, certain, includes, macros = [], [], [], [], set()
+    guard_opened = False
+    scope_depth, scope_known = 0, True
+    for line in lines:
+        directive = re.match(r"\s*#\s*([A-Za-z_][A-Za-z0-9_]*)\s*(.*?)\s*$", _inline_directive_text(line))
+        if directive:
+            kind, arg = directive.groups()
+            if kind in ("if", "ifdef", "ifndef"):
+                known = None
+                if arg == "__cplusplus" and kind in ("ifdef", "ifndef"):
+                    known = kind == "ifdef"
+                elif arg == "_MSC_VER" and kind in ("ifdef", "ifndef"):
+                    known = kind == "ifndef"
+                elif kind == "if" and arg in ("0", "1"):
+                    known = arg == "1"
+                elif kind == "if" and re.fullmatch(r"defined\s*(?:\(\s*__cplusplus\s*\)|__cplusplus)", arg):
+                    known = True
+                elif kind == "ifndef" and arg == guard and not states and not guard_opened:
+                    known = True
+                    guard_opened = True
+                states.append(known)
+            elif kind in ("else", "elif"):
+                if not states:
+                    return code, [False] * len(code), [], macros
+                states[-1] = (not states[-1] if kind == "else" and states[-1] is not None else None)
+            elif kind == "endif":
+                if not states:
+                    return code, [False] * len(code), [], macros
+                states.pop()
+            elif (kind == "include" and all(s is True for s in states)
+                  and (header or (scope_depth == 0 and scope_known))):
+                literal = re.fullmatch(r'"([^"\n]+)"', arg)
+                if literal:
+                    includes.append(literal.group(1))
+            elif kind in ("define", "undef"):
+                name = IDENT.match(arg)
+                if name:
+                    macros.add(name.group())
+            blank = "".join(c if c == "\n" else " " for c in line)
+            out.append(_inline_directive_text(line).ljust(len(line.rstrip('\n'))) + ('\n' if line.endswith('\n') else '')
+                       if keep_includes and kind == "include" and not any(s is False for s in states) else blank)
+            certain.extend([True] * len(line))
+        elif any(s is False for s in states):
+            out.append("".join(c if c == "\n" else " " for c in line))
+            certain.extend([True] * len(line))
+        else:
+            out.append(line)
+            certain.extend([all(s is True for s in states)] * len(line))
+            if any(s is None for s in states) and any(c in line for c in "{}"):
+                scope_known = False
+            scope_depth += line.count("{") - line.count("}")
+    if states:
+        certain = [False] * len(code)
+    return "".join(out), certain, includes, macros
+
+
+def _inline_destructor_classes(code, certain):
+    """Plain global/nested class bodies and their real inline destructor bodies.
+
+    Track qualified ownership, unlike the static-member name index. Namespace,
+    template, union, local-class and macro-generated heads deliberately have no
+    identity here. Declarations and pure/defaulted destructors are not bodies.
+    Duplicate or conditionally uncertain class bodies remain visible to the
+    caller, which refuses to choose between them.
+    """
+    classes, stack = {}, []
+    start = paren = 0
+    for i, ch in enumerate(code):
+        if ch in "([":
+            paren += 1
+        elif ch in ")]":
+            paren -= 1
+        elif paren <= 0 and ch == ";":
+            start = i + 1
+        elif paren <= 0 and ch == "{":
+            raw = code[start:i]
+            head = " ".join(raw.split())
+            while ACCESS_LABEL.match(head):
+                head = ACCESS_LABEL.sub("", head)
+            match = re.fullmatch(r"(?:typedef\s+)?(?:class|struct)\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s*:[^;{}()<>]+)?", head)
+            if match and (not stack or stack[-1] is not None):
+                name = match.group(1)
+                owner = stack[-1]["owner"] + "::" + name if stack else name
+                item = {"owner": owner, "name": name, "start": start + len(raw) - len(raw.lstrip()),
+                        "end": None, "bodies": [], "certain": False}
+                classes.setdefault(owner, []).append(item)
+                stack.append(item)
+            else:
+                if stack and stack[-1] is not None:
+                    item = stack[-1]
+                    rest, _extern, _static, _linkage = _strip_specifiers(head)
+                    if (not _extern and not _static and not _linkage
+                            and re.fullmatch(r"~" + re.escape(item["name"]) + r"\s*\(\s*(?:void\s*)?\)(?:\s*throw\s*\(\s*\))?", rest)):
+                        pos = start + len(raw) - len(raw.lstrip())
+                        item["bodies"].append(pos)
+                stack.append(None)
+            start = i + 1
+        elif paren <= 0 and ch == "}":
+            if stack:
+                item = stack.pop()
+                if item is not None:
+                    item["end"] = i + 1
+                    item["certain"] = all(certain[item["start"]:i + 1])
+            start = i + 1
+    return classes
+
+
+def _literal_header_paths(rel, includes, root):
+    """Compiler's ordinary quoted include search: source directory, then include/.
+
+    No transitive, angle-bracket or macro includes are inferred. Require a real
+    repository header and reject path escapes. A local header shadows include/.
+    """
+    found = []
+    root = pathlib.Path(root).resolve()
+    for name in includes:
+        for path in (root / pathlib.PurePosixPath(rel).parent / name, root / "include" / name):
+            path = path.resolve()
+            try:
+                candidate = path.relative_to(root).as_posix()
+            except ValueError:
+                continue
+            if path.is_file():
+                if candidate.endswith(HEADER_SUFFIXES):
+                    found.append(candidate)
+                break
+    return list(dict.fromkeys(found))
+
+
+def inline_destructor_definitions(root, targets, definitions):
+    """Recover an included inline body for a marked direct destructor carrier.
+
+    A marker requests lookup; it cannot supply a signature. Includes nested in
+    source braces or following conditionally uncertain braces supply no global
+    owner identity. The actual body must
+    have the exact qualified class owner in one directly included header, with no
+    duplicate/conditional identity. Existing out-of-line and flat definitions
+    remain authoritative. Report the header's real location, never the forcing
+    wrapper as the element's definition.
+    """
+    defined = {d.symbol for d in definitions}
+    cache, candidates = {}, {}
+    for rel in targets:
+        if not rel.endswith((".cc", ".cpp")) or not (root / rel).exists():
+            continue
+        text = (root / rel).read_text(encoding="utf-8", errors="replace")
+        marker = _direct_destructor_marker(text)
+        if marker is None or marker[0] in defined:
+            continue
+        symbol, owner = marker
+        _code, _certain, includes, source_macros = _inline_cpp_view(text)
+        context_macros = _inline_include_macros(root, rel, text)
+        if context_macros is None or set(owner.split("::")) & set(context_macros):
+            continue
+        possibilities = []
+        for header in _literal_header_paths(rel, includes, root):
+            if header not in cache:
+                content = (root / header).read_text(encoding="utf-8", errors="replace")
+                code, certain, _includes, macros = _inline_cpp_view(content, header=True)
+                guard = _inline_header_guard(scrub(content, preserve_directives=True)[0])
+                cache[header] = (content, _inline_destructor_classes(code, certain), macros, guard)
+            content, classes, macros, guard = cache[header]
+            for item in classes.get(owner, []):
+                valid = (item["certain"] and len(item["bodies"]) == 1
+                         and not set(owner.split("::")) & (source_macros | macros)
+                         and not (guard and context_macros.get(guard, set()) - {header}))
+                possibilities.append((header, item["bodies"][0] if valid else None, content))
+        if len(possibilities) != 1 or possibilities[0][1] is None:
+            continue
+        header, pos, content = possibilities[0]
+        candidates.setdefault(symbol, {})[(header, pos)] = (owner, content)
+    result = []
+    for symbol, bodies in candidates.items():
+        if len(bodies) != 1:
+            continue
+        (header, pos), (owner, content) = next(iter(bodies.items()))
+        result.append(Record(symbol, header, line_of(line_index(content), pos),
+                             "<destructor " + owner + ">", (), True, "C++", True,
+                             True, owner.split("::")))
+    return result
+
+
+def _inline_include_macros(root, rel, text):
+    """Possible owner renames from the carrier's whole available include context.
+
+    Header bodies are still recovered only through a direct include, but macros
+    can arrive transitively or through a different sibling include. Search every
+    possible branch conservatively. Unresolved/macro/angle includes make this
+    context unknown. The ROM compiler target excludes _MSC_VER branches; a
+    spelled definition/undefinition of either target selector invalidates that
+    assumption.
+    """
+    macros, visited, pending = {}, set(), [(rel, text)]
+    used_names = set()
+    while pending:
+        path, content = pending.pop()
+        if path in visited:
+            continue
+        visited.add(path)
+        # Logical-line splicing is outside this bounded preprocessor view. It can
+        # hide a selector or owner macro from a physical-line scan, so decline the
+        # entire context instead of claiming a body under an unproved expansion.
+        if re.search(r"\\\r?\n", content):
+            return None
+        code, _certain, _includes, local_macros = _inline_cpp_view(
+            content, header=path.endswith(HEADER_SUFFIXES), keep_includes=True)
+        # A textual include can carry an open namespace/class scope into its
+        # caller. Reject scope transfer and uncertain braces rather than pretend
+        # every separately read header starts in the global namespace.
+        visible, _marks = scrub(code)
+        depth = 0
+        for i, char in enumerate(visible):
+            if char in "{}":
+                if not _certain[i]:
+                    return None
+                depth += 1 if char == "{" else -1
+                if depth < 0:
+                    return None
+        if depth:
+            return None
+        used_names.update(IDENT.findall(visible))
+        if {'_MSC_VER', '__cplusplus'} & local_macros:
+            return None
+        for name in local_macros:
+            macros.setdefault(name, set()).add(path)
+        for directive in re.finditer(r"^\s*#\s*include\s+([^\n]*)", code, re.M):
+            arg = directive.group(1)
+            arg = arg.strip()
+            literal = re.fullmatch(r'"([^"\n]+)"', arg)
+            if literal:
+                headers = _literal_header_paths(path, [literal.group(1)], root)
+                if len(headers) != 1:
+                    return None
+                header = headers[0]
+                pending.append((header, (root / header).read_text(encoding="utf-8", errors="replace")))
+            else:
+                return None
+    # Object/function macros may manufacture scopes without spelling the owner
+    # or braces at their use site. Do not attempt expansion: any context macro
+    # used in non-directive code makes this bounded lookup uncertain.
+    return None if used_names & set(macros) else macros
+
+
+def _inline_changed_symbols(touched, base, root):
+    """Widen changed scans for carrier/include edits, without claiming a body.
+
+    A renamed carrier or changed include can remove its old reference. Both
+    carrier versions' marks therefore seed scope even when recovery now fails.
+    Header edits conservatively include all direct destructor carriers: include
+    shadowing/deletion must not hide an unchanged opaque-pointer caller.
+    """
+    carriers = set(p for p in touched if p.endswith((".cc", ".cpp")))
+    if any(p.endswith(HEADER_SUFFIXES) for p in touched):
+        carriers.update(p for p in scan_targets(root) if p.endswith((".cc", ".cpp")))
+    symbols = set()
+    for rel in carriers:
+        path = root / rel
+        versions = [path.read_text(encoding="utf-8", errors="replace")] if path.exists() else []
+        if rel in touched:
+            versions.append(blob_text(rel, base, root))
+        for text in versions:
+            marker = _direct_destructor_marker(text) if text is not None else None
+            if marker is not None:
+                symbols.add(marker[0])
+    return symbols
 def collect(root=REPO, files=None):
     aliases = scalar_typedefs(root)
     targets = list(files) if files is not None else scan_targets(root)
+    # EVERY header, never `targets`. `--changed` narrows what is compared, but a
+    # class body is not a declaration of anything this tool collects, so no scope
+    # rule would ever fold `include/dBase_c.h` in for a branch that only touched the
+    # file defining `dBase_c::Spawn` -- and the phantom `this` would come straight
+    # back in the narrowed run. It is 504 files and half a second.
+    statics = static_member_index(root)
     decls, defs = [], []
     unparsed = 0
     for rel in targets:
@@ -1316,10 +1997,11 @@ def collect(root=REPO, files=None):
         if not path.exists():
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        d, f, u = parse_file(rel, text, aliases)
+        d, f, u = parse_file(rel, text, aliases, statics)
         decls.extend(d)
         defs.extend(f)
         unparsed += u
+    defs.extend(inline_destructor_definitions(root, targets, defs))
     return targets, decls, defs, unparsed
 
 
@@ -1337,6 +2019,32 @@ def _reference(symbol, decls, defs):
     if len(best) == len(decls):
         return best[0], "unanimous"
     return best[0], "plurality"
+
+
+def _overload_reference(decl, definitions, unmangled, fallback):
+    """Select an existing native C++ overload without guessing its signature.
+
+    Plain native names are not linker identities when several overloads exist.
+    Return types do not select overloads. Keep the established comparison for
+    C linkage, explicit linker names, unknown signatures, and unmatched types;
+    none of those can be excused merely by another overload's existence.
+    """
+    if (not decl.is_function or decl.linkage != "C++" or decl.is_member
+            or decl.this_unknown
+            or decl.symbol.startswith("_Z") or decl.symbol in unmangled
+            or decl.params is UNSPECIFIED):
+        return fallback
+    native = [d for d in definitions
+              if d.is_function and d.linkage == "C++" and not d.is_member
+              and not d.this_unknown
+              and d.params is not UNSPECIFIED]
+    if len({tuple(d.params) for d in native}) < 2:
+        return fallback
+    matches = [d for d in native if tuple(d.params) == tuple(decl.params)]
+    # Conflicting definitions of the same overload are not a resolution.
+    if not matches or len({d.ret for d in matches}) != 1:
+        return fallback
+    return matches[0], "definition"
 
 
 def _declines_to_answer(a, b):
@@ -1380,18 +2088,26 @@ def disagreements(decls, defs, unmangled, root=REPO):
     out = []
     for symbol in sorted(by_symbol):
         group = by_symbol[symbol]
-        ref, basis = _reference(symbol, group, defs_by_symbol.get(symbol, []))
+        own = defs_by_symbol.get(symbol, [])
+        default_reference = _reference(symbol, group, own)
         want_arity = demangled_arity(symbol, root)
         for d in group:
+            ref, basis = _overload_reference(d, own, unmangled, default_reference)
             if d is not ref and d.is_function != ref.is_function:
                 out.append(_finding(symbol, "kind", d, ref, basis,
                                     "function" if d.is_function else "data",
                                     "function" if ref.is_function else "data"))
                 continue
             if d.is_function and ref.is_function and d is not ref:
-                if d.ret != ref.ret:
+                native = _native_destructor_abi(ref) or _native_constructor_abi(ref)
+                want_return = native[1] if native else ref.ret
+                # An opaque receiver-result pointer is an ABI view, not a claim
+                # that the native C++ destructor has a source-visible result.
+                opaque_result = (native and want_return.endswith(" *")
+                                 and d.ret == "void *")
+                if d.ret != want_return and not opaque_result:
                     out.append(_finding(symbol, "return", d, ref, basis,
-                                        d.ret, ref.ret))
+                                        d.ret, want_return))
                 mine, theirs = d.flat_params(), ref.flat_params()
                 # An unspecified list on either side claims nothing about arity, so
                 # there is nothing to contradict.
@@ -1666,6 +2382,7 @@ def changed_scope(base, root=REPO, head="HEAD"):
             continue
         _d, defs, _u = parse_file(rel, text, aliases)
         defined.update(d.symbol for d in defs)
+    defined.update(_inline_changed_symbols(touched, base, root))
     return touched, defined, total, None
 
 
@@ -1776,6 +2493,196 @@ def print_finding(f, indent="  "):
 
 
 # ------------------------------------------------------------------------- cli
+
+# ------------------------------------------------------- header redeclarations
+
+# A local declaration can carry this marker, on its own line or the line above, to
+# say why it cannot use the header's spelling (the Fix12 wall, a header that clashes
+# with a shadow type, ...). It ends the finding; the reason is for the reviewer.
+LOCAL_EXTERN_MARK = re.compile(r"local extern:\s*\S")
+HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+
+def added_lines(base, rels, root=REPO):
+    """{rel: set of line numbers} each file ADDS against `base`, renames followed."""
+    out = {}
+    for rel in rels:
+        proc = subprocess.run(["git", "diff", "-U0", "-M", "--no-color", base, "--",
+                               rel], cwd=str(root), capture_output=True, text=True)
+        lines = set()
+        for row in proc.stdout.splitlines():
+            m = HUNK.match(row)
+            if m:
+                start, count = int(m.group(1)), int(m.group(2) or 1)
+                lines.update(range(start, start + count))
+        if not lines and blob_text(rel, base, root) is None:
+            # Untracked: `git diff` says nothing about a file git has never seen,
+            # and every line of it is new.
+            text = (pathlib.Path(root) / rel).read_text(encoding="utf-8",
+                                                       errors="replace")
+            lines = set(range(1, len(text.splitlines()) + 1))
+        out[rel] = lines
+    return out
+
+
+def _generated_catch_all(rel):
+    """The decl_*.h headers: AUTO-GENERATED extern catch-alls, not a class's interface.
+
+    A local copy of one of their declarations is not drift from a header, it is the
+    tree's convention: notes/tu-promotion-conventions.md section 2 puts `_ZTV<C>` in
+    the promoted TU source even though decl_common.h declares it, and warns that
+    including decl_common.h costs a TU its typing freedom."""
+    return pathlib.PurePosixPath(rel).name.startswith("decl_")
+
+
+def header_declarations(decls, root=REPO):
+    """({symbol: headers declaring it at file scope}, {(class, method, nargs): headers}).
+
+    The second map is read out of class bodies, which `collect()` does not record:
+    `static System *FromUniqueID(u32);` inside Particle__System.h is how a header
+    declares `_ZN8Particle6System12FromUniqueIDEj`. Arity is part of the key so an
+    overload with a different argument count does not answer for this one."""
+    flat = {}
+    for d in decls:
+        if d.file.startswith("include/") and not _generated_catch_all(d.file):
+            flat.setdefault(d.symbol, set()).add(d.file)
+    members = {}
+    for rel in scan_targets(root):
+        if not rel.startswith("include/") or not rel.endswith(HEADER_SUFFIXES):
+            continue
+        if _generated_catch_all(rel):
+            continue
+        code, _marks = scrub((pathlib.Path(root) / rel).read_text(
+            encoding="utf-8", errors="replace"))
+        for cls, stmt in class_body_statements(code):
+            body = " ".join(stmt.split())
+            while True:
+                shorter = ACCESS_LABEL.sub("", body)
+                if shorter == body:
+                    break
+                body = shorter
+            if not body or re.match(r"^(typedef|using|template|friend)\b", body):
+                continue
+            rest, _extern, _static, _override = _strip_specifiers(body)
+            parsed = parse_declarator(rest, {}, True) if rest else None
+            if parsed is None:
+                continue
+            name, _ret, params, is_fn, member, _owner = parsed
+            if not is_fn or member or params is UNSPECIFIED:
+                continue
+            members.setdefault((cls, name, len(params)), set()).add(rel)
+    return flat, members
+
+
+def c_includable_headers(root=REPO):
+    """Headers some C (not //cpp) source in src/ already includes: proven C-safe."""
+    ok = set()
+    for rel in scan_targets(root):
+        if not rel.startswith("src/"):
+            continue
+        text = (pathlib.Path(root) / rel).read_text(encoding="utf-8", errors="replace")
+        if text.startswith("//cpp"):
+            continue
+        for m in re.finditer(r'^\s*#\s*include\s+"([^"]+)"', text, re.M):
+            ok.add("include/" + m.group(1))
+    return ok
+
+
+def _local_count(symbol, decls):
+    return sum(1 for d in decls if d.symbol == symbol and d.file.startswith("src/"))
+
+
+def _base_local_count(symbol, base, root=REPO):
+    proc = subprocess.run(["git", "grep", "-l", "-F", symbol, base, "--", "src"],
+                          cwd=str(root), capture_output=True, text=True)
+    aliases = scalar_typedefs(root)
+    n = 0
+    for row in proc.stdout.splitlines():
+        rel = row.split(":", 1)[1] if ":" in row else row
+        text = blob_text(rel, base, root)
+        if text is None:
+            continue
+        d, _f, _u = parse_file(rel, text, aliases)
+        n += sum(1 for r in d if r.symbol == symbol)
+    return n
+
+
+def _demangled(symbol, root=REPO):
+    try:
+        sys.path.insert(0, str(pathlib.Path(root) / "tools"))
+        import demangle as _demangle
+        return _demangle.demangle(symbol) or {}
+    except Exception:
+        return {}
+
+
+def _demangled_member(symbol, root=REPO):
+    """(class, method, nargs) the Itanium name states, or None."""
+    info = _demangled(symbol, root)
+    key = (info.get("class"), info.get("method"), info.get("nargs"))
+    return key if all(k is not None for k in key) else None
+
+
+def _takes_fix12_by_value(symbol, root=REPO):
+    """The Fix12 wall (notes/mwccarm-codegen.md 6az): passing Fix12<int> by value
+    costs the CALLER bytes, so a call site cannot use the header's spelling and
+    keeps a local declaration with a scalar parameter. Not drift; exempt."""
+    return symbol.startswith("_Z") and "Fix12<int>" in (
+        _demangled(symbol, root).get("args") or [])
+
+
+def new_header_redeclarations(base, touched, decls, root=REPO):
+    """Local declarations this branch ADDS for symbols a header already declares.
+
+    The tree carries thousands of these already (a file writes its own `extern`
+    instead of including the header), and they drift: #3091 found local externs of
+    Particle::System::FromUniqueID in several spellings while Particle__System.h
+    declared it correctly all along. This is a ratchet: a finding needs a declaration
+    on a line the branch adds AND a rise in that symbol's count of src/
+    redeclarations, so a promotion that only MOVES externs is clean."""
+    root = pathlib.Path(root)
+    srcs = [r for r in touched if r.startswith("src/") and (root / r).exists()]
+    if not srcs:
+        return []
+    added = added_lines(base, srcs, root)
+    flat, members = header_declarations(decls, root)
+    c_ok = None
+    texts = {}
+    candidates = []
+    for d in decls:
+        if d.file not in added or d.line not in added[d.file]:
+            continue
+        if d.file not in texts:
+            texts[d.file] = (root / d.file).read_text(
+                encoding="utf-8", errors="replace").splitlines()
+        text_lines = texts[d.file]
+        cxx = bool(text_lines) and text_lines[0].startswith("//cpp")
+        around = " ".join(text_lines[max(d.line - 2, 0):d.line])
+        if LOCAL_EXTERN_MARK.search(around) or _takes_fix12_by_value(d.symbol, root):
+            continue
+        headers = set(flat.get(d.symbol, ()))
+        if not cxx and headers:
+            if c_ok is None:
+                c_ok = c_includable_headers(root)
+            headers &= c_ok
+        if cxx and d.symbol.startswith("_Z"):
+            key = _demangled_member(d.symbol, root)
+            if key is not None:
+                headers |= members.get(key, set())
+        if headers:
+            candidates.append((d, sorted(headers)))
+    out = []
+    counts = {}
+    for d, headers in candidates:
+        if d.symbol not in counts:
+            counts[d.symbol] = (_base_local_count(d.symbol, base, root),
+                                _local_count(d.symbol, decls))
+        was, now = counts[d.symbol]
+        if now > was:
+            out.append({"symbol": d.symbol, "file": d.file, "line": d.line,
+                        "headers": headers, "was": was, "now": now})
+    return out
+
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -1907,6 +2814,24 @@ def main(argv=None):
         for f in sorted(findings, key=lambda x: (x["symbol"], x["file"], x["line"])):
             print_finding(f)
 
+    redeclared = []
+    if touched is not None:
+        redeclared = new_header_redeclarations(args.changed, touched, decls, REPO)
+        if redeclared:
+            print("\nFAIL: %d new local declaration(s) of a symbol a header already "
+                  "declares:\n" % len(redeclared))
+            for r in redeclared:
+                print("  %s:%d  %s" % (r["file"], r["line"], r["symbol"]))
+                print("      declared in %s; src/ redeclarations %d -> %d"
+                      % (", ".join(r["headers"]), r["was"], r["now"]))
+            print("\nInclude the header and use its spelling instead of a local copy:")
+            print("local copies drift from the header and from each other. REBUILD after")
+            print("the edit. If the header's spelling cannot be used (the Fix12 wall, a")
+            print("header that clashes with a shadow type), keep the local declaration")
+            print("and put `local extern: <reason>` in a comment on it or the line above.")
+        else:
+            print("  no new local redeclarations of header-declared symbols")
+
     known = load_baseline(BASELINE)
     new = [f for f in findings if key_of(f) not in known]
     if touched is None:
@@ -1917,7 +2842,7 @@ def main(argv=None):
 
     if not new:
         print("  no new declaration disagreements")
-        return 0
+        return 1 if redeclared else 0
 
     print("\nFAIL: %d declaration(s) contradict the symbol's definition:\n" % len(new))
     for f in sorted(new, key=lambda x: (x["symbol"], x["file"], x["line"])):

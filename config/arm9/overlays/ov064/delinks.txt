@@ -6,87 +6,19 @@
     .bss        start:0x0211c660 end:0x0211ca00 kind:bss align:32
 src/actors/daOts_c.cpp:
     complete
-    .text start:0x02115ee0 end:0x02116d1c
+    .text start:0x02115ee0 end:0x02117070
 
-src/func_ov064_02116d1c.cpp:
+src/actors/daDonketu_c.cpp:
     complete
-    .text start:0x02116d1c end:0x02116ec0
-
-src/func_ov064_02116ec0.cpp:
-    complete
-    .text start:0x02116ec0 end:0x02117070
-
-src/_ZN5BullyD1Ev.cpp:
-    complete
-    .text start:0x02117070 end:0x021170c4
-
-src/_ZN5BullyD0Ev.cpp:
-    complete
-    .text start:0x021170c4 end:0x0211712c
-
-src/_ZN5Bully14PlayDeathSoundEv.cpp:
-    complete
-    .text start:0x0211712c end:0x02117140
-
-src/_ZN5Bully17PlayShellHitSoundEv.cpp:
-    complete
-    .text start:0x02117140 end:0x02117154
-
-src/_ZN5Bully12PlayHitSoundEv.cpp:
-    complete
-    .text start:0x02117154 end:0x02117168
-
-src/_ZN5Bully13PlayStepSoundEv.cpp:
-    complete
-    .text start:0x02117168 end:0x021171b0
-
-src/_ZN5Bully14UpdateRunStateEv.cpp:
-    complete
-    .text start:0x021171b0 end:0x02117220
-
-src/_ZN5Bully16UpdateDeathStateEv.cpp:
-    complete
-    .text start:0x02117220 end:0x02117310
-
-src/_ZN5Bully8BehaviorEv.cpp:
-    complete
-    .text start:0x02117310 end:0x02117424
-
-src/_ZN5Bully13InitResourcesEv.cpp:
-    complete
-    .text start:0x02117424 end:0x02117444
+    .text start:0x02117070 end:0x02117444
 
 src/d_a_donketu.c:
     complete
     .text start:0x02117444 end:0x021174a0
 
-src/_ZN8BigBullyD1Ev.cpp:
+src/actors/daBDonketu_c.cpp:
     complete
-    .text start:0x021174a0 end:0x021174f4
-
-src/_ZN8BigBullyD0Ev.cpp:
-    complete
-    .text start:0x021174f4 end:0x0211755c
-
-src/_ZN8BigBully14UpdateRunStateEv.cpp:
-    complete
-    .text start:0x0211755c end:0x021175cc
-
-src/_ZN8BigBully16UpdateDeathStateEv.cpp:
-    complete
-    .text start:0x021175cc end:0x0211764c
-
-src/_ZN8BigBully6RenderEv.cpp:
-    complete
-    .text start:0x0211764c end:0x02117684
-
-src/_ZN8BigBully8BehaviorEv.cpp:
-    complete
-    .text start:0x02117684 end:0x02117784
-
-src/_ZN8BigBully13InitResourcesEv.cpp:
-    complete
-    .text start:0x02117784 end:0x0211791c
+    .text start:0x021174a0 end:0x0211791c
 
 src/d_a_b_donketu.c:
     complete
@@ -152,89 +84,17 @@ src/game/actors/d_a_obj_fl_gura.cpp:
     complete
     .text start:0x02118020 end:0x02118138
 
-src/_ZN15RotatingFirebarD1Ev.cpp:
+src/actors/daObjFl_KomaU_c.cpp:
     complete
-    .text start:0x02118138 end:0x02118194
-
-src/_ZN15RotatingFirebarD0Ev.cpp:
-    complete
-    .text start:0x02118194 end:0x02118204
-
-src/_ZN15RotatingFirebar16CleanupResourcesEv.cpp:
-    complete
-    .text start:0x02118204 end:0x0211824c
-
-src/_ZN15RotatingFirebar6RenderEv.cpp:
-    complete
-    .text start:0x0211824c end:0x02118274
-
-src/_ZN15RotatingFirebar8BehaviorEv.cpp:
-    complete
-    .text start:0x02118274 end:0x02118480
-
-src/_ZN15RotatingFirebar13InitResourcesEv.cpp:
-    complete
-    .text start:0x02118480 end:0x02118564
+    .text start:0x02118138 end:0x02118564
 
 src/d_a_obj_fl_koma_u.cpp:
     complete
     .text start:0x02118564 end:0x021185c0
 
-src/_ZN10LavaBubbleD1Ev.cpp:
+src/actors/daBbl_c.cpp:
     complete
-    .text start:0x021185c0 end:0x021185f8
-
-src/_ZN10LavaBubbleD0Ev.cpp:
-    complete
-    .text start:0x021185f8 end:0x02118644
-
-src/func_ov064_02118644.c:
-    complete
-    .text start:0x02118644 end:0x0211873c
-
-src/func_ov064_0211873c.c:
-    complete
-    .text start:0x0211873c end:0x02118760
-
-src/func_ov064_02118760.c:
-    complete
-    .text start:0x02118760 end:0x021187d0
-
-src/func_ov064_021187d0.c:
-    complete
-    .text start:0x021187d0 end:0x021187ec
-
-src/func_ov064_021187ec.cpp:
-    complete
-    .text start:0x021187ec end:0x0211883c
-
-src/_ZN10LavaBubble16CleanupResourcesEv.cpp:
-    complete
-    .text start:0x0211883c end:0x02118844
-
-src/_ZN10LavaBubble16OnPendingDestroyEv.cpp:
-    complete
-    .text start:0x02118844 end:0x02118848
-
-src/_ZN10LavaBubble6RenderEv.cpp:
-    complete
-    .text start:0x02118848 end:0x02118850
-
-src/_ZN10LavaBubble8BehaviorEv.cpp:
-    complete
-    .text start:0x02118850 end:0x021189d8
-
-src/_ZN10LavaBubble13InitResourcesEv.cpp:
-    complete
-    .text start:0x021189d8 end:0x02118b08
-
-src/_ZN10LavaBubble13OnYoshiTryEatEv.cpp:
-    complete
-    .text start:0x02118b08 end:0x02118b10
-
-src/d_a_bbl.c:
-    complete
-    .text start:0x02118b10 end:0x02118b50
+    .text start:0x021185c0 end:0x02118b50
 
 src/_ZN17BowserPuzzlePieceD1Ev.cpp:
     complete
@@ -336,59 +196,19 @@ src/d_a_obj_fl_puzzle.c:
     complete
     .text start:0x02119300 end:0x02119330
 
-src/_ZN9JetStreamD1Ev.cpp:
+src/actors/daWater_Hakidasi_c.cpp:
     complete
-    .text start:0x02119330 end:0x02119368
-
-src/_ZN9JetStreamD0Ev.cpp:
-    complete
-    .text start:0x02119368 end:0x021193b4
-
-src/func_ov064_021193b4.c:
-    complete
-    .text start:0x021193b4 end:0x021197fc
-
-src/func_ov064_021197fc.cpp:
-    complete
-    .text start:0x021197fc end:0x0211982c
-
-src/func_ov064_0211982c.cpp:
-    complete
-    .text start:0x0211982c end:0x0211987c
-
-src/func_ov064_0211987c.c:
-    complete
-    .text start:0x0211987c end:0x02119880
-
-src/_ZN9JetStream16CleanupResourcesEv.cpp:
-    complete
-    .text start:0x02119880 end:0x021198b0
-
-src/_ZN9JetStream16OnPendingDestroyEv.cpp:
-    complete
-    .text start:0x021198b0 end:0x021198b4
-
-src/_ZN9JetStream6RenderEv.cpp:
-    complete
-    .text start:0x021198b4 end:0x021198bc
-
-src/_ZN9JetStream8BehaviorEv.cpp:
-    complete
-    .text start:0x021198bc end:0x0211992c
-
-src/_ZN9JetStream13InitResourcesEv.cpp:
-    complete
-    .text start:0x0211992c end:0x02119a18
+    .text start:0x02119330 end:0x02119a18
 
 src/d_a_water_hakidasi.c:
     complete
     .text start:0x02119a18 end:0x02119a58
 
-src/_ZN9WaterRingD1Ev.cpp:
+src/_ZN14daWater_Ring_cD1Ev.cpp:
     complete
     .text start:0x02119a58 end:0x02119aa0
 
-src/_ZN9WaterRingD0Ev.cpp:
+src/_ZN14daWater_Ring_cD0Ev.cpp:
     complete
     .text start:0x02119aa0 end:0x02119afc
 
@@ -420,23 +240,23 @@ src/func_ov064_02119f1c.cpp:
     complete
     .text start:0x02119f1c end:0x02119fa0
 
-src/_ZN9WaterRing16CleanupResourcesEv.cpp:
+src/_ZN14daWater_Ring_c16CleanupResourcesEv.cpp:
     complete
     .text start:0x02119fa0 end:0x02119fc4
 
-src/_ZN9WaterRing16OnPendingDestroyEv.cpp:
+src/_ZN14daWater_Ring_c16OnPendingDestroyEv.cpp:
     complete
     .text start:0x02119fc4 end:0x02119fc8
 
-src/_ZN9WaterRing6RenderEv.cpp:
+src/_ZN14daWater_Ring_c6RenderEv.cpp:
     complete
     .text start:0x02119fc8 end:0x02119ffc
 
-src/_ZN9WaterRing8BehaviorEv.cpp:
+src/_ZN14daWater_Ring_c8BehaviorEv.cpp:
     complete
     .text start:0x02119ffc end:0x0211a090
 
-src/_ZN9WaterRing13InitResourcesEv.cpp:
+src/_ZN14daWater_Ring_c13InitResourcesEv.cpp:
     complete
     .text start:0x0211a090 end:0x0211a1b0
 
@@ -444,101 +264,13 @@ src/d_a_water_ring.c:
     complete
     .text start:0x0211a1b0 end:0x0211a200
 
-src/_ZN13TreasureChestD1Ev.cpp:
+src/actors/daObjTbox_c.cpp:
     complete
-    .text start:0x0211a200 end:0x0211a238
+    .text start:0x0211a200 end:0x0211a930
 
-src/_ZN13TreasureChestD0Ev.cpp:
+src/actors/daObjShell_c.cpp:
     complete
-    .text start:0x0211a238 end:0x0211a284
-
-src/_ZN13TreasureChest20UpdateModelTransformEv.cpp:
-    complete
-    .text start:0x0211a284 end:0x0211a2c4
-
-src/_ZN13TreasureChest6State2Ev.cpp:
-    complete
-    .text start:0x0211a2c4 end:0x0211a380
-
-src/_ZN13TreasureChest10InitState2Ev.cpp:
-    complete
-    .text start:0x0211a380 end:0x0211a39c
-
-src/_ZN13TreasureChest6State1Ev.cpp:
-    complete
-    .text start:0x0211a39c end:0x0211a49c
-
-src/_ZN13TreasureChest10InitState1Ev.cpp:
-    complete
-    .text start:0x0211a49c end:0x0211a4c4
-
-src/_ZN13TreasureChest6State0Ev.cpp:
-    complete
-    .text start:0x0211a4c4 end:0x0211a6e0
-
-src/_ZN13TreasureChest10InitState0Ev.cpp:
-    complete
-    .text start:0x0211a6e0 end:0x0211a6ec
-
-src/_ZN13TreasureChest8SetStateEi.cpp:
-    complete
-    .text start:0x0211a6ec end:0x0211a734
-
-src/_ZN13TreasureChest17CallStateBehaviorEv.cpp:
-    complete
-    .text start:0x0211a734 end:0x0211a77c
-
-src/_ZN13TreasureChest16CleanupResourcesEv.cpp:
-    complete
-    .text start:0x0211a77c end:0x0211a7c4
-
-src/_ZN13TreasureChest6RenderEv.cpp:
-    complete
-    .text start:0x0211a7c4 end:0x0211a7ec
-
-src/_ZN13TreasureChest8BehaviorEv.cpp:
-    complete
-    .text start:0x0211a7ec end:0x0211a814
-
-src/_ZN13TreasureChest13InitResourcesEv.cpp:
-    complete
-    .text start:0x0211a814 end:0x0211a8f0
-
-src/d_a_obj_tbox.c:
-    complete
-    .text start:0x0211a8f0 end:0x0211a930
-
-src/_ZN4ClamD1Ev.cpp:
-    complete
-    .text start:0x0211a930 end:0x0211a968
-
-src/_ZN4ClamD0Ev.cpp:
-    complete
-    .text start:0x0211a968 end:0x0211a9b4
-
-src/func_ov064_0211a9b4.c:
-    complete
-    .text start:0x0211a9b4 end:0x0211a9f4
-
-src/_ZN4Clam16CleanupResourcesEv.cpp:
-    complete
-    .text start:0x0211a9f4 end:0x0211aa30
-
-src/_ZN4Clam6RenderEv.cpp:
-    complete
-    .text start:0x0211aa30 end:0x0211aa58
-
-src/_ZN4Clam8BehaviorEv.cpp:
-    complete
-    .text start:0x0211aa58 end:0x0211acc4
-
-src/_ZN4Clam13InitResourcesEv.cpp:
-    complete
-    .text start:0x0211acc4 end:0x0211ad70
-
-src/d_a_obj_shell.cpp:
-    complete
-    .text start:0x0211ad70 end:0x0211adb0
+    .text start:0x0211a930 end:0x0211adb0
 
 src/__sinit_ov064_0211ae00.c:
     complete

@@ -40,53 +40,17 @@ src/d_a_obj_wl_polelift.cpp:
     complete
     .text start:0x02111678 end:0x021116c8
 
-src/_ZN13BowserShutterD1Ev.cpp:
+src/actors/daObjWlKoopaShutter_c.cpp:
     complete
-    .text start:0x021116c8 end:0x0211170c
-
-src/_ZN13BowserShutterD0Ev.cpp:
-    complete
-    .text start:0x0211170c end:0x02111764
-
-src/_ZN13BowserShutter16CleanupResourcesEv.cpp:
-    complete
-    .text start:0x02111764 end:0x021117a8
-
-src/_ZN13BowserShutter6RenderEv.cpp:
-    complete
-    .text start:0x021117a8 end:0x021117d0
-
-src/_ZN13BowserShutter8BehaviorEv.cpp:
-    complete
-    .text start:0x021117d0 end:0x021117d8
-
-src/_ZN13BowserShutter13InitResourcesEv.cpp:
-    complete
-    .text start:0x021117d8 end:0x02111888
+    .text start:0x021116c8 end:0x02111888
 
 src/d_a_obj_wl_koopa_shutter.c:
     complete
     .text start:0x02111888 end:0x021118b8
 
-src/_ZN9SubmarineD1Ev.cpp:
+src/actors/daObjWlSubmarine_c.cpp:
     complete
-    .text start:0x021118b8 end:0x021118fc
-
-src/_ZN9SubmarineD0Ev.cpp:
-    complete
-    .text start:0x021118fc end:0x02111954
-
-src/_ZN9Submarine16CleanupResourcesEv.cpp:
-    complete
-    .text start:0x02111954 end:0x02111998
-
-src/_ZN9Submarine6RenderEv.cpp:
-    complete
-    .text start:0x02111998 end:0x021119c0
-
-src/_ZN9Submarine13InitResourcesEv.cpp:
-    complete
-    .text start:0x021119c0 end:0x02111a70
+    .text start:0x021118b8 end:0x02111a70
 
 src/d_a_obj_wl_submarine.c:
     complete
@@ -148,11 +112,11 @@ src/d_a_water_tatumaki.c:
     complete
     .text start:0x021121bc end:0x021121fc
 
-src/_ZN12WaterSuctionD1Ev.cpp:
+src/_ZN17daWater_Suikomi_cD1Ev.cpp:
     complete
     .text start:0x021121fc end:0x02112234
 
-src/_ZN12WaterSuctionD0Ev.cpp:
+src/_ZN17daWater_Suikomi_cD0Ev.cpp:
     complete
     .text start:0x02112234 end:0x02112280
 
@@ -176,25 +140,9 @@ src/func_ov026_02112324.c:
     complete
     .text start:0x02112324 end:0x02112328
 
-src/_ZN12WaterSuction16CleanupResourcesEv.cpp:
+src/actors/daWater_Suikomi_c.cpp:
     complete
-    .text start:0x02112328 end:0x02112330
-
-src/_ZN12WaterSuction16OnPendingDestroyEv.cpp:
-    complete
-    .text start:0x02112330 end:0x02112334
-
-src/_ZN12WaterSuction6RenderEv.cpp:
-    complete
-    .text start:0x02112334 end:0x0211233c
-
-src/_ZN12WaterSuction8BehaviorEv.cpp:
-    complete
-    .text start:0x0211233c end:0x021123c8
-
-src/_ZN12WaterSuction13InitResourcesEv.cpp:
-    complete
-    .text start:0x021123c8 end:0x02112450
+    .text start:0x02112328 end:0x02112450
 
 src/d_a_water_suikomi.c:
     complete

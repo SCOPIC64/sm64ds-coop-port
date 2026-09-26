@@ -1,6 +1,6 @@
 //cpp
 /* daOts_c -- shared base of the three Bully variants (BULLY 215 / BIG_BULLY 216
- * / CHILL_BULLY 217 (debug ICE_DONKETU)), ov064 0x02115ee0..0x02116d1c.
+ * / CHILL_BULLY 217 (debug ICE_DONKETU)), ov064 0x02115ee0..0x02117070.
  *
  * ov064 is mixed (treasure chest, metal net lift, LLL tilting platform, Bowser
  * puzzle, rotating firebar, lava bubble, bully, water ring, jet stream, clam).
@@ -8,12 +8,14 @@
  * BULLY 215 / BIG_BULLY 216 / CHILL_BULLY 217 (debug ICE_DONKETU). Ugly RTTI
  * name is final.
  *
- * One translation unit, twenty-two functions, the way the cartridge's own build
- * had it. This replaces twenty-two one-function shards; their content is
+ * One translation unit, twenty-four functions, the way the cartridge's own build
+ * had it. This replaces twenty-four one-function shards; their content is
  * unchanged except where several of them carried stand-in `ModelAnim` and
  * `dActor_c` structs that cannot coexist with include/daOts_c.h in a single TU,
  * and where four different spellings of the same two ROM symbols had to be
- * collapsed into one (see the extern block below).
+ * collapsed into one (see the extern block below). InitResourcesCommon and
+ * BehaviorCommon sat immediately after Render as leftover shards; they belong
+ * here (this-pointer layout plus named daOts callees), not with daDonketu_c.
  *
  * THIS TU OWNS THE CLASS VTABLE. CleanupResources (vtable slot 3) is the first
  * virtual daOts_c declares out of line -- the destructor is inline in the class
@@ -52,10 +54,18 @@
  * - ApproachLinear stays mangled (Rsss / Riii); no header method form here.
  * - func_0201267c: PlayStepSound / PlayHitSound / PlayDeathSound at mCamSpacePosX.
  * - SharedFilePtr +4: SetAnim BCA loads; SharedFilePtr.h has no fields.
- * - 0x398..0x3f9 stay children's padding (annexing would shrink Bully /
- *   BigBully / daIDonketu_c pads; out of this TU). Helpers reach them as
+ * - 0x398..0x3f9 stay children's padding (annexing would shrink daDonketu_c /
+ *   daBDonketu_c / daIDonketu_c pads; out of this TU). Helpers reach them as
  *   offset soup.
- * - func_ov064_* helpers keep cartridge addresses (no identifiers).
+ * - func_ov064_* helpers still in this TU keep cartridge addresses (no
+ *   identifiers). InitResourcesCommon / BehaviorCommon are the two that
+ *   were leftover shards; names describe the children's slot-0 / slot-6
+ *   wrappers.
+ * - InitResourcesCommon 6az: dCcAc_c::Init / dBgCh_Actr::Init / SetAnim
+ *   keep mangled forms (Fix12<int> by value). SharedFilePtr +4 for the BCA.
+ * - BehaviorCommon: 0x398..0x3a4 stay children's padding; Animation::Advance
+ *   stays this+0x160 (named mModelAnim.Advance this-adjusts in two adds).
+ *   mStateTimer increment stays unsigned short (ldrh).
  * - daOts_c.h first: nested Matrix4x3 for mModelAnim.mat4x3.t (02116bac).
  *   common.h's flat m[12] would stand down if it came first.
  * - Vec3_Sub / HorzLen / atan2 take int*; 02115f98 keeps the int-array pos copy.
@@ -75,6 +85,7 @@
 #include "common.h"
 #include "dBgCh_Gnd.h"
 #include "SharedFilePtr.h"
+#include "Player.h"
 
 /* Local stand-ins with no header of their own. */
 
@@ -84,10 +95,12 @@
  * read the rest. */
 struct BullyResourceConfig {
     SharedFilePtr *files[5];    /* +0x00 */
-    s32 knockbackScale;         /* +0x14 */
-    u8 pad_18[0xc];
-    Fix12i eggAimHeight;        /* +0x24 */
-    s32 unk_28;
+    s32 knockbackScale;         /* +0x14 -- also dCcAc_c radius */
+    s32 cylinderHeight;         /* +0x18 -- dCcAc_c height (InitResourcesCommon) */
+    s32 horzDecel;              /* +0x1c -- copied to +0x3e8, ApproachLinear rate */
+    s32 modelYOffset;           /* +0x20 -- copied to +0x3ec */
+    Fix12i eggAimHeight;        /* +0x24 -- also dBgCh_Actr radius */
+    s32 shadowHeight;           /* +0x28 -- copied to +0x3f0 */
     s32 cliffDown;              /* +0x2c */
     u32 particleId;             /* +0x30 */
 };
@@ -130,23 +143,187 @@ int _Z14ApproachLinearRiii(int *dst, int target, int rate);
 
 int _ZN8dActor_c22IsTooFarAwayFromPlayerE5Fix12IiE(void* self, int fix12);
 int _ZN8dActor_c15IsPlayerInRangeE5Fix12IiES1_S1_i(void*,int,int,int,int);
-int _ZN8dActor_c16JumpedOnByPlayerER5dCc_cR6Player(void* c, void* clsn, void* player);
 void _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(void* a, void* sm, void* mtx, int rad, int h, unsigned int x);
-int _ZN12dEnemyBase_c20KillByInvincibleCharERK10Vector3_16R6Player5Fix12IiE(void* c, void* v, void* r4, s32 flag);
-int _ZN6Player9IsOnShellEv(void* p);
+int _ZN12dEnemyBase_c20KillByInvincibleCharERK10Vector3_16R6Player5Fix12IiE(void* c, void* v, void* player, s32 flag);
 int _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(void* p, const Vector3* v, u32 a, s32 f, u32 b, u32 c, u32 d);
+void _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj(void *self, dActor_c *a, int r, int h, unsigned int d, unsigned int e);
+void _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(void *self, int a, int b, int c, int d, int e);
 
 void func_ov064_02115f98(daOts_c* a0, char* a1);
 void func_ov064_02116220(daOts_c* c);
+void func_ov064_021163c0(char *c);
+void func_ov064_02116460(daOts_c *self);
+int func_ov064_02116560(daOts_c* c);
+void func_ov064_021165d8(daOts_c* c);
+int func_ov064_021166f0(daOts_c *t);
+void func_ov064_02116754(daOts_c* self);
+void func_ov064_02116bac(daOts_c* self);
 }
 
 /* -------------------------------------------------------------------------- */
+// @symbol _ZN7daOts_c19InitResourcesCommonEv
+/* recovered: named members + shared header, real C++ method
+ *
+ * Shared InitResources body. daOts_c leaves slot 0 pure virtual; all three
+ * children set mFileTable and call this. Loads the five SharedFilePtrs, inits
+ * ModelAnim / ShadowModel / dCcAc_c / dBgCh_Actr, and seeds the children's
+ * 0x398..0x3f0 snapshot words from the config block.
+ *
+ * The English name describes those call sites; the stripped image carries no
+ * original method name.
+ */
+int daOts_c::InitResourcesCommon()
+{
+    /* Local layout stand-in: caching `(BullyResourceConfig *)mFileTable` in a
+       callee-saved reg size-DIFFs. The ROM reloads this+0x330 after every bl,
+       which is what `obj->f330->...` emits. SharedFilePtr.h has no fields, so
+       the BCA word stays +4 (`->file`). */
+    struct FilePtr { short a, b; void *file; };
+    struct Desc {
+        FilePtr *f0, *f4, *f8, *fc, *f10;
+        int f14, f18, f1c, f20, f24, f28;
+    };
+    struct Obj {
+        char p0[0xc];
+        unsigned short fc;
+        char gc[0x5c - 0xe];
+        int f5c, f60, f64;
+        char g68[0x9c - 0x68];
+        int f9c, fa0;
+        char ga4[0x100 - 0xa4];
+        short f100;
+        char g102[0x110 - 0x102];
+        char f110[0x174 - 0x110];
+        char f174[0x330 - 0x174];
+        Desc *f330;
+        int f334, f338;
+        char f33c[0x358 - 0x33c];
+        int f358;
+        char g35c[0x370 - 0x35c];
+        char f370[0x39c - 0x370];
+        int f39c, f3a0, f3a4, f3a8, f3ac, f3b0;
+        char g3b4[0x3e8 - 0x3b4];
+        int f3e8, f3ec, f3f0;
+    };
+    Obj *obj = (Obj *)this;
+    BMD_File *bmd;
+
+    Animation::LoadFile(*(SharedFilePtr *)obj->f330->f4);
+    Animation::LoadFile(*(SharedFilePtr *)obj->f330->f8);
+    Animation::LoadFile(*(SharedFilePtr *)obj->f330->fc);
+    Animation::LoadFile(*(SharedFilePtr *)obj->f330->f10);
+    bmd = (BMD_File *)Model::LoadFile(*(SharedFilePtr *)obj->f330->f0);
+    if (((ModelBase *)&obj->f110)->SetFile(bmd, 1, 1) == 0)
+        return 0;
+    if (((ShadowModel *)&obj->f370)->InitCylinder() == 0)
+        return 0;
+    _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj((ModelAnim *)&obj->f110, (BCA_File *)obj->f330->f10->file, 0, 0x1000, 0);
+    _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj((dCcAc_c *)&obj->f33c, (dActor_c *)obj, obj->f330->f14, obj->f330->f18, 0x200000, 0x27c0);
+    {
+        int isD9 = (int)(obj->fc == 0xd9);
+        if (isD9) {
+            obj->f358 |= 0x40000;
+        }
+    }
+    obj->f3a8 = obj->f5c;
+    obj->f3ac = obj->f60;
+    obj->f3b0 = obj->f64;
+    obj->f39c = obj->f5c;
+    obj->f3a0 = obj->f60;
+    obj->f3a4 = obj->f64;
+    obj->f9c = -0x4000;
+    obj->fa0 = -0x32000;
+    obj->f3e8 = obj->f330->f1c;
+    obj->f3ec = obj->f330->f20;
+    obj->f100 = 0;
+    _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(&obj->f174, (int)obj, obj->f330->f24, obj->f330->f24, 0, 0);
+    obj->f3f0 = obj->f330->f28;
+    obj->f338 = 0;
+    obj->f334 = obj->f338;
+    return 1;
+}
+
+/* -------------------------------------------------------------------------- */
+// @symbol _ZN7daOts_c14BehaviorCommonEv
+/* recovered: named members + shared header, real C++ method
+ *
+ * Shared Behavior body. daOts_c leaves slot 6 pure virtual; all three
+ * children fall through to this after UpdateKillByInvincibleChar (and
+ * daBDonketu_c's secret-sound preamble). State machine on the children's +0x398
+ * word, calling this TU's leftover helpers and UpdateDeathState.
+ *
+ * The English name describes those call sites; the stripped image carries no
+ * original method name.
+ */
+int daOts_c::BehaviorCommon()
+{
+    char *thiz = (char *)this;
+
+    if (mWithMeshClsn.IsOnGround() != 0) {
+        if (_ZN8dActor_c22IsTooFarAwayFromPlayerE5Fix12IiE(this, 0x5dc000) != 0)
+            return 1;
+    }
+
+    int four = *(int *)(thiz + 0x398);
+    *(int *)(thiz + 0x39c) = mPosX;
+    *(int *)(thiz + 0x3a0) = mPosY;
+    *(int *)(thiz + 0x3a4) = mPosZ;
+    MakeVanishLuigiWork(mdCcAc_c);
+    func_ov064_02116754(this);
+
+    switch (*(int *)(thiz + 0x398)) {
+    case 0:
+        mHorzSpeed = 0x5000;
+        if (func_ov064_021166f0(this) != 0) {
+            *(int *)(thiz + 0x398) = 1;
+            _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(&mModelAnim,
+                *(BCA_File **)((char *)((BullyResourceConfig *)mFileTable)->files[4] + 4),
+                0, 0x2000, 0);
+        }
+        func_ov064_021165d8(this);
+        mAngleY = mPrevAngleY;
+        break;
+    case 1:
+        func_ov064_02116560(this);
+        func_ov064_021165d8(this);
+        mAngleY = mPrevAngleY;
+        *(int *)(thiz + 0x16c) = 0x2000;
+        break;
+    case 2:
+        func_ov064_02116460(this);
+        func_ov064_021165d8(this);
+        break;
+    case 3:
+        func_ov064_021163c0(thiz);
+        func_ov064_021165d8(this);
+        break;
+    case 4:
+        UpdateDeathState();
+        break;
+    case 5:
+        MarkForDestruction();
+        break;
+    default:
+        break;
+    }
+
+    ((Animation *)(thiz + 0x160))->Advance();
+    unsigned short *p100 = (unsigned short *)(thiz + 0x100);
+    *p100 = *p100 + 1;
+    if (four != *(int *)(thiz + 0x398))
+        *p100 = 0;
+    func_ov064_02116bac(this);
+    mdCcAc_c.Clear();
+    mdCcAc_c.Update();
+    return 1;
+}
+
 /* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_c6RenderEv
 /* recovered: named members + shared header, real C++ method -- vtable slot 9
  *
- * WAS _ZN5Bully6RenderEv, and misattributed: slot 9 holds 0x02116cf0 in daOts_c,
- * Bully AND daIDonketu_c. BigBully is the only one of the three that overrides
+ * WAS _ZN11daDonketu_c6RenderEv, and misattributed: slot 9 holds 0x02116cf0 in daOts_c,
+ * daDonketu_c AND daIDonketu_c. daBDonketu_c is the only one of the three that overrides
  * it (0x0211764c), which is exactly the pattern of an inherited method with one
  * child that replaces it.
  */
@@ -157,13 +334,12 @@ int daOts_c::Render()
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_c16CleanupResourcesEv
 /* recovered: named members + shared header, real C++ method -- vtable slot 3
  *
- * WAS _ZN5Bully16CleanupResourcesEv, and that was a misattribution, not a
+ * WAS _ZN11daDonketu_c16CleanupResourcesEv, and that was a misattribution, not a
  * spelling choice: slot 3 holds 0x02116ca0 in daOts_c's table AND in all three
- * children's, so Bully does not override this -- it inherits it.
+ * children's, so daDonketu_c does not override this -- it inherits it.
  *
  * THE KEY FUNCTION. It is the first virtual daOts_c declares out of line, so
  * this TU emits _ZTV7daOts_c and the destructor pair the table points at.
@@ -185,31 +361,29 @@ int daOts_c::CleanupResources()
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 extern "C" void func_ov064_02116bac(daOts_c* self){
-  char* r6 = (char*)self;
+  char* raw = (char*)self;
   Matrix4x3_FromRotationY(&self->mModelAnim.mat4x3, self->mAngleY);
   self->mModelAnim.mat4x3.t.x = self->mPosX >> 3;
-  self->mModelAnim.mat4x3.t.y = (self->mPosY + *(int*)(r6+0x3ec)) >> 3;
+  self->mModelAnim.mat4x3.t.y = (self->mPosY + *(int*)(raw+0x3ec)) >> 3;
   self->mModelAnim.mat4x3.t.z = self->mPosZ >> 3;
-  int d = self->mPosY - *(int*)(r6+0x3f4);
+  int d = self->mPosY - *(int*)(raw+0x3f4);
   if(d <= 0x1000) d = 0x1000;
   int rad = (int)(((long long)d * 0x180 + 0x800) >> 12);
-  int h = *(int*)(r6+0x3f0) - rad;
+  int h = *(int*)(raw+0x3f0) - rad;
   if(h < 0xa000) h = 0xa000;
-  Matrix4x3_FromRotationY(r6+0x3b4, self->mAngleY);
-  *(int*)(r6+0x3d8) = self->mPosX >> 3;
-  *(int*)(r6+0x3dc) = self->mPosY >> 3;
-  *(int*)(r6+0x3e0) = self->mPosZ >> 3;
-  _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(self, &self->mShadowModel, r6+0x3b4, h, d+0x28000, 0xf);
+  Matrix4x3_FromRotationY(raw+0x3b4, self->mAngleY);
+  *(int*)(raw+0x3d8) = self->mPosX >> 3;
+  *(int*)(raw+0x3dc) = self->mPosY >> 3;
+  *(int*)(raw+0x3e0) = self->mPosZ >> 3;
+  _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(self, &self->mShadowModel, raw+0x3b4, h, d+0x28000, 0xf);
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 extern "C" void func_ov064_02116754(daOts_c* self)
 {
-    dActor_c* r4;
-    s32 r1;
+    dActor_c* hitPlayer;
+    s32 hitFlags;
     u32 id;
     char* c = (char*)self;
 
@@ -219,36 +393,36 @@ extern "C" void func_ov064_02116754(daOts_c* self)
     if (id == 0)
         return;
 
-    r4 = dActor_c::FindWithID(id);
-    if (!r4)
+    hitPlayer = dActor_c::FindWithID(id);
+    if (!hitPlayer)
         return;
 
     {
-        int isBf = (int)(r4->actorID == 0xbf);
+        int isBf = (int)(hitPlayer->actorID == 0xbf);
         if (!isBf)
             return;
     }
 
-    r1 = (s32)self->mdCcAc_c.hitFlags;
-    if ((r1 & 0x7c0) || *(u8*)((char*)r4 + 0x6f9) != 0) {
-        self->mPrevAngleY = r4->mAngleY;
-        if (r4->param1 == 2)
+    hitFlags = (s32)self->mdCcAc_c.hitFlags;
+    if ((hitFlags & 0x7c0) || *(u8*)((char*)hitPlayer + 0x6f9) != 0) {
+        self->mPrevAngleY = hitPlayer->mAngleY;
+        if (hitPlayer->param1 == 2)
             self->mHorzSpeed = 0x32000;
         else
             self->mHorzSpeed = 0x28000;
         _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(&self->mModelAnim, *(BCA_File**)((char*)((BullyResourceConfig *)self->mFileTable)->files[2] + 4), 0, 0x1000, 0);
-        func_ov064_02115f98(self, (char*)r4);
+        func_ov064_02115f98(self, (char*)hitPlayer);
         *(s32*)(c + 0x398) = 2;
         *(u8*)(c + 0x3f9) = 0;
         self->PlayHitSound();
         return;
     }
 
-    if (r1 & 0x2000) {
-        self->mPrevAngleY = r4->mPrevAngleY;
+    if (hitFlags & 0x2000) {
+        self->mPrevAngleY = hitPlayer->mPrevAngleY;
         self->mHorzSpeed = 0x28000;
         _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(&self->mModelAnim, *(BCA_File**)((char*)((BullyResourceConfig *)self->mFileTable)->files[2] + 4), 0, 0x1000, 0);
-        func_ov064_02115f98(self, (char*)r4);
+        func_ov064_02115f98(self, (char*)hitPlayer);
         *(s32*)(c + 0x398) = 2;
         *(u8*)(c + 0x3f9) = 0;
         self->PlayHitSound();
@@ -257,56 +431,56 @@ extern "C" void func_ov064_02116754(daOts_c* self)
 
     {
         int isD8 = (int)(self->actorID == 0xd8);
-        if (!isD8 && (r1 & 0x10)) {
+        if (!isD8 && (hitFlags & 0x10)) {
             s16 v[3];
             v[0] = 0x2000;
             v[1] = 0;
             v[2] = 0;
-            _ZN12dEnemyBase_c20KillByInvincibleCharERK10Vector3_16R6Player5Fix12IiE(self, v, r4, ((BullyResourceConfig *)self->mFileTable)->eggAimHeight);
+            _ZN12dEnemyBase_c20KillByInvincibleCharERK10Vector3_16R6Player5Fix12IiE(self, v, hitPlayer, ((BullyResourceConfig *)self->mFileTable)->eggAimHeight);
             self->PlayHitSound();
             return;
         }
     }
 
-    if (r1 & 0x40000) {
-        self->mPrevAngleY = r4->mAngleY;
+    if (hitFlags & 0x40000) {
+        self->mPrevAngleY = hitPlayer->mAngleY;
         self->mHorzSpeed = 0x39800;
         _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(&self->mModelAnim, *(BCA_File**)((char*)((BullyResourceConfig *)self->mFileTable)->files[2] + 4), 0, 0x1000, 0);
-        func_ov064_02115f98(self, (char*)r4);
+        func_ov064_02115f98(self, (char*)hitPlayer);
         *(s32*)(c + 0x398) = 2;
         *(u8*)(c + 0x3f9) = 0;
         self->PlayHitSound();
         return;
     }
 
-    if (_ZN8dActor_c16JumpedOnByPlayerER5dCc_cR6Player(self, &self->mdCcAc_c, r4) != 0) {
-        self->mPrevAngleY = r4->mAngleY;
-        if (r4->param1 == 2)
+    if (self->JumpedOnByPlayer(self->mdCcAc_c, *(Player *)hitPlayer) != 0) {
+        self->mPrevAngleY = hitPlayer->mAngleY;
+        if (hitPlayer->param1 == 2)
             self->mHorzSpeed = 0x32000;
         else
             self->mHorzSpeed = 0x28000;
         _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(&self->mModelAnim, *(BCA_File**)((char*)((BullyResourceConfig *)self->mFileTable)->files[2] + 4), 0, 0x1000, 0);
-        func_ov064_02115f98(self, (char*)r4);
+        func_ov064_02115f98(self, (char*)hitPlayer);
         *(s32*)(c + 0x398) = 2;
         *(u8*)(c + 0x3f9) = 0;
         self->PlayHitSound();
         return;
     }
 
-    if (_ZN6Player9IsOnShellEv(r4) != 0) {
-        r4->mHorzSpeed = -self->mHorzSpeed;
+    if (((Player *)hitPlayer)->IsOnShell() != 0) {
+        hitPlayer->mHorzSpeed = -self->mHorzSpeed;
         self->mPrevAngleY = (s16)(self->mAngleY + 0x8000);
         self->mHorzSpeed = 0x28000;
         _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(&self->mModelAnim, *(BCA_File**)((char*)((BullyResourceConfig *)self->mFileTable)->files[4] + 4), 0, 0x1000, 0);
         self->PlayShellHitSound();
-        func_ov064_02115f98(self, (char*)r4);
+        func_ov064_02115f98(self, (char*)hitPlayer);
         *(s32*)(c + 0x398) = 2;
         *(u8*)(c + 0x3f9) = 0;
         self->PlayHitSound();
         return;
     }
 
-    if (*(u8*)((char*)r4 + 0x6fb) != 0)
+    if (*(u8*)((char*)hitPlayer + 0x6fb) != 0)
         return;
 
     *(s32*)(c + 0x398) = 2;
@@ -318,8 +492,8 @@ extern "C" void func_ov064_02116754(daOts_c* self)
         v.x = self->mPosX;
         v.y = self->mPosY;
         v.z = self->mPosZ;
-        if (_ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(r4, &v, 0, 0x14000, 1, 0, 1) != 0) {
-            func_ov064_02115f98(self, (char*)r4);
+        if (_ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(hitPlayer, &v, 0, 0x14000, 1, 0, 1) != 0) {
+            func_ov064_02115f98(self, (char*)hitPlayer);
         }
     }
 
@@ -336,9 +510,8 @@ extern "C" void func_ov064_02116754(daOts_c* self)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov064_021166f0
-extern "C" {  /* .c-derived member: C linkage for the whole block */
+extern "C" {
 int func_ov064_021166f0(daOts_c *t)
 {
     Vector3 v;
@@ -352,7 +525,6 @@ int func_ov064_021166f0(daOts_c *t)
 }
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 extern "C" void func_ov064_021165d8(daOts_c* c)
 {
@@ -389,13 +561,11 @@ extern "C" void func_ov064_021165d8(daOts_c* c)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_c14UpdateRunStateEv
 int daOts_c::UpdateRunState()
 {
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 extern "C" int func_ov064_02116560(daOts_c* c){
   char *p = (char *)c;
@@ -406,7 +576,6 @@ extern "C" int func_ov064_02116560(daOts_c* c){
   return _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(&c->mModelAnim, (BCA_File*)*(int*)((char*)((BullyResourceConfig *)c->mFileTable)->files[4] + 4), 0, 0x1000, 0);
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 extern "C" void func_ov064_02116460(daOts_c *self)
 {
@@ -437,7 +606,6 @@ extern "C" void func_ov064_02116460(daOts_c *self)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 extern "C" void func_ov064_021163c0(char *c)
 {
     /* Named mPrevAngleY / mWithMeshClsn / mHorzSpeed size-DIFF. The
@@ -459,13 +627,11 @@ extern "C" void func_ov064_021163c0(char *c)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_c16UpdateDeathStateEv
 void daOts_c::UpdateDeathState()
 {
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_c13PlayStepSoundEv
 void daOts_c::PlayStepSound()
@@ -478,7 +644,6 @@ void daOts_c::PlayStepSound()
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_c12PlayHitSoundEv
 void daOts_c::PlayHitSound()
 {
@@ -486,13 +651,11 @@ void daOts_c::PlayHitSound()
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_c17PlayShellHitSoundEv
 void daOts_c::PlayShellHitSound()
 {
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_c14PlayDeathSoundEv
 void daOts_c::PlayDeathSound()
@@ -500,7 +663,6 @@ void daOts_c::PlayDeathSound()
     func_0201267c(0xce, (const Vector3 *)&mCamSpacePosX);
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 extern "C" void func_ov064_02116220(daOts_c* c){
   dBgCh_Gnd rg;
@@ -539,8 +701,7 @@ extern "C" void func_ov064_02116220(daOts_c* c){
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
-extern "C" {  /* .c-derived member: C linkage for the whole block */
+extern "C" {
 int func_ov064_0211616c(daOts_c* c) {
     char *p = (char *)c;
     /* mStateTimer is s16; the ROM compares ldrh (unsigned). Named signed > DIFFs. */
@@ -570,7 +731,6 @@ int func_ov064_0211616c(daOts_c* c) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov064_02116110
 extern "C" int func_ov064_02116110(daOts_c *self, short step){
     dActor_c *p = (dActor_c *)self->ClosestPlayer();
@@ -582,8 +742,7 @@ extern "C" int func_ov064_02116110(daOts_c *self, short step){
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
-extern "C" {  /* .c-derived member: C linkage for the whole block */
+extern "C" {
 void func_ov064_02115f98(daOts_c* a0, char* a1)
 {
     int scratch[3];
@@ -661,7 +820,6 @@ void func_ov064_02115f98(daOts_c* a0, char* a1)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_c16OnAimedAtWithEggEv
 int daOts_c::OnAimedAtWithEgg()
 {
@@ -673,7 +831,6 @@ int daOts_c::OnAimedAtWithEgg()
     return aimHeight;
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_cD0Ev
 /* recovered: real C++ deleting destructor, defined inline in the header
@@ -690,7 +847,6 @@ int daOts_c::OnAimedAtWithEgg()
  * dEnemyBase_c, then hand the object back through Memory::Deallocate.
  */
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol _ZN7daOts_cD1Ev
 /* recovered: real C++ destructor, defined inline in the header

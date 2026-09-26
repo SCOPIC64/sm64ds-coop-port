@@ -1,81 +1,88 @@
 //cpp
 /**
- * Chief Chilly (KING_DONKETU 218) -- ov073/daKing_Donketu_c.
+ * daKing_Donketu_c -- Chief Chilly (KING_DONKETU 218), ov073.
  *
- * Snowman's Land's ice-bully boss. Twelve file-scope state records;
- * ChiefChilly_ChangeState stores the pointer and dispatches. Three
- * knock-downs, two waypoint sets, a ground-ray arena guard.
+ * Snowman's Land's ice-bully boss. Twelve file-scope state records drive it;
+ * ChiefChilly_ChangeState stores the pointer and dispatches. Three knock-downs
+ * to beat him, two waypoint sets, and a ground-ray guard that keeps him on the
+ * arena.
  *
- * daKing_Donketu_c_classInit is reconstructed (RTTI daKing_Donketu_c,
- * KING_DONKETU registry). Retail does not store that spelling.
- * Historical alias: ChiefChilly_Spawn.
+ * DO NOT "TIDY" THESE -- each one is load-bearing:
  *
- * This TU is 43 of 47. Behavior / InitResources / OnAimedAtWithEgg /
- * classInit stay in their own shards -- file-global opt_propagation off
- * on Behavior recompiles eight other members (this TU).
+ *   `#pragma defer_codegen off` (file-global). Out-of-line D1, then D0, then a
+ *   homeless D2 is the cartridge's order; with codegen deferred mwccarm emits
+ *   D2, D0, D1 instead.
  *
- * deslop
- * Leftover: BlendModelAnim::SetAnim / Particle::System::New /
- *   Particle::System::NewSimple / Particle::RunningSlidingDustAt /
- *   Player::Hurt / Sound::ChangeMusicVolume / DropShadowRadHeight
- *   stay mangled in this TU -- Fix12<int> by value (wall 6az); a
- *   method call homes the argument. Particle.h has no System::NewSimple.
- *   Particle::System::FromUniqueID is on Particle__System.h but this
- *   TU pokes sys+0x44 after the call. Callers: func_ov073_0211f144 /
- *   0211f2c0 / 0211f494 / 0211f61c / 0211fa74 / 0211fe8c / 0212000c /
- *   021200e0 / 021203ac / 02120610 / 02120ad8 / 02120c08 / 02120c7c /
- *   02120ed0 / 0212122c / 02121538 / 021215cc.
- * Leftover: dActor_c::FindWithID / ClosestPlayer / HorzAngleToCPlayer /
- *   DistToCPlayer / Spawn / PoofDustAt / HugeLandingDustAt /
- *   JumpedOnByPlayer / FindWithActorID stay mangled -- helpers are
- *   C-linkage offset soup (`char *this`). Named members already call
- *   CleanupResources / Render / OnPendingDestroy.
- * Leftover: Camera::SetLookAt / SetPos stay mangled (void *cam, offset
- *   soup). Camera::SetFlag_3 is a real method but is not on Camera.h;
- *   this TU's talk/cutscene helpers.
- * Leftover: fBase_c::MarkForDestruction / Animation::Finished /
- *   Animation::WillHitFrame / dBgCh_Actr::IsOnGround stay mangled
- *   (this+0x35c / this+0x150). Player::StartTalk / ShowMessage /
- *   GetTalkState / GetHurtState / Unk_020c6a10 stay mangled. Sound::PlayLong
- *   is on Sound.h but Layer3 Load/Stop is not. Message::EndTalk /
- *   PrepareTalk stay mangled. SaveData::IsCharacterUnlocked stays mangled.
- *   cstd::atan2 stays mangled (Fix12-by-value). func_ov073_0211f494.
- * Leftover: func_ov073_* helpers stay linker names (offset soup, PMF
- *   dispatch through data_ov073_021233*). Not coined except
- *   ChiefChilly_ChangeState, the English gloss for this class's
- *   dispatcher. struct C is complete here: mwccarm 2004/b56 picks
- *   pointer-to-member from completeness (this TU).
- * Leftover: data_ov073_02123280..b8 stay BCA_File*[2] so [1] is the
- *   BCA SetAnim reads; CleanupResources puns each to SharedFilePtr
- *   for Release. ov073 sinit constructs them; this TU does not own
- *   .bss. data_ov002_0210da30 is ov002; Cleanup Release. Naming
- *   belongs in ov002.
- * Leftover: data_ov073_02123330 / 350 / 360 / 370 / 3b0 / 3c0 / 3f0
- *   and decl_common's 021233e0 / 02123410 are sinit-owned state
- *   records this TU does not own.
- * Leftover: data_02082214 is the NitroSDK FX_SinCosTable_;
- *   func_ov073_0211f494 indexes it. Naming belongs with the SDK table.
- * Leftover: data_0209f318 camera / data_020a0e68 scratch matrix /
- *   data_0209e650 RNG seed are arm9 globals. func_02012694 (sound) /
- *   func_0200d8c8 (camera shake) / func_0200fa8c / func_02011cfc.
- * Leftover: Vec3_HorzAngle / VertAngle / HorzLen / Sub / Lsl / Asr /
- *   Matrix4x3_FromRotationY / FromTranslation /
- *   ApplyInPlaceToRotationX / ApplyInPlaceToRotationXYZExt /
- *   MulVec3Mat4x3 / MulMat4x3Mat4x3 / ApproachLinear: no shared
- *   header this TU can take without a campaign.
- * Leftover: g_profile_KING_DONKETU lives outside this TU (S14).
- * Leftover: no return new -- classInit stays in src/d_a_king_donketu.cpp
- *   (one of the four unabsorbed members).
- * Leftover: reverse order is not used. `#pragma defer_codegen off` is
- *   load-bearing: out-of-line D1 then D0 then homeless D2 matches the
- *   cartridge (deferred codegen emits D2, D0, D1).
- * Leftover: sizeof wrap in the header (0x504).
- * Leftover: `#pragma opt_loop_invariants off` is file-global and
- *   load-bearing for func_ov073_0211f61c (this TU).
- * Leftover: struct C / CB / V3 / Vec3 / Mtx43 / Mat4x3 / Base / Bool
- *   shadows are load-bearing (PMF dispatch, Render vcall, POD triples).
- * Leftover: common.h first -- BlendModelAnim.h's nested Matrix4x3
- *   would win and size-DIFF the 12-word copies (this TU).
+ *   `#pragma opt_loop_invariants off` (file-global), for func_ov073_0211f61c.
+ *
+ *   common.h must be included first. Otherwise BlendModelAnim.h's nested
+ *   Matrix4x3 wins and the twelve-word copies size-DIFF.
+ *
+ *   The struct C / CB / V3 / Vec3 / Mtx43 / Mat4x3 / Base / Bool shadows, for
+ *   PMF dispatch, the Render vcall and the POD triples. `struct C` is complete
+ *   here on purpose: mwccarm 2004/b56 picks its pointer-to-member
+ *   representation from completeness.
+ *
+ *   The sizeof wrap in the header (0x504).
+ *
+ * WHY SO MANY CALLS ARE SPELLED AS MANGLED SYMBOLS. Three reasons, and between
+ * them they cover every one below:
+ *
+ *   (a) Fix12<int> passed by value -- wall 6az. A method call homes the
+ *       argument and the bytes move. This is BlendModelAnim::SetAnim,
+ *       Particle::System::New, Particle::System::NewSimple,
+ *       Particle::RunningSlidingDustAt, Player::Hurt,
+ *       Sound::ChangeMusicVolume, DropShadowRadHeight and cstd::atan2.
+ *       Their callers are func_ov073_0211f144 / 0211f2c0 / 0211f494 /
+ *       0211f61c / 0211fa74 / 0211fe8c / 0212000c / 021200e0 / 021203ac /
+ *       02120610 / 02120ad8 / 02120c08 / 02120c7c / 02120ed0 / 0212122c /
+ *       02121538 / 021215cc.
+ *
+ *   (b) The callee is reached through C-linkage offset soup (`char *this`):
+ *       dActor_c::FindWithID / ClosestPlayer / HorzAngleToCPlayer /
+ *       DistToCPlayer / Spawn / PoofDustAt / HugeLandingDustAt /
+ *       JumpedOnByPlayer / FindWithActorID; Camera::SetLookAt / SetPos;
+ *       fBase_c::MarkForDestruction; Animation::Finished / WillHitFrame
+ *       (this+0x35c); dBgCh_Actr::IsOnGround (this+0x150); Player::StartTalk /
+ *       ShowMessage / GetTalkState / GetHurtState / Unk_020c6a10;
+ *       Message::EndTalk / PrepareTalk; SaveData::IsCharacterUnlocked.
+ *       The members that ARE named already call CleanupResources / Render /
+ *       OnPendingDestroy directly.
+ *
+ *   (c) No declaration exists to call: Particle.h has no System::NewSimple;
+ *       Camera::SetFlag_3 is a real method but is not on Camera.h; Sound.h has
+ *       PlayLong but not Layer3 Load/Stop. Particle::System::FromUniqueID is
+ *       on Particle__System.h, but this TU pokes sys+0x44 after the call.
+ *       The Vec3_* / Matrix4x3_* / ApproachLinear family (HorzAngle,
+ *       VertAngle, HorzLen, Sub, Lsl, Asr, FromRotationY, FromTranslation,
+ *       ApplyInPlaceToRotationX, ApplyInPlaceToRotationXYZExt, MulVec3Mat4x3,
+ *       MulMat4x3Mat4x3) has no shared header this TU can take without a
+ *       campaign across its other consumers.
+ *
+ * NOT OWNED BY THIS TU. The func_ov073_* helpers keep linker names -- offset
+ * soup, dispatched as PMFs through data_ov073_021233*. Nothing is coined
+ * except ChiefChilly_ChangeState, an English gloss for the dispatcher.
+ * data_ov073_02123280..b8 stay BCA_File*[2] so that [1] is the BCA SetAnim
+ * reads, and CleanupResources puns each to SharedFilePtr for Release; ov073's
+ * sinit constructs them and this TU owns no .bss. data_ov073_02123330 / 350 /
+ * 360 / 370 / 3b0 / 3c0 / 3f0, plus decl_common's 021233e0 / 02123410, are
+ * sinit-owned state records. data_02082214 is the NitroSDK FX_SinCosTable_
+ * (func_ov073_0211f494 indexes it) and naming it belongs with the SDK table;
+ * data_0209f318 (camera), data_020a0e68 (scratch matrix) and data_0209e650
+ * (RNG seed) are arm9 globals, as are func_02012694 (sound), func_0200d8c8
+ * (camera shake), func_0200fa8c and func_02011cfc. data_ov002_0210da30 is
+ * ov002's and Cleanup only Releases it; naming belongs in ov002.
+ * g_profile_KING_DONKETU lives outside this TU (S14).
+ *
+ * SCOPE. 43 of the class's 47 functions. Behavior, InitResources,
+ * OnAimedAtWithEgg and classInit stay in their own shards: a file-global
+ * `opt_propagation off` on Behavior recompiles eight other members. There is
+ * no `return new` here for the same reason -- classInit is still in
+ * src/d_a_king_donketu.cpp. daKing_Donketu_c_classInit is a reconstructed
+ * name (RTTI daKing_Donketu_c, KING_DONKETU registry); retail does not store
+ * that spelling, and the historical alias was ChiefChilly_Spawn.
+ *
+ * Function order is ROM-ascending, not reversed.
  */
 
 #pragma defer_codegen off
@@ -87,6 +94,11 @@
 #include "decl_Message.h"
 #include "types.h"
 #include "SharedFilePtr.h"
+#include "Particle__System.h"
+#include "SaveData.h"
+#include "Message.h"
+#include "Player.h"
+#include "Camera.h"
 
 struct C;
 typedef int (C::*PMF)();
@@ -144,11 +156,9 @@ extern short Vec3_HorzAngle(const Vector3* a, const Vector3* b);
 extern void Matrix4x3_FromRotationY(void* m, short ang);
 extern void MulVec3Mat4x3(const void* in, void* m, void* out);
 extern unsigned int _ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(unsigned int, unsigned int, Fix12i, Fix12i, Fix12i, const void*, void*);
-extern void* _ZN8Particle6System12FromUniqueIDEj(unsigned int id);
 extern void func_0200d8c8(void *cam, void *v, int strength);
 extern void MulMat4x3Mat4x3(void *dst, void *a, void *b);
 extern void Vec3_Lsl(void *d, void *s, int sh);
-extern void _ZN8dActor_c17HugeLandingDustAtER7Vector3b(void *self, void *v, int b);
 extern void _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(unsigned int id, int x, int y, int z);
 extern void *data_0209f318;
 extern struct Matrix4x3 data_020a0e68;
@@ -158,42 +168,21 @@ extern Fix12i Vec3_HorzLen(Vec3 *v);
 extern short data_02082214[];
 extern u16 data_0209e650;
 extern u16 DecIfAbove0_Short(void* p);
-extern void* _ZN8dActor_c10FindWithIDEj(u32 id);
 extern void func_ov073_0211f494(void *pa, void *pb);
-extern int _ZN8dActor_c16JumpedOnByPlayerER5dCc_cR6Player(void* c, void* clsn, void* player);
 extern void func_02012694(int a, void* b);
 extern int RandomIntInternal(u16* seed);
-extern void* _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(u32 a, u32 b, const Vector3* v, void* rot, s32 e, s32 f);
-extern int _ZN8SaveData19IsCharacterUnlockedEj(u32 id);
 extern int _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(void* p, const Vector3* v, u32 a, Fix12i f, u32 b, u32 c, u32 d);
 extern void _ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt(void* thiz, struct BCA_File* f, int i, int j, Fix12i fx, u16 k);
 extern void _ZN6Camera9SetFlag_3Ev(void* cam);
 extern void _Z14ApproachLinearRiii(int* p, int t, int s);
-extern void _ZN7Message7EndTalkEv(void);
 extern void _ZN5Sound17ChangeMusicVolumeEj5Fix12IiE(unsigned int a, int b);
-extern short _ZN8dActor_c18HorzAngleToCPlayerEv(void* self);
-extern void* _ZN8dActor_c15FindWithActorIDEjPS_(unsigned int id, void* prev);
-extern void _ZN8dActor_c10PoofDustAtERK7Vector3(void* self, void* pos);
-extern void _ZN7fBase_c18MarkForDestructionEv(void* self);
-extern void* _ZN8dActor_c13ClosestPlayerEv(void* actor);
 extern unsigned int _ZN5Sound8PlayLongEjjjRK7Vector3s(unsigned int a, unsigned int b, unsigned int c, struct Vector3* v, unsigned int d);
-extern void _ZN6Camera9SetLookAtERK7Vector3(void* cam, struct Vector3* v);
-extern void _ZN6Camera6SetPosERK7Vector3(void* cam, struct Vector3* v);
-extern int _ZN6Player9StartTalkER7fBase_cb(void* self, void* actor, int b);
-extern int _ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(void* self, void* actor, unsigned int msg, const struct Vector3* pos, unsigned int a, unsigned int b);
 extern void _Z14ApproachLinearRsss(short* a, short b, short c);
 extern s16 Vec3_VertAngle(const void* a, const void* b);
-extern void _ZN6Player12Unk_020c6a10Ej(void* self, u32 a);
-extern int _ZNK10dBgCh_Actr10IsOnGroundEv(void* self);
 extern void func_ov073_0211f2c0(void *self, int strength);
 extern void Matrix4x3_ApplyInPlaceToRotationX(void *m, int angX);
 extern int func_ov073_0211f61c(void *c);
 extern void _ZN8Particle20RunningSlidingDustAtE5Fix12IiES1_S1_(int a, int b, int c);
-extern int _ZN9Animation8FinishedEv(void* anim);
-extern int _ZN8dActor_c13DistToCPlayerEv(void *self);
-extern int _ZN6Player12GetHurtStateEv(void *self);
-extern int _ZNK9Animation12WillHitFrameEi(void *self, int f);
-extern int _ZN6Player12GetTalkStateEv(void* self);
 extern void Vec3_Asr(Vec3* d, Vec3* s, int sh);
 extern void Matrix4x3_FromTranslation(struct Matrix4x3 *m, int x, int y, int z);
 extern void Matrix4x3_ApplyInPlaceToRotationXYZExt(void* m, int x, int y, int z);
@@ -231,12 +220,12 @@ void func_ov073_0211f144(void* self) {
     *(unsigned int*)(c + 0x4f8) = _ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(*(unsigned int*)(c + 0x4f8), 0x77, pos.x, pos.y, pos.z, 0, 0);
     *(unsigned int*)(c + 0x4fc) = _ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(*(unsigned int*)(c + 0x4fc), 0x78, pos.x, pos.y, pos.z, 0, 0);
     if (*(unsigned int*)(c + 0x4f8) != 0) {
-        void* sys = _ZN8Particle6System12FromUniqueIDEj(*(unsigned int*)(c + 0x4f8));
+        void* sys = Particle::System::FromUniqueID(*(unsigned int*)(c + 0x4f8));
         if (sys != 0) *(int*)((char*)sys + 0x44) = *(int*)(c + 0x80) * 0x14;
     }
     if (*(unsigned int*)(c + 0x4fc) == 0) return;
     {
-        void* sys = _ZN8Particle6System12FromUniqueIDEj(*(unsigned int*)(c + 0x4fc));
+        void* sys = Particle::System::FromUniqueID(*(unsigned int*)(c + 0x4fc));
         if (sys != 0) *(int*)((char*)sys + 0x44) = *(int*)(c + 0x80) * 0x14;
     }
 }
@@ -282,7 +271,7 @@ void func_ov073_0211f2c0(void *self, int strength)
     dv.x = x;
     dv.y = y;
     dv.z = z;
-    _ZN8dActor_c17HugeLandingDustAtER7Vector3b(c, &dv, 1);
+    ((dActor_c *)c)->HugeLandingDustAt(*(Vector3 *)&dv, 1);
     return;
   }
   pv.x = *((int *) (c + 0x5c));
@@ -389,8 +378,8 @@ void func_ov073_0211f494(void *pa, void *pb)
 extern "C" s32 func_ov073_0211f61c(void* self)
 {
     char* c = (char*)self;
-    void* r5;
-    s32 r4;
+    void* target;
+    s32 hit;
     u32 id;
 
     if (DecIfAbove0_Short(c + 0x4cc) != 0)
@@ -398,55 +387,55 @@ extern "C" s32 func_ov073_0211f61c(void* self)
     id = *(u32*)(c + 0x134);
     if (id == 0)
         return 0;
-    r5 = _ZN8dActor_c10FindWithIDEj(id);
-    if (!r5)
+    target = dActor_c::FindWithID(id);
+    if (!target)
         return 0;
 
-    r4 = 0;
+    hit = 0;
     if (*(s32*)(c + 0x130) & 0x6000) {
         func_ov073_0211f494(c, c);
         *(s32*)(c + 0x98) = 0x20000;
-        r4 = 1;
+        hit = 1;
     }
 
     {
-        int isBf = (int)(*(u16*)((char*)r5 + 0xc) == 0xbf);
+        int isBf = (int)(*(u16*)((char*)target + 0xc) == 0xbf);
         if (isBf == 1) {
-            if (*(u8*)((char*)r5 + 0x703) != 0) {
+            if (*(u8*)((char*)target + 0x703) != 0) {
                 s32 flags = *(s32*)(c + 0x130) & 0x107e0;
                 if (flags) {
                     *(s32*)(c + 0x98) = 0x41000;
-                    r4 = 1;
+                    hit = 1;
                 }
             }
-            if (r4 == 0) {
+            if (hit == 0) {
                 s32 flags = *(s32*)(c + 0x130) & 0x50380;
                 if (flags) {
                     func_ov073_0211f494(c, c);
                     *(s32*)(c + 0x98) = 0x2d000;
-                    r4 = 1;
+                    hit = 1;
                 }
             }
-            if (r4 == 0) {
-                if ((*(s32*)(c + 0x130) & 0x70) || (*(u8*)((char*)r5 + 0x6f9) != 0)
-                    || (_ZN8dActor_c16JumpedOnByPlayerER5dCc_cR6Player(c, c + 0x110, r5) != 0)) {
+            if (hit == 0) {
+                if ((*(s32*)(c + 0x130) & 0x70) || (*(u8*)((char*)target + 0x6f9) != 0)
+                    || (((dActor_c *)c)->JumpedOnByPlayer(*(dCc_c *)(c + 0x110), *(Player *)target) != 0)) {
                     func_ov073_0211f494(c, c);
                     *(s32*)(c + 0x98) = 0x20000;
-                    r4 = 1;
+                    hit = 1;
                 }
             }
         }
     }
 
-    if (r4 == 0) {
+    if (hit == 0) {
         if (*(s32*)(c + 0x130) & 0x400) {
             func_ov073_0211f494(c, c);
             *(s32*)(c + 0x98) = 0x3d000;
-            r4 = 1;
+            hit = 1;
         }
     }
 
-    if (r4 != 0) {
+    if (hit != 0) {
         s32 count;
         s32 i;
         s32 shortY;
@@ -467,7 +456,7 @@ extern "C" s32 func_ov073_0211f61c(void* self)
             i = 0;
             if (count > 0) {
                 do {
-                    void* actor = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(0x120, 0, &v, 0, *(s8*)(c + 0xcc), -1);
+                    void* actor = dActor_c::Spawn(0x120, 0, v, 0, *(s8*)(c + 0xcc), -1);
                     if (actor != 0) {
                         rnd = RandomIntInternal(&data_0209e650);
                         shortY = ((s32)((((u32)rnd >> 8) & 0xf) << 0x1c)) >> 0x10;
@@ -475,10 +464,10 @@ extern "C" s32 func_ov073_0211f61c(void* self)
                         *(s16*)((char*)actor + 0x94) = (s16)shortY;
                         *(s16*)((char*)actor + 0x96) = 0;
                         *(s32*)((char*)actor + 0x98) = 0xa000;
-                        if (_ZN8SaveData19IsCharacterUnlockedEj(2) != 0) {
+                        if (SaveData::IsCharacterUnlocked(2) != 0) {
                             *(s32*)(void*)(int)(c + 0x4c0) += 1;
                             if (*(s32*)(c + 0x4c0) > 0x1e) {
-                                void* actor2 = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(0x115, 0, &v, 0, *(s8*)(c + 0xcc), -1);
+                                void* actor2 = dActor_c::Spawn(0x115, 0, v, 0, *(s8*)(c + 0xcc), -1);
                                 if (actor2 != 0) {
                                     *(s16*)((char*)actor2 + 0x92) = 0;
                                     *(s16*)((char*)actor2 + 0x94) = (s16)shortY;
@@ -507,11 +496,11 @@ extern "C" s32 func_ov073_0211f61c(void* self)
         v2.x = *(s32*)(c + 0x5c);
         v2.y = *(s32*)(c + 0x60);
         v2.z = *(s32*)(c + 0x64);
-        if (_ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(r5, &v2, 0, 0x14000, 1, 0, 1) == 0)
+        if (_ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(target, &v2, 0, 0x14000, 1, 0, 1) == 0)
             goto done0;
     }
     {
-        s32* pv = (s32*)((u32)r5 + 0x5c);
+        s32* pv = (s32*)((u32)target + 0x5c);
         _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(0x8a, pv[0], pv[1], pv[2]);
     }
     if (*(void**)(c + 0x37c) == &data_ov073_021233d0) {
@@ -551,7 +540,7 @@ int func_ov073_0211fa74(char* c) {
     pos.x = *(int*)(c + 0x3d8);
     pos.y = *(int*)(c + 0x3dc);
     pos.z = *(int*)(c + 0x3e0);
-    _ZN7Message7EndTalkEv();
+    Message::EndTalk();
     _ZN5Sound22StopLoadedMusic_Layer3Ev();
     func_02011cfc();
     _ZN5Sound17ChangeMusicVolumeEj5Fix12IiE(0x7f, 0x15666);
@@ -564,11 +553,11 @@ int func_ov073_0211fa74(char* c) {
         rot.x = b ? a : a;
         rot.y = b;
         rot.z = *(unsigned short*)(c + 0x90);
-        rot.y = (unsigned short)_ZN8dActor_c18HorzAngleToCPlayerEv(c);
+        rot.y = (unsigned short)((dActor_c *)c)->HorzAngleToCPlayer();
     }
 
-    spawned = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(0x11a, 4, &pos, 0, *(signed char*)(c + 0xcc), -1);
-    found = _ZN8dActor_c15FindWithActorIDEjPS_(0x13d, 0);
+    spawned = dActor_c::Spawn(0x11a, 4, pos, 0, *(signed char*)(c + 0xcc), -1);
+    found = dActor_c::FindWithActorID(0x13d, 0);
     func_02012694(0xbb, c + 0x74);
     if (found != 0) {
         struct Vector3 fp;
@@ -576,12 +565,12 @@ int func_ov073_0211fa74(char* c) {
         fp.x = *(int*)pv;
         fp.y = *(int*)(pv + 4);
         fp.z = *(int*)(pv + 8);
-        _ZN8dActor_c10PoofDustAtERK7Vector3(c, &fp);
-        _ZN7fBase_c18MarkForDestructionEv(found);
+        ((dActor_c *)c)->PoofDustAt(fp);
+        ((fBase_c *)found)->MarkForDestruction();
     }
     if (spawned != 0) {
         *(int*)(((int)cam + 0x154)) &= ~8;
-        _ZN7fBase_c18MarkForDestructionEv(c);
+        ((fBase_c *)c)->MarkForDestruction();
     }
 end:
     return 1;
@@ -604,7 +593,7 @@ int func_ov073_0211fbf4(char* c){
   *(unsigned int*)(c+0x500) = _ZN5Sound8PlayLongEjjjRK7Vector3s(*(unsigned int*)(c+0x500), 3, 0x170, (struct Vector3 *)(c+0x74), 0);
   _ZN6Camera9SetFlag_3Ev(data_0209f318);
   func_ov073_0211f144(c);
-  if(_ZN6Player12GetTalkStateEv(pl) == -1){
+  if(((Player *)pl)->GetTalkState() == -1){
     ChiefChilly_ChangeState((C *)(c), (PMF *)(data_ov073_02123370));
   }
   return 1;
@@ -627,7 +616,7 @@ int func_ov073_0211fc78(char* c) {
     void* player;
     void* cam;
 
-    player = _ZN8dActor_c13ClosestPlayerEv(c);
+    player = ((dActor_c *)c)->ClosestPlayer();
     *(unsigned int*)(c + 0x500) = _ZN5Sound8PlayLongEjjjRK7Vector3s(*(unsigned int*)(c + 0x500), 3, 0x170, (struct Vector3*)(c + 0x74), 0);
     if (player == 0) return 1;
 
@@ -666,8 +655,8 @@ int func_ov073_0211fc78(char* c) {
     ps.y = ps.y + 0x200000;
     ps.z = ps.z + out.z;
 
-    _ZN6Camera9SetLookAtERK7Vector3(cam, &la);
-    _ZN6Camera6SetPosERK7Vector3(cam, &ps);
+    ((Camera *)cam)->SetLookAt(la);
+    ((Camera *)cam)->SetPos(ps);
 
     if (player != 0) {
         int msg;
@@ -675,9 +664,9 @@ int func_ov073_0211fc78(char* c) {
         msg = (short)(*(int*)((char*)*(void**)(c + 0x3e4) + 8) + 0xe7);
         _ZN5Sound17ChangeMusicVolumeEj5Fix12IiE(0x14, 0x15666);
         _ZN7Message11PrepareTalkEv();
-        if (_ZN6Player9StartTalkER7fBase_cb(*(void**)(c + 0x3e4), c, 1)) {
+        if ((*(Player **)(c + 0x3e4))->StartTalk(*(fBase_c *)c, 1)) {
             _ZN6Camera9SetFlag_3Ev(cam);
-            if (_ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(*(void**)(c + 0x3e4), c, msg, &msgpos[1], 0, 2)) {
+            if ((*(Player **)(c + 0x3e4))->ShowMessage(*(fBase_c *)c, msg, &msgpos[1], 0, 2)) {
                 func_02012694(0x12a, (void*)(c + 0x74));
                 ChiefChilly_ChangeState((C *)(c), (PMF *)(&data_ov073_02123410));
             }
@@ -704,11 +693,11 @@ int func_ov073_0211fe8c(char* c) {
 
     *(unsigned int*)(c + 0x500) = _ZN5Sound8PlayLongEjjjRK7Vector3s(*(unsigned int*)(c + 0x500), 3, 0x170, (struct Vector3*)(c + 0x74), 0);
 
-    player = _ZN8dActor_c13ClosestPlayerEv(c);
+    player = ((dActor_c *)c)->ClosestPlayer();
     if (player != 0 && *(unsigned char*)((char*)player + 0x6de) == 0) {
         int angle;
-        _ZN6Player9StartTalkER7fBase_cb(player, c, 1);
-        angle = _ZN8dActor_c18HorzAngleToCPlayerEv(c);
+        ((Player *)player)->StartTalk(*(fBase_c *)c, 1);
+        angle = ((dActor_c *)c)->HorzAngleToCPlayer();
         *(short*)((char*)player + 0x8c) = 0;
         *(short*)((char*)player + 0x8e) = angle + 0x8000;
         *(short*)((char*)player + 0x90) = 0;
@@ -739,8 +728,8 @@ int func_ov073_0211fe8c(char* c) {
     pos.x = pos.x + out.x;
     pos.z = pos.z + out.z;
 
-    _ZN6Camera9SetLookAtERK7Vector3(cam, &look);
-    _ZN6Camera6SetPosERK7Vector3(cam, &pos);
+    ((Camera *)cam)->SetLookAt(look);
+    ((Camera *)cam)->SetPos(pos);
 
     if (*(unsigned short*)(c + 0x100) == 0) {
         ChiefChilly_ChangeState((C *)(c), (PMF *)(&data_ov073_021233e0));
@@ -820,13 +809,13 @@ int func_ov073_021200e0(u8* thiz)
         if (*(int*)(thiz + 0xa8) < 0) {
             int id = *(int*)(thiz + 0x134);
             if (id != 0) {
-                void* actor = _ZN8dActor_c10FindWithIDEj((u32)id);
+                void* actor = dActor_c::FindWithID((u32)id);
                 if (actor != 0) {
                     enum Bool eq = (enum Bool)(*(u16*)((u8*)actor + 0xc) == 0xbf);
                     if (eq != FALSE) {
                         Vec3 pos = *(Vec3*)((u8*)actor + 0x5c);
                         if (*(int*)(thiz + 0x60) > pos.y) {
-                            _ZN6Player12Unk_020c6a10Ej(actor, 1);
+                            ((Player *)actor)->Unk_020c6a10(1);
                         }
                     }
                 }
@@ -834,7 +823,7 @@ int func_ov073_021200e0(u8* thiz)
         }
     }
     /* 0x1a8 */
-    if (_ZNK10dBgCh_Actr10IsOnGroundEv(thiz + 0x150) != 0) {
+    if (((dBgCh_Actr *)(thiz + 0x150))->IsOnGround() != 0) {
         if (*(int*)(thiz + 0x4b4) == 0) {
             *(int*)(thiz + 0x98) = 0;
             *(int*)(thiz + 0xa4) = 0;
@@ -924,7 +913,7 @@ mainblock:
         *(int *)(c + 0xa4) = out[0];
         *(int *)(c + 0xac) = out[2];
     }
-    if (_ZNK10dBgCh_Actr10IsOnGroundEv(c + 0x150) != 0) {
+    if (((dBgCh_Actr *)(c + 0x150))->IsOnGround() != 0) {
         *(unsigned char *)(c + 0x4c5) = *(unsigned char *)(c + 0x4c4);
         *(int *)(c + 0x98) = 0;
         *(int *)(c + 0xa4) = 0;
@@ -1007,7 +996,7 @@ extern "C" {
             }
             *(int *)(c + 0xac) = out[2];
         }
-        if (_ZNK10dBgCh_Actr10IsOnGroundEv(c + 0x150) != 0) {
+        if (((dBgCh_Actr *)(c + 0x150))->IsOnGround() != 0) {
             *(unsigned char *)(c + 0x4c5) = *(unsigned char *)(c + 0x4c4);
             *(int *)(c + 0x98) = 0;
             *(int *)(c + 0xa4) = 0;
@@ -1041,7 +1030,7 @@ int func_ov073_02120844(int *t)
 {
     _Z14ApproachLinearRsss((short *)((char*)t + 0x8c), -0x4000, 0x400);
     t[0x140] = _ZN5Sound8PlayLongEjjjRK7Vector3s(t[0x140], 3, 0x170, (struct Vector3 *)((char*)t + 0x74), 0);
-    if (t[0xf7] > t[0x18] && _ZNK10dBgCh_Actr10IsOnGroundEv((char*)t + 0x150)) {
+    if (t[0xf7] > t[0x18] && ((dBgCh_Actr *)((char*)t + 0x150))->IsOnGround()) {
         func_ov073_0211f2c0(t, 0x7d0000);
         func_02012694(0x16c, (char*)t + 0x74);
         t[0x26] = 0;
@@ -1053,11 +1042,11 @@ int func_ov073_02120844(int *t)
 
 // @symbol func_ov073_021208e4
 extern "C" {
-int func_ov073_021208e4(char *r0) {
-    *(int *)(r0 + 0x98) = 0x14000;
-    *(int *)(r0 + 0xa8) = 0x1e000;
-    *(int *)(r0 + 0x9c) = -0x3000;
-    *(int *)(r0 + 0x500) = 0;
+int func_ov073_021208e4(char *self) {
+    *(int *)(self + 0x98) = 0x14000;
+    *(int *)(self + 0xa8) = 0x1e000;
+    *(int *)(self + 0x9c) = -0x3000;
+    *(int *)(self + 0x500) = 0;
     return 1;
 }
 }
@@ -1139,7 +1128,7 @@ extern "C" {
 int func_ov073_02120b78(char* c){
     _Z14ApproachLinearRsss((short*)(c+0x8c), -0x4000, 0x400);
     if(*(int*)(c+0x3dc) > *(int*)(c+0x60)){
-        if(_ZNK10dBgCh_Actr10IsOnGroundEv(c+0x150)){
+        if(((dBgCh_Actr *)(c+0x150))->IsOnGround()){
             func_ov073_0211f2c0(c, 0xfa0000);
             *(int*)(c+0x98) = 0;
             *(short*)(c+0x94) = Vec3_HorzAngle((const Vector3 *)(c+0x5c), (const Vector3 *)(c+0x3d8));
@@ -1189,7 +1178,7 @@ extern "C" int func_ov073_02120c7c(CB* c)
         return 1;
     }
     _Z14ApproachLinearRiii(&c->field_98, 0, 0x1000);
-    if (_ZN9Animation8FinishedEv(&c->anim_35c)) {
+    if (((Animation *)&c->anim_35c)->Finished()) {
         int b = c->field_98; if (b < 0) b = -b;
         if (b < 0xa) {
             c->field_98 = 0;
@@ -1213,7 +1202,7 @@ int func_ov073_02120d80(char *c)
     t = 0;
     _ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt(c + 0x30c, data_ov073_021232a8[1], 4, 0x40000000, fix, t);
     *(int *)(c + 0x368) = fix;
-    ang = _ZN8dActor_c18HorzAngleToCPlayerEv(c);
+    ang = ((dActor_c *)c)->HorzAngleToCPlayer();
     *(short *)(c + 0x94) = ang;
     *(short *)(((int)c + 0x94)) =
         (short)((int)*(short *)(((int)c + 0x94)) + 0x8000);
@@ -1262,7 +1251,7 @@ int func_ov073_02120ed0(void *self)
     switch (c[0x4c8]) {
     case 0:
         if (*(u16 *)(c + 0x100) == 0) {
-            *(s16 *)(c + 0x4c6) = _ZN8dActor_c18HorzAngleToCPlayerEv(c);
+            *(s16 *)(c + 0x4c6) = ((dActor_c *)c)->HorzAngleToCPlayer();
             *(int *)(c + 0x4b4) = 0;
             if (AngleDiff(*(s16 *)(c + 0x94), *(s16 *)(c + 0x4c6)) <= 0x2000) {
                 *(s16 *)(c + 0x100) = 0x1e;
@@ -1277,7 +1266,7 @@ int func_ov073_02120ed0(void *self)
         } else {
             _Z14ApproachLinearRiii((int *)(c + 0x98), 0x1e000, 0x3000);
             if (*(int *)(c + 0x4b4) == 0) {
-                if (_ZN8dActor_c13DistToCPlayerEv(c) < 0x1f4000) {
+                if (((dActor_c *)c)->DistToCPlayer() < 0x1f4000) {
                     *(int *)(c + 0x4b4) = 1;
                     if ((((unsigned int)RandomIntInternal(&data_0209e650) >> 0x18) & 7) == 0) {
                         c[0x4c8] = 3;
@@ -1305,23 +1294,23 @@ int func_ov073_02120ed0(void *self)
     {
         int d;
         int i;
-        u8 *r5;
+        u8 *dustPos;
         *(int *)(c + 0x4b4) = 0;
         d = *(int *)(c + 0x98);
         if (d < 0) d = -d;
         if (d > 0xa) {
-            r5 = c;
+            dustPos = c;
             i = 0;
             do {
                 _ZN8Particle20RunningSlidingDustAtE5Fix12IiES1_S1_(
-                    *(int *)(r5 + 0x4d4), *(int *)(r5 + 0x4d8), *(int *)(r5 + 0x4dc));
+                    *(int *)(dustPos + 0x4d4), *(int *)(dustPos + 0x4d8), *(int *)(dustPos + 0x4dc));
                 i++;
-                r5 += 0xc;
+                dustPos += 0xc;
             } while (i < 2);
         }
         _Z14ApproachLinearRiii((int *)(c + 0x98), 0, *(int *)(c + 0x4d0));
         if (c[0x4c8] == 1) {
-            *(s16 *)(c + 0x4c6) = _ZN8dActor_c18HorzAngleToCPlayerEv(c);
+            *(s16 *)(c + 0x4c6) = ((dActor_c *)c)->HorzAngleToCPlayer();
             _Z14ApproachLinearRsss((s16 *)(c + 0x8e), *(s16 *)(c + 0x4c6), 0x500);
         }
         d = *(int *)(c + 0x98);
@@ -1329,17 +1318,17 @@ int func_ov073_02120ed0(void *self)
         if (d >= 0xa) break;
         if (*(u16 *)(c + 0x100) != 0) break;
         if (c[0x4c8] == 2) {
-            u8 *p = (u8 *)_ZN8dActor_c13ClosestPlayerEv(c);
+            u8 *p = (u8 *)((dActor_c *)c)->ClosestPlayer();
             if (p != 0) {
                 int t;
-                if (_ZN6Player12GetHurtStateEv(p) == 4) goto hz;
-                if (_ZN6Player12GetHurtStateEv(p) == 5) goto hz;
+                if (((Player *)p)->GetHurtState() == 4) goto hz;
+                if (((Player *)p)->GetHurtState() == 5) goto hz;
                 t = p[0x709] ? 1 : 0;
                 if (t == 1) {
 hz:
                     *(s16 *)(c + 0x4c6) = Vec3_HorzAngle((Vector3 *)(c + 0x5c), (Vector3 *)(c + 0x3d8));
                 } else {
-                    *(s16 *)(c + 0x4c6) = _ZN8dActor_c18HorzAngleToCPlayerEv(c);
+                    *(s16 *)(c + 0x4c6) = ((dActor_c *)c)->HorzAngleToCPlayer();
                 }
             }
         }
@@ -1356,8 +1345,8 @@ hz:
     }
 
     if (c[0x4c8] == 0) {
-        if (_ZNK9Animation12WillHitFrameEi(c + 0x35c, 0) != 0 ||
-            _ZNK9Animation12WillHitFrameEi(c + 0x35c, 0xe) != 0) {
+        if (((Animation *)(c + 0x35c))->WillHitFrame(0) != 0 ||
+            ((Animation *)(c + 0x35c))->WillHitFrame(0xe) != 0) {
             func_ov073_0211f2c0(c, 0x3e8000);
             func_02012694(0x168, c + 0x74);
         }
@@ -1404,10 +1393,10 @@ int func_ov073_0212128c(char* c)
     ps.y = ps.y + 0x20000;
     ps.z = ps.z + 0xffa34000;
 
-    _ZN6Camera9SetLookAtERK7Vector3(cam, &la);
-    _ZN6Camera6SetPosERK7Vector3(cam, &ps);
+    ((Camera *)cam)->SetLookAt(la);
+    ((Camera *)cam)->SetPos(ps);
 
-    if (_ZN6Player12GetTalkStateEv(player) == -1) {
+    if (((Player *)player)->GetTalkState() == -1) {
         *(int*)(((int)cam + 0x154)) &= ~8;
         _ZN5Sound22LoadAndSetMusic_Layer3Ej(0x2d);
         func_02011d08();
@@ -1437,7 +1426,7 @@ int func_ov073_02121388(char* c) {
     int msg;
     char* p;
 
-    player = _ZN8dActor_c13ClosestPlayerEv(c);
+    player = ((dActor_c *)c)->ClosestPlayer();
     if (player == 0) return 1;
 
     {
@@ -1465,8 +1454,8 @@ int func_ov073_02121388(char* c) {
     ps.y = ps.y + 0x20000;
     ps.z = ps.z + 0xffa34000;
 
-    _ZN6Camera9SetLookAtERK7Vector3(cam, &la);
-    _ZN6Camera6SetPosERK7Vector3(cam, &ps);
+    ((Camera *)cam)->SetLookAt(la);
+    ((Camera *)cam)->SetPos(ps);
 
     vmsg.y = vmsg.y + 0x64000;
     _Z14ApproachLinearRsss((short*)(c + 0x94), Vec3_HorzAngle((struct Vector3*)(c + 0x5c), &vplayer), 0x800);
@@ -1474,13 +1463,13 @@ int func_ov073_02121388(char* c) {
     *(void**)(c + 0x3e4) = player;
     p = *(char**)(c + 0x3e4);
     msg = (short)(*(int*)(p + 8) + 0xe3);
-    if (_ZN6Player9StartTalkER7fBase_cb(p, c, 1)) {
+    if (((Player *)p)->StartTalk(*(fBase_c *)c, 1)) {
         if (*(unsigned char*)(c + 0x4c8) == 0) {
             _ZN5Sound22LoadAndSetMusic_Layer3Ej(0x2c);
             *(unsigned char*)(c + 0x4c8) = 0;
         }
 
-        if (_ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(*(void**)(c + 0x3e4), c, msg, &vmsg, 0, 2)) {
+        if ((*(Player **)(c + 0x3e4))->ShowMessage(*(fBase_c *)c, msg, &vmsg, 0, 2)) {
             func_02012694(0x12a, c + 0x74);
             ChiefChilly_ChangeState((C *)(c), (PMF *)(data_ov073_02123350));
         }

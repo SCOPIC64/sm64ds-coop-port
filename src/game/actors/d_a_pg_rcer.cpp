@@ -1,33 +1,43 @@
 //cpp
 /**
- * d_a_pg_rcer.cpp
- * Object - Racing penguin (PENGUIN_RACER)
+ * daPgRcer_c -- the racing penguin of Cool, Cool Mountain (PENGUIN_RACER),
+ * ov019. RTTI ov019:0x021132dc is the string 10daPgRcer_c.
  *
- * Cool Cool Mountain. RTTI ov019:0x021132dc is the string 10daPgRcer_c.
- * mwccarm emits ordinary .text in reverse source order; keep the factory
- * first. The inline destructor in daPgRcer_c emits retail D1/D0 and no D2.
+ * He talks the player into a race, runs his path with rubber-band speed
+ * (func_ov019_02111254), and catches the shortcut: once the player's
+ * airborne fall adds up past 0x7d0000 (mFallAccum), mPlayerCheated is set.
  *
- * deslop
- * Leftover: SetAnim / TextureSequence::SetFile / dCcAc_c::Init /
- *   dBgCh_Actr::Init / SetRanges / DropShadowRadHeight stay mangled
- *   (Fix12-by-value, 6az -- this TU's InitResources / race helpers).
- *   dBgCh Init header Fix12i mangles as int.
- * Leftover: GetFloorResult / GetWallResult stay mangled (not in
- *   dBgCh_Actr.h -- this TU's func_ov019_0211140c).
- * Leftover: Player StartTalk / ShowMessage / GetTalkState /
- *   HasFinishedTalking / Unk_020c4f40 stay mangled (reference-vs-pointer
- *   6az -- this TU).
- * Leftover: helpers stay func_ov019_* (PMF dispatch and race states).
- * Leftover: data_ov019_* handles and finish/cheat volumes; sinit-owned,
- *   not this TU (S14). g_profile_PENGUIN_RACER lives outside this TU.
- * Leftover: (Vector3 *)&mScaleX in Render; dActor_c has no Pos() on this
- *   branch (S18). (Vector3 *)&mPosX in InitResources GetNode.
- * Leftover: func_02038414 veneer (UpdateDiscreteNoLava_2 -- this TU's
- *   func_ov019_0211140c). func_0201267c / func_02012790 names.
- * Leftover: #pragma opt_common_subs off is file-global last-wins; drop
- *   DIFFs the race helpers (measured on the shadow TU).
- * Leftover: ((int)c + 0x300) + 0x8c for mTargetAngY (MATCH addressing
- *   form -- this TU's path helpers).
+ * DO NOT "TIDY" THESE -- each one is load-bearing:
+ *
+ *   mwccarm emits ordinary .text in reverse source order; keep the factory
+ *   first. The inline destructor in daPgRcer_c emits retail D1/D0 and no D2.
+ *
+ *   `#pragma opt_common_subs off` is file-global (last one wins). Dropping it
+ *   changes the bytes of the race helpers (measured on the shadow TU).
+ *
+ *   ((int)c + 0x300) + 0x8c for mTargetAngY in the path helpers is the
+ *   matching addressing form.
+ *
+ *   (Vector3 *)&mScaleX in Render and (Vector3 *)&mPosX in InitResources'
+ *   GetNode: dActor_c has no Pos() accessor.
+ *
+ * WHY SOME CALLS ARE SPELLED AS MANGLED SYMBOLS:
+ *   Fix12<int> by value (notes/mwccarm-codegen.md 6az): SetAnim,
+ *   TextureSequence::SetFile, dCcAc_c::Init, dBgCh_Actr::Init, SetRanges,
+ *   DropShadowRadHeight
+ *   (InitResources and the race helpers). The dBgCh Init header's Fix12i
+ *   mangles as int.
+ *   Not in dBgCh_Actr.h: GetFloorResult / GetWallResult
+ *   (func_ov019_0211140c).
+ *
+ * Known limits:
+ *   The helpers keep their func_ov019_* labels (PMF dispatch and race
+ *   states). func_02038414 is the UpdateDiscreteNoLava_2 veneer
+ *   (func_ov019_0211140c); func_0201267c / func_02012790 are unnamed.
+ *
+ * NOT OWNED BY THIS TU: the data_ov019_* handles and the finish/cheat
+ * volumes are constructed by the overlay's sinit; g_profile_PENGUIN_RACER
+ * lives elsewhere.
  */
 
 #pragma opt_common_subs off
@@ -74,7 +84,8 @@ extern int _Z14ApproachLinearRsss(short *p, short target, short step);
 extern void _Z14ApproachLinearRiii(int *p, int a, int b);
 extern void Matrix4x3_FromRotationY(void *m, short angle);
 
-/* Fix12-by-value, 6az. This TU's InitResources / race helpers. */
+/* Fix12-by-value, notes/mwccarm-codegen.md 6az. This TU's InitResources / race
+   helpers. */
 extern void _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj(void *, void *, int, int, unsigned int, unsigned int);
 extern void _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(void *, void *, int, int, void *, int);
 extern void _ZN8dActor_c9SetRangesE5Fix12IiES1_S1_S1_(void *self, int a, int b, int cc, int d);
@@ -83,26 +94,14 @@ extern int _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(void *, void *, int, int,
 extern void _ZN15TextureSequence7SetFileER8BTP_Filei5Fix12IiEj(void *self, void *btp, int a, int fix, unsigned int b);
 extern void *_ZNK10dBgCh_Actr14GetFloorResultEv(void *c);
 extern void *_ZNK10dBgCh_Actr13GetWallResultEv(void *c);
-extern void _ZNK11SurfaceInfo12CopyNormalToER7Vector3(void *s, int *out);
-extern int _ZN9Animation8FinishedEv(void *self);
-extern void _ZN8dActor_c19UntrackAndSpawnStarERajRK7Vector3h(void *self, signed char *a, unsigned int b, void *pos, unsigned int d);
-extern void _ZN8dActor_c9UpdatePosEP5dCc_c(void *self, void *clsn);
-extern void _ZNK7PathPtr7GetNodeER7Vector3j(void *p, void *v, unsigned int i);
-extern int _ZNK7PathPtr8NumNodesEv(void *p);
-extern int _ZNK10dBgCh_Actr13JustHitGroundEv(void *m);
 
 /* Player talk helpers: reference-vs-pointer is unprovable (this TU). */
-extern int _ZN6Player9StartTalkER7fBase_cb(void *actor, void *self, int b);
-extern int _ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(void *actor, void *ab, unsigned int id, void *pos, unsigned int a, unsigned int b);
-extern int _ZN6Player12GetTalkStateEv(void *actor);
-extern int _ZN6Player18HasFinishedTalkingEv(void *actor);
-extern int _ZN6Player12Unk_020c4f40Et(void *p, unsigned short a);
 
 extern void _ZN5Sound7PlaySubEjjj5Fix12IiEb(unsigned int a, unsigned int b, unsigned int cc, int d, int e);
 extern u32 _ZN5Sound8PlayLongEjjjRK7Vector3s(u32 a, u32 b, u32 cc, void *v, u32 d);
 extern void *_ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(u32 a, u32 b, int cc, int d, int e, void *f, void *g);
 
-int func_ov019_02111254(void *unused, int d);
+int func_ov019_02111254(void *unused, int playerLead);
 int func_ov019_0211127c(void *self, Vector3 *v, unsigned int j);
 void func_ov019_021112b8(void *self);
 int func_ov019_0211131c(void *self);
@@ -261,7 +260,7 @@ int func_ov019_02112168(char *c)
         return 1;
     int d178 = *(int *)((char *)c + 0x178);
     if (Vec3_Dist((char *)c + 0x5c, (char *)pl + 0x5c) < d178 + 0x78000) {
-        if (_ZN6Player9StartTalkER7fBase_cb(pl, c, 1)) {
+        if (((Player *)pl)->StartTalk(*(fBase_c *)c, 1)) {
             *(int *)((char *)c + 0x378) = (int)pl;
             func_ov019_021122dc(c, 1);
         }
@@ -270,13 +269,13 @@ int func_ov019_02112168(char *c)
 }
 
 // @symbol func_ov019_0211213c
-int func_ov019_0211213c(char *r4)
+int func_ov019_0211213c(char *self)
 {
     extern int func_0201267c(int a, void *pos, int b);
-    char *r1 = r4 + 0x74;
-    *(unsigned char *)(r4 + 0x38f) = 0;
-    func_0201267c(0xdf, r1, 0);
-    *(int *)(r4 + 0x374) = 1;
+    char *pos = self + 0x74;
+    *(unsigned char *)(self + 0x38f) = 0;
+    func_0201267c(0xdf, pos, 0);
+    *(int *)(self + 0x374) = 1;
     return 1;
 }
 
@@ -304,15 +303,14 @@ int func_ov019_02111fec(char *c)
                 msg = 0xab;
             else
                 msg = 0xa7;
-            if (_ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(
-                    *(void **)(c + 0x378), c, (unsigned int)(short)msg, &pos, 1, 2) != 0) {
+            if (((Player *)(*(void **)(c + 0x378)))->ShowMessage(*(fBase_c *)c, (unsigned int)(short)msg, &pos, 1, 2) != 0) {
                 LB(0x38f) = LB(0x38f) + 1;
             }
         }
         break;
     }
     case 1:
-        if (_ZN6Player12GetTalkStateEv(*(void **)(c + 0x378)) == 2) {
+        if (((Player *)(*(void **)(c + 0x378)))->GetTalkState() == 2) {
             unsigned char d = data_0209d684;
             if (d == 1) {
                 func_02012790(0x98);
@@ -320,7 +318,7 @@ int func_ov019_02111fec(char *c)
             } else if (d == 2) {
                 func_02012790(0x63);
                 *(unsigned char *)(c + 0x38e) = 0x5a;
-                _ZN6Player18HasFinishedTalkingEv(*(void **)(c + 0x378));
+                ((Player *)(*(void **)(c + 0x378)))->HasFinishedTalking();
                 func_ov019_021122dc(c, 0);
             }
         }
@@ -348,7 +346,7 @@ int func_ov019_02111dec(char *c)
 {
     switch (*(unsigned char *)(c + 0x38f)) {
     case 0:
-        if (_ZN6Player12Unk_020c4f40Et(*(void **)(c + 0x378), 0x5a) != 0) {
+        if (((Player *)(*(void **)(c + 0x378)))->Unk_020c4f40(0x5a) != 0) {
             LB(0x38f) = LB(0x38f) + 1;
         }
         break;
@@ -358,18 +356,18 @@ int func_ov019_02111dec(char *c)
             *(short *)((char *)(((int)c + 0x300)) + 0x8c),
             2, 0x800);
         *(short *)(c + 0x8e) = *(short *)(c + 0x94);
-        _ZN8dActor_c9UpdatePosEP5dCc_c(c, c + 0x174);
+        ((dActor_c *)c)->UpdatePos((dCc_c *)(c + 0x174));
         func_ov019_0211140c((int *)c, c + 0x1a8);
-        if (_ZNK10dBgCh_Actr13JustHitGroundEv(c + 0x1a8) != 0) {
+        if (((dBgCh_Actr *)(c + 0x1a8))->JustHitGround() != 0) {
             _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xd4, (void *)data_ov019_02113460[1], 0x40000000, 0x1000, 0);
             LB(0x38f) = LB(0x38f) + 1;
         }
         break;
     case 2:
-        if (_ZN9Animation8FinishedEv(c + 0x124) != 0) {
+        if (((Animation *)(c + 0x124))->Finished() != 0) {
             _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xd4, (void *)data_ov019_02113470[1], 0, 0x1000, 0);
         }
-        if (_ZN6Player12GetTalkStateEv(*(void **)(c + 0x378)) == -1) {
+        if (((Player *)(*(void **)(c + 0x378)))->GetTalkState() == -1) {
             _ZN5Sound7PlaySubEjjj5Fix12IiEb(0x1f, 0x7f, 0, 0x15666, 0);
             func_0201267c(0x4d, c + 0x74);
             func_ov019_021122dc(c, 3);
@@ -403,12 +401,12 @@ int func_ov019_0211197c(void *self)
         if (func_ov019_0211131c(c)) {
             func_ov019_021113b0(c);
         }
-        if (_ZN9Animation8FinishedEv(c + 0x124)) {
+        if (((Animation *)(c + 0x124))->Finished()) {
             _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xd4, (void *)data_ov019_02113488[1], 0, 0x1000, 0);
             *(int *)(c + 0x130) = 0x1000;
             c[0x38f]++;
         }
-        _ZN8dActor_c9UpdatePosEP5dCc_c(c, c + 0x174);
+        ((dActor_c *)c)->UpdatePos((dCc_c *)(c + 0x174));
         func_ov019_0211140c((int *)c, c + 0x1a8);
         if (c[0x394] == 0 && c[0x393] == 0) {
             {
@@ -436,17 +434,17 @@ int func_ov019_0211197c(void *self)
 
     case 1:
         if (func_ov019_0211131c(c)) {
-            if (*(int *)(c + 0x36c) >= _ZNK7PathPtr8NumNodesEv(c + 0x364) - 2) {
+            if (*(int *)(c + 0x36c) >= (int)((PathPtr *)(c + 0x364))->NumNodes() - 2) {
                 _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xd4, (void *)data_ov019_02113490[1], 0x40000000, 0x1000, 0);
                 c[0x38f]++;
             } else {
                 func_ov019_021113b0(c);
             }
         }
-        _ZN8dActor_c9UpdatePosEP5dCc_c(c, c + 0x174);
+        ((dActor_c *)c)->UpdatePos((dCc_c *)(c + 0x174));
         func_ov019_0211140c((int *)c, c + 0x1a8);
         if (c[0x394] == 0 && c[0x393] == 0 &&
-            *(int *)(c + 0x36c) < _ZNK7PathPtr8NumNodesEv(c + 0x364) - 2) {
+            *(int *)(c + 0x36c) < (int)((PathPtr *)(c + 0x364))->NumNodes() - 2) {
             {
                 Vector3 v;
                 v.x = *(int *)(c + 0x5c);
@@ -489,7 +487,7 @@ int func_ov019_0211197c(void *self)
         break;
 
     case 2:
-        if (_ZN9Animation8FinishedEv(c + 0x124)) {
+        if (((Animation *)(c + 0x124))->Finished()) {
             func_ov019_021122dc(c, 4);
         }
         break;
@@ -523,8 +521,8 @@ int func_ov019_021117a8(char *c)
     int node[3];
     switch (*(unsigned char *)(c + 0x38f)) {
     case 0: {
-        int n = _ZNK7PathPtr8NumNodesEv(c + 0x364);
-        _ZNK7PathPtr7GetNodeER7Vector3j(c + 0x364, node, n - 1);
+        int n = ((PathPtr *)(c + 0x364))->NumNodes();
+        ((PathPtr *)(c + 0x364))->GetNode(*(Vector3 *)node, n - 1);
         *(int *)(c + 0x380) = Vec3_Dist(c + 0x5c, node);
         *(short *)((char *)(((int)c + 0x300)) + 0x8c) =
             Vec3_HorzAngle(c + 0x5c, node);
@@ -537,7 +535,7 @@ int func_ov019_021117a8(char *c)
             *(int *)(c + 0x98) = *(int *)(c + 0x380);
             LB(0x38f) = LB(0x38f) + 1;
         }
-        _ZN8dActor_c9UpdatePosEP5dCc_c(c, c + 0x174);
+        ((dActor_c *)c)->UpdatePos((dCc_c *)(c + 0x174));
         func_ov019_0211140c((int *)c, c + 0x1a8);
         {
             unsigned int s = ((unsigned int)*(int *)(c + 0x12c) << 4) >> 0x10;
@@ -581,10 +579,10 @@ int func_ov019_02111558(void *thiz)
 
     switch (*(unsigned char *)(c + 0x38f)) {
     case 0: {
-        int r5 = *(int *)(c + 0x178);
+        int radius = *(int *)(c + 0x178);
         int d = Vec3_Dist(c + 0x5c, (char *)*(void **)(c + 0x378) + 0x5c);
-        if (d < r5 + 0x78000) {
-            if (_ZN6Player9StartTalkER7fBase_cb(*(void **)(c + 0x378), c, 1) != 0) {
+        if (d < radius + 0x78000) {
+            if (((Player *)(*(void **)(c + 0x378)))->StartTalk(*(fBase_c *)c, 1) != 0) {
                 LB(0x38f) = LB(0x38f) + 1;
             }
         }
@@ -611,7 +609,7 @@ int func_ov019_02111558(void *thiz)
                 else
                     id = 0xa8;
             }
-            if (_ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(*(void **)(c + 0x378), c, id, &v, 1, 2) != 0) {
+            if (((Player *)(*(void **)(c + 0x378)))->ShowMessage(*(fBase_c *)c, id, (Vector3 *)&v, 1, 2) != 0) {
                 func_0201267c(0xdf, c + 0x74);
                 LB(0x38f) = LB(0x38f) + 1;
             }
@@ -619,14 +617,11 @@ int func_ov019_02111558(void *thiz)
         break;
     }
     case 2:
-        if (_ZN6Player12GetTalkStateEv(*(void **)(c + 0x378)) == 2) {
+        if (((Player *)(*(void **)(c + 0x378)))->GetTalkState() == 2) {
             if (*(unsigned char *)(c + 0x395) == 0) {
-                _ZN8dActor_c19UntrackAndSpawnStarERajRK7Vector3h(
-                    c, (signed char *)(((int)c + 0x396)),
-                    (unsigned int)(unsigned char)((*(unsigned int *)(c + 8) >> 8) & 0xf),
-                    c + 0x5c, 4);
+                ((dActor_c *)c)->UntrackAndSpawnStar(*(signed char *)(((int)c + 0x396)), (unsigned int)(unsigned char)((*(unsigned int *)(c + 8) >> 8) & 0xf), *(Vector3 *)(c + 0x5c), 4);
             }
-            _ZN6Player18HasFinishedTalkingEv(*(void **)(c + 0x378));
+            ((Player *)(*(void **)(c + 0x378)))->HasFinishedTalking();
             _ZN15TextureSequence7SetFileER8BTP_Filei5Fix12IiEj(c + 0x138, (void *)data_ov019_02113468[1], 0, 0x1000, 0);
             LB(0x38f) = LB(0x38f) + 1;
         }
@@ -638,12 +633,12 @@ int func_ov019_02111558(void *thiz)
 // @symbol func_ov019_021114ec
 void func_ov019_021114ec(void *c)
 {
-    char *r4 = (char *)c;
-    Matrix4x3_FromRotationY(r4 + 0xf0, *(short *)(r4 + 0x8e));
-    *(int *)(r4 + 0x114) = *(int *)(r4 + 0x5c) >> 3;
-    *(int *)(r4 + 0x118) = *(int *)(r4 + 0x60) >> 3;
-    *(int *)(r4 + 0x11c) = *(int *)(r4 + 0x64) >> 3;
-    _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(r4, r4 + 0x14c, r4 + 0xf0, 0x140000, 0x50000, 0xf);
+    char *self = (char *)c;
+    Matrix4x3_FromRotationY(self + 0xf0, *(short *)(self + 0x8e));
+    *(int *)(self + 0x114) = *(int *)(self + 0x5c) >> 3;
+    *(int *)(self + 0x118) = *(int *)(self + 0x60) >> 3;
+    *(int *)(self + 0x11c) = *(int *)(self + 0x64) >> 3;
+    _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(self, self + 0x14c, self + 0xf0, 0x140000, 0x50000, 0xf);
 }
 
 // @symbol func_ov019_0211140c
@@ -653,7 +648,7 @@ int func_ov019_0211140c(int *self, void *clsn)
     int n1[3];
     func_02038414(clsn);
     if (((dBgCh_Actr *)clsn)->IsOnGround()) {
-        _ZNK11SurfaceInfo12CopyNormalToER7Vector3((char *)_ZNK10dBgCh_Actr14GetFloorResultEv(clsn) + 4, n0);
+        ((SurfaceInfo *)((char *)_ZNK10dBgCh_Actr14GetFloorResultEv(clsn) + 4))->CopyNormalTo(*(Vector3 *)n0);
         if (n0[1] != 0) {
             long long a = (long long)n0[0] * (long long)self[0xa4 / 4];
             long long b = (long long)n0[2] * (long long)self[0xac / 4];
@@ -665,7 +660,7 @@ int func_ov019_0211140c(int *self, void *clsn)
         }
     }
     if (((dBgCh_Actr *)clsn)->IsOnWall()) {
-        _ZNK11SurfaceInfo12CopyNormalToER7Vector3((char *)_ZNK10dBgCh_Actr13GetWallResultEv(clsn) + 4, n1);
+        ((SurfaceInfo *)((char *)_ZNK10dBgCh_Actr13GetWallResultEv(clsn) + 4))->CopyNormalTo(*(Vector3 *)n1);
     }
 }
 
@@ -712,12 +707,12 @@ void func_ov019_021112b8(void *vc)
         return;
     Player *t = c->mTalkPlayer;
     if (t->mIsAirborne != 0) {
-        int a8 = t->mVertSpeed;
-        int a0 = t->mTerminalVelocity;
-        if (a8 > a0)
+        int vertSpeed = t->mVertSpeed;
+        int terminalVel = t->mTerminalVelocity;
+        if (vertSpeed > terminalVel)
             return;
         {
-            int d = a8;
+            int d = vertSpeed;
             if (d < 0)
                 d = -d;
             c->mFallAccum = c->mFallAccum + d;
@@ -740,18 +735,20 @@ int func_ov019_0211127c(void *vc, Vector3 *arg, unsigned int j)
 }
 
 // @symbol func_ov019_02111254
-int func_ov019_02111254(void *unused, int r1)
+/* Rubber band: the further ahead the player is, in path nodes, the faster
+ * the penguin runs -- clamped to 0x30000..0x65000. */
+int func_ov019_02111254(void *unused, int playerLead)
 {
-    int r0 = r1 * 0x54cc + 0x4a800;
+    int speed = playerLead * 0x54cc + 0x4a800;
 
-    if (r0 > 0x65000) {
-        r0 = 0x65000;
+    if (speed > 0x65000) {
+        speed = 0x65000;
     }
-    if (r0 < 0x30000) {
-        r0 = 0x30000;
+    if (speed < 0x30000) {
+        speed = 0x30000;
     }
 
-    return r0;
+    return speed;
 }
 
 }

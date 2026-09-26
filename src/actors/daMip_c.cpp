@@ -1,8 +1,7 @@
 //cpp
-/* Reconstructed translation unit.
- * ov085/daMip_c  (32 functions)
+/* daMip_c -- MIP the rabbit (ov085, 32 functions).
  *
- * MIP the rabbit. The class identity is the cartridge's own: ov085 0x021300bc
+ * The class identity is the cartridge's own: ov085 0x021300bc
  * holds the length-prefixed string "7daMip_c", 0x021300c8 is the
  * __si_class_type_info record that names it, and 0x021300f8 is its 31-slot
  * vtable. The tree called this class `Rabbit`; that name is coined, appears
@@ -70,26 +69,32 @@
  * FUNCTIONS cannot be handled that way -- a class member function may not sit
  * inside a linkage-specification region -- so every external call this TU makes
  * is declared once, below, with C linkage, on one reconciled signature.
+ *
+ * Known limits: SetAnim / dCcAc_c::Init / dBgCh_Actr::Init / DropShadowRadHeight
+ *   stay mangled (Fix12-by-value, 6az; dBgCh Init header Fix12i mangles as
+ *   int). Player+8 param1 / +0x6d9 / +0x6ce belong on Player. data_ov085_*
+ *   handles. S14 no g_profile_MIP. Shadow copy uses local Mtx43,
+ *   so include order is free.
  */
 #include "daMip_c.h"
+#include "common.h"
 #include "SharedFilePtr.h"
+#include "Player.h"
+#include "PathPtr.h"
 #include "decl_Message.h"
 #include "decl_PathPtr.h"
+#include "Message.h"
+#include "SaveData.h"
+#include "dBgCh_Gnd.h"
 
 extern "C" {
 
 /* ground probe / collision */
 void  _ZN9dBgCh_GndC1Ev(void *);
 void  _ZN9dBgCh_GndD1Ev(void *);
-void  _ZN5dBgCh19StartDetectingWaterEv(void *);
-void  _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(void *, const void *, void *);
-int   _ZN9dBgCh_Gnd10DetectClsnEv(void *);
 int   SurfaceInfo_TestFlag0x20(void *);
-int   _ZNK10dBgCh_Actr8IsOnWallEv(void *);
 void  _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(void *, void *, s32, s32, void *, void *);
 void  _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj(void *, void *, s32, s32, u32, u32);
-void  _ZN5dCc_c5ClearEv(void *);
-void  _ZN5dCc_c6UpdateEv(void *);
 
 /* dActor_c / dEnemyBase_c, reached by their ROM names.
    dActor_c::ClosestPlayer and dActor_c::FindWithID are deliberately NOT here:
@@ -99,45 +104,21 @@ void  _ZN5dCc_c6UpdateEv(void *);
    under, because DropShadowRadHeight and Spawn take Fix12<int> and s8/s16 BY
    VALUE in their real declarations and mwccarm passes those differently at the
    call site. */
-void *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(u32, u32, const void *, const void *, int, int);
-void  _ZN8dActor_c9UpdatePosEP5dCc_c(void *, void *);
-void *_ZN8dActor_c11UpdateCarryER6PlayerRK7Vector3(void *, void *, void *);
 void  _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(void *, void *, void *, int, int, u32);
-int   _ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr(void *, void *);
-void  _ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj(void *, void *, u32);
 
 /* Player / Message / Sound / SaveData */
-int   _ZN6Player7TryGrabER8dActor_c(void *, void *);
-int   _ZN6Player9StartTalkER7fBase_cb(void *, void *, int);
-int   _ZN6Player12GetTalkStateEv(void *);
-int   _ZN6Player9DropActorEv(void *);
-int   _ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(void *, void *, u32, const void *, u32, u32);
-int   _ZN6Player14IsFrontSlidingEv(void *);
-int   _ZN6Player17LostGrabbedObjectEv(void *);
-void  _ZN7Message7EndTalkEv(void);
 /* The return type is load-bearing: StateTalkMain tests it in an `if`, so the
    `void` spelling three of the four legacy files used cannot be the one. */
 bool  _ZN5Sound7PlaySubEjjj5Fix12IiEb(u32, u32, u32, s32, int);
-int   _ZN8SaveData22NumGlowingRabbitsFoundEv(void);
 
 /* model / animation / shadow */
 void  _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(void *, void *, int, s32, u32);
-void  _ZN9ModelAnim6RenderEPK7Vector3(void *, void *);
 void  _ZN9ModelAnimC1Ev(void *);
-int   _ZN9ModelBase7SetFileEP8BMD_Fileii(void *, void *, int, int);
-void *_ZN5Model8LoadFileER13SharedFilePtr(void *);
-char *_ZN9Animation8LoadFileER13SharedFilePtr(void *);
-int   _ZN9Animation8FinishedEv(void *);
-void  _ZN9Animation7AdvanceEv(void *);
-int   _ZN11ShadowModel12InitCylinderEv(void *);
 void  _ZN11ShadowModelC1Ev(void *);
 
 /* path, particle, construction */
 void  _ZN7PathPtrC1Ev(void *);
-void  _ZN7PathPtr6FromIDEj(void *, u32);
-void  _ZNK7PathPtr7GetNodeER7Vector3j(void *, void *, u32);
 int   _ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(u32, u32, s32, s32, s32, void *, void *);
-void *_ZN7fBase_cnwEj(u32);
 void  _ZN12dEnemyBase_cC2Ev(void *);
 void  _ZN7dCcAc_cC1Ev(void *);
 void  _ZN10dBgCh_ActrC1Ev(void *);
@@ -215,9 +196,7 @@ daMip_c::~daMip_c()
 {
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 2 -- daMip_c::TestWaterBelow, 0x0212a788, size 0xa0             */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c14TestWaterBelowEv
 /* Probes the ground 0xc8000 above the rabbit with a water-detecting dBgCh_Gnd,
    caches the surface height at +0x464 and answers whether the surface carries
@@ -236,7 +215,7 @@ int daMip_c::TestWaterBelow()
     struct RG rg;
     Vector3 v;
     _ZN9dBgCh_GndC1Ev(&rg);
-    _ZN5dBgCh19StartDetectingWaterEv(&rg);
+    ((dBgCh *)&rg)->StartDetectingWater();
     int x = *(int *)(c + 0x5c);
     int y = *(int *)(c + 0x60);
     int z = *(int *)(c + 0x64);
@@ -244,8 +223,8 @@ int daMip_c::TestWaterBelow()
     v.x = x;
     v.y = yk;
     v.z = z;
-    _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(&rg, &v, c);
-    if (_ZN9dBgCh_Gnd10DetectClsnEv(&rg)) {
+    ((dBgCh_Gnd *)&rg)->SetObjAndPos(*(::Vector3 *)&v, (dActor_c *)c);
+    if (((dBgCh_Gnd *)&rg)->dBgCh_Gnd::DetectClsn()) {
         mFloorY = rg.detect[12];
         if (SurfaceInfo_TestFlag0x20(rg.detect)) {
             _ZN9dBgCh_GndD1Ev(&rg);
@@ -256,9 +235,7 @@ int daMip_c::TestWaterBelow()
     return 0;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 3 -- daMip_c::UpdateGrab, 0x0212a828, size 0xdc                 */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c10UpdateGrabEv
 /* The pick-up handshake. +0x134 is the id of the actor currently touching this
    one; if it resolves to a Player (actor type 0xbf), the touch carries the grab
@@ -278,7 +255,7 @@ void daMip_c::UpdateGrab()
     int b = (*(unsigned short *)(o + 0xc) == 0xbf);
     if (b == 0) return;
     if ((*(int *)(c + 0x130) & 0x1000) == 0) return;
-    if (_ZN6Player7TryGrabER8dActor_c(o, c) == 0) return;
+    if (((Player *)o)->TryGrab(*(dActor_c *)c) == 0) return;
     *(void **)(c + 0x45c) = o;
     *(int *)(((int)c + 0x128)) |= 2;
     if (unk_426 == 0) {
@@ -288,9 +265,7 @@ void daMip_c::UpdateGrab()
     }
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 4 -- daMip_c::StateSaveTalkMain, 0x0212a904, size 0x1a0         */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c17StateSaveTalkMainEv
 /* The eighth-rabbit epilogue, reached only from StateCaughtMain's flag path
    once SaveData says all eight glowing rabbits are found. The rabbit turns to
@@ -311,12 +286,12 @@ int daMip_c::StateSaveTalkMain()
     extern char data_ov085_021306bc[];
     char *self = (char *)this;
 
-    char *r4 = *(char **)(self + 0x460);
+    char *player = *(char **)(self + 0x460);
     struct V3 vec;
     unsigned char gb;
     int state;
 
-    mTargetAngY = Vec3_HorzAngle((struct V3 *)(self + 0x5c), (struct V3 *)(r4 + 0x5c));
+    mTargetAngY = Vec3_HorzAngle((struct V3 *)(self + 0x5c), (struct V3 *)(player + 0x5c));
     ApproachAngle(self + 0x94, mTargetAngY, 1, 0x500, 0x500);
 
     gb = data_0209d684;
@@ -328,7 +303,7 @@ int daMip_c::StateSaveTalkMain()
     state = mActionStep;
     switch (state) {
     case 0:
-        if (_ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(r4, self, 0x148, &vec, 0, 0)) {
+        if (((Player *)player)->ShowMessage(*(fBase_c *)self, 0x148, (Vector3 *)&vec, 0, 0)) {
             func_02012790(0xa);
             {
                 int *p = (int *)(((int)self + 0x41c));
@@ -348,19 +323,19 @@ int daMip_c::StateSaveTalkMain()
             } else if (gb == 2) {
                 func_02012790(0x98);
                 {
-                    unsigned short *hp = (unsigned short *)(((int)r4 + 0x6ce));
+                    unsigned short *hp = (unsigned short *)(((int)player + 0x6ce));
                     *hp &= ~0x800;
                 }
-                _ZN7Message7EndTalkEv();
+                Message::EndTalk();
                 SetState(data_ov085_021306bc);
             }
         }
         break;
     case 2:
         if (data_0209d660 == 0) {
-            unsigned short *hp = (unsigned short *)(((int)r4 + 0x6ce));
+            unsigned short *hp = (unsigned short *)(((int)player + 0x6ce));
             *hp &= ~0x800;
-            _ZN7Message7EndTalkEv();
+            Message::EndTalk();
             SetState(data_ov085_021306bc);
         }
         break;
@@ -368,9 +343,7 @@ int daMip_c::StateSaveTalkMain()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 5 -- daMip_c::StateSaveTalkInit, 0x0212aaa4, size 0x48          */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c17StateSaveTalkInitEv
 int daMip_c::StateSaveTalkInit()
 {
@@ -383,9 +356,7 @@ int daMip_c::StateSaveTalkInit()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 6 -- daMip_c::StateTalkMain, 0x0212aaec, size 0x150             */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c13StateTalkMainEv
 /* The ordinary conversation, entered from StateReleasedMain once
    Player::StartTalk agrees. Faces the player, picks the line from mRabbitId,
@@ -415,7 +386,7 @@ int daMip_c::StateTalkMain()
     angle = Vec3_HorzAngle((struct V3 *)(self + 0x5c), &pp);
 
     id = 0x139;
-    switch (_ZN6Player12GetTalkStateEv(player)) {
+    switch (((Player *)player)->GetTalkState()) {
     case 0:
         pos.y = pos.y + 0x46000;
         if (mRabbitId == 7) {
@@ -427,7 +398,7 @@ int daMip_c::StateTalkMain()
         if (_Z14ApproachLinearRsss((s16 *)(self + 0x94), angle, 0x800)) {
             if (_ZN5Sound7PlaySubEjjj5Fix12IiEb(0x26, 0x12, 0x7f, 0x15ccc, 0)) {
                 _ZN7Message11PrepareTalkEv();
-                _ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(player, self, id, &pos, 0, 0);
+                ((Player *)player)->ShowMessage(*(fBase_c *)self, id, (Vector3 *)&pos, 0, 0);
             }
         }
         break;
@@ -435,7 +406,7 @@ int daMip_c::StateTalkMain()
         break;
     default:
         if (_ZN5Sound7PlaySubEjjj5Fix12IiEb(0x26, 0x7f, 0, 0x7444, 0)) {
-            _ZN7Message7EndTalkEv();
+            Message::EndTalk();
             SetState(data_ov085_021306bc);
         }
         break;
@@ -443,19 +414,15 @@ int daMip_c::StateTalkMain()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 7 -- daMip_c::StateTalkInit, 0x0212ac3c, size 0x10              */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c13StateTalkInitEv
 int daMip_c::StateTalkInit()
 {
-    int *p = (int *)this;
-    p[263] = 0; return 1;
+    mActionStep = 0;
+    return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 8 -- daMip_c::StateReleasedMain, 0x0212ac4c, size 0x140         */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c17StateReleasedMainEv
 /* Standing free again. Lets go of the carrier at +0x45c once the carry flags
    clear, refuses to act while the closest player is mid-message, and re-opens
@@ -521,7 +488,7 @@ int daMip_c::StateReleasedMain()
             if (ok != 0) {
                 *(char **)(c + 0x460) = o;
                 o = *(char **)(c + 0x460);
-                if (_ZN6Player9StartTalkER7fBase_cb(o, c, 0) != 0) {
+                if (((Player *)o)->StartTalk(*(fBase_c *)c, 0) != 0) {
                     SetState(&data_ov085_021306dc);
                 }
             }
@@ -531,9 +498,7 @@ int daMip_c::StateReleasedMain()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 9 -- daMip_c::StateReleasedInit, 0x0212ad8c, size 0x7c          */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c17StateReleasedInitEv
 int daMip_c::StateReleasedInit()
 {
@@ -553,9 +518,7 @@ int daMip_c::StateReleasedInit()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 10 -- daMip_c::StateCaughtMain, 0x0212ae08, size 0x5f4          */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c15StateCaughtMainEv
 /* Held in the player's hands: the whole caught conversation, the star spawn
    (actor 0xe5) and the branch that ends with all eight glowing rabbits found. */
@@ -581,7 +544,7 @@ int daMip_c::StateCaughtMain()
     Vector3 pos;   /* ShowMessage */
     Vector3 pos7;  /* 43c==7 star spawn */
     Vector3 posR;  /* rabbit star spawn */
-    int r4;
+    int soundId;
     int msg;
 
     pl = *(char **)(c + 0x45c);
@@ -612,9 +575,9 @@ int daMip_c::StateCaughtMain()
                     goto after_first_section;
             }
             {
-                if (_ZN6Player9StartTalkER7fBase_cb(pl, c, 1) != 0) {
+                if (((Player *)pl)->StartTalk(*(fBase_c *)c, 1) != 0) {
                     pos.x = *(s32 *)(c + 0x5c);
-                    r4 = 0;
+                    soundId = 0;
                     pos.y = *(s32 *)(c + 0x60);
                     pos.z = *(s32 *)(c + 0x64);
 
@@ -624,17 +587,17 @@ int daMip_c::StateCaughtMain()
                         if (*(s32 *)(pl + 8) != 3) {
                             _ZN7Message11PrepareTalkEv();
                             {
-                                int z = r4;
+                                int z = soundId;
                                 _ZN5Sound7PlaySubEjjj5Fix12IiEb(0x27, 0x12, 0x7f, 0x15ccc, z);
                             }
                             if (mRabbitId == 6)
                                 goto msg_123a;
                             msg = (s16)(*(s32 *)(pl + 8) + 0x11b);
-                            r4 = 0x163;
+                            soundId = 0x163;
                             goto have_msg;
                         msg_123a:
                             msg = (s16)(*(s32 *)(pl + 8) + 0x123);
-                            r4 = 0x161;
+                            soundId = 0x161;
                             goto have_msg;
                         }
                         /* simple msgs for character id 3 */
@@ -648,24 +611,24 @@ int daMip_c::StateCaughtMain()
                             _ZN7Message11PrepareTalkEv();
                             if (mIsGlowing == 0) {
                                 {
-                                    int z = r4;
+                                    int z = soundId;
                                     _ZN5Sound7PlaySubEjjj5Fix12IiEb(0x26, 0x12, 0x7f, 0x15ccc, z);
                                 }
                                 if (mRabbitId == 6)
                                     goto msg_127a;
                                 msg = (s16)(*(s32 *)(pl + 8) + 0x11f);
-                                r4 = 0x163;
+                                soundId = 0x163;
                                 goto have_msg;
                             msg_127a:
                                 msg = (s16)(*(s32 *)(pl + 8) + 0x127);
-                                r4 = 0x161;
+                                soundId = 0x161;
                             } else {
-                                _ZN5Sound7PlaySubEjjj5Fix12IiEb(0x27, 0x12, 0x7f, 0x15ccc, r4);
-                                if (_ZN8SaveData22NumGlowingRabbitsFoundEv() == 7) {
+                                _ZN5Sound7PlaySubEjjj5Fix12IiEb(0x27, 0x12, 0x7f, 0x15ccc, soundId);
+                                if (SaveData::NumGlowingRabbitsFound() == 7) {
                                     msg = 0x143;
-                                    r4 = 0x160;
+                                    soundId = 0x160;
                                 } else {
-                                    r4 = 0x162;
+                                    soundId = 0x162;
                                     msg = 0x142;
                                 }
                             }
@@ -678,7 +641,7 @@ int daMip_c::StateCaughtMain()
                             else
                                 msg = 0x12e;
                         } else {
-                            if (_ZN8SaveData22NumGlowingRabbitsFoundEv() == 7)
+                            if (SaveData::NumGlowingRabbitsFound() == 7)
                                 msg = 0x147;
                             else
                                 msg = 0x146;
@@ -693,10 +656,10 @@ int daMip_c::StateCaughtMain()
                         int zero = 0;
                         y = y + 0x64000;
                         pos.y = y;
-                        if (_ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(pl, c, (u32)msg, &pos, zero, zero) == 1) {
+                        if (((Player *)pl)->ShowMessage(*(fBase_c *)c, (u32)msg, (::Vector3 *)&pos, zero, zero) == 1) {
                             mActionStep = 1;
-                            if (r4 != 0)
-                                func_02012694(r4, (const ::Vector3 *)(c + 0x74));
+                            if (soundId != 0)
+                                func_02012694(soundId, (const ::Vector3 *)(c + 0x74));
                         }
                     }
                     return 1;
@@ -708,7 +671,7 @@ int daMip_c::StateCaughtMain()
     if (*(volatile s32 *)(c + 0x41c) != 1)
         return 1;
 
-    if (_ZN6Player12GetTalkStateEv(pl) != -1) {
+    if (((Player *)pl)->GetTalkState() != -1) {
         if (data_0209d660 != 0) {
             if (data_0209d6bc == 9) {
                 if (mRabbitId != 7) {
@@ -728,7 +691,7 @@ int daMip_c::StateCaughtMain()
     }
 
     /* talk ended */
-    _ZN6Player9DropActorEv(pl);
+    ((Player *)pl)->DropActor();
     {
         s32 *p128 = (s32 *)(c + 0x128);
         *p128 = *p128 & ~2;
@@ -743,8 +706,7 @@ int daMip_c::StateCaughtMain()
         {
             s8 cc = *(s8 *)(c + 0xcc);
             int m1 = -1;
-            void *spawned = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
-                0xe5, mRabbitId, &pos7, (void *)(c + 0x8c), cc, m1);
+            void *spawned = dActor_c::Spawn(0xe5, mRabbitId, *(::Vector3 *)&pos7, (Vector3_16 *)(c + 0x8c), cc, m1);
             if (spawned != 0)
                 *(s32 *)((char *)spawned + 0x190) = *(s32 *)(c + 4);
         }
@@ -758,7 +720,7 @@ int daMip_c::StateCaughtMain()
     if (func_02013890(mRabbitId, *(s32 *)(pl + 8)) != 0) {
         if (mIsGlowing == 0)
             goto no_spawn;
-        if (_ZN8SaveData22NumGlowingRabbitsFoundEv() != 7)
+        if (SaveData::NumGlowingRabbitsFound() != 7)
             goto no_spawn;
     }
     {
@@ -775,8 +737,7 @@ int daMip_c::StateCaughtMain()
             {
                 s8 cc = *(s8 *)(c + 0xcc);
                 int m1 = -1;
-                void *spawned = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
-                    0xe5, param, &posR, 0, cc, m1);
+                void *spawned = dActor_c::Spawn(0xe5, param, *(::Vector3 *)&posR, 0, cc, m1);
                 if (spawned != 0)
                     *(s32 *)((char *)spawned + 0x190) = *(s32 *)(c + 4);
             }
@@ -799,7 +760,7 @@ no_spawn:
     }
     if (mIsGlowing == 0) {
         _ZN5Sound7PlaySubEjjj5Fix12IiEb(0x26, 0x7f, 0, 0x7444, 0);
-        _ZN7Message7EndTalkEv();
+        Message::EndTalk();
     }
 after_spawn:
     ;
@@ -808,7 +769,7 @@ after_spawn:
 
     if (mIsGlowing == 0)
         goto do_306bc;
-    if (_ZN8SaveData22NumGlowingRabbitsFoundEv() != 8)
+    if (SaveData::NumGlowingRabbitsFound() != 8)
         goto flag_path;
 do_306bc:
     SetState(data_ov085_021306bc);
@@ -824,9 +785,7 @@ final_return:
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 11 -- daMip_c::StateCaughtInit, 0x0212b3fc, size 0x48           */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c15StateCaughtInitEv
 int daMip_c::StateCaughtInit()
 {
@@ -840,24 +799,20 @@ int daMip_c::StateCaughtInit()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 12 -- daMip_c::StateRestMain, 0x0212b444, size 0x34             */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c13StateRestMainEv
 int daMip_c::StateRestMain()
 {
     extern int data_ov085_021306cc[];
     char *c = (char *)this;
 
-    if (_ZN9Animation8FinishedEv(c + 0x350) != 0) {
+    if (((Animation *)(c + 0x350))->Finished() != 0) {
         SetState(data_ov085_021306cc);
     }
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 13 -- daMip_c::StateRestInit, 0x0212b478, size 0x3c             */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c13StateRestInitEv
 int daMip_c::StateRestInit()
 {
@@ -868,9 +823,7 @@ int daMip_c::StateRestInit()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 14 -- daMip_c::StateFleeMain, 0x0212b4b4, size 0x2a8            */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c13StateFleeMainEv
 /* Running the level's path away from the player: dust or splash at every node,
    PathPtr node stepping in the direction StateFleeInit chose, and a fall back to
@@ -946,8 +899,8 @@ int daMip_c::StateFleeMain()
     }
 
     _ZN7PathPtrC1Ev(pathptr);
-    _ZN7PathPtr6FromIDEj(pathptr, *((u32 *) (c + 0x438)));
-    _ZNK7PathPtr7GetNodeER7Vector3j(pathptr, &node, *((u32 *) (c + 0x448)));
+    ((PathPtr *)pathptr)->FromID(*((u32 *) (c + 0x438)));
+    ((PathPtr *)pathptr)->GetNode(*(::Vector3 *)&node, *((u32 *) (c + 0x448)));
     ang = Vec3_HorzAngle((struct Vector3 *) (c + 0x5c), &node);
     ApproachAngle((s16 *) (c + 0x94), ang, 1, 0x1000, 0x1000);
     idx = (*((s32 *) (c + 0x448))) + (*((s32 *) (c + 0x44c)));
@@ -959,7 +912,7 @@ int daMip_c::StateFleeMain()
     {
       idx = 0;
     }
-    _ZNK7PathPtr7GetNodeER7Vector3j(pathptr, &node2, (u32) idx);
+    ((PathPtr *)pathptr)->GetNode(*(::Vector3 *)&node2, (u32) idx);
     lim = 0x26000;
     if ((*((s32 *) (c + 0x43c))) == 7)
     {
@@ -977,7 +930,7 @@ int daMip_c::StateFleeMain()
       *((s32 *) (c + 0x60)) = node.y;
       *((s32 *) (c + 0x64)) = node.z;
       {
-        s32 *p = (s32 *) ((int) (((long long) ((int) (c + 0x448)))));
+        s32 *p = (s32 *)(c + 0x448);
         *p = (*p) + (*((s32 *) (c + 0x44c)));
       }
       if ((*((s32 *) (c + 0x448))) >= (*((s32 *) (c + 0x444))))
@@ -1006,7 +959,7 @@ int daMip_c::StateFleeMain()
         }
         if ((*((s32 *) (c + 0x41c))) == 0)
         {
-          if (_ZNK10dBgCh_Actr8IsOnWallEv(c + 0x144) != 0)
+          if (((dBgCh_Actr *)(c + 0x144))->IsOnWall() != 0)
           {
             *((s32 *) (c + 0xa8)) = 0xa000;
             *((s32 *) (c + 0x41c)) = 1;
@@ -1017,9 +970,7 @@ int daMip_c::StateFleeMain()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 15 -- daMip_c::StateFleeInit, 0x0212b75c, size 0x110            */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c13StateFleeInitEv
 /* Picks which way round the path to run: whichever of the two neighbouring
    nodes is further from the closest player becomes the step direction at
@@ -1046,7 +997,7 @@ int daMip_c::StateFleeInit()
     src = (struct Vector3 *)(p + 0x5c);
     v = *src;
     _ZN7PathPtrC1Ev(pathptr);
-    _ZN7PathPtr6FromIDEj(pathptr, mPathId);
+    ((PathPtr *)pathptr)->FromID(mPathId);
 
     indices[0] = mPathNodeIndex - 1;
     if (mPathNodeIndex - 1 < 0)
@@ -1056,7 +1007,7 @@ int daMip_c::StateFleeInit()
       indices[1] = 0;
 
     for (i = 0; i < 2; i++)
-      _ZNK7PathPtr7GetNodeER7Vector3j(pathptr, &nodes[i], indices[i]);
+      ((PathPtr *)pathptr)->GetNode(nodes[i], indices[i]);
 
     mPathDir = 1;
     d0 = Vec3_Dist(&v, &nodes[0]);
@@ -1068,23 +1019,19 @@ int daMip_c::StateFleeInit()
   return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 16 -- daMip_c::StateStartleMain, 0x0212b86c, size 0x34          */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c16StateStartleMainEv
 int daMip_c::StateStartleMain()
 {
     extern int data_ov085_0213067c[];
     void *c = (void *)this;
 
-    if (_ZN9Animation8FinishedEv((char *)c + 0x350) != 0)
+    if (((Animation *)((char *)c + 0x350))->Finished() != 0)
         SetState(data_ov085_0213067c);
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 17 -- daMip_c::StateStartleInit, 0x0212b8a0, size 0x3c          */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c16StateStartleInitEv
 int daMip_c::StateStartleInit()
 {
@@ -1095,9 +1042,7 @@ int daMip_c::StateStartleInit()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 18 -- daMip_c::StateIdleMain, 0x0212b8dc, size 0x338            */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c13StateIdleMainEv
 /* The resting rabbit's own machine: startle and flee when the closest player
    comes inside 0x3e8000 from below, otherwise cycle the three-step idle
@@ -1166,7 +1111,7 @@ int daMip_c::StateIdleMain()
         }
     }
 
-    if (_ZN9Animation8FinishedEv(c + 0x350) != 0) {
+    if (((Animation *)(c + 0x350))->Finished() != 0) {
         switch (mActionStep) {
         case 1:
             *(int*)(c + 0x98) = 0x4000;
@@ -1198,9 +1143,7 @@ int daMip_c::StateIdleMain()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 19 -- daMip_c::StateIdleInit, 0x0212bc14, size 0x64             */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c13StateIdleInitEv
 int daMip_c::StateIdleInit()
 {
@@ -1216,9 +1159,7 @@ int daMip_c::StateIdleInit()
   return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 20 -- daMip_c::SetState, 0x0212bc78, size 0x50                  */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c8SetStateEPv
 /* Stores the 16-byte state record at mState and immediately runs its first
    pointer-to-member -- the state's Init. The record's second is what Behavior
@@ -1230,9 +1171,7 @@ int daMip_c::SetState(void *record)
     c->pp = p; daMip_cStateFn *q = c->pp; if (*q == 0) return 1; return (c->**q)();
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 21 -- daMip_c::UpdateMatrixAndShadow, 0x0212bcc8, size 0xf4     */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c21UpdateMatrixAndShadowEv
 /* Name coined; member-ness not proven. The flat Matrix4x3 shadow is
    deliberate -- see the file header. */
@@ -1260,9 +1199,7 @@ void daMip_c::UpdateMatrixAndShadow()
         c, (void*)(c + 0x368), (void*)(c + 0x390), 0x46000, 0x258000, 0xf);
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 22 -- daMip_c::UpdateCarriedMatrix, 0x0212bdbc, size 0x120      */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c19UpdateCarriedMatrixEv
 /* While a player is carrying the rabbit its matrix comes from
    dActor_c::UpdateCarry, offset by one of four hold positions in ov085 .bss at
@@ -1280,13 +1217,13 @@ void daMip_c::UpdateCarriedMatrix()
     if (!*(void**)(c + 0x45c)) return;
     if (!*(int*)(*(char**)(c + 0x45c) + 0xc8)) return;
     idx = 0;
-    if (_ZN6Player14IsFrontSlidingEv(*(void**)(c + 0x45c)) || _ZN6Player17LostGrabbedObjectEv(*(void**)(c + 0x45c))) {
+    if (((Player *)(*(void**)(c + 0x45c)))->IsFrontSliding() || ((Player *)(*(void**)(c + 0x45c)))->LostGrabbedObject()) {
         idx = 1;
     }
     if (*(int*)(*(char**)(c + 0x45c) + 8) == 2) {
         idx = (idx + 2) & 0xff;
     }
-    res = _ZN8dActor_c11UpdateCarryER6PlayerRK7Vector3(c, *(void**)(c + 0x45c), data_ov085_021306ec + idx * 0xc);
+    res = ((dActor_c *)c)->UpdateCarry(**(Player **)(c + 0x45c), *(Vector3 *)(data_ov085_021306ec + idx * 0xc));
     *(struct Mtx43*)(c + 0x31c) = *(struct Mtx43*)res;
     Matrix4x3_FromTranslation(data_020a0e68, *(int*)(c + 0x5c) >> 3, (*(int*)(c + 0x60) - 0xc000) >> 3, *(int*)(c + 0x64) >> 3);
     *(struct Mtx43*)(c + 0x390) = *(struct Mtx43*)data_020a0e68;
@@ -1294,9 +1231,7 @@ void daMip_c::UpdateCarriedMatrix()
         c, c + 0x368, c + 0x390, 0x46000, 0x258000, 0xf);
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 23 -- daMip_c::UpdateMirrorShadow, 0x0212bedc, size 0x128       */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c18UpdateMirrorShadowEv
 /* The second shadow, for the mirrored copy RenderMirrorImage draws. Both are
    gated on the same pair of globals, and this one places the shadow on the far
@@ -1346,9 +1281,7 @@ void daMip_c::UpdateMirrorShadow()
     _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(c, &c->shadowmodel, &c->mtx, 0x46000, 0x258000, 0xf);
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 24 -- daMip_c::CleanupResources, 0x0212c004, size 0x6c          */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c16CleanupResourcesEv
 /* Seven releases, straight-line, no loop -- the ROM writes them out one after
  * another and so does this. They are not in address order, which is why the
@@ -1375,9 +1308,7 @@ int daMip_c::CleanupResources()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 25 -- daMip_c::OnPendingDestroy, 0x0212c070, size 0x4           */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c16OnPendingDestroyEv
 /* Empty -- the ROM body is a single `bx lr`. The override exists to suppress
  * whatever the base does on pending destroy, not to do anything itself. */
@@ -1385,23 +1316,12 @@ void daMip_c::OnPendingDestroy()
 {
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 26 -- daMip_c::Render, 0x0212c074, size 0xdc                    */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c6RenderEv
 int daMip_c::Render()
 {
     extern signed char data_0209f2f8;
     extern signed char data_02092120;
-
-    struct VObj {
-        virtual void v0();
-        virtual void v1();
-        virtual void v2();
-        virtual void v3();
-        virtual void v4();
-        virtual void m14(void* arg);
-    };
 
     if (mIsDisabled == 1) return 1;
 
@@ -1416,11 +1336,11 @@ int daMip_c::Render()
 
     {
         int** base = (int**)&mModelAnim.data;
-        int* r3 = base[0];
-        char* r1 = (char*)base[1];
-        for (unsigned int i = 0; i < *(unsigned int*)((char*)r3 + 0x24); i++) {
-            *(int*)(r1 + 0x20) = mMaterialColor;
-            r1 += 0x30;
+        int* modelData = base[0];
+        char* mat = (char*)base[1];
+        for (unsigned int i = 0; i < *(unsigned int*)((char*)modelData + 0x24); i++) {
+            *(int*)(mat + 0x20) = mMaterialColor;
+            mat += 0x30;
         }
     }
 
@@ -1428,13 +1348,11 @@ int daMip_c::Render()
         RenderMirrorImage();
     }
 
-    ((struct VObj*)((char*)&mModelAnim))->m14((char*)&mScaleX);
+    mModelAnim.Render((Vector3 *)&mScaleX);
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 27 -- daMip_c::RenderMirrorImage, 0x0212c150, size 0xe0         */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c17RenderMirrorImageEv
 /* The mirrored second copy: negate the model matrix's X scale, render the model
    again at half opacity, then put the matrix back. Only ever reached with the
@@ -1453,16 +1371,14 @@ void daMip_c::RenderMirrorImage()
     MulMat3x3Mat3x3((void *)(c + 0x31c), &data_020a0e68, (void *)(c + 0x31c));
     func_02016acc((void *)(c + 0x300), 0x80);
     func_02016b24((void *)(c + 0x300), 0x40);
-    _ZN9ModelAnim6RenderEPK7Vector3((void *)(c + 0x300), (void *)(c + 0x80));
+    ((ModelAnim *)((void *)(c + 0x300)))->ModelAnim::Render((const Vector3 *)(c + 0x80));
     mModelAnim.ApplyOpacity(0xff, 0);
     func_02016b24((void *)(c + 0x300), 0x80);
     func_02016acc((void *)(c + 0x300), 0x40);
     *(struct Mtx43 *)(c + 0x31c) = tmp;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 28 -- daMip_c::Behavior, 0x0212c230, size 0x5cc                 */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c8BehaviorEv
 /* The glowing-rabbit chase, and it is mostly a conversation.
  *
@@ -1486,17 +1402,13 @@ void daMip_c::RenderMirrorImage()
  * address -- run on whatever mState points at. It is kept verbatim because there
  * is no recovered type for the descriptor to call a member through.
  *
- * TWO SPELLINGS HERE ARE LOAD-BEARING, both measured against the pre-image
- * rather than assumed:
+ * `((Animation *)((char *)this + 0x350))->Advance()` must offset from THIS.
+ * 0x350 is mModelAnim's Animation base at +0x50; `(char *)&mModelAnim + 0x50`
+ * costs a word.
  *
- *   `_ZN9Animation7AdvanceEv((char *)this + 0x350)` must offset from THIS.
- *   0x350 is mModelAnim's Animation base at +0x50, and writing it that way --
- *   `(char *)&mModelAnim + 0x50` -- costs a word. Offsetting from a typed
- *   sub-object's ADDRESS is not the same as offsetting from `this`.
- *
- *   The `(long long)(int)` round-trip on mEatenTimer stays. Removing it changes
- *   the size. Every other round-trip and every other offset in this function
- *   came out free -- the idiom is per-site, not per-function. */
+ * The `(long long)(int)` round-trip on c+0x42a (mEatenTimer) is measured:
+ * replacing it with `c + 0x42a` or `mEatenTimer = mEatenTimer + 1` size-DIFFs
+ * Behavior (0x5cc). The same round-trip on c+0x448 is a no-op and was dropped. */
 int daMip_c::Behavior()
 {
     /* A LOCAL COORDINATE TRIPLE, NOT A Vector3 OBJECT. Vector3 declares a
@@ -1578,7 +1490,7 @@ int daMip_c::Behavior()
                                 else { var_r6 = 0x160; var_r2 = 0x12a; }
                             } else {
                                 _ZN5Sound7PlaySubEjjj5Fix12IiEb(0x27, 0x12, 0x7f, 0x15ccc, 0);
-                                if (_ZN8SaveData22NumGlowingRabbitsFoundEv() == 7) { var_r2 = 0x145; var_r6 = 0x160; }
+                                if (SaveData::NumGlowingRabbitsFound() == 7) { var_r2 = 0x145; var_r6 = 0x160; }
                                 else { var_r6 = 0x162; var_r2 = 0x144; }
                             }
                         } else {
@@ -1586,12 +1498,12 @@ int daMip_c::Behavior()
                             var_r2 = 0x13b; var_r6 = 0x160;
                         }
                         pos.y += 0x64000;
-                        if (_ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(temp_r4, c, var_r2, 0, 0, 0) == 1) {
+                        if (((Player *)temp_r4)->ShowMessage(*(fBase_c *)c, var_r2, 0, 0, 0) == 1) {
                             func_02012694(var_r6, (const ::Vector3 *)(&mCamSpacePosX));
                             mTalkState = 1;
                         }
-                    } else if (temp_r1 == 1 && _ZN6Player12GetTalkStateEv(temp_r4) == -1) {
-                        _ZN6Player9DropActorEv(temp_r4);
+                    } else if (temp_r1 == 1 && ((Player *)temp_r4)->GetTalkState() == -1) {
+                        ((Player *)temp_r4)->DropActor();
                         mTalkState = 2;
                         *(u16*)((char*)temp_r4 + 0x6ce) |= 0x800;
                     }
@@ -1600,13 +1512,13 @@ int daMip_c::Behavior()
         }
     }
 
-    if (_ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr(c, &mWithMeshClsn) != 0) {
-        _ZN5dCc_c5ClearEv(&mdCcAc_c);
+    if (UpdateYoshiEat(mWithMeshClsn) != 0) {
+        mdCcAc_c.Clear();
         if (mEatenByYoshi != 0) {
             if (unk_104 == 5)
                 mHorzSpeed = 0;
             if (unk_104 == 0)
-                _ZN5dCc_c6UpdateEv(&mdCcAc_c);
+                mdCcAc_c.Update();
         }
         if (mEatenByYoshi == 1) {
             *(u8*)((long long)(int)(c + 0x42a)) = *(u8*)((long long)(int)(c + 0x42a)) + 1;
@@ -1651,7 +1563,7 @@ int daMip_c::Behavior()
         }
     }
 
-    _ZN9Animation7AdvanceEv(c + 0x350);
+    ((Animation *)(c + 0x350))->Advance();
 
     {
         int v = (mFlags & 0x4000) ? 1 : 0;
@@ -1668,27 +1580,25 @@ int daMip_c::Behavior()
         int v = (mFlags & 0x4000) ? 1 : 0;
         if (v == 0) {
             if (*(void**)&mState != (void*)&data_ov085_021306ac || unk_426 != 0)
-                _ZN8dActor_c9UpdatePosEP5dCc_c(c, &mdCcAc_c);
+                UpdatePos(&mdCcAc_c);
             mAngleX = mPrevAngleX;
             mAngleY = mPrevAngleY;
             mAngleZ = mPrevAngleZ;
-            _ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj(c, &mWithMeshClsn, 0);
+            UpdateWMClsn(mWithMeshClsn, 0);
             if (*(void**)&mState != (void*)&data_ov085_021306ac)
                 UpdateGrab();
         }
     }
 
     if (*(void**)&mState != (void*)&data_ov085_021306ac) {
-        _ZN5dCc_c5ClearEv(&mdCcAc_c);
-        _ZN5dCc_c6UpdateEv(&mdCcAc_c);
+        mdCcAc_c.Clear();
+        mdCcAc_c.Update();
     }
 
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 29 -- daMip_c::InitResources, 0x0212c7fc, size 0x41c            */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c13InitResourcesEv
 int daMip_c::InitResources()
 {
@@ -1705,20 +1615,19 @@ int daMip_c::InitResources()
     extern s8 data_0209f2f8;
     extern int data_0209e650;
 
-    char sp8[8];
-    void* r0;
-    void* r6;
-    int r1;
+    void* player;
+    void* closest;
+    int rabbitId;
 
-    _ZN9Animation8LoadFileER13SharedFilePtr(&data_ov085_021305b8);
-    _ZN9Animation8LoadFileER13SharedFilePtr(&data_ov085_021305d0);
-    _ZN9Animation8LoadFileER13SharedFilePtr(&data_ov085_021305b0);
-    _ZN9Animation8LoadFileER13SharedFilePtr(&data_ov085_021305c8);
-    _ZN9Animation8LoadFileER13SharedFilePtr(&data_ov085_021305c0);
-    _ZN5Model8LoadFileER13SharedFilePtr(&data_ov085_021305d8);
-    _ZN9ModelBase7SetFileEP8BMD_Fileii(&mModelAnim, _ZN5Model8LoadFileER13SharedFilePtr(&data_ov085_021305e0), 1, -1);
-    _ZN11ShadowModel12InitCylinderEv((char*)&mShadowModel1);
-    _ZN11ShadowModel12InitCylinderEv((char*)&mShadowModel2);
+    Animation::LoadFile(*(SharedFilePtr *)&data_ov085_021305b8);
+    Animation::LoadFile(*(SharedFilePtr *)&data_ov085_021305d0);
+    Animation::LoadFile(*(SharedFilePtr *)&data_ov085_021305b0);
+    Animation::LoadFile(*(SharedFilePtr *)&data_ov085_021305c8);
+    Animation::LoadFile(*(SharedFilePtr *)&data_ov085_021305c0);
+    Model::LoadFile(*(SharedFilePtr *)&data_ov085_021305d8);
+    mModelAnim.SetFile((BMD_File *)Model::LoadFile(*(SharedFilePtr *)&data_ov085_021305e0), 1, -1);
+    mShadowModel1.InitCylinder();
+    mShadowModel2.InitCylinder();
 
     mPathId = param1 & 0xff;
     if (mPathId == 0xff)
@@ -1736,17 +1645,17 @@ int daMip_c::InitResources()
     if (mCharacterId == 0xf)
         mCharacterId = 0;
 
-    r1 = mRabbitId;
-    if (r1 != 7) {
+    rabbitId = mRabbitId;
+    if (rabbitId != 7) {
         if (!(data_0209caa0[1] & 0x40000000))
             return 0;
     }
 
-    if (r1 == 5 && mCharacterId == 0)
+    if (rabbitId == 5 && mCharacterId == 0)
         goto check18;
-    if (r1 == 1 && mCharacterId == 1)
+    if (rabbitId == 1 && mCharacterId == 1)
         goto check18;
-    if (r1 != 6)
+    if (rabbitId != 6)
         goto skip17;
     if (mCharacterId != 3)
         goto skip17;
@@ -1762,11 +1671,13 @@ skip17:
     mTalkingPlayer = 0;
     mModelAnim.speed = 0x1000;
     _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(&mWithMeshClsn, ((char*)this), 0x28000, 0x28000, 0, 0);
-    _ZN7PathPtrC1Ev(sp8);
-    _ZN7PathPtr6FromIDEj(sp8, mPathId);
-    mPathNodeIndex = 1;
-    _ZNK7PathPtr7GetNodeER7Vector3j(sp8, &mPosX, mPathNodeIndex);
-    mNumPathNodes = _ZNK7PathPtr8NumNodesEv(sp8);
+    {
+        PathPtr path;
+        path.FromID(mPathId);
+        mPathNodeIndex = 1;
+        path.GetNode(*(Vector3 *)&mPosX, mPathNodeIndex);
+        mNumPathNodes = path.NumNodes();
+    }
     UpdateMatrixAndShadow();
     mEatingPlayer = 0;
     mScaleX = 0x1000;
@@ -1780,11 +1691,11 @@ skip17:
         goto block_26;
     }
 
-    r0 = ClosestPlayer();
-    if (r0 == 0)
+    player = ClosestPlayer();
+    if (player == 0)
         return 0;
     if (data_0209f2f8 != 0x32) {
-        if (mCharacterId != *(u8*)((char*)r0 + 0x6d9))
+        if (mCharacterId != *(u8*)((char*)player + 0x6d9))
             return 0;
     }
 
@@ -1798,19 +1709,19 @@ block_26:
         goto block_out;
     }
 
-    r6 = ClosestPlayer();
-    if (r6 == 0)
+    closest = ClosestPlayer();
+    if (closest == 0)
         goto block_out;
 
     {
         int v;
-        v = *(s32*)((char*)r6 + 8);
+        v = *(s32*)((char*)closest + 8);
         if (data_0209f2f8 == 0x32)
             v = 1;
         if (func_02013890(mRabbitId, v) != 0 && data_ov085_021305ac < 8) {
             u32 rnd = RandomIntInternal(&data_0209e650) >> 8;
             if (NumStars() >= 0x51) {
-                if (*(s32*)((char*)r6 + 8) == 3) {
+                if (*(s32*)((char*)closest + 8) == 3) {
                     if ((rnd & 0xf) == 0)
                         mColorVariant = 5;
                 } else {
@@ -1818,7 +1729,7 @@ block_26:
                         mColorVariant = 5;
                 }
             } else if (NumStars() >= 0x28) {
-                if (*(s32*)((char*)r6 + 8) == 3) {
+                if (*(s32*)((char*)closest + 8) == 3) {
                     if ((rnd & 0x1f) == 0)
                         mColorVariant = 5;
                 } else {
@@ -1843,9 +1754,7 @@ block_out:
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 30 -- daMip_c::OnYoshiTryEat, 0x0212cc18, size 0x14             */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN7daMip_c13OnYoshiTryEatEv
 s32 daMip_c::OnYoshiTryEat() {
   unsigned char v = mEatenByYoshi;
@@ -1853,38 +1762,15 @@ s32 daMip_c::OnYoshiTryEat() {
   return 7;
 }
 
-/* -------------------------------------------------------------------------- */
 /* ROM ordinal 31 -- daMip_c_classInit, 0x0212cc2c, size 0x5c                  */
-/* -------------------------------------------------------------------------- */
 // @symbol daMip_c_classInit
-/* The registry factory behind the MIP profile: allocate 0x474 with
- * fBase_c::operator new, run the base and the five member constructors, stamp
- * this class's vptr and hand the object back. The literal construction spelling
- * is kept because the cartridge folded the constructor into this function and
- * emitted no _ZN7daMip_cC1Ev/C2Ev of its own.
- *
- * `_ZTV7daMip_c + 2` is the address point. Now that this TU owns the key
- * function it emits the table itself, and the emitted symbol names the START of
- * storage -- eight bytes below the offset-to-top/typeinfo pair that the
- * cartridge's 0x021300f8 sits above. The declaration lives in daMip_c.h beside
- * the class, not in this file: the table is a real compiler-emitted one, and
- * a file-local `extern _ZTV` here reads as the hand-stamped-vptr idiom that
- * tools/langmode_audit.py counts for classes that have no vtable at all.
+/* The registry factory behind the MIP profile. `return new daMip_c()` MATCHES
+ * (size 0x5c); the synthesized ctor stores `_ZTV7daMip_c + 2`.
  *
  * Reconstructed source-style name: SM64DS proves daMip_c through RTTI,
  * allocation size, vtable identity and the MIP registry profile; later EAD
  * lineage supplies classInit. The exact original spelling is not preserved. */
-extern "C" int *daMip_c_classInit(void)
+extern "C" daMip_c *daMip_c_classInit(void)
 {
-    int *p = (int *)_ZN7fBase_cnwEj(1140);
-    if (p) {
-        _ZN12dEnemyBase_cC2Ev(p);
-        p[0] = (int)(_ZTV7daMip_c + 2);
-        _ZN7dCcAc_cC1Ev((char *)p + 0x110);
-        _ZN10dBgCh_ActrC1Ev((char *)p + 0x144);
-        _ZN9ModelAnimC1Ev((char *)p + 0x300);
-        _ZN11ShadowModelC1Ev((char *)p + 0x368);
-        _ZN11ShadowModelC1Ev((char *)p + 0x3c0);
-    }
-    return p;
+    return new daMip_c();
 }

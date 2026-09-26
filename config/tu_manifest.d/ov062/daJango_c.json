@@ -1,0 +1,400 @@
+{
+  "id": "ov062/daJango_c",
+  "module": "ov062",
+  "source": "src/actors/daJango_c.cpp",
+  "promoted_source": "src/actors/daJango_c.cpp",
+  "status": "promoted",
+  "boundary_confidence": "medium",
+  "boundary_evidence": [
+    "contiguous linker run: 0x211b248..0x211ce80, 23 function(s), from build/tu_map.json (tools/tu_map.py)",
+    "class label(s): daJango_c",
+    "module sinit corroboration: 5 sinit(s) / 5 .ctor entries, sinit_vs_tu=ok, corroborated=False (module-wide, NOT narrowed to this one TU -- see notes/tu-reconstruction-pilot-report.md sec 2 for the by-hand narrowing step)"
+  ],
+  "sections": [
+    {
+      "name": ".text",
+      "start": "0x0211b248",
+      "end": "0x0211ce80"
+    }
+  ],
+  "functions": [
+    {
+      "symbol": "_ZN9daJango_cD1Ev",
+      "address": "0x0211b248",
+      "size": "0x00000050",
+      "legacy_source": "src/_ZN9daJango_cD1Ev.cpp",
+      "ordinal": 0
+    },
+    {
+      "symbol": "_ZN9daJango_cD0Ev",
+      "address": "0x0211b298",
+      "size": "0x00000064",
+      "legacy_source": "src/_ZN9daJango_cD0Ev.cpp",
+      "ordinal": 1
+    },
+    {
+      "symbol": "func_ov062_0211b2fc",
+      "address": "0x0211b2fc",
+      "size": "0x000000b0",
+      "legacy_source": "src/func_ov062_0211b2fc.c",
+      "ordinal": 2
+    },
+    {
+      "symbol": "func_ov062_0211b3ac",
+      "address": "0x0211b3ac",
+      "size": "0x00000170",
+      "legacy_source": "src/func_ov062_0211b3ac.cpp",
+      "ordinal": 3
+    },
+    {
+      "symbol": "func_ov062_0211b51c",
+      "address": "0x0211b51c",
+      "size": "0x000002e4",
+      "legacy_source": "src/func_ov062_0211b51c.c",
+      "ordinal": 4
+    },
+    {
+      "symbol": "func_ov062_0211b800",
+      "address": "0x0211b800",
+      "size": "0x00000080",
+      "legacy_source": "src/func_ov062_0211b800.c",
+      "ordinal": 5
+    },
+    {
+      "symbol": "func_ov062_0211b880",
+      "address": "0x0211b880",
+      "size": "0x00000058",
+      "legacy_source": "src/func_ov062_0211b880.cpp",
+      "ordinal": 6
+    },
+    {
+      "symbol": "func_ov062_0211b8d8",
+      "address": "0x0211b8d8",
+      "size": "0x00000058",
+      "legacy_source": "src/func_ov062_0211b8d8.cpp",
+      "ordinal": 7
+    },
+    {
+      "symbol": "func_ov062_0211b930",
+      "address": "0x0211b930",
+      "size": "0x00000154",
+      "legacy_source": "src/func_ov062_0211b930.cpp",
+      "ordinal": 8
+    },
+    {
+      "symbol": "func_ov062_0211ba84",
+      "address": "0x0211ba84",
+      "size": "0x000001d0",
+      "legacy_source": "src/func_ov062_0211ba84.c",
+      "ordinal": 9
+    },
+    {
+      "symbol": "func_ov062_0211bc54",
+      "address": "0x0211bc54",
+      "size": "0x000000bc",
+      "legacy_source": "src/func_ov062_0211bc54.cpp",
+      "ordinal": 10
+    },
+    {
+      "symbol": "func_ov062_0211bd10",
+      "address": "0x0211bd10",
+      "size": "0x00000508",
+      "legacy_source": "src/func_ov062_0211bd10.c",
+      "ordinal": 11
+    },
+    {
+      "symbol": "func_ov062_0211c218",
+      "address": "0x0211c218",
+      "size": "0x000000dc",
+      "legacy_source": "src/func_ov062_0211c218.c",
+      "ordinal": 12
+    },
+    {
+      "symbol": "func_ov062_0211c2f4",
+      "address": "0x0211c2f4",
+      "size": "0x000002a0",
+      "legacy_source": "src/func_ov062_0211c2f4.cpp",
+      "ordinal": 13
+    },
+    {
+      "symbol": "func_ov062_0211c594",
+      "address": "0x0211c594",
+      "size": "0x000000c4",
+      "legacy_source": "src/func_ov062_0211c594.c",
+      "ordinal": 14
+    },
+    {
+      "symbol": "func_ov062_0211c658",
+      "address": "0x0211c658",
+      "size": "0x00000050",
+      "legacy_source": "src/func_ov062_0211c658.cpp",
+      "ordinal": 15
+    },
+    {
+      "symbol": "func_ov062_0211c6a8",
+      "address": "0x0211c6a8",
+      "size": "0x00000208",
+      "legacy_source": "src/func_ov062_0211c6a8.c",
+      "ordinal": 16
+    },
+    {
+      "symbol": "_ZN9daJango_c16CleanupResourcesEv",
+      "address": "0x0211c8b0",
+      "size": "0x0000006c",
+      "legacy_source": "src/_ZN9daJango_c16CleanupResourcesEv.cpp",
+      "ordinal": 17
+    },
+    {
+      "symbol": "_ZN9daJango_c16OnPendingDestroyEv",
+      "address": "0x0211c91c",
+      "size": "0x00000004",
+      "legacy_source": "src/_ZN9daJango_c16OnPendingDestroyEv.cpp",
+      "ordinal": 18
+    },
+    {
+      "symbol": "_ZN9daJango_c6RenderEv",
+      "address": "0x0211c920",
+      "size": "0x0000002c",
+      "legacy_source": "src/_ZN9daJango_c6RenderEv.cpp",
+      "ordinal": 19
+    },
+    {
+      "symbol": "_ZN9daJango_c8BehaviorEv",
+      "address": "0x0211c94c",
+      "size": "0x00000200",
+      "legacy_source": "src/_ZN9daJango_c8BehaviorEv.cpp",
+      "ordinal": 20
+    },
+    {
+      "symbol": "_ZN9daJango_c13InitResourcesEv",
+      "address": "0x0211cb4c",
+      "size": "0x0000032c",
+      "legacy_source": "src/_ZN9daJango_c13InitResourcesEv.cpp",
+      "ordinal": 21
+    },
+    {
+      "symbol": "_ZN9daJango_c16OnAimedAtWithEggEv",
+      "address": "0x0211ce78",
+      "size": "0x00000008",
+      "legacy_source": "src/_ZN9daJango_c16OnAimedAtWithEggEv.cpp",
+      "ordinal": 22
+    }
+  ],
+  "data": [],
+  "bss": [],
+  "compiler_only_output": [
+    {
+      "symbol": "_ZN7Vector3D1Ev",
+      "disposition": "deadstrip-duplicate",
+      "canonical_module": "arm9",
+      "canonical_address": "0x020072c0",
+      "reason": "Local Vector3 coordinates emit the four-byte weak destructor. Its sole ROM home is arm9:0x020072c0; the duplicate policy verifies the emitted body before stripping it."
+    },
+    {
+      "symbol": "_ZTS9daJango_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "ov062",
+      "canonical_address": "0x0211dd20",
+      "reason": "The TU emits the cartridge type-name string. Text-only: deadstripped, data: []."
+    },
+    {
+      "symbol": "_ZTI9daJango_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "ov062",
+      "canonical_address": "0x0211dd2c",
+      "reason": "The TU emits the class single-inheritance RTTI. Text-only: deadstripped, data: []."
+    },
+    {
+      "symbol": "_ZTV9daJango_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "ov062",
+      "canonical_address": "0x0211dd5c",
+      "reason": "The TU emits the complete class vtable. Text-only: deadstripped, data: []. The symbols.txt address point 0x0211dd5c is unchanged."
+    },
+    {
+      "symbol": "_ZTI7fBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x02086d70",
+      "reason": "Inherited vague-linkage RTTI; romdata_check proves the canonical arm9 object before text isolation."
+    },
+    {
+      "symbol": "_ZTS7fBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x02086e60",
+      "reason": "Inherited vague-linkage type-name string; romdata_check proves its canonical bytes before text isolation."
+    },
+    {
+      "symbol": "_ZTI7dBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x02086e78",
+      "reason": "Inherited vague-linkage RTTI; romdata_check proves the canonical arm9 object before text isolation."
+    },
+    {
+      "symbol": "_ZTS7dBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x02086e54",
+      "reason": "Inherited vague-linkage type-name string; romdata_check proves its canonical bytes before text isolation."
+    },
+    {
+      "symbol": "_ZTI8dActor_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x0208e390",
+      "reason": "Inherited vague-linkage RTTI; romdata_check proves the canonical arm9 object before text isolation."
+    },
+    {
+      "symbol": "_ZTS8dActor_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "arm9",
+      "canonical_address": "0x0208e384",
+      "reason": "Inherited vague-linkage type-name string; romdata_check proves its canonical bytes before text isolation."
+    },
+    {
+      "symbol": "_ZTI12dEnemyBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "ov002",
+      "canonical_address": "0x021081c0",
+      "reason": "Inherited vague-linkage RTTI; romdata_check proves the canonical ov002 object before text isolation."
+    },
+    {
+      "symbol": "_ZTS12dEnemyBase_c",
+      "disposition": "deadstrip-data",
+      "canonical_module": "ov002",
+      "canonical_address": "0x021081cc",
+      "reason": "Inherited vague-linkage type-name string; romdata_check proves its canonical bytes before text isolation."
+    }
+  ],
+  "notes": [
+    "Generated by tools/tubuild.py create. See the file's own header comment for what was and was not reconciled, and notes/translation-unit-reconstruction-plan.md section 7.3 for what this generator does and does not attempt to resolve automatically.",
+    "tubuild create warning: CONFLICT: extern declaration 'func_ov062_0211c658' differs between the legacy file that used to hold func_ov062_0211b51c and the one that held func_ov062_0211b800; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_ov062_0211e17c' differs between the legacy file that used to hold func_ov062_0211b800 and the one that held func_ov062_0211b8d8; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'func_ov062_0211c658' differs between the legacy file that used to hold func_ov062_0211b51c and the one that held func_ov062_0211b8d8; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt' differs between the legacy file that used to hold func_ov062_0211b880 and the one that held func_ov062_0211b930; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN8dActor_c13ClosestPlayerEv' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held func_ov062_0211ba84; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'func_ov062_0211c658' differs between the legacy file that used to hold func_ov062_0211b51c and the one that held func_ov062_0211ba84; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_Z14ApproachLinearRsss' differs between the legacy file that used to hold func_ov062_0211b800 and the one that held func_ov062_0211ba84; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'Matrix4x3_FromRotationY' differs between the legacy file that used to hold func_ov062_0211b2fc and the one that held func_ov062_0211ba84; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'Matrix4x3_ApplyInPlaceToRotationX' differs between the legacy file that used to hold func_ov062_0211b2fc and the one that held func_ov062_0211ba84; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'MulVec3Mat4x3' differs between the legacy file that used to hold func_ov062_0211b2fc and the one that held func_ov062_0211ba84; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_ov062_0211e17c' differs between the legacy file that used to hold func_ov062_0211b800 and the one that held func_ov062_0211ba84; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt' differs between the legacy file that used to hold func_ov062_0211b880 and the one that held func_ov062_0211bc54; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_0209f2f8' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held func_ov062_0211bc54; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'func_02012694' differs between the legacy file that used to hold func_ov062_0211b930 and the one that held func_ov062_0211bc54; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZNK10dBgCh_Actr8IsOnWallEv' differs between the legacy file that used to hold func_ov062_0211ba84 and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'Vec3_HorzAngle' differs between the legacy file that used to hold func_ov062_0211ba84 and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'Vec3_VertAngle' differs between the legacy file that used to hold func_ov062_0211ba84 and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_Z14ApproachLinearRsss' differs between the legacy file that used to hold func_ov062_0211b800 and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN8dActor_c13ClosestPlayerEv' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt' differs between the legacy file that used to hold func_ov062_0211b880 and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'func_ov062_0211c658' differs between the legacy file that used to hold func_ov062_0211b51c and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN7PathPtrC1Ev' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN7PathPtr6FromIDEj' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZNK7PathPtr7GetNodeER7Vector3j' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_0209f2f8' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held func_ov062_0211bd10; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt' differs between the legacy file that used to hold func_ov062_0211b880 and the one that held func_ov062_0211c218; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'RandomIntInternal' differs between the legacy file that used to hold func_ov062_0211bc54 and the one that held func_ov062_0211c218; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_0209e650' differs between the legacy file that used to hold func_ov062_0211bc54 and the one that held func_ov062_0211c218; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'Vec3_HorzAngle' differs between the legacy file that used to hold func_ov062_0211ba84 and the one that held func_ov062_0211c2f4; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'ApproachAngle' differs between the legacy file that used to hold func_ov062_0211bd10 and the one that held func_ov062_0211c2f4; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'RandomIntInternal' differs between the legacy file that used to hold func_ov062_0211bc54 and the one that held func_ov062_0211c2f4; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'Matrix4x3_FromRotationY' differs between the legacy file that used to hold func_ov062_0211b2fc and the one that held func_ov062_0211c2f4; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'MulVec3Mat4x3' differs between the legacy file that used to hold func_ov062_0211b2fc and the one that held func_ov062_0211c2f4; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'func_ov062_0211c658' differs between the legacy file that used to hold func_ov062_0211b51c and the one that held func_ov062_0211c2f4; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_0209f2f8' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held func_ov062_0211c2f4; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_0209e650' differs between the legacy file that used to hold func_ov062_0211bc54 and the one that held func_ov062_0211c2f4; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'Matrix4x3_FromRotationY' differs between the legacy file that used to hold func_ov062_0211b2fc and the one that held func_ov062_0211c594; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'Matrix4x3_ApplyInPlaceToRotationX' differs between the legacy file that used to hold func_ov062_0211b2fc and the one that held func_ov062_0211c594; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'MulVec3Mat4x3' differs between the legacy file that used to hold func_ov062_0211b2fc and the one that held func_ov062_0211c594; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt' differs between the legacy file that used to hold func_ov062_0211b880 and the one that held func_ov062_0211c594; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_020a0e68' differs between the legacy file that used to hold func_ov062_0211c2f4 and the one that held func_ov062_0211c594; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN8dActor_c10FindWithIDEj' differs between the legacy file that used to hold func_ov062_0211b51c and the one that held func_ov062_0211c6a8; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN7PathPtrC1Ev' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held _ZN9daJango_c13InitResourcesEv; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN7PathPtr6FromIDEj' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held _ZN9daJango_c13InitResourcesEv; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZNK7PathPtr7GetNodeER7Vector3j' differs between the legacy file that used to hold func_ov062_0211b3ac and the one that held _ZN9daJango_c13InitResourcesEv; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration '_ZN8dActor_c9SetRangesE5Fix12IiES1_S1_S1_' differs between the legacy file that used to hold func_ov062_0211b51c and the one that held _ZN9daJango_c13InitResourcesEv; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'func_ov062_0211c658' differs between the legacy file that used to hold func_ov062_0211b51c and the one that held _ZN9daJango_c13InitResourcesEv; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'Vec3_HorzAngle' differs between the legacy file that used to hold func_ov062_0211ba84 and the one that held _ZN9daJango_c13InitResourcesEv; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_ov062_0211e114' differs between the legacy file that used to hold func_ov062_0211bc54 and the one that held _ZN9daJango_c13InitResourcesEv; kept the first, the other is commented out for review",
+    "tubuild create warning (RESOLVED): CONFLICT: extern declaration 'data_ov062_0211e10c' differs between the legacy file that used to hold func_ov062_0211b930 and the one that held _ZN9daJango_c13InitResourcesEv; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_ov062_0211e104' differs between the legacy file that used to hold func_ov062_0211c218 and the one that held _ZN9daJango_c13InitResourcesEv; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: extern declaration 'data_ov062_0211e17c' differs between the legacy file that used to hold func_ov062_0211b800 and the one that held _ZN9daJango_c13InitResourcesEv; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: local declaration ('typedef', 'Vector3') differs between the legacy file that used to hold func_ov062_0211b2fc and the one that held func_ov062_0211b51c; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: local declaration ('struct', 'BlendModelAnim') differs between the legacy file that used to hold func_ov062_0211b880 and the one that held func_ov062_0211b930; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: local declaration ('struct', 'BlendModelAnim') differs between the legacy file that used to hold func_ov062_0211b880 and the one that held func_ov062_0211bc54; kept the first, the other is commented out for review",
+    "tubuild create warning: CONFLICT: local declaration ('typedef', 'Vector3') differs between the legacy file that used to hold func_ov062_0211b2fc and the one that held func_ov062_0211c594; kept the first, the other is commented out for review"
+  ],
+  "verification": {
+    "round": "tools/tubuild.py verify -- text-only, whole shadow TU compiled once",
+    "toolchain": "tools/mwccarm/2004/b56/mwccarm.exe",
+    "flags": "-O4,p -enum int -lang c++ -char signed -interworking -proc arm946e -gccext,on -msgstyle gcc -Cpp_exceptions off",
+    "object": "build/tu/ov062-daJango_c/daJango_c.o (gitignored)",
+    "comparison": "tools/match.py extract_func+compare (bytes/relocs) AND tools/objisolate.py plan() (relocation type/addend) AND tools/reloc_audit.py check_destinations() (relocation target identity)",
+    "functions_matched": 23,
+    "functions_declared": 23,
+    "compilerOnlyOutput": {
+      "requested": [
+        "_ZN7Vector3D1Ev"
+      ],
+      "deadstripped": [
+        "_ZN7Vector3D1Ev"
+      ],
+      "droppedSections": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        28
+      ],
+      "data": [
+        "_ZTS9daJango_c",
+        "_ZTI9daJango_c",
+        "_ZTV9daJango_c",
+        "_ZTI7fBase_c",
+        "_ZTS7fBase_c",
+        "_ZTI7dBase_c",
+        "_ZTS7dBase_c",
+        "_ZTI8dActor_c",
+        "_ZTS8dActor_c",
+        "_ZTI12dEnemyBase_c",
+        "_ZTS12dEnemyBase_c"
+      ],
+      "dataExternalized": [
+        "_ZTI12dEnemyBase_c",
+        "_ZTI7dBase_c",
+        "_ZTI7fBase_c",
+        "_ZTI8dActor_c",
+        "_ZTI9daJango_c",
+        "_ZTS12dEnemyBase_c",
+        "_ZTS7dBase_c",
+        "_ZTS7fBase_c",
+        "_ZTS8dActor_c",
+        "_ZTS9daJango_c",
+        "_ZTV9daJango_c"
+      ]
+    },
+    "criteria": {
+      "every_declared_function_defined": "PASS",
+      "every_declared_function_bytes_match": "PASS",
+      "declared_function_set_equals_defined_function_set": "PASS",
+      "functions_occur_in_expected_order": "PASS",
+      "relocation_destinations_verified": "PASS"
+    }
+  }
+}
