@@ -1449,13 +1449,13 @@
    "start": "0x2133968",
    "end": "0x21344e8",
    "classes": [
-    "Fwoosh"
+    "daHyuhyu_c"
    ],
    "n_functions_map": 20,
    "n_files": 20,
    "files": [
-    "src/_ZN6FwooshD1Ev.cpp",
-    "src/_ZN6FwooshD0Ev.cpp",
+    "src/_ZN10daHyuhyu_cD1Ev.cpp",
+    "src/_ZN10daHyuhyu_cD0Ev.cpp",
     "src/func_ov091_021339fc.c",
     "src/func_ov091_02133c6c.cpp",
     "src/func_ov091_02133d1c.c",
@@ -1465,14 +1465,14 @@
     "src/func_ov091_0213400c.c",
     "src/func_ov091_02134044.cpp",
     "src/func_ov091_02134094.c",
-    "src/_ZN6Fwoosh16CleanupResourcesEv.cpp",
-    "src/_ZN6Fwoosh16OnPendingDestroyEv.cpp",
-    "src/_ZN6Fwoosh6RenderEv.cpp",
-    "src/_ZN6Fwoosh8BehaviorEv.cpp",
-    "src/_ZN6Fwoosh13InitResourcesEv.cpp",
-    "src/_ZN6Fwoosh16OnAimedAtWithEggEv.cpp",
-    "src/_ZN6Fwoosh13OnTurnIntoEggER6Player.cpp",
-    "src/_ZN6Fwoosh13OnYoshiTryEatEv.cpp",
+    "src/_ZN10daHyuhyu_c16CleanupResourcesEv.cpp",
+    "src/_ZN10daHyuhyu_c16OnPendingDestroyEv.cpp",
+    "src/_ZN10daHyuhyu_c6RenderEv.cpp",
+    "src/_ZN10daHyuhyu_c8BehaviorEv.cpp",
+    "src/_ZN10daHyuhyu_c13InitResourcesEv.cpp",
+    "src/_ZN10daHyuhyu_c16OnAimedAtWithEggEv.cpp",
+    "src/_ZN10daHyuhyu_c13OnTurnIntoEggER6Player.cpp",
+    "src/_ZN10daHyuhyu_c13OnYoshiTryEatEv.cpp",
     "src/d_a_hyuhyu.c"
    ],
    "ext_mix": {
@@ -10157,7 +10157,7 @@
    "start": "0x21115a8",
    "end": "0x21116c4",
    "classes": [
-    "RotatingPlatformLll"
+    "daObjFl_Koma_D_c"
    ],
    "n_functions_map": 5,
    "n_files": 5,
@@ -10207,7 +10207,8 @@
    "c_members_marked_cpp": 0,
    "c_members": 2,
    "tier": 1,
-   "tier_rank": 84
+   "tier_rank": 84,
+   "historical_snapshot_note": "Discovery snapshot before PR3200 promotion: the five-file list preserves historical paths and is not the current production owner list. Four methods at ov022:0x021115a8..0x02111688 are now owned by src/actors/daObjFl_Koma_D_c.cpp; the adjacent factory remains src/d_a_obj_fl_koma_d.c. Current enrollment is config/arm9/overlays/ov022/delinks.txt; factory/data continuation is issue3202."
   },
   {
    "module": "ov036",
@@ -27785,14 +27786,14 @@
    "start": "0x2120c58",
    "end": "0x2121ffc",
    "classes": [
-    "BabyPenguin"
+    "daPgBby_c"
    ],
    "n_functions_map": 32,
    "n_files": 32,
    "files": [
-    "src/_ZN11BabyPenguinD1Ev.cpp",
-    "src/_ZN11BabyPenguinD0Ev.c",
-    "src/_ZN11BabyPenguin13OnYoshiTryEatEv.cpp",
+    "src/_ZN9daPgBby_cD1Ev.cpp",
+    "src/_ZN9daPgBby_cD0Ev.c",
+    "src/_ZN9daPgBby_c13OnYoshiTryEatEv.cpp",
     "src/func_ov072_02120d04.cpp",
     "src/func_ov072_02120ddc.c",
     "src/func_ov072_02120e20.cpp",
@@ -27815,12 +27816,12 @@
     "src/func_ov072_02121cdc.cpp",
     "src/func_ov072_02121d18.cpp",
     "src/func_ov072_02121d50.c",
-    "src/_ZN11BabyPenguin16CleanupResourcesEv.c",
-    "src/_ZN11BabyPenguin16OnPendingDestroyEv.c",
-    "src/_ZN11BabyPenguin6RenderEv.cpp",
-    "src/_ZN11BabyPenguin8BehaviorEv.cpp",
-    "src/_ZN11BabyPenguin13InitResourcesEv.cpp",
-    "src/_ZN11BabyPenguin13OnTurnIntoEggER6Player.cpp",
+    "src/_ZN9daPgBby_c16CleanupResourcesEv.c",
+    "src/_ZN9daPgBby_c16OnPendingDestroyEv.c",
+    "src/_ZN9daPgBby_c6RenderEv.cpp",
+    "src/_ZN9daPgBby_c8BehaviorEv.cpp",
+    "src/_ZN9daPgBby_c13InitResourcesEv.cpp",
+    "src/_ZN9daPgBby_c13OnTurnIntoEggER6Player.cpp",
     "src/daPgBby_c_classInit.c"
    ],
    "ext_mix": {
@@ -28521,21 +28522,21 @@
    "start": "0x2123740",
    "end": "0x2126648",
    "classes": [
-    "Whomp",
+    "daBtn_c",
     "WhompKing"
    ],
    "n_functions_map": 36,
    "n_files": 36,
    "files": [
-    "src/_ZN5WhompD1Ev.cpp",
-    "src/_ZN5WhompD0Ev.cpp",
+    "src/_ZN7daBtn_cD1Ev.cpp",
+    "src/_ZN7daBtn_cD0Ev.cpp",
     "src/func_ov079_02123804.c",
     "src/func_ov079_02123a8c.cpp",
-    "src/_ZN5Whomp25OnAimedAtWithEggReturnVecEv.cpp",
-    "src/_ZN5Whomp16OnAimedAtWithEggEv.cpp",
+    "src/_ZN7daBtn_c25OnAimedAtWithEggReturnVecEv.cpp",
+    "src/_ZN7daBtn_c16OnAimedAtWithEggEv.cpp",
     "src/func_ov079_02123bcc.c",
     "src/func_ov079_02123d4c.cpp",
-    "src/_ZN5Whomp15OnHitByMegaCharER6Player.cpp",
+    "src/_ZN7daBtn_c15OnHitByMegaCharER6Player.cpp",
     "src/func_ov079_02123f34.c",
     "src/func_ov079_02124008.c",
     "src/func_ov079_02124188.c",
@@ -28557,10 +28558,10 @@
     "src/func_ov079_021256d4.c",
     "src/func_ov079_021258fc.c",
     "src/func_ov079_02125b44.c",
-    "src/_ZN5Whomp16CleanupResourcesEv.cpp",
-    "src/_ZN5Whomp6RenderEv.cpp",
-    "src/_ZN5Whomp8BehaviorEv.cpp",
-    "src/_ZN5Whomp13InitResourcesEv.cpp",
+    "src/_ZN7daBtn_c16CleanupResourcesEv.cpp",
+    "src/_ZN7daBtn_c6RenderEv.cpp",
+    "src/_ZN7daBtn_c8BehaviorEv.cpp",
+    "src/_ZN7daBtn_c13InitResourcesEv.cpp",
     "src/daBtn_c_classInit_BATANKING.c",
     "src/daBtn_c_classInit_BATAN.c"
    ],
@@ -29040,13 +29041,13 @@
    "start": "0x212c10c",
    "end": "0x212d248",
    "classes": [
-    "BobOmbBuddy"
+    "daRedBombhei_c"
    ],
    "n_functions_map": 23,
    "n_files": 23,
    "files": [
-    "src/_ZN11BobOmbBuddyD1Ev.cpp",
-    "src/_ZN11BobOmbBuddyD0Ev.c",
+    "src/_ZN14daRedBombhei_cD1Ev.cpp",
+    "src/_ZN14daRedBombhei_cD0Ev.c",
     "src/func_ov084_0212c1a0.c",
     "src/func_ov084_0212c4a0.c",
     "src/func_ov084_0212c508.cpp",
@@ -29063,10 +29064,10 @@
     "src/func_ov084_0212ccb4.cpp",
     "src/func_ov084_0212cda0.c",
     "src/func_ov084_0212ce50.cpp",
-    "src/_ZN11BobOmbBuddy16CleanupResourcesEv.c",
-    "src/_ZN11BobOmbBuddy6RenderEv.cpp",
-    "src/_ZN11BobOmbBuddy8BehaviorEv.cpp",
-    "src/_ZN11BobOmbBuddy13InitResourcesEv.cpp",
+    "src/_ZN14daRedBombhei_c16CleanupResourcesEv.c",
+    "src/_ZN14daRedBombhei_c6RenderEv.cpp",
+    "src/_ZN14daRedBombhei_c8BehaviorEv.cpp",
+    "src/_ZN14daRedBombhei_c13InitResourcesEv.cpp",
     "src/d_a_red_bombhei.c"
    ],
    "ext_mix": {
@@ -30444,13 +30445,13 @@
    "start": "0x214620c",
    "end": "0x2146d7c",
    "classes": [
-    "Fish"
+    "daFish_c"
    ],
    "n_functions_map": 18,
    "n_files": 18,
    "files": [
-    "src/_ZN4FishD1Ev.cpp",
-    "src/_ZN4FishD0Ev.cpp",
+    "src/_ZN8daFish_cD1Ev.cpp",
+    "src/_ZN8daFish_cD0Ev.cpp",
     "src/func_ov100_02146280.c",
     "src/func_ov100_0214629c.cpp",
     "src/func_ov100_0214639c.c",
@@ -30461,11 +30462,11 @@
     "src/func_ov100_021467d4.c",
     "src/func_ov100_021467e8.cpp",
     "src/func_ov100_02146828.c",
-    "src/_ZN4Fish16CleanupResourcesEv.cpp",
-    "src/_ZN4Fish16OnPendingDestroyEv.c",
-    "src/_ZN4Fish6RenderEv.cpp",
-    "src/_ZN4Fish8BehaviorEv.cpp",
-    "src/_ZN4Fish13InitResourcesEv.cpp",
+    "src/_ZN8daFish_c16CleanupResourcesEv.cpp",
+    "src/_ZN8daFish_c16OnPendingDestroyEv.c",
+    "src/_ZN8daFish_c6RenderEv.cpp",
+    "src/_ZN8daFish_c8BehaviorEv.cpp",
+    "src/_ZN8daFish_c13InitResourcesEv.cpp",
     "src/daFish_c_classInit.cpp"
    ],
    "ext_mix": {
@@ -37995,11 +37996,11 @@
    "start": "0x2133968",
    "end": "0x21344e8",
    "classes": [
-    "Fwoosh"
+    "daHyuhyu_c"
    ],
    "files": [
-    "src/_ZN6FwooshD1Ev.cpp",
-    "src/_ZN6FwooshD0Ev.cpp",
+    "src/_ZN10daHyuhyu_cD1Ev.cpp",
+    "src/_ZN10daHyuhyu_cD0Ev.cpp",
     "src/func_ov091_021339fc.c",
     "src/func_ov091_02133c6c.cpp",
     "src/func_ov091_02133d1c.c",
@@ -38009,14 +38010,14 @@
     "src/func_ov091_0213400c.c",
     "src/func_ov091_02134044.cpp",
     "src/func_ov091_02134094.c",
-    "src/_ZN6Fwoosh16CleanupResourcesEv.cpp",
-    "src/_ZN6Fwoosh16OnPendingDestroyEv.cpp",
-    "src/_ZN6Fwoosh6RenderEv.cpp",
-    "src/_ZN6Fwoosh8BehaviorEv.cpp",
-    "src/_ZN6Fwoosh13InitResourcesEv.cpp",
-    "src/_ZN6Fwoosh16OnAimedAtWithEggEv.cpp",
-    "src/_ZN6Fwoosh13OnTurnIntoEggER6Player.cpp",
-    "src/_ZN6Fwoosh13OnYoshiTryEatEv.cpp",
+    "src/_ZN10daHyuhyu_c16CleanupResourcesEv.cpp",
+    "src/_ZN10daHyuhyu_c16OnPendingDestroyEv.cpp",
+    "src/_ZN10daHyuhyu_c6RenderEv.cpp",
+    "src/_ZN10daHyuhyu_c8BehaviorEv.cpp",
+    "src/_ZN10daHyuhyu_c13InitResourcesEv.cpp",
+    "src/_ZN10daHyuhyu_c16OnAimedAtWithEggEv.cpp",
+    "src/_ZN10daHyuhyu_c13OnTurnIntoEggER6Player.cpp",
+    "src/_ZN10daHyuhyu_c13OnYoshiTryEatEv.cpp",
     "src/d_a_hyuhyu.c"
    ],
    "ext_mix": {
