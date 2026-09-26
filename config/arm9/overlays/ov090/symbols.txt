@@ -105,7 +105,7 @@ _ZTV10CheepCheep kind:data(any) addr:0x02134324
 _ZTV12daPukupuku_c kind:data(any) addr:0x02134324
 data_ov090_021343a0 kind:data(any) addr:0x021343a0
 data_ov090_021343a8 kind:data(any) addr:0x021343a8
-data_ov090_021343b0 kind:data(any) addr:0x021343b0
+_ZTS9daShark_c kind:data(any) addr:0x021343b0
 _ZTI9daShark_c kind:data(any) addr:0x021343bc
 g_profile_SHARK kind:data(any) addr:0x021343c8 ambiguous
 _ZTV5Shark kind:data(any) addr:0x021343ec

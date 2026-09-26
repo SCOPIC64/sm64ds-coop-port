@@ -1,44 +1,19 @@
 //cpp
-/* SHADOW translation unit -- ov002 / the level-object loader.
+/* The level-object loader: seventeen category loaders plus LoadObjects'
+ * dispatch and Stage::LoadClsnAndObjects. ov002 .text 0x020fe190..0x020fea4c,
+ * enrolled and canonical (delinks points here, not at per-function files).
  *
- * NOT ENROLLED, AND NOT CANONICAL. This file contributes nothing to the ROM
- * build. The seventeen one-function sources under src/ remain the enrolled
- * owners of 0x020fe190..0x020fea4c. See
- * notes/translation-unit-reconstruction-plan.md (the design),
- * notes/tu-reconstruction-pilot-report.md (pilot #1, a key-function TU) and
- * notes/tu-reconstruction-pilot-2-report.md (this one).
+ * Source runs REVERSE of ROM (highest address first). Do not reorder.
+ * The fifteen category loaders come first, then LoadObjects dispatching
+ * through the handler table, then Stage::LoadClsnAndObjects -- define-
+ * before-use top to bottom.
  *
- * WHY THIS CANDIDATE: it is the deliberate opposite of pilot #1. There is no
- * class here at all -- fifteen of the seventeen functions are `_Z`-mangled FREE
- * functions -- so no destructor variant group, no vtable and no RTTI can be
- * emitted, which is the whole point of this round.
- *
- * FUNCTION ORDER IS DELIBERATELY THE REVERSE OF THE ROM'S.
- * mwccarm 2004/b56 emits one `.text` section per function and lays those
- * sections out in the object in the REVERSE of their order in the source text,
- * so writing the LAST function of the ROM run FIRST is what makes the object's
- * section order equal the ROM's address order. Re-probed against this exact
- * compiler and flags for this pilot rather than inherited from pilot #1
- * (four functions in, four sections out, strictly reversed).
- *
- * THAT REVERSAL IS ALSO EVIDENCE HERE, and it points the other way from what a
- * "reverse the ROM" instruction sounds like. Compiled section order equals the
- * ROM's address order and equals the reverse of source order, so the ORIGINAL
- * file's reading order was the reverse of the ROM's addresses -- which is this
- * file's own top-to-bottom order. Read that way it is exactly define-before-use:
- * the fifteen category loaders first, then LoadObjects which dispatches to them
- * through the table at ov002:0x0210cbb8, then Stage::LoadClsnAndObjects, which is
- * LoadObjects' only caller anywhere in the ROM. And after LoadSimpleObjects the
- * remaining fourteen come out in ascending handler-table index --
- * 0,1,2,3,4,6,7,8,9,10,11,12,13,14 -- with only index 5 hoisted to the front.
- * Nothing about that ordering was used to choose the boundary; it is what the
- * mechanical reversal produced, which is why it corroborates it.
- *
- * THIS TU ALSO OWNS, and this round neither declares nor verifies any of it:
- *   data_ov002_0210cbb8  .data  the 15-entry handler table (0x0210cbb8..0x0210cbf4)
- * and probably the small tables the loaders index (0x0210cb5c, 0x0210cb70,
- * 0x0210cb88, 0x0210cbf4) and the counter data_ov002_0211118c in .bss. Those are
- * a data-phase question; see the report.
+ * Leftover: the handler table and the small loader tables stay data;
+ *   this TU claims .text only (see the manifest).
+ * Leftover: DoorEntry and LVL_Overlay_Layout stay TU-local; record
+ *   types migrate to LVL_Overlay.h loader by loader.
+ * Leftover: dActor_c::Spawn keeps its hand spelling (real s8/s16 tail
+ *   truncates areaID; measured on LoadStandardObjects).
  */
 #include "decl_common.h"
 
@@ -98,7 +73,8 @@ extern u16  data_ov002_0210cbf4[];
  * disagreed among themselves -- `const Vector3 *` versus `const Vector3 &` for
  * the position, `Vector3s` versus `Vector3_16` for the rotation -- so all five
  * call sites now go through this one declaration. Measured byte-free on all
- * five, including LoadEntranceObjects' move off the real method. */
+ * five, including LoadEntranceObjects' move off the real method.
+ * local extern: the header's s8/s16 tail adds areaID truncates (+4 bytes). */
 void *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
         u32 actorID, u32 spawnParam, const Vector3 *pos, const Vector3_16 *rot,
         s32 areaID, s32 deathTableID);
@@ -111,18 +87,12 @@ void func_0202b060(void *entries, u32 count);
 void func_0202b090(void *entries, u32 count);
 void func_0202b0c4(void *entries, u32 count);
 void func_0202b0e0(LVL_Overlay::StandardEntry *e, int count);
-void StartEntranceFaderWipe(void);
+void StartEntranceFaderWipe(int index);
 
 /* Stage::LoadClsnAndObjects' own callees. LoadFile is not in decl_common.h. */
 struct KCL_File;
 struct CLPS_Block;
 KCL_File *LoadFile(int handle);
-void _ZN7dBgW_Kc17UpdateFileOffsetsER8KCL_File(KCL_File *f);
-void _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(dBgW_Kc *thiz,
-                                                       KCL_File *f,
-                                                       CLPS_Block *clps);
-int  _ZNK7dBgW_Kc16GetOctreeOriginYEv(dBgW_Kc *thiz);
-int  _ZNK7dBgW_Kc13GetUnkOctreeYEv(dBgW_Kc *thiz);
 
 /* The handler table LoadObjects dispatches through. Believed to belong to this
  * TU (its fifteen entries are exactly the fifteen loaders below and nothing
@@ -163,9 +133,6 @@ struct LVL_Overlay_Layout {
     u8                    subCount;     /* 0x14 */
 };
 
-/* ========================================================================= *
- * ROM ordinal 16 -- LoadSimpleObjects, 0x020fe960, size 0xec
- * ========================================================================= */
 /* Spawn simple actors, or hand a minimap-change sentinel to
  * LoadMinimapChangeObject. Each SimpleEntry is 8 bytes: a packed `raw` word
  * (low 9 bits = actor-table index, high bits = param) and an s16 position.
@@ -175,6 +142,7 @@ struct LVL_Overlay_Layout {
  *
  * LoadMinimapChangeObject stays hand-spelled: it takes a by-value Fix12<int>,
  * which is a runbook section 7 dead end for a real declaration at the call site. */
+// @symbol _Z17LoadSimpleObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadSimpleObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     LVL_Overlay::SimpleEntry* e = (LVL_Overlay::SimpleEntry*)tbl.entries;
@@ -204,14 +172,12 @@ void LoadSimpleObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
     }
 }
 
-/* ========================================================================= *
- * ROM ordinal 15 -- LoadStandardObjects, 0x020fe8ac, size 0xb4
- * ========================================================================= */
 /* One actor per standard object entry. Each StandardEntry is 0x10 bytes: raw id
  * index into data_ov002_0210cbf4, s16 position (shifted left by 12 into Fix12),
  * Vector3s rotation, u16 param. data_ov002_0211118c is a running death-table /
  * spawn-order counter incremented per spawn. The third parameter is part of the
  * shared loader signature and unused here. */
+// @symbol _Z19LoadStandardObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadStandardObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     LVL_Overlay::StandardEntry* e = (LVL_Overlay::StandardEntry*)tbl.entries;
@@ -232,13 +198,11 @@ void LoadStandardObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
     }
 }
 
-/* ========================================================================= *
- * ROM ordinal 14 -- LoadEntranceObjects, 0x020fe6c8, size 0x1e4
- * ========================================================================= */
 /* Spawn entrance actors and the entrance-controller dBase_c. Walks
  * StandardEntry records like LoadStandardObjects, but the third argument is an
  * entry index OFFSET into the table rather than a free parameter: the walk
  * starts at `entries + p3` and runs for data_0209f21c iterations, not tbl.count. */
+// @symbol _Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadEntranceObjects(LVL_Overlay::ObjSubTable& tbl, int p2, u32 p3)
 {
     u32 sl;
@@ -298,15 +262,13 @@ void LoadEntranceObjects(LVL_Overlay::ObjSubTable& tbl, int p2, u32 p3)
 
     if (sl >= 0x13)
         sl = 0;
-    if (data_ov002_0210cb5c[sl] < 0)
+    int wipe = data_ov002_0210cb5c[sl];
+    if (wipe < 0)
         return;
 
-    StartEntranceFaderWipe();
+    StartEntranceFaderWipe(wipe);
 }
 
-/* ========================================================================= *
- * ROM ordinal 13 -- LoadPathNodeObjects, 0x020fe6b8, size 0x10
- * ========================================================================= */
 /* CONFLICT 4 -- func_0203accc's arity, and this is the one consolidation could
  * not paper over.
  *
@@ -325,34 +287,28 @@ void LoadEntranceObjects(LVL_Overlay::ObjSubTable& tbl, int p2, u32 p3)
  * true of both call sites, and the three-argument spelling was an inference
  * from the tail-call shape that the other caller contradicts. Measured
  * byte-free here. */
+// @symbol _Z19LoadPathNodeObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadPathNodeObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     func_0203accc((int)tbl.entries);
 }
 
-/* ========================================================================= *
- * ROM ordinal 12 -- LoadPathObjects, 0x020fe6a4, size 0x14
- * ========================================================================= */
 /* Hand the category's entry array and count straight to func_0203aca0.
  * decl_common.h declares that one `(int, int)`; this file used to declare it
  * `(void *, u32)`. Same arity, so a cast settles it -- unlike func_0203accc
  * above. */
+// @symbol _Z15LoadPathObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadPathObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     func_0203aca0((int)tbl.entries, tbl.count);
 }
 
-/* ========================================================================= *
- * ROM ordinal 11 -- LoadViewObjects, 0x020fe690, size 0x14
- * ========================================================================= */
+// @symbol _Z15LoadViewObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadViewObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     func_0202b0c4(tbl.entries, tbl.count);
 }
 
-/* ========================================================================= *
- * ROM ordinal 10 -- LoadTeleportSourceObjects, 0x020fe5f4, size 0x9c
- * ========================================================================= */
 /* One teleport-source actor (id 0x15b) per entry. Simpler than its exit-loader
  * sibling in two ways visible in the record: the parameter is a plain u16 rather
  * than a big-endian byte quartet, and there is no rotation at all -- the spawn
@@ -361,6 +317,7 @@ void LoadViewObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
  * The loop is bottom-tested with a guard rather than top-tested, and that shape
  * is load-bearing: it is what the ROM emits, and a plain `for` reorders the
  * compare. */
+// @symbol _Z25LoadTeleportSourceObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadTeleportSourceObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     LVL_Overlay::TeleportSourceEntry* e =
@@ -388,25 +345,18 @@ void LoadTeleportSourceObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 pa
     } while (i < (int)tbl.count);
 }
 
-/* ========================================================================= *
- * ROM ordinal 9 -- LoadTeleportDestObjects, 0x020fe5e0, size 0x14
- * ========================================================================= */
+// @symbol _Z23LoadTeleportDestObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadTeleportDestObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     func_0202b090(tbl.entries, tbl.count);
 }
 
-/* ========================================================================= *
- * ROM ordinal 8 -- LoadFogObjects, 0x020fe5cc, size 0x14
- * ========================================================================= */
+// @symbol _Z14LoadFogObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadFogObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     func_0202b060(tbl.entries, tbl.count);
 }
 
-/* ========================================================================= *
- * ROM ordinal 7 -- LoadDoorObjects, 0x020fe4f0, size 0xdc
- * ========================================================================= */
 /* One door actor per entry. The actor id and the high half of its parameter come
  * out of two small ov002 tables indexed by the low five bits of the record's
  * last halfword; the rotation is unpacked from two nibbles of field8 plus the
@@ -417,6 +367,7 @@ void LoadFogObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
  * `class LVL_Overlay` with a THIRD spelling of ObjSubTable (`u8 b0; u8 count;
  * DoorEntry *entries;`). That spelling is layout-compatible with the header's,
  * so only the names change here. */
+// @symbol _Z15LoadDoorObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadDoorObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     DoorEntry* e = (DoorEntry*)tbl.entries;
@@ -443,9 +394,6 @@ void LoadDoorObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
     }
 }
 
-/* ========================================================================= *
- * ROM ordinal 6 -- LoadExitObjects, 0x020fe420, size 0xd0
- * ========================================================================= */
 /* One exit actor (id 0x15d) per entry. Rotations are stored the same way as
  * positions and NEGATED -- both of them -- so a stored angle is the opposite of
  * the one the actor gets.
@@ -454,6 +402,7 @@ void LoadDoorObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
  * `(b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]`, which on a little-endian
  * machine is the reverse of a plain load. The ROM really does shift 0x0a by 24,
  * which is why the header keeps the field a four-byte array. */
+// @symbol _Z15LoadExitObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadExitObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     LVL_Overlay::ExitEntry* e = (LVL_Overlay::ExitEntry*)tbl.entries;
@@ -482,47 +431,36 @@ void LoadExitObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
     }
 }
 
-/* ========================================================================= *
- * ROM ordinal 5 -- LoadMinimapTileObjects, 0x020fe40c, size 0x14
- * ========================================================================= */
+// @symbol _Z22LoadMinimapTileObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadMinimapTileObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     func_0202b044(tbl.entries, tbl.count);
 }
 
-/* ========================================================================= *
- * ROM ordinal 4 -- LoadMinimapScaleObjects, 0x020fe3f8, size 0x14
- * ========================================================================= */
+// @symbol _Z23LoadMinimapScaleObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadMinimapScaleObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     func_0202af80(tbl.entries, tbl.count);
 }
 
-/* ========================================================================= *
- * ROM ordinal 3 -- LoadUnusedType13Objects, 0x020fe3e4, size 0x14
- * ========================================================================= */
 /* Stash the entry array's ADDRESS and do nothing with it. Not a mistake in the
  * recovery: the ROM really does store the pointer rather than walk it. Object
  * type 13 is unused in the shipped game, so the loader was reduced to a stub
  * that keeps the table around, which also explains why it reads no count. */
+// @symbol _Z23LoadUnusedType13ObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadUnusedType13Objects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     data_0209f338[0] = (int)tbl.entries;
 }
 
-/* ========================================================================= *
- * ROM ordinal 2 -- LoadStarCameraObjects, 0x020fe3cc, size 0x18
- * ========================================================================= */
 /* Take the first word of the star-camera table and publish it. Reads no count,
  * unlike most of this family: it wants one value, not a list. */
+// @symbol _Z21LoadStarCameraObjectsRN11LVL_Overlay11ObjSubTableEij
 void LoadStarCameraObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
 {
     data_02092134 = *(int*)tbl.entries;
 }
 
-/* ========================================================================= *
- * ROM ordinal 1 -- LoadObjects, 0x020fe33c, size 0x90
- * ========================================================================= */
 /* Walk the outer object table and dispatch each 8-byte entry to the category
  * loader table at data_ov002_0210cbb8 -- whose fifteen entries are exactly the
  * fifteen functions above.
@@ -531,6 +469,7 @@ void LoadStarCameraObjects(LVL_Overlay::ObjSubTable& tbl, int areaID, u32 param)
  * is 8 bytes; byte 0 packs a filter in the top three bits and a handler index in
  * the low five. The entry is skipped unless the filter is 0 or equal to the
  * global byte at data_0209f220. */
+// @symbol _Z11LoadObjectsRN11LVL_Overlay8ObjTableEij
 void LoadObjects(LVL_Overlay::ObjTable& t, int areaID, u32 param)
 {
     u8* e = (u8*)t.entries;
@@ -547,9 +486,6 @@ void LoadObjects(LVL_Overlay::ObjTable& t, int areaID, u32 param)
     }
 }
 
-/* ========================================================================= *
- * ROM ordinal 0 -- Stage::LoadClsnAndObjects, 0x020fe190, size 0x1ac
- * ========================================================================= */
 /* The public entry point, and LoadObjects' only caller anywhere in the ROM:
  * load the level's collision mesh, then run the object tables, then decide
  * whether the intro cutscene plays.
@@ -560,6 +496,7 @@ void LoadObjects(LVL_Overlay::ObjTable& t, int areaID, u32 param)
  * function in the same TU, so it is called by name -- and the hand-spelled
  * extern had to go, since an `extern "C"` declaration of that literal name and
  * the C++ definition that mangles to it are the same linker symbol. */
+// @symbol _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR7dBgW_Kc
 void Stage::LoadClsnAndObjects(LVL_Overlay &ovlRef, u32 p, dBgW_Kc &mcRef)
 {
     LVL_Overlay_Layout *ovl = (LVL_Overlay_Layout *)&ovlRef;
@@ -578,9 +515,9 @@ void Stage::LoadClsnAndObjects(LVL_Overlay &ovlRef, u32 p, dBgW_Kc &mcRef)
 
     if (ovl->kclFileId != 0) {
         f = LoadFile(ovl->kclFileId);
-        _ZN7dBgW_Kc17UpdateFileOffsetsER8KCL_File(f);
-        _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(mc, f, ovl->clps);
-        func_0202a850(_ZNK7dBgW_Kc16GetOctreeOriginYEv(mc), _ZNK7dBgW_Kc13GetUnkOctreeYEv(mc));
+        dBgW_Kc::UpdateFileOffsets(*f);
+        ((dBgW_Kc *)mc)->SetFile(f, *ovl->clps);
+        func_0202a850(((dBgW_Kc *)mc)->GetOctreeOriginY(), ((dBgW_Kc *)mc)->GetUnkOctreeY());
         ((dBgW *)(mc))->Enable((dActor_c *)(0));
     }
 

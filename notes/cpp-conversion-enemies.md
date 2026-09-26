@@ -3,7 +3,7 @@
 **Written 2026-08-27**, branch `cpp/period-accurate-form`. Scope: every `src/` file
 whose mangled stem names a class that derives, transitively, from `dEnemyBase_c`.
 Companions: `notes/ctor-migration.md`, `notes/dtor-migration.md`,
-`notes/plan-cpp-conversion-queue.md`, and the `decomp-cpp-class-form` skill.
+`notes/plan-cpp-conversion-queue.md`, and [class-form compiler observations](cpp-class-form.md).
 
 The goal this sweep serves is narrow and worth stating: a file where the compiler
 generates the constructor, the destructor variants and the name mangling is a
@@ -167,7 +167,7 @@ address once where the ROM re-issues `[r4, #8]`. Eleven variants swept, and the
 split is clean -- all six that differ the spelling match, all three that do not
 miss by the same word. It is now a real method AND enrolled, so [ov084](../config/arm9/overlays/ov084/symbols.txt) gains 912 bytes from source.
 
-`RollingRock::Behavior` settled at three words with a note saying "spelling alone
+`daGrock_c::Behavior` settled at three words with a note saying "spelling alone
 does not reach it" after ten spellings. The lever was already written down, just
 not applied at the copy: `struct AngleWords { u16 w[3]; };` and
 `*(AngleWords *)&v16 = *(AngleWords *)(c + 0x92);`. Copying through a struct whose
@@ -199,7 +199,7 @@ Not one of them was a compiler limit.
 | by-value `Fix12<int>` parameters | a coined parameter type the ROM refutes |
 | two "disputed signatures" | the name on the other overlay's function |
 | `daKrb_c::InitResources`, 4 bytes | a documented codegen lever, unapplied |
-| `RollingRock::Behavior`, 3 words | a documented codegen lever, unapplied |
+| `daGrock_c::Behavior`, 3 words | a documented codegen lever, unapplied |
 
 Three were naming errors and two were levers already written down in this repo.
 The common failure is the same in both halves: a note recording a measurement,

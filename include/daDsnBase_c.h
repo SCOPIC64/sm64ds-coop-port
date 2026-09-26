@@ -38,12 +38,12 @@
  * TWO DESCENDANTS: daDsn_c (Thwomp, ov091) and daDkk_c (ov025, whose factory the
  * tree calls daDkk_c_classInit and whose class it has never named).
  *
- * SLOTS 3 AND 9 BELONG TO THIS CLASS, NOT TO Thwomp, and they are declared here
+ * SLOTS 3 AND 9 BELONG TO THIS CLASS, NOT TO daDsn_c, and they are declared here
  * now. Dumping the cartridge's own _ZTV11daDsnBase_c settles it: slot 3 holds
- * ov091 0x021331b8 and slot 9 holds 0x02133210, and Thwomp's vtable inherits both
+ * ov091 0x021331b8 and slot 9 holds 0x02133210, and daDsn_c's vtable inherits both
  * words rather than overriding them. The ROM spelled the two symbols
  * `_ZN6Thwomp16CleanupResourcesEv` and `_ZN6Thwomp6RenderEv`, which is why they
- * sat on Thwomp until now; this pass does the config change that header deferred
+ * sat on the leaf (then coined Thwomp) until now; this pass does the config change that header deferred
  * and renames them onto the class whose vtable they are in. Same shape as the
  * crossed ov047 "Bs" names #1521 recorded.
  *
@@ -95,31 +95,20 @@ struct daDsnBase_c : dBgActor_c {
        EMPTY, BUT NOT INERT. The two members above have destructors, so this body
        emits _ZN11ShadowModelD1Ev at +0x338 and _ZN15TextureSequenceD1Ev at +0x324
        in reverse declaration order -- which is the order the ROM uses. */
-    /* The destructor pair spelled as two plain virtuals on the host, plus
-       the non-virtual destructor declaration the src/ definitions need; the
-       whole ruling is in include/ModelBase.h. An override takes its base's
-       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
-       name would append a slot instead of claiming one. */
-#ifdef _MSC_VER
-    virtual void Destructor1();   /* D1 */
-    virtual void Destructor0();   /* D0 */
-    ~daDsnBase_c() {}   /* no slot */
-#else
-    virtual ~daDsnBase_c() {}   /* D1 and D0 */
-#endif
+    virtual ~daDsnBase_c() {}
 
     /* ABSTRACT IN TWO SLOTS. The cartridge holds a bare 0x00000000 in slots 0 and
        6 of _ZTV11daDsnBase_c, with no relocation reaching either word -- which is
        how a `= 0` reads once the linker is done. Leaving them undeclared is not
        neutral: mwcc then inherits fBase_c's own bodies into both, which is what
        made this vtable and daDkk_c's disagree with the ROM. Each leaf supplies
-       both for real (Thwomp.h, daDkk_c.h). */
+       both for real (daDsn_c.h, daDkk_c.h). */
     virtual s32 InitResources() = 0;   /* slot 0 -- null in the ROM */
     virtual s32 Behavior()      = 0;   /* slot 6 -- null in the ROM */
 
     /* AND IT OWNS SLOTS 3 AND 9, whatever the ROM spelled them. Declaring the two
        here is what puts ov091's own words in those slots instead of fBase_c's --
-       in this vtable and, by inheritance, in daDkk_c's and Thwomp's.
+       in this vtable and, by inheritance, in daDkk_c's and daDsn_c's.
 
        CleanupResources is now this class's ABI key function: it is the first
        declared virtual that is neither inline nor pure, so _ZTV11daDsnBase_c is
@@ -127,6 +116,14 @@ struct daDsnBase_c : dBgActor_c {
        merely mention the class. */
     virtual s32 CleanupResources();    /* slot 3 -- ov091:0x021331b8 */
     virtual s32 Render();              /* slot 9 -- ov091:0x02133210 */
+
+    /* Shared resource setup both leaves' InitResources call after storing
+       their file table. Not a vtable slot -- InitResources itself is pure
+       and each leaf supplies it. The name is coined from those two callers
+       (daDsn_c::InitResources, daDkk_c::InitResources) and from the body
+       (load model/KCL, bind CLPS, optional BTP, cuboid shadow, ground
+       probe); the ROM has no mangled spelling. */
+    s32 Init();
 };
 
 #ifndef SM64DS_PLATFORM_PC

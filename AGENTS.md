@@ -29,8 +29,8 @@ the tools below works fine too.
 
 For multi-agent class/TU work, start at [notes/agents/README.md](notes/agents/README.md).
 The GitHub-backed v2 protocol defines ownership, independent verification, and
-handoffs across harnesses. Complete its cutover checklist before restarting old
-workers; installing the files alone does not switch the live fleet.
+handoffs across harnesses. Resume adopted work and the live queue; the cutover
+checklist applies when adopting a legacy fleet, not on every restart.
 
 ## The one rule that matters
 
@@ -73,7 +73,7 @@ Two shapes cover almost everything now:
   real member names, give the class its real base and vtable, replace offset
   arithmetic and mangled-name free functions with real method calls — while
   staying byte-identical. See
-  [`.claude/skills/decomp-cpp-class-form/SKILL.md`](.claude/skills/decomp-cpp-class-form/SKILL.md)
+  [`notes/cpp-class-form.md`](notes/cpp-class-form.md)
   for the codegen levers this actually turns on (destructor variant order,
   key-function/vtable ownership, struct-copy and bool-widening quirks).
 - **A promoted translation unit**, once a class's files are all real methods:
@@ -83,6 +83,10 @@ Two shapes cover almost everything now:
   [`notes/tu-promotion-conventions.md`](notes/tu-promotion-conventions.md)
   before opening or reviewing one; `tools/tu_promote.py` does the mechanical
   part (file move, manifest flip, attribution overrides).
+  That note is the canonical promotion workflow: the default build must consume
+  the consolidated `src/` file and absorbed sources must be retired. Folder moves
+  and shadow-only commits do not complete a TU assignment. Temporary `src_tu/`
+  experiments need a production continuation or a concrete recorded blocker.
 
 New byte-matches from scratch (previously-unclaimed ROM functions) still happen
 and follow the same rule — one function per file, filename is the symbol,
@@ -156,6 +160,14 @@ Do not treat a banked entry as a text edit — changing a declaration can change
 instruction selection at the call site, so fixing one is matching work that needs a
 rebuild and byte proof (`tools/match.py`), and the `declaration agreement` CI job will
 never ask you for it. No compiler, no ROM, about twelve seconds.
+
+**Include the header; don't copy its declaration.** Before writing a local `extern`,
+check whether a header in `include/` already declares the symbol, as a free function or
+inside a class body. `--changed` fails a branch that adds a new local copy of one. The
+generated `decl_*.h` catch-all headers don't count, and neither does a symbol that
+takes `Fix12<int>` by value (the Fix12 wall). Where the header's spelling really can't
+be used, keep the local declaration and write `local extern: <reason>` in a comment on
+it or on the line above.
 
 ## PR format
 

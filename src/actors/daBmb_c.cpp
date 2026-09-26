@@ -17,7 +17,7 @@
  *   value; the header method form size-DIFFs.
  * - dBgCh_Actr::Init: header Fix12i mangles as i; ROM is Fix12<int>.
  * - _ZNK10dBgCh_Actr14GetFloorResultEv: not in dBgCh_Actr.h.
- * - Animation::Advance: State1/3 keep `_ZN9Animation7AdvanceEv(this+0x350)`
+ * - Animation::Advance: State1/3 keep `((Animation *)(this+0x350))->Advance()`
  *   (named mModelAnim.Advance() goes through the thunk).
  * - *(this+0x128) |= 2 / *(this+0xb0) &= ~1u / *(this+0xc8)=0 are
  *   load-bearing (not mdCc_c.flags / mFlags / a new dActor_c field).
@@ -114,17 +114,10 @@ void  func_ov102_0214c0b8(void *self);
 void  GiveCoins(int who, int count);
 int   SurfaceInfo_TestFlag0x20(int *si);
 
-void  _ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj(void *, void *, unsigned int);
 void  _ZN12dEnemyBase_c20KillByInvincibleCharERK10Vector3_16R6Player5Fix12IiE(void *, void *, void *, unsigned int);
 
-void  _ZN5dCc_c5ClearEv(void *);
-void  _ZN5dCc_c6UpdateEv(void *);
 
-void *_ZN8dActor_c10FindWithIDEj(unsigned int);
-void  _ZN8dActor_c9UpdatePosEP5dCc_c(void *, void *);
 
-int   _ZNK10dBgCh_Actr10IsOnGroundEv(void *);
-int   _ZNK10dBgCh_Actr8IsOnWallEv(void *);
 void *_ZNK10dBgCh_Actr14GetFloorResultEv(void *);
 
 /* dCcAc_c::Init / dBgCh_Actr::Init stay scalar: they carry Fix12<int> BY
@@ -141,7 +134,6 @@ void  _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(void *, dActor
    free func_ov102_0214be1c shard had recovered it as a pointer, and State1's two
    call sites bind the same address through the reference instead. */
 void  _Z14ApproachLinearRsss(short &v, short target, short step);
-void  _ZN9Animation7AdvanceEv(void *a);
 void  func_ov102_0214b3b8(void *c);
 
 extern signed char   data_0209f2f8;
@@ -260,7 +252,7 @@ int daBmb_c::InitResources()
 int daBmb_c::Behavior()
 {
     int flag;
-    int r0;
+    int killResult;
     void *other;
 
     if (unk_3f6 != 0) {
@@ -274,9 +266,9 @@ int daBmb_c::Behavior()
         return 1;
     }
 
-    r0 = UpdateKillByInvincibleChar(mWithMeshClsn, mModelAnim, 0);
-    if (r0 != 0) {
-        if (r0 == 2) {
+    killResult = UpdateKillByInvincibleChar(mWithMeshClsn, mModelAnim, 0);
+    if (killResult != 0) {
+        if (killResult == 2) {
             func_ov102_0214ae1c(this);
         }
         return 1;
@@ -335,8 +327,8 @@ int daBmb_c::Behavior()
             }
         }
 
-        r0 = func_ov102_0214b248(this);
-        if (r0 == 0) {
+        killResult = func_ov102_0214b248(this);
+        if (killResult == 0) {
             return 0;
         }
 
@@ -452,7 +444,6 @@ void func_ov102_0214bf64(void *ov)
     extern short Vec3_HorzAngle(const Bmb_Vec3* v0, const Bmb_Vec3* v1);
     extern int Vec3_Dist(const Bmb_Vec3* a, const Bmb_Vec3* b);
     extern void func_ov102_0214b988(void* c);
-    extern void _ZN9Animation7AdvanceEv(void *a);
 
     Bmb_Bf64Obj *o = (Bmb_Bf64Obj *)ov;
 
@@ -491,7 +482,7 @@ void func_ov102_0214bf64(void *ov)
         }
         o->f35c = o->f98 >> 3;
     }
-    _ZN9Animation7AdvanceEv(o->f350);
+    ((Animation *)o->f350)->Advance();
 }
 
 }
@@ -546,7 +537,7 @@ void daBmb_c::State1() {
         _Z14ApproachLinearRsss(*(short*)(c + 0x94), *(short*)(c + 0x3ee), 0x800);
     }
     *(short*)(c + 0x8e) = *(short*)(c + 0x94);
-    _ZN9Animation7AdvanceEv(c + 0x350);
+    ((Animation *)(c + 0x350))->Advance();
     if (mState == 2) return;
     if (*(short*)(c + 0x94) != *(short*)(c + 0x3ee)) return;
     func_ov102_0214c0b8(c);
@@ -565,24 +556,24 @@ void daBmb_c::State1() {
 extern "C" {
 
 // @symbol func_ov102_0214bd90
-void func_ov102_0214bd90(char* r4){
+void func_ov102_0214bd90(char* self){
   extern int _ZNK10dBgCh_Actr13JustHitGroundEv(char* c);
   extern void func_0200fc44(char* c, struct Vector3* v, int a, int z);
 
-  if (_ZNK10dBgCh_Actr13JustHitGroundEv(r4 + 0x144)) {
+  if (_ZNK10dBgCh_Actr13JustHitGroundEv(self + 0x144)) {
     struct Vector3 v;
-    v.x = *(int*)(r4 + 0x5c);
-    v.y = *(int*)(r4 + 0x60);
-    v.z = *(int*)(r4 + 0x64);
-    func_0200fc44(r4, &v, 1, v.z);
+    v.x = *(int*)(self + 0x5c);
+    v.y = *(int*)(self + 0x60);
+    v.z = *(int*)(self + 0x64);
+    func_0200fc44(self, &v, 1, v.z);
   }
-  if (_ZNK10dBgCh_Actr10IsOnGroundEv(r4 + 0x144)) {
-    if (*(int*)(r4 + 0x38c) == 0) {
-      *(int*)(r4 + 0x98) = 0x5000;
+  if (((dBgCh_Actr *)(self + 0x144))->IsOnGround()) {
+    if (*(int*)(self + 0x38c) == 0) {
+      *(int*)(self + 0x98) = 0x5000;
     }
-    func_ov102_0214beb4(r4);
+    func_ov102_0214beb4(self);
   } else {
-    ((daBmb_c *)r4)->State1();
+    ((daBmb_c *)self)->State1();
   }
 }
 
@@ -624,24 +615,31 @@ void func_ov102_0214bd20(char* c)
 // @symbol _ZN7daBmb_c6State3Ev
 void daBmb_c::State3()
 {
-  int r1 = mFlags;
-  int b = (int) ((r1 & 0x400) != 0);
-  if (b)
-  {
-    func_ov102_0214b3b8(this);
-  }
-  else
-  {
-    int b2 = (int) ((r1 & 0x100) != 0);
-    if (b2)
+    /* Nothing names these two mFlags bits yet, so they keep neutral names rather
+     * than a guessed meaning. Both booleans are materialized on purpose: the
+     * cartridge tests the flag word into a register and then re-tests that, and
+     * folding either into its `if` collapses the pair.
+     *
+     * The empty 0x100 arm is real -- on that bit this state does nothing at all,
+     * and the else-branch is what carries the work. */
+    int flags = mFlags;
+    int flag0x400 = (int) ((flags & 0x400) != 0);
+    if (flag0x400)
     {
+        func_ov102_0214b3b8(this);
     }
     else
     {
-      func_ov102_0214c0b8(this);
+        int flag0x100 = (int) ((flags & 0x100) != 0);
+        if (flag0x100)
+        {
+        }
+        else
+        {
+            func_ov102_0214c0b8(this);
+        }
     }
-  }
-  _ZN9Animation7AdvanceEv((char *)this + 0x350);
+    ((Animation *)((char *)this + 0x350))->Advance();
 }
 
 /* ==========================================================================
@@ -737,7 +735,7 @@ void func_ov102_0214baa0(char *self)
 
     *(int *)(self + 0x3dc) = 5;
     *(int *)(self + 0x98) = 0;
-    _ZN5dCc_c5ClearEv(self + 0x110);
+    ((dCc_c *)(self + 0x110))->Clear();
 
     *LAUNDER_PTR(self + 0xb0) &= 0xfff1fffe;
     *(int *)(self + 0x5c) = *(int *)(self + 0x3c4);
@@ -1037,7 +1035,7 @@ void func_ov102_0214b444(void *cv)
         return;
 
     v = *(int*)(c + 0x60);
-    if (_ZNK10dBgCh_Actr10IsOnGroundEv((void *)(c + 0x144)) == 0) {
+    if (((dBgCh_Actr *)((void *)(c + 0x144)))->IsOnGround() == 0) {
         dBgCh_Gnd rg;
         rg.SetObjAndPos(*(const Vector3*)(c + 0x5c), (dActor_c*)0);
         if (rg.DetectClsn() != 0)
@@ -1217,11 +1215,11 @@ void func_ov102_0214b128(void *cv) {
     if (t < 0) return;
     if (t > 2) return;
     {
-        void* r5 = _ZN8dActor_c10FindWithIDEj(*(unsigned int*)(c + 0x134));
-        if (!r5) return;
+        void* hitter = dActor_c::FindWithID(*(unsigned int*)(c + 0x134));
+        if (!hitter) return;
         func_ov102_0214bc20(c);
-        *(short*)(c + 0x94) = *(short*)((char*)r5 + 0x8e);
-        _ZN8dActor_c9UpdatePosEP5dCc_c(c, c + 0x110);
+        *(short*)(c + 0x94) = *(short*)((char*)hitter + 0x8e);
+        ((dActor_c *)c)->UpdatePos((dCc_c *)(c + 0x110));
         _ZN10dBgCh_Actr15ClearGroundFlagEv(c + 0x144);
     }
 }
@@ -1308,7 +1306,7 @@ void func_ov102_0214ae1c(void *cv) {
         _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(*(void **)(c + 0x390), &w, 2, 0xc000, 1, 0, 1);
         *(void **)(c + 0x390) = 0;
     } else if (*(unsigned int *)(c + 0x134)) {
-        void *a = _ZN8dActor_c10FindWithIDEj(*(unsigned int *)(c + 0x134));
+        void *a = dActor_c::FindWithID(*(unsigned int *)(c + 0x134));
         if (a) {
             if (*(unsigned int *)(c + 0x130) & 0x400000) {
                 Vec3 w;
@@ -1418,8 +1416,8 @@ int func_ov102_0214ab1c(void *selfv)
     u8 *self = (u8 *)selfv;
     void *player;
 
-    int r4 = _ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr(self, self + 0x144);
-    if (r4 == 0) {
+    int eatState = _ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr(self, self + 0x144);
+    if (eatState == 0) {
         goto ret0;
     }
 
@@ -1453,12 +1451,12 @@ after_cannon:
         *(unsigned int *)(((int)(self + 0x128))) &= ~2u;
     }
 
-    if (r4 == 2) {
+    if (eatState == 2) {
         func_ov102_0214b384(self, 0x50);
     }
 
-    if (r4 == 3) {
-        if (_ZNK10dBgCh_Actr10IsOnGroundEv(self + 0x144) != 0) {
+    if (eatState == 3) {
+        if (((dBgCh_Actr *)(self + 0x144))->IsOnGround() != 0) {
             self[0x3f4] = 3;
         }
     }
@@ -1472,7 +1470,7 @@ after_cannon:
     if (_ZN12dEnemyBase_c27SpawnParticlesIfHitOtherObjER5dCc_c(self, self + 0x110) != 0) {
         goto hit;
     }
-    if (r4 != 3 || _ZNK10dBgCh_Actr10IsOnGroundEv(self + 0x144) == 0) {
+    if (eatState != 3 || ((dBgCh_Actr *)(self + 0x144))->IsOnGround() == 0) {
         goto skip_hit;
     }
 
@@ -1482,10 +1480,10 @@ hit:
     return 1;
 
 skip_hit:
-    _ZN5dCc_c5ClearEv(self + 0x110);
+    ((dCc_c *)(self + 0x110))->Clear();
     if (self[0x107] != 0) {
         if (*(u16 *)(self + 0x104) == 0) {
-            _ZN5dCc_c6UpdateEv(self + 0x110);
+            ((dCc_c *)(self + 0x110))->dCc_c::Update();
         }
     }
     func_ov102_0214b53c((char *)self);
@@ -1514,12 +1512,12 @@ int func_ov102_0214aa18(void *selfv)
             func_ov102_0214b53c(s);
             return 1;
         }
-        _ZN8dActor_c9UpdatePosEP5dCc_c(s, s + 0x110);
-        _ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj(s, s + 0x144, 0);
+        ((dActor_c *)s)->UpdatePos((dCc_c *)(s + 0x110));
+        ((dEnemyBase_c *)s)->UpdateWMClsn(*(dBgCh_Actr *)(s + 0x144), 0);
         func_ov102_0214b53c(s);
         func_ov102_0214ad40(s);
-        _ZN5dCc_c5ClearEv(s + 0x110);
-        _ZN5dCc_c6UpdateEv(s + 0x110);
+        ((dCc_c *)(s + 0x110))->Clear();
+        ((dCc_c *)(s + 0x110))->dCc_c::Update();
         if (_ZNK10dBgCh_Actr13JustHitGroundEv(s + 0x144)) {
             Vector3 v;
             v.x = *(int*)(s + 0x5c);
@@ -1527,7 +1525,7 @@ int func_ov102_0214aa18(void *selfv)
             v.z = *(int*)(s + 0x64);
             func_0200fc44(s, &v, 1);
         }
-        if (_ZNK10dBgCh_Actr10IsOnGroundEv(s + 0x144) == 0)
+        if (((dBgCh_Actr *)(s + 0x144))->IsOnGround() == 0)
             return 1;
         int *fl = (int*)(((int)s + 0x128));
         *fl = *fl & ~2;

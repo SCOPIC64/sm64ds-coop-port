@@ -1,4 +1,4 @@
-# Super Mario 64 DS Decompilation (sm64ds-decomp)
+# Super Mario 64 DS Decompilation
 
 [![Discord Server][discord-badge]][discord]
 
@@ -7,10 +7,7 @@
 
 > **Looking for the PC port?** [Download it here.](https://tangos.dev/downloads)
 
-A from-scratch decompilation (decomp) of **Super Mario 64 DS**, written as a love
-letter to the original EAD team: the goal is source that reads like it shipped in
-2004 — idiomatic, period-accurate C++ — and that also compiles byte-identical to the
-retail cartridge under the pinned compiler.
+A work-in-progress decompilation of Super Mario 64 DS
 
 This repo holds source code and tooling. It contains no ROM and no Nintendo assets.
 Everything here runs against a cartridge dump you supply yourself, which stays on your
@@ -28,10 +25,6 @@ Code size  ███████████████████████
 ```
 <!-- progress:end -->
 
-Every arm-mode function in the game, drawn as a treemap. Each rectangle is one
-function sized by its byte count, green for matched and gray for unmatched, grouped
-by module.
-
 ![Decompilation progress treemap](docs/progress-treemap.svg)
 
 For an interactive version where you can hover any function for its name, address,
@@ -47,8 +40,8 @@ here, and they move independently.
 <!-- tiers:start -->
 ```
 MATCHED    ██████████████████████████████  99.8%   11,368 / 11,389 functions
-           of which 122 are byte-exact assembly (hand-written in the original, not C)
-CONVERTED  ████████░░░░░░░░░░░░░░░░░░░░░░  26.4%   3,000 / 11,385 functions
+           of which 121 are byte-exact assembly (hand-written in the original, not C)
+CONVERTED  ████████░░░░░░░░░░░░░░░░░░░░░░  28.2%   3,216 / 11,386 functions
 LINKED     ████████████████████████████░░  93.5%   10,595 / 11,328 matched TUs
 ```
 <!-- tiers:end -->
@@ -238,8 +231,8 @@ tangOS Console, the free desktop app built for this repo. It connects an AI assi
 straight into the project's toolchain and does the coordination for you: hands out work
 batches so nobody grinds a function someone else already has, claims your span
 automatically, verifies every candidate byte-for-byte against the ROM with the real
-compiler, keeps `src/` to the repo's conventions (one function per file, near misses
-banked in the database instead of fake greens), and collects your matches into a
+compiler, keeps new matches to the repo's source conventions and near misses
+banked in the database, and collects your matches into a
 properly formatted PR.
 
 Download it at **[tangos.dev/downloads](https://tangos.dev/downloads)**.
@@ -255,8 +248,15 @@ Download it at **[tangos.dev/downloads](https://tangos.dev/downloads)**.
 same bytes as the ROM, then open a pull request. One function or a small related group per PR
 is ideal. Use only your own legally dumped ROM, and never commit it.
 
-**Coordination.** Join the [Discord](https://discord.gg/YpReERF4e3) for questions and to
-claim work, or open a GitHub issue so two people do not grind the same function.
+**Class/TU work.** Follow [the agent protocol](notes/agents/README.md) for v2 ownership
+and independent review, and [the promotion workflow](notes/tu-promotion-conventions.md)
+for consolidation into a production `src/` TU. The one-function convention applies
+to new standalone matches; moving those files into a folder is not TU promotion.
+
+**Coordination.** Use the assigned protocol before editing. For standalone matching,
+see [CONTRIBUTING.md](CONTRIBUTING.md#coordinating-your-work-get-a-claims-key).
+The [Discord](https://discord.gg/YpReERF4e3) and GitHub issues are useful for questions;
+they do not replace a coordinated agent task's v2 reservation.
 
 **Funding.** Sponsoring helps cover both the development time and the AI compute that the
 matching runs on. Most functions are matched for free by the automatic templates, and the

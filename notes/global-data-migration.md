@@ -321,9 +321,9 @@ Examples:
 
 | Symbol | Address | Size | File |
 |--------|---------|------|------|
-| [data_ov002_0211114c](../config/arm9/overlays/ov002/symbols.txt) | 0x0211114c | 0x04 | `src/_ZN7Minimap8BehaviorEv.cpp` |
+| [data_ov002_0211114c](../config/arm9/overlays/ov002/symbols.txt) | 0x0211114c | 0x04 | `src/_ZN6dMap_c8BehaviorEv.cpp` |
 | [data_ov016_02114d4c](../config/arm9/overlays/ov016/symbols.txt) | 0x02114d4c | 0x0c | `src/_ZN5Unagi13InitResourcesEv.cpp` |
-| [data_ov026_02113f4c](../config/arm9/overlays/ov026/symbols.txt) | 0x02113f4c | 0x0c | `src/_ZN12WaterSuction13InitResourcesEv.cpp` |
+| [data_ov026_02113f4c](../config/arm9/overlays/ov026/symbols.txt) | 0x02113f4c | 0x0c | `src/actors/daWater_Suikomi_c.cpp` |
 | [data_ov006_02140518](../config/arm9/overlays/ov006/symbols.txt) | 0x02140518 | 0x20 | [src/func_ov006_020c8a30.c](../src/func_ov006_020c8a30.c) |
 | [data_ov007_02103f98](../config/arm9/overlays/ov007/symbols.txt) | 0x02103f98 | 0x600 | [src/func_ov007_020b8548.c](../src/func_ov007_020b8548.c) |
 
@@ -340,8 +340,8 @@ unit**, and a TU is many functions. Putting [data_ov016_02114d4c](../config/arm9
 falsify, because any file in the module can host the range and still link identically.
 
 This is the goal-1 problem at the centre of the whole idea. `build/tu_map.json` and
-the `decomp-tu-slicing` skill exist precisely to answer "which functions shared a
-TU", and any serious data migration should be driven off TU reconstruction, not off
+[TU boundary evidence](tu-boundaries.md) help investigate which functions shared a
+TU, and any serious data migration should be driven off TU reconstruction, not off
 "who mentions the symbol". A pilot that ignores this is proving plumbing, not
 recovering source — which is fine as long as it is labelled that way and the 72
 entries are not left in the tree as if they were recovered structure.

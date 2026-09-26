@@ -1,97 +1,93 @@
 //cpp
 /**
- * Lakitu (`jgm`, JUGEM 265).
+ * daJgm_c -- Lakitu (`jgm`, JUGEM 265), ov077.
  *
- * Hovers on a cloud and throws Spinies (actor 0x104). Five states:
- * hover, throw, yoshi-mouth, spit, fall. ov077 is mixed
- * (HEAVE_HO 238 / SPINY 260 / LAKITU 265). Not daC_Jugem_c
+ * Hovers on a cloud and throws Spinies (actor 0x104), but not while four
+ * are already out (CountSpinies). Five states: hover, throw, yoshi-mouth, spit, fall. ov077
+ * is mixed (HEAVE_HO 238 / SPINY 260 / LAKITU 265). Not daC_Jugem_c
  * (C_JUGEM 235, ov085).
  *
- * daJgm_c_classInit is reconstructed (RTTI daJgm_c, JUGEM registry).
- * Retail does not store that spelling. Historical aliases:
- * Lakitu_Spawn and Lakitu_SpawnInfo.
+ * daJgm_c_classInit is reconstructed (RTTI daJgm_c, JUGEM registry); retail
+ * does not store that spelling. Historical aliases: Lakitu_Spawn and
+ * Lakitu_SpawnInfo.
  *
- * deslop
- * Leftover: factory stays `return new daJgm_c()` (MATCHES 0x60).
- *   Leaf unsigned-long operator new forwards `_ZN7fBase_cnwEj`.
- * Leftover: ordinary .text is reverse source order. Keep the
- *   ROM-high factory first and OnYoshiTryEat last. Inline dtor
- *   in the header emits retail D1 then D0, no D2.
- * Leftover: sizeof wraps on DaJgmStateHandlers / daJgm_c /
- *   DaJgmSpawnInfo / DaJgmVector3Words stay.
- * Leftover: dCcAcPos_c::Init / dBgCh_Actr::Init stay mangled --
- *   Fix12<int> by value (wall 6az). This TU's InitResources.
- *   dBgCh Init header Fix12i mangles as i; ROM is 5Fix12IiE.
- * Leftover: ModelAnim::SetAnim / TextureSequence::SetFile stay
- *   mangled -- Fix12<int> by value (wall 6az). EnterHoverState /
- *   EnterThrowState / EnterFallState.
- * Leftover: dActor_c::DropShadowRadHeight / SpawnCoins stay
- *   mangled -- Fix12<int> by value (wall 6az). UpdateModels /
- *   DieAndDropCoins.
- * Leftover: Player::Bounce / Hurt stay mangled -- Fix12<int> by
- *   value (wall 6az). HandlePlayerCollision. Player.h has neither.
- * Leftover: dActor_c::IsTooFarAwayFromPlayer stays mangled -- not
- *   on dActor_c.h. This TU's Behavior.
- * Leftover: Particle::System::NewSimple stays mangled --
- *   Fix12<int> by value (wall 6az); Particle__System.h has no
- *   NewSimple. EnterFallState.
- * Leftover: dBgCh_Actr_UpdateDiscreteNoLava_veneer is the retail
- *   call (UpdateFallState / UpdateWallAndWater). Named
- *   UpdateDiscreteNoLava is WRONG-DEST (ROM 0x02038420).
- * Leftover: dBgCh_Actr::GetWallResult stays mangled -- not on
- *   dBgCh_Actr.h. UpdateWallAndWater.
- * Leftover: Sound::PlayLong / PlayBank0 stay mangled. PlayLong's
- *   header takes Vector3 & + s16; this TU passes a pointer +
- *   unsigned (UpdateHoverState / UpdateThrowState). PlayBank0
- *   puns mCamSpacePosX (S18); a Vector3 local emits D1 (S3/S23).
- *   EnterFallState / HandlePlayerCollision.
- * Leftover: SharedFilePtr has no recovered fields. SetAnim /
- *   SetFile / Prepare read [1] as the loaded pointer
- *   (EnterHoverState / EnterThrowState / InitResources Prepare).
- * Leftover: data_ov077_02127b50 / 7b48 / 7b38 / 7b28 / 7b40 /
- *   7b20 / 7b30 are overlay BSS SharedFilePtr handles this TU
- *   LoadFile/SetFile/Release. sinit 0x02127240 constructs them
- *   (file IDs 0x34c / 0x429 / 0x42a / 0x34f / 0x34d / 0x350 /
- *   0x34e). Naming belongs with that sinit. This TU claims
- *   .text only.
- * Leftover: data_ov077_02127238[] / 02127230[] are BCA/BTP
- *   pointer tables this TU Init LoadFile / Cleanup Release.
- * Leftover: data_ov077_02127bc4 is the PMF state table SetState
- *   indexes. sinit copies ten ROM PMF constants into it.
- * Leftover: data_ov077_02127b88 is the collision-offset Vector3
- *   InitResources / UpdateHoverState / UpdateThrowState feed
- *   dCcAcPos_c. sinit constructs it.
- * Leftover: data_02082214 is the NitroSDK sin/cos table.
- *   EnterSpitState / UpdateHoverBob index it. Naming belongs
- *   with the SDK table.
- * Leftover: data_020a0e68 is the arm9 scratch Matrix4x3
- *   UpdateModels writes.
- * Leftover: common.h must be first. Nested Matrix.h spelling
- *   scalarizes the 12-word mat4x3 copies; UpdateModels writes
- *   translation as m[9..11].
- * Leftover: DaJgmVector3Words -- a local Vector3 emits
- *   vague-linkage ~Vector3 into this text-only TU (S3/S23).
- *   UpdateHoverState / UpdateThrowState / UpdateWallAndWater /
- *   HandlePlayerCollision / DieAndDropCoins.
- * Leftover: *(Vector3 *)&mPosX / mSpawnPosX -- dActor_c has no
- *   Pos() on this tree (S18). UpdateHoverState / UpdateFlight /
- *   HandlePlayerCollision.
- * Leftover: OnTurnIntoEgg R6Player / UpdateWallAndWater
- *   R10dBgCh_Actr -- a pointer generates identical ARM.
- * Leftover: SetState `int` -- signedness is not distinguishable
- *   from other 32-bit forms.
- * Leftover: func_0201267c throw SFX 0xd2 at +0x74
- *   (mCamSpacePosX). UpdateThrowState. No named method in this
- *   TU.
- * Leftover: ApproachLinear2 is C++ linkage leftover
- *   (_Z15ApproachLinear2Rsss). UpdateSpitState.
- * Leftover: one_arg_setstate so InitResources's SetState call
- *   keeps r1=0 from the caller.
- * Leftover: InitResources / UpdateThrowState keep
- *   `char *c = (char *)this` offset soup and the 64-bit launder
- *   on the spawn-pos stores (named fields CSE).
- * Leftover: S14: g_profile_JUGEM stays outside the licensed
- *   .text (deadstrip-data).
+ * DO NOT "TIDY" THESE -- each one is load-bearing:
+ *
+ *   Ordinary .text is reverse source order: keep the ROM-high factory first
+ *   and OnYoshiTryEat last. The inline dtor in the header emits retail D1
+ *   then D0, and no D2. The factory stays `return new daJgm_c()` (MATCHES
+ *   0x60); the leaf unsigned-long operator new forwards `_ZN7fBase_cnwEj`.
+ *
+ *   common.h must be first. The nested Matrix.h spelling scalarizes the
+ *   12-word mat4x3 copies; UpdateModels writes the translation as m[9..11].
+ *
+ *   The sizeof wraps on DaJgmStateHandlers / daJgm_c / DaJgmSpawnInfo /
+ *   DaJgmVector3Words.
+ *
+ *   DaJgmVector3Words: a local Vector3 emits a vague-linkage ~Vector3 into
+ *   this text-only TU. UpdateHoverState / UpdateThrowState /
+ *   UpdateWallAndWater / HandlePlayerCollision / DieAndDropCoins.
+ *
+ *   *(Vector3 *)&mPosX / mSpawnPosX: dActor_c has no Pos() accessor.
+ *   UpdateHoverState / UpdateFlight / HandlePlayerCollision.
+ *
+ *   dBgCh_Actr_UpdateDiscreteNoLava_veneer is the retail call
+ *   (UpdateFallState / UpdateWallAndWater). The named UpdateDiscreteNoLava
+ *   is WRONG-DEST (ROM 0x02038420).
+ *
+ *   InitResources / UpdateThrowState keep `char *c = (char *)this` offset
+ *   soup and the 64-bit launder on the spawn-pos stores (named fields CSE).
+ *
+ * WHY SOME CALLS ARE SPELLED AS MANGLED SYMBOLS:
+ *
+ *   (a) Fix12<int> passed by value (notes/mwccarm-codegen.md 6az):
+ *       dCcAcPos_c::Init / dBgCh_Actr::Init (InitResources; the dBgCh Init
+ *       header's Fix12i mangles as i, the ROM's as 5Fix12IiE);
+ *       ModelAnim::SetAnim / TextureSequence::SetFile (EnterHoverState /
+ *       EnterThrowState / EnterFallState); dActor_c::DropShadowRadHeight /
+ *       SpawnCoins (UpdateModels / DieAndDropCoins); Player::Bounce / Hurt
+ *       (HandlePlayerCollision; Player.h has neither);
+ *       Particle::System::NewSimple (EnterFallState; Particle__System.h has
+ *       no NewSimple).
+ *
+ *   (b) No usable declaration: dActor_c::IsTooFarAwayFromPlayer is not on
+ *       dActor_c.h (Behavior). dBgCh_Actr::GetWallResult is not on
+ *       dBgCh_Actr.h (UpdateWallAndWater). Sound::PlayLong's header takes
+ *       Vector3 & + s16 while this TU passes a pointer + unsigned
+ *       (UpdateHoverState / UpdateThrowState). PlayBank0 puns mCamSpacePosX
+ *       (dActor_c has no accessor), and a Vector3 local would emit a Vector3
+ *       D1 destructor -- EnterFallState /
+ *       HandlePlayerCollision.
+ *
+ *   ApproachLinear2 keeps C++ linkage (_Z15ApproachLinear2Rsss) in
+ *   UpdateSpitState.
+ *
+ * Known limits:
+ *   SharedFilePtr has no recovered fields; SetAnim / SetFile / Prepare read
+ *   [1] as the loaded pointer (EnterHoverState / EnterThrowState /
+ *   InitResources).
+ *   OnTurnIntoEgg's R6Player and UpdateWallAndWater's R10dBgCh_Actr: a
+ *   pointer generates identical ARM. SetState's `int`: the signedness is
+ *   indistinguishable from other 32-bit forms.
+ *   func_0201267c is the throw SFX 0xd2 at +0x74 (mCamSpacePosX) in
+ *   UpdateThrowState; no named method in this TU.
+ *
+ * NOT OWNED BY THIS TU (this TU claims .text only):
+ *   data_ov077_02127b50 / 7b48 / 7b38 / 7b28 / 7b40 / 7b20 / 7b30 -- the
+ *     overlay BSS SharedFilePtr handles this TU loads, sets and releases.
+ *     sinit 0x02127240 constructs them (file IDs 0x34c / 0x429 / 0x42a /
+ *     0x34f / 0x34d / 0x350 / 0x34e); naming belongs with that sinit.
+ *   data_ov077_02127238[] / 02127230[] -- the BCA/BTP pointer tables Init
+ *     loads and Cleanup releases.
+ *   data_ov077_02127bc4 -- the PMF state table SetState indexes; sinit
+ *     copies ten ROM PMF constants into it.
+ *   data_ov077_02127b88 -- the collision-offset Vector3 that InitResources /
+ *     UpdateHoverState / UpdateThrowState feed dCcAcPos_c; sinit constructs
+ *     it.
+ *   data_02082214 -- the NitroSDK sin/cos table (EnterSpitState /
+ *     UpdateHoverBob).
+ *   data_020a0e68 -- the arm9 scratch Matrix4x3 UpdateModels writes.
+ *   g_profile_JUGEM is overlay data outside this TU's .text.
  */
 
 #include "common.h"
@@ -165,18 +161,6 @@ extern void MulMat4x3Mat4x3(void *a, void *b, void *out);
 extern void Vec3_LslInPlace(void *v, int sh);
 extern void Vec3_Asr(void *d, void *s, int sh);
 
-extern void *_ZN5Model8LoadFileER13SharedFilePtr(void *f);
-extern void _ZN9ModelBase7SetFileEP8BMD_Fileii(void *self, void *f, int a, int b);
-extern void *_ZN9Animation8LoadFileER13SharedFilePtr(void *f);
-extern void *_ZN15TextureSequence8LoadFileER13SharedFilePtr(void *f);
-extern int _ZN11ShadowModel12InitCylinderEv(void *self);
-extern int _ZN9Animation8FinishedEv(void *self);
-extern void _ZN9Animation7AdvanceEv(void *self);
-extern void _ZN10dCcAcPos_c21SetPosRelativeToActorERK7Vector3(void *self, Vector3 *v);
-extern void _ZN5dCc_c5ClearEv(void *self);
-extern void _ZN5dCc_c6UpdateEv(void *self);
-extern int _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
-    unsigned int, unsigned int, Vector3 *, void *, int, int);
 extern int _ZN8dActor_c22IsTooFarAwayFromPlayerE5Fix12IiE(dActor_c *, int);
 extern void _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(
     ModelAnim *model, void *file, int flags, int speed, unsigned int startFrame);
@@ -206,12 +190,8 @@ extern void _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(
     unsigned int n, int x, int y, int z);
 }
 
-/* Leftover C++ linkage: mangles as _Z15ApproachLinear2Rsss. */
+/* C++ linkage on purpose: mangles as _Z15ApproachLinear2Rsss. */
 void ApproachLinear2(short &v, short t, short step);
-
-namespace one_arg_setstate {
-extern "C" void _ZN7daJgm_c8SetStateEi(void *self);
-}
 
 // @symbol daJgm_c_classInit
 extern "C" daJgm_c *daJgm_c_classInit()
@@ -244,23 +224,21 @@ void daJgm_c::OnTurnIntoEgg(Player &player)
 s32 daJgm_c::InitResources()
 {
     char *c = (char *)this;
-    _ZN5Model8LoadFileER13SharedFilePtr((void *)&data_ov077_02127b38);
-    _ZN9ModelBase7SetFileEP8BMD_Fileii(
-        c + 0xd4,
-        _ZN5Model8LoadFileER13SharedFilePtr((void *)&data_ov077_02127b50), 1, 1);
-    _ZN9ModelBase7SetFileEP8BMD_Fileii(
-        c + 0x138,
-        _ZN5Model8LoadFileER13SharedFilePtr((void *)&data_ov077_02127b48), 1, 1);
+    Model::LoadFile(data_ov077_02127b38);
+    ((ModelBase *)(c + 0xd4))->SetFile(
+        (BMD_File *)Model::LoadFile(data_ov077_02127b50), 1, 1);
+    ((ModelBase *)(c + 0x138))->SetFile(
+        (BMD_File *)Model::LoadFile(data_ov077_02127b48), 1, 1);
     for (int i = 0; i < 2; i++)
-        _ZN9Animation8LoadFileER13SharedFilePtr((void *)data_ov077_02127238[i]);
+        Animation::LoadFile(*data_ov077_02127238[i]);
     for (int i = 0; i < 2; i++) {
         void *t = (void *)data_ov077_02127230[i];
-        _ZN15TextureSequence8LoadFileER13SharedFilePtr(t);
+        TextureSequence::LoadFile(*(SharedFilePtr *)t);
         TextureSequence::Prepare(
             *(BMD_File *)((int *)&data_ov077_02127b50)[1],
             *(BTP_File *)((int *)t)[1]);
     }
-    if (_ZN11ShadowModel12InitCylinderEv((char *)&mShadowModel) == 0)
+    if (mShadowModel.InitCylinder() == 0)
         return 0;
     _ZN10dCcAcPos_c4InitEP8dActor_cRK7Vector35Fix12IiES6_jj(
         (dCcAcPos_c *)(c + 0x1c4), (dActor_c *)c, (Vector3 *)&data_ov077_02127b88,
@@ -280,7 +258,7 @@ s32 daJgm_c::InitResources()
     mSpawnPosZ = *(int *)(((int)(c + 0x64)) & 0xFFFFFFFFFFFFFFFFLL);
     *(int *)(((int)(c + 0x410)) & 0xFFFFFFFFFFFFFFFFLL) = 0;
 
-    one_arg_setstate::_ZN7daJgm_c8SetStateEi(c);
+    SetState(0);
     *(Matrix4x3 *)((char *)&mMatrix) = IDENTITY_MATRIX4X3;
     UpdateModels();
     return 1;
@@ -440,17 +418,17 @@ s32 daJgm_c::UpdateThrowState()
 {
     char *c = (char *)this;
     if ((((unsigned int)*(int *)(c + 0x12c) << 4) >> 16) == 0x3a) {
-        _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
-            0x104, 0, (Vector3 *)(c + 0x404), (void *)(c + 0x8c),
+        dActor_c::Spawn(
+            0x104, 0, *(Vector3 *)(c + 0x404), (Vector3_16 *)(c + 0x8c),
             *(signed char *)(c + 0xcc), -1);
         func_0201267c(0xd2, c + 0x74);
     }
-    if (_ZN9Animation8FinishedEv(c + 0x124))
+    if (((Animation *)(c + 0x124))->Finished())
         SetState(0);
     UpdateFlight();
     UpdateHoverBob();
-    _ZN9Animation7AdvanceEv(c + 0x124);
-    _ZN9Animation7AdvanceEv(c + 0x1b0);
+    ((Animation *)(c + 0x124))->Advance();
+    ((Animation *)(c + 0x1b0))->Advance();
     HandlePlayerCollision();
     {
         DaJgmVector3Words pos;
@@ -499,40 +477,40 @@ s32 daJgm_c::UpdateYoshiMouthState()
 // @symbol _ZN7daJgm_c14EnterSpitStateEv
 s32 daJgm_c::EnterSpitState()
 {
-    dActor_c *d0;
-    int *a5c;
-    int *a60;
-    int *a64;
+    dActor_c *carrier;
+    int *pPosX;
+    int *pPosY;
+    int *pPosZ;
     int *src;
-    int k;
-    s16 s;
-    s16 cval;
+    int idx;
+    s16 sinv;
+    s16 cosv;
 
     mFlags &= ~0x80000;
 
-    d0 = mCarryActor;
-    a5c = &mPosX;
-    mHorzSpeed = d0->mHorzSpeed + 0xa000;
+    carrier = mCarryActor;
+    pPosX = &mPosX;
+    mHorzSpeed = carrier->mHorzSpeed + 0xa000;
 
-    d0 = mCarryActor;
-    a60 = &mPosY;
-    a64 = &mPosZ;
-    mPrevAngleY = d0->mAngleY;
+    carrier = mCarryActor;
+    pPosY = &mPosY;
+    pPosZ = &mPosZ;
+    mPrevAngleY = carrier->mAngleY;
 
-    d0 = mCarryActor;
+    carrier = mCarryActor;
 
-    src = &d0->mPosX;
+    src = &carrier->mPosX;
     mPosX = src[0];
     mPosY = src[1];
     mPosZ = src[2];
 
-    k = ((int)(u16)mPrevAngleY) >> 4;
-    s = data_02082214[k * 2];
-    *a5c = *a5c + (int)(((s64)s * 0x50000 + 0x800) >> 12);
-    *a60 = *a60 + 0x50000;
-    k = ((int)(u16)mPrevAngleY) >> 4;
-    cval = data_02082214[k * 2 + 1];
-    *a64 = *a64 + (int)(((s64)cval * 0x50000 + 0x800) >> 12);
+    idx = ((int)(u16)mPrevAngleY) >> 4;
+    sinv = data_02082214[idx * 2];
+    *pPosX = *pPosX + (int)(((s64)sinv * 0x50000 + 0x800) >> 12);
+    *pPosY = *pPosY + 0x50000;
+    idx = ((int)(u16)mPrevAngleY) >> 4;
+    cosv = data_02082214[idx * 2 + 1];
+    *pPosZ = *pPosZ + (int)(((s64)cosv * 0x50000 + 0x800) >> 12);
 
     mAngVelY = 0x7000;
     mTimer = 0x1e;
@@ -570,12 +548,12 @@ s32 daJgm_c::EnterFallState()
         0, 0x1000, 0);
     mModelAnim.speed = 0x4000;
     {
-        int r1 = OnAimedAtWithEgg();
+        int aimHeight = OnAimedAtWithEgg();
         _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(
-            0x43, mPosX, mPosY + r1, mPosZ);
-        int r2 = OnAimedAtWithEgg();
+            0x43, mPosX, mPosY + aimHeight, mPosZ);
+        int aimHeightAgain = OnAimedAtWithEgg();
         _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(
-            0x44, mPosX, mPosY + r2, mPosZ);
+            0x44, mPosX, mPosY + aimHeightAgain, mPosZ);
     }
     mState = 4;
     return 1;
@@ -692,7 +670,7 @@ void daJgm_c::UpdateWallAndWater(dBgCh_Actr &collision)
 // @symbol _ZN7daJgm_c21HandlePlayerCollisionEv
 void daJgm_c::HandlePlayerCollision()
 {
-    unsigned char *r4;
+    unsigned char *other;
     int b;
 
     if (FindEgg(mdCcAcPos_c) != 0) {
@@ -705,12 +683,12 @@ void daJgm_c::HandlePlayerCollision()
         unsigned int id = mdCcAcPos_c.otherOwner;
         if (id == 0)
             return;
-        r4 = (unsigned char *)dActor_c::FindWithID(id);
+        other = (unsigned char *)dActor_c::FindWithID(id);
     }
-    if (r4 == 0)
+    if (other == 0)
         return;
 
-    b = (int)(((dActor_c *)r4)->actorID == 0xbf);
+    b = (int)(((dActor_c *)other)->actorID == 0xbf);
     if (b == 0)
         return;
 
@@ -720,7 +698,7 @@ void daJgm_c::HandlePlayerCollision()
         return;
     }
 
-    Player *player = (Player *)r4;
+    Player *player = (Player *)other;
     if ((mdCcAcPos_c.hitFlags & 0x66fe0)
         || BumpedUnderneathByPlayer(*player) != 0
         || player->IsOnShell() != 0
@@ -731,7 +709,7 @@ void daJgm_c::HandlePlayerCollision()
     }
 
     if (mdCcAcPos_c.hitFlags & 0x10) {
-        mPrevAngleY = Vec3_HorzAngle((Vector3 *)(r4 + 0x5c), (Vector3 *)&mPosX);
+        mPrevAngleY = Vec3_HorzAngle((Vector3 *)(other + 0x5c), (Vector3 *)&mPosX);
         mAngleY = (short)(mPrevAngleY + 0x8000);
         player->IncMegaKillCount();
         SetState(4);
@@ -774,10 +752,10 @@ void daJgm_c::UpdateFlight()
 {
     Player *p = ClosestNonVanishPlayer();
     char *tgt;
-    int r6;
+    int chaseRange;
     if (p != 0) {
-        r6 = (param1 != 0) ? 0x1068000 : 0x7d0000;
-        if (Vec3_HorzDist((Vector3 *)&mSpawnPosX, (Vector3 *)&p->mPosX) < r6) {
+        chaseRange = (param1 != 0) ? 0x1068000 : 0x7d0000;
+        if (Vec3_HorzDist((Vector3 *)&mSpawnPosX, (Vector3 *)&p->mPosX) < chaseRange) {
             int d = mSpawnPosY - p->mPosY;
             if (d < 0)
                 d = -d;
@@ -821,14 +799,14 @@ int daJgm_c::TurnOffsetFromDist(int dist)
 // @symbol _ZN7daJgm_c12CountSpiniesEv
 int daJgm_c::CountSpinies()
 {
-    int r5 = 0;
-    dActor_c *r1 = 0;
+    int count = 0;
+    dActor_c *spiny = 0;
     do {
-        r1 = dActor_c::FindWithActorID(0x104, r1);
-        if (r1)
-            r5++;
-    } while (r1);
-    return r5;
+        spiny = dActor_c::FindWithActorID(0x104, spiny);
+        if (spiny)
+            count++;
+    } while (spiny);
+    return count;
 }
 
 // @symbol _ZN7daJgm_c14UpdateHoverBobEv

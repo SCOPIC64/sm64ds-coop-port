@@ -1,25 +1,39 @@
 //cpp
-/* daYurei_Mucho_c, the YUREI_MUCHO enemy (ov065) -- Snufit.
- * Class identity, layout evidence and matching experiments are recorded in
+/* daYurei_Mucho_c -- Snufit, the masked Snifit that drifts around Hazy Maze
+ * Cave and shoots at you (registry name YUREI_MUCHO, ov065).
+ *
+ * Class identity, layout evidence and the matching experiments behind the
+ * spellings below are recorded in
  * notes/agents/handoffs/daYurei_Mucho_c-ov065.md.
  *
- * deslop
- * Leftover: func_ov065_02115f84..0211696c are this TU's own state/helper
- *   bodies; the ROM symbols are still the func_ov labels. Naming them as
- *   C++ methods would emit _ZN15daYurei_Mucho_c* and miss those labels.
- * Leftover: ModelAnim::SetAnim / dCcAc_c::Init / dBgCh_Actr::Init /
- *   DropShadowRadHeight / KillByInvincibleChar / SpawnCoins / Player::Hurt /
- *   Player::Bounce stay mangled (Fix12-by-value, 6az; dBgCh Init header
- *   Fix12i mangles as int -- this TU's InitResources call).
- * Leftover: Mtx43 / V3A overlays on mModelAnim.mat4x3, mShadowMat, and
- *   player pos copies (Matrix4x3 / Vector3 assignment scalarizes).
- * Leftover: `(int)this + 0x3d8` / `(int)c + 0x3c0` integer-cast forms are
- *   load-bearing in Behavior and func_ov065_0211696c (`&mBobAngle` /
- *   `mShotPosX <<= 3` DIFFs). mStateTimer compares stay unsigned short
- *   (ldrh). SharedFilePtr +4 BCA loads stay raw (layout unrecovered).
- * Leftover: data_ov065_* SharedFilePtr handles (Init LoadFile / Cleanup
- *   Release) and State records (func_ov065_0211691c). S14 no
- *   g_profile_YUREI_MUCHO. pad_3e2 unobserved.
+ * DO NOT "TIDY" THESE -- each one is load-bearing:
+ *
+ *   The integer-cast field forms, `(int)this + 0x3d8` in Behavior and
+ *   `(int)c + 0x3c0` in func_ov065_0211696c. Writing `&mBobAngle`, or
+ *   `mShotPosX <<= 3`, DIFFs.
+ *
+ *   mStateTimer comparisons stay unsigned short, because the ROM loads it
+ *   with ldrh.
+ *
+ *   The Mtx43 / V3A overlays on mModelAnim.mat4x3, mShadowMat and the player
+ *   position copies. Plain Matrix4x3 / Vector3 assignment scalarizes.
+ *
+ *   The SharedFilePtr +4 BCA loads stay raw -- that layout is unrecovered.
+ *
+ *   ModelAnim::SetAnim, dCcAc_c::Init, dBgCh_Actr::Init, DropShadowRadHeight,
+ *   KillByInvincibleChar, SpawnCoins, Player::Hurt and Player::Bounce stay
+ *   spelled as mangled symbols: Fix12 by value, wall 6az. dBgCh_Actr::Init is
+ *   the same wall from the other side -- the header's Fix12i mangles as int,
+ *   which is what InitResources calls here.
+ *
+ * func_ov065_02115f84..0211696c are this TU's own state and helper bodies.
+ * They keep the address-derived func_ov labels deliberately: spelling them as
+ * C++ methods emits _ZN15daYurei_Mucho_c* and misses the ROM's symbols.
+ *
+ * NOT OWNED BY THIS TU. The data_ov065_* SharedFilePtr handles (Init
+ * LoadFile, Cleanup Release) and the state records
+ * (func_ov065_0211691c). g_profile_YUREI_MUCHO is defined outside (S14).
+ * pad_3e2 is unobserved.
  */
 
 #include "daYurei_Mucho_c.h"
@@ -56,17 +70,12 @@ extern "C" {
    group size-DIFF; see the deslop leftover list. */
 extern int _ZN8dActor_c10SpawnCoinsERK7Vector3j5Fix12IiEs(void *self, const Vector3 *pos,
                                                           unsigned int n, int f, short s);
-extern void *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(unsigned int profile,
-                                                             unsigned int param,
-                                                             const void *pos, const void *rot,
-                                                             int area, short id);
 extern void _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
     void *self, void *shadow, void *mtx, int rad, int height, unsigned int flags);
 extern void _ZN6Player6BounceE5Fix12IiE(void *p, int f);
 extern void _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(void *p, const void *v, unsigned int a,
                                                     int b, unsigned int d, unsigned int e,
                                                     unsigned int f);
-extern int _ZN9Animation8FinishedEv(void *anim);
 extern void _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(void *self, void *bca, int a, int fix,
                                                         unsigned int j);
 extern void _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj(void *self, dActor_c *a, int r, int h,
@@ -120,7 +129,6 @@ extern void func_ov065_0211696c(char *c);
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol daYurei_Mucho_c_classInit
 /* The registry factory behind the YUREI_MUCHO / SNUFIT profile. `return new
    daYurei_Mucho_c()` MATCHES (size 0x50); the synthesized ctor stores
@@ -132,7 +140,6 @@ extern "C" daYurei_Mucho_c *daYurei_Mucho_c_classInit(void)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN15daYurei_Mucho_c13OnYoshiTryEatEv
 /* dActor_c vtable slot 18. */
 s32 daYurei_Mucho_c::OnYoshiTryEat()
@@ -140,7 +147,6 @@ s32 daYurei_Mucho_c::OnYoshiTryEat()
     return 4;
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol _ZN15daYurei_Mucho_c13OnTurnIntoEggER6Player
 /* dActor_c vtable slot 19, confirmed by address: _ZTV15daYurei_Mucho_c
@@ -156,7 +162,6 @@ void daYurei_Mucho_c::OnTurnIntoEgg(Player &player)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN15daYurei_Mucho_c16OnAimedAtWithEggEv
 /* dActor_c vtable slot 29. */
 s32 daYurei_Mucho_c::OnAimedAtWithEgg()
@@ -164,7 +169,6 @@ s32 daYurei_Mucho_c::OnAimedAtWithEgg()
     return 0;
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol _ZN15daYurei_Mucho_c13InitResourcesEv
 /* Both Init methods are declared. The current dCcAc_c fixed-point aggregate
@@ -191,7 +195,6 @@ int daYurei_Mucho_c::InitResources()
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol _ZN15daYurei_Mucho_c8BehaviorEv
 /* dActor_c vtable slot 6. */
@@ -281,7 +284,6 @@ int daYurei_Mucho_c::Behavior()
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN15daYurei_Mucho_c6RenderEv
 /* dActor_c vtable slot 9. */
 int daYurei_Mucho_c::Render()
@@ -293,14 +295,12 @@ int daYurei_Mucho_c::Render()
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol _ZN15daYurei_Mucho_c16OnPendingDestroyEv
 /* fBase_c slot 12. Empty in the ROM: four bytes, `bx lr`. */
 void daYurei_Mucho_c::OnPendingDestroy()
 {
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol _ZN15daYurei_Mucho_c16CleanupResourcesEv
 /* dActor_c vtable slot 3. Releases the four files InitResources claimed.
@@ -322,7 +322,6 @@ int daYurei_Mucho_c::CleanupResources()
 /* ========================================================================== */
 extern "C" {
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol func_ov065_0211696c
 /* Rebuilds the model matrix from the actor's position and Z/X/Y angles, then
@@ -368,7 +367,6 @@ void func_ov065_0211696c(char *self)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov065_0211691c
 /* The state setter. Stores the State into mCurrentState, RE-READS it -- the ROM
    really does reload the field it has just written -- null-tests the entry hook
@@ -390,7 +388,6 @@ int func_ov065_0211691c(daYurei_Mucho_c *c, daYurei_Mucho_c::State *s)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov065_021168a8
 /* State entry hook at 0x0211d670 +0x00: randomise the facing angle and the
    timer, then start the wait animation. The BCA file is read straight out of
@@ -406,7 +403,6 @@ int func_ov065_021168a8(daYurei_Mucho_c *c)
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol func_ov065_02116744
 /* State main hook at 0x0211d670 +0x08: drift, and switch to the attack state
@@ -458,7 +454,6 @@ int func_ov065_02116744(daYurei_Mucho_c *c)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov065_0211672c
 /* State entry hook at 0x0211d680 +0x00: stop the actor dead. */
 int func_ov065_0211672c(daYurei_Mucho_c *p)
@@ -470,7 +465,6 @@ int func_ov065_0211672c(daYurei_Mucho_c *p)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov065_021165d8
 /* State main hook at 0x0211d680 +0x08: steer toward the nearest non-vanishing
    player.
@@ -479,7 +473,7 @@ int func_ov065_0211672c(daYurei_Mucho_c *p)
    before the `bl` at 0x021165e8 because r0 still holds the incoming object. */
 int func_ov065_021165d8(daYurei_Mucho_c *c)
 {
-    short r4 = 0;
+    short pitch = 0;
     Player *p = c->ClosestNonVanishPlayer();
     if (p != 0) {
         Vector3 tmp = *(Vector3 *)&p->mPosX;
@@ -493,7 +487,7 @@ int func_ov065_021165d8(daYurei_Mucho_c *c)
         b.x = tmp.x;
         b.y = tmp.y;
         b.z = tmp.z;
-        r4 = Vec3_VertAngle(&c->mPosX, &b);
+        pitch = Vec3_VertAngle(&c->mPosX, &b);
         if (Vec3_Dist(&c->mPosX, &tmp) >= 0x1f4000) {
             c->unk_0a4 = 0;
             c->mVertSpeed = 0;
@@ -507,16 +501,15 @@ int func_ov065_021165d8(daYurei_Mucho_c *c)
             MulVec3Mat4x3(&v, data_020a0e68, &c->unk_0a4);
         }
     } else {
-        *(short *)((char *)c + 0x100) = r4;
+        *(short *)((char *)c + 0x100) = pitch;
     }
     ApproachAngle(&c->mPrevAngleY, c->mTargetAngle, 1, 0x500, 0x500);
-    ApproachAngle(&c->mPrevAngleX, r4, 1, 0x500, 0x500);
+    ApproachAngle(&c->mPrevAngleX, pitch, 1, 0x500, 0x500);
     if (*(unsigned short *)((char *)c + 0x100) == 0)
         func_ov065_0211691c(c, (daYurei_Mucho_c::State *)data_ov065_0211d650);
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol func_ov065_02116588
 /* State entry hook at 0x0211d650 +0x00: start the attack animation. As at
@@ -531,7 +524,6 @@ short func_ov065_02116588(daYurei_Mucho_c *c)
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol func_ov065_02116364
 /* State main hook at 0x0211d650 +0x08: aim, and spawn the projectile (profile
@@ -549,10 +541,9 @@ int func_ov065_02116364(daYurei_Mucho_c *c)
         if (((*(u32 *)((char *)c + 0x358) << 4) >> 16) >= 0xf
             && *(u16 *)((char *)c + 0x100) == 0
             && c->mShotCount < 3) {
-            void *spawned = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
-                0xe9, 1, &c->mShotPosX, 0, c->mAreaId, -1);
+            void *spawned = dActor_c::Spawn(0xe9, 1, *(Vector3 *)&c->mShotPosX, 0, c->mAreaId, -1);
             if (spawned != 0) {
-                u8 *sp2 = (u8 *)spawned;
+                u8 *shot = (u8 *)spawned;
                 func_02012694(0xfb, &c->mCamSpacePosX);
                 L.spv.x = 0;
                 L.spv.y = 0;
@@ -563,16 +554,16 @@ int func_ov065_02116364(daYurei_Mucho_c *c)
                 Matrix4x3_FromRotationY(&data_020a0e68, c->mAngleY);
                 Matrix4x3_ApplyInPlaceToRotationX(&data_020a0e68, c->mAngleX);
                 MulVec3Mat4x3(&L.spv, &data_020a0e68, &L.sout);
-                *(s32 *)(sp2 + 0xa4) = L.sout.x;
-                *(s32 *)(sp2 + 0xa8) = L.sout.y;
-                *(s32 *)(sp2 + 0xac) = L.sout.z;
+                *(s32 *)(shot + 0xa4) = L.sout.x;
+                *(s32 *)(shot + 0xa8) = L.sout.y;
+                *(s32 *)(shot + 0xac) = L.sout.z;
                 c->mShotCount += 1;
                 *(u16 *)((char *)c + 0x100) = 4;
             }
         }
     }
 
-    if (_ZN9Animation8FinishedEv((void *)((char *)c + 0x350)) != 0) {
+    if (((Animation *)((void *)((char *)c + 0x350)))->Finished() != 0) {
         if (pl != 0) {
             s32 *dsrc = (s32 *)(int)(&pl->mPosX);
             L.d.x = dsrc[0];
@@ -596,7 +587,6 @@ int func_ov065_02116364(daYurei_Mucho_c *c)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov065_02116328
 /* State entry hook at 0x0211d660 +0x00: the bumped-from-below pop. */
 int func_ov065_02116328(daYurei_Mucho_c *c)
@@ -611,7 +601,6 @@ int func_ov065_02116328(daYurei_Mucho_c *c)
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol func_ov065_021162c0
 /* State main hook at 0x0211d660 +0x08.
@@ -631,7 +620,6 @@ int func_ov065_021162c0(daYurei_Mucho_c *t)
     return 1;
 }
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 // @symbol func_ov065_02115ff0
 /* The collision response, called once from Behavior. */
@@ -715,7 +703,6 @@ void func_ov065_02115ff0(char *self)
 }
 
 /* -------------------------------------------------------------------------- */
-/* -------------------------------------------------------------------------- */
 // @symbol func_ov065_02115f84
 /* The death helper: poof, drop the coins, unregister. */
 int func_ov065_02115f84(daYurei_Mucho_c *c)
@@ -732,7 +719,6 @@ int func_ov065_02115f84(daYurei_Mucho_c *c)
 
 }  /* extern "C" */
 
-/* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 /* No separate body lives here. The inline virtual destructor in the directly
  * included class header makes mwccarm emit retail's D1 then D0 pair without

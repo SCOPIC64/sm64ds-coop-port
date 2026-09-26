@@ -82,7 +82,7 @@ a typed local of the REAL class (five of them; the other fifty define their
 own dumb shadow structs and never see it) from hand-managed lifecycle to
 implicit synthesis. Two kept the moved declaration and are byte-exact as
 synthesized (BowserFire, daObjPathLift_c — the latter already shaped right);
-one tried the move and gave it back (Toad: the synthesized pair scheduled one
+one tried the move and gave it back (daKinopio_c: the synthesized pair scheduled one
 instruction differently at the tail); and two are truly interleaved
 from the start. daTrs_c::Behavior has rc2 constructed only on some paths,
 with gotos into the middle of its lifetime, so it keeps **named word arrays**
@@ -90,7 +90,7 @@ with gotos into the middle of its lifetime, so it keeps **named word arrays**
 `(dBgCh_Gnd *)rc1`, which costs exactly the sp-relative add the old POD local
 spelled. The tempting alias form (`dBgCh_Gnd *const rc1 = (dBgCh_Gnd
 *)&storage;`) is measured wrong: it perturbs register allocation and cost
-Behavior +32 bytes. KnockDownPlank (+8) and Toad (+4) both showed that the
+Behavior +32 bytes. daObjBk_Botaosi_c (+8) and daKinopio_c (+4) both showed that the
 moved-declaration synthesis reproduces construction/destruction but not
 always their exact scheduling; both restored hand C1/D1 calls over a `u32`
 array. The old comment in
@@ -115,17 +115,17 @@ names the real offenders, and per-function spelunking is wasted motion.
 The census this attacks (`tools/langmode_audit.py --by-class`, 2026-08-24):
 **C1 32 (8 migrated), C2 14 (2 migrated), C3 2** — against 397 plain methods
 and 65 D1s — though §5c
-reclassifies the two "C3"s and at least two C1s (Camera settled; Minimap,
-HUD pending shape-check) as
+reclassifies the two "C3"s and at least two C1s (Camera settled; dMap_c,
+dMeter_c pending shape-check) as
 factories that no source form can express, so the true migratable backlog is
 smaller than the raw census; §7 enumerates it symbol by symbol. D0 is out of
 backlog forever; constructors were the last symbol kind with no playbook.
 
 PathPtr also supplied the first live sighting of §2's blast radius: the
 moment `PathPtr();` appeared in its header, every typed local of that class
-in every TU grew an implicit construction call. `Shark::InitResources`
+in every TU grew an implicit construction call. `daShark_c::InitResources`
 holds two such locals and constructs them BY HAND at interleaved ROM
-positions — each double-constructed, Shark went four words long, and
+positions — each double-constructed, daShark_c went four words long, and
 eligible.py caught it before anything linked. Its locals are now raw `u32`
 storage with a comment explaining why they must stay dumb. When you declare
 a constructor on a widely-embedded class, grep for typed locals of it
@@ -223,7 +223,7 @@ a **base subobject** of a derived class:
 | callers | what they are |
 |---|---|
 | `_ZN6CameraC1Ev`, `_ZN8dActor_cC1Ev`, `_ZN8dActor_cC2Ev` | derived ctors, base-subobject step |
-| `_ZN3HUDC1Ev`, `_ZN7MinimapC1Ev` | derived ctors, base-subobject step |
+| `_ZN8dMeter_cC1Ev`, `_ZN6dMap_cC1Ev` | derived ctors, base-subobject step |
 | `_ZN5StageC3Ev` | allocating ctor folding a base-subobject step (§5c) |
 | `dScStarSel_c_classInit`, `UnknownVsEntry_Spawn`, `dScBoot_c_classInit`, `func_020352b4` | unnamed C3s: `operator new` → null check → base step → double vptr store |
 | 7 overlay `func_*` placeholders | same Spawn shape in ov003/004/005/007/075 |
@@ -498,7 +498,7 @@ asm transcription, or absent.
    `bl _ZN8dActor_cC2Ev` instead of inlining the base. The remaining two are
    rich bodies that still need that treatment one level down.
 8. **Overlays**: `PlayerC1Ev` 0x020e68f4 · `MinimapC1Ev` 0x020fb8bc ·
-   `HUDC1Ev` 0x020fe154. Minimap and HUD looked like genuine receive-`this`
+   `HUDC1Ev` 0x020fe154. dMap_c and dMeter_c looked like genuine receive-`this`
    ctors during the §4b caller sweep — shape-check, then §6.
 9. **Settled, do not retry** (the §5c factory wall): `PlayerC3Ev`,
    `StageC3Ev`, `CameraC1Ev`.
