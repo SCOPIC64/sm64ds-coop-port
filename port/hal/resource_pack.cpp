@@ -5,6 +5,9 @@
 #include <filesystem>
 #include <sstream>
 #include <cstdlib>
+#include <cmath>
+#include <limits>
+#include <memory>
 
 extern "C" {
 #include <lauxlib.h>
@@ -34,6 +37,8 @@ struct LuaMemory {
 void *limited_alloc(void *user, void *ptr, size_t old_size, size_t new_size)
 {
     LuaMemory *memory = static_cast<LuaMemory *>(user);
+    // For a new allocation Lua passes a type tag, not an allocation size.
+    if (!ptr) old_size = 0;
     if (!new_size) {
         std::free(ptr);
         memory->used = old_size > memory->used ? 0 : memory->used - old_size;
@@ -74,6 +79,9 @@ int optional_int(lua_State *L, int table, const char *field, int fallback)
         int exact = 0;
         const lua_Integer value = lua_tointegerx(L, -1, &exact);
         if (!exact) luaL_error(L, "%s must be an integer", field);
+        if (value < std::numeric_limits<int>::min() ||
+            value > std::numeric_limits<int>::max())
+            luaL_error(L, "%s is outside the supported integer range", field);
         result = static_cast<int>(value);
     }
     lua_pop(L, 1);
@@ -87,7 +95,7 @@ float optional_number(lua_State *L, int table, const char *field, float fallback
     if (!lua_isnil(L, -1)) {
         int numeric = 0;
         result = static_cast<float>(lua_tonumberx(L, -1, &numeric));
-        if (!numeric || result <= 0.0f || result > 10000.0f)
+        if (!numeric || !std::isfinite(result) || result <= 0.0f || result > 10000.0f)
             luaL_error(L, "%s must be a number in (0, 10000]", field);
     }
     lua_pop(L, 1);
@@ -176,6 +184,11 @@ int api_texture(lua_State *L)
         item.target.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos)
         return fail(L, "texture target must be a 16-digit content hash");
     item.target_hash = std::strtoull(item.target.c_str(), nullptr, 16);
+    const auto duplicate = std::find_if(ctx->textures.begin(), ctx->textures.end(),
+        [&](const TextureReplacement &texture) {
+            return texture.target_hash == item.target_hash;
+        });
+    if (duplicate != ctx->textures.end()) return fail(L, "duplicate texture hash in pack");
     item.source = asset_path(L, ctx, required_string(L, 1, "source"), "source", ".png");
     ctx->textures.push_back(std::move(item));
     return 0;
@@ -232,6 +245,7 @@ bool load_pack(const fs::path &directory, std::string &error)
     LuaMemory memory;
     lua_State *L = lua_newstate(limited_alloc, &memory);
     if (!L) { error = ctx.id + ": cannot create Lua state"; return false; }
+    std::unique_ptr<lua_State, decltype(&lua_close)> state(L, lua_close);
     open_sandbox(L);
     register_api(L, &ctx);
     lua_sethook(L, instruction_limit, LUA_MASKCOUNT, 1000000);
@@ -240,10 +254,9 @@ bool load_pack(const fs::path &directory, std::string &error)
     if (called != LUA_OK) {
         const char *message = lua_tostring(L, -1);
         error = ctx.id + ": " + (message ? message : "unknown Lua error");
-        lua_close(L);
         return false;
     }
-    lua_close(L);
+    state.reset();
     for (const Character &candidate : ctx.characters) {
         if (character(candidate.id)) {
             error = ctx.id + ": character id " + std::to_string(candidate.id) +
@@ -272,7 +285,7 @@ bool load_pack(const fs::path &directory, std::string &error)
 
 void clear() { g_characters.clear(); g_textures.clear(); }
 
-bool load_all(const std::string &root, std::string &error)
+bool load_all(const std::string &root, std::string &error) try
 {
     clear();
     error.clear();
@@ -290,11 +303,21 @@ bool load_all(const std::string &root, std::string &error)
         const std::string name = directory.filename().string();
         if (name.empty() || name[0] == '.' || name.rfind("off_", 0) == 0) continue;
         std::string one;
-        if (!load_pack(directory, one)) { ok = false; errors << one << '\n'; }
+        try {
+            if (!load_pack(directory, one)) { ok = false; errors << one << '\n'; }
+        } catch (const std::exception &ex) {
+            ok = false;
+            errors << directory.string() << ": " << ex.what() << '\n';
+        }
     }
     if (ec) { ok = false; errors << root << ": " << ec.message() << '\n'; }
     error = errors.str();
     return ok;
+}
+catch (const std::exception &ex)
+{
+    error = root + ": " + ex.what() + '\n';
+    return false;
 }
 
 const Character *character(int id)

@@ -1967,8 +1967,7 @@ static void __cdecl l2_eb2c_s08(void *s)
 
    THE FIX: each slot keeps its body exactly as it was, renamed with C linkage
    so a `__declspec(naked)` trampoline in front of it can name it. The
-   trampoline reads the discriminator the two callers leave behind -- caller 1
-   leaves the VTABLE in ECX, caller 2 leaves the OBJECT -- and either
+   trampoline recognizes caller 1's fader receiver on the stack, and either
    tail-jumps into the body (cdecl, caller cleans) or rebuilds the cdecl frame
    and returns with `ret 8` (thiscall, callee cleans). Precedent for naked
    inline asm in port/: hal/fn_trace.cpp's _penter, for the same reason (a
@@ -1992,13 +1991,26 @@ extern "C" int __cdecl l2_eb2c_s10_body(void *s, int frames, int)
     l2_eb2c_note(4); return l2_eb2c_run_setter(s, (unsigned)frames, 0);
 }
 
+/* ECX is scratch for a cdecl caller: newer MSVC leaves zero there instead
+   of the vtable. Recognize the actual stack receiver, not register residue. */
+static int __cdecl l2_eb2c_stack_receiver(const void *p)
+{
+    if ((size_t)p < 0x10000 || ((size_t)p & 3) || IsBadReadPtr(p, 4))
+        return 0;
+    return *(void *const *)p == (void *)data_0208eb2c;
+}
+
 __declspec(naked) static void l2_eb2c_s0c(void)
 {
     __asm {
-        /* caller 1 (__cdecl, dScene_c::BeforeBehavior) leaves the VTABLE in ecx;
-           caller 2 (__thiscall, ProcessKuppaScript) leaves the OBJECT in ecx. */
-        cmp  ecx, offset data_0208eb2c
-        je   shape_cdecl
+        /* Preserve thiscall's ECX while checking cdecl's stack receiver. */
+        push ecx
+        push dword ptr [esp+8]
+        call l2_eb2c_stack_receiver
+        add  esp, 4
+        pop  ecx
+        test eax, eax
+        jnz  shape_cdecl
         /* __thiscall: receiver in ecx, [esp+4] frames, [esp+8] arg2, callee cleans 8 */
         push dword ptr [esp+8]          /* arg2 */
         push dword ptr [esp+8]          /* frames, now one push higher */
@@ -2015,10 +2027,14 @@ __declspec(naked) static void l2_eb2c_s0c(void)
 __declspec(naked) static void l2_eb2c_s10(void)
 {
     __asm {
-        /* caller 1 (__cdecl, dScene_c::BeforeBehavior) leaves the VTABLE in ecx;
-           caller 2 (__thiscall, ProcessKuppaScript) leaves the OBJECT in ecx. */
-        cmp  ecx, offset data_0208eb2c
-        je   shape_cdecl
+        /* Preserve thiscall's ECX while checking cdecl's stack receiver. */
+        push ecx
+        push dword ptr [esp+8]
+        call l2_eb2c_stack_receiver
+        add  esp, 4
+        pop  ecx
+        test eax, eax
+        jnz  shape_cdecl
         /* __thiscall: receiver in ecx, [esp+4] frames, [esp+8] arg2, callee cleans 8 */
         push dword ptr [esp+8]          /* arg2 */
         push dword ptr [esp+8]          /* frames, now one push higher */

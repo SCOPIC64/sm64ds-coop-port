@@ -6,16 +6,16 @@ rem so pointing that at this folder is what makes the kit portable: the exe
 rem itself was built with an absolute path baked in that only exists on the
 rem machine that built it.
 setlocal
-title Super Mario 64 DS - PC demo 1.7
+title SM64DS Co-op - 0.5.4 preview
 
 set "KIT=%~dp0"
 if "%KIT:~-1%"=="\" set "KIT=%KIT:~0,-1%"
 set "SM64DS_ASSET_ROOT=%KIT%"
 cd /d "%KIT%"
 
-if not exist "%KIT%\demo-1.7.exe" (
+if not exist "%KIT%\sm64ds coop.exe" (
     echo.
-    echo demo-1.7.exe is missing from this folder. The kit is incomplete.
+    echo sm64ds coop.exe is missing from this folder. The kit is incomplete.
     echo.
     pause
     exit /b 1
@@ -72,14 +72,15 @@ if errorlevel 1 goto unpackfailed
 echo.
 
 :play
-"%KIT%\demo-1.7.exe" %*
-if errorlevel 1 (
+"%KIT%\sm64ds coop.exe" %*
+set "GAME_EXIT=%ERRORLEVEL%"
+if not "%GAME_EXIT%"=="0" (
     echo.
     echo The game exited with an error. The lines above say why.
     echo.
     pause
 )
-exit /b 0
+exit /b %GAME_EXIT%
 
 :norom
 echo No .nds file in this folder.

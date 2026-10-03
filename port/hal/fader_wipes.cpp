@@ -315,7 +315,9 @@ struct HalFaderWipe {
         hal_wipe_note("DtorDeleting (ROM D0, the matched body)", this);
         _ZN9FaderWipeD0Ev(this);
     }
-    virtual int AdvanceFade()                        /* 0x08 */
+    /* func_02018efc passes the receiver on the stack, as on the other
+       host fader tables. A thiscall slot reads an unrelated ECX value. */
+    virtual int __cdecl AdvanceFade()                /* 0x08 */
     {
         /* Driven advance (the frame loop's port_frame_phase2) STEPS the
            interpolator one frame and writes the 2D master-blend register the
@@ -866,10 +868,10 @@ extern "C" void _ZN9FaderWipe14LoadAndSetFileEt(void *thiz, unsigned short fileI
    for FaderWipe: its AdvanceFade steps only while the frame loop drives it and
    snaps otherwise (see the class). func_02018efc and func_02018ec0 are the
    frame loop's two driven advances, so the whole phase runs inside it. Both
-   dispatch vt[2] with the receiver pushed and in ecx (func_02018efc's compiled
-   body: mov ecx,[blk] / push ecx / call [eax+8] / pop ecx), which is right for
-   the colour faders' __cdecl l2_eb2c_s08 (hal/scene_boot.cpp) and for this
-   class's __thiscall AdvanceFade alike; the old stand-in's qualified call ran
+   dispatch vt[2] with the receiver on the stack. ECX is caller scratch and
+   is not guaranteed to retain the receiver across compiler versions. Both
+   the colour faders' l2_eb2c_s08 and this class's AdvanceFade are __cdecl;
+   the old stand-in's qualified call ran
    HalFaderWipe's body on a FaderColor, which is the same arithmetic
    (src/engine/fader/_ZN10FaderColor11AdvanceFadeEv.cpp).
 

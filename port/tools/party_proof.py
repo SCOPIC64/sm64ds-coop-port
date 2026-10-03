@@ -22,6 +22,7 @@ the %TEMP%/sm64ds-crashes sink stays isolated from any live-player intake):
 
   python port/tools/party_proof.py
 """
+import argparse
 import os, re, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -30,6 +31,8 @@ PORT = os.path.dirname(HERE); ROOT = os.path.dirname(PORT)
 EXE = os.path.join(ROOT, "build", "port", "walk_window.exe")
 OUT = os.path.join(PORT, "tools", "_party_out")
 HOSTLEVEL = 2; PORTN = 44700; FRAMES = 600
+TIMEOUT = 180
+DIRECT = False
 FAILS = []
 
 def ck(n, ok, d=""):
@@ -45,6 +48,7 @@ def single_instance():
     print("\n-- single instance: the ghost-vs-party render boundary + liveness")
     d = os.path.join(OUT, "single"); os.makedirs(os.path.join(d, "tmp"), exist_ok=True)
     e = M.env_base(ROOT, d, "party1")
+    e["SM64DS_SAVE_PATH"] = os.path.join(d, "test.sav")
     e["SM64DS_WINDOW_SELFTEST"] = "160"; e["SM64DS_LEVEL"] = "1"
     e["SM64DS_ADVENTURE"] = "1"; e["SM64DS_VS_PLAYERS"] = "3"
     e["SM64DS_PARTY_MEMBERS"] = "1"; e["SM64DS_PARTY_PROBE"] = "1"
@@ -59,6 +63,7 @@ def single_instance():
 def mk(role, netmode, slot):
     d = os.path.join(OUT, "live_" + role); os.makedirs(os.path.join(d, "tmp"), exist_ok=True)
     e = M.env_base(ROOT, d, "pty" + role[:1])
+    e["SM64DS_SAVE_PATH"] = os.path.join(d, "test.sav")
     e["SM64DS_NETMODE"] = netmode
     e["SM64DS_PARTY"] = "1"; e["SM64DS_PARTY_DIAG"] = "30"
     e["SM64DS_LEVEL"] = str(HOSTLEVEL)   # the launcher hands the joiner the HOST's level
@@ -69,6 +74,11 @@ def mk(role, netmode, slot):
     e["SM64DS_COMMS_INJECT"] = ("key=0x0040,toggle=45,key2=0x0080" if role == "parent"
                                 else "key=0x0080,toggle=45,key2=0x0040")
     if slot: e["SM64DS_COMMS_SLOT"] = str(slot)
+    if DIRECT:
+        if role == "parent":
+            e["SM64DS_COMMS_BIND_ANY"] = "1"
+        else:
+            e["SM64DS_COMMS_HOST"] = "127.0.0.1:" + str(PORTN)
     return d, e
 
 def samples(t):
@@ -83,10 +93,27 @@ def live_loopback():
     dp, ep = mk("parent", "rollback", 0)
     dc, ec = mk("child", "lockstep", 1)   # child ASKS lockstep -> must adopt via bit 17
     lp = os.path.join(dp, "run.log"); lc = os.path.join(dc, "run.log")
-    pp = M.spawn(EXE, dp, ep, lp); time.sleep(0.8); pc = M.spawn(EXE, dc, ec, lc)
-    rcp = M.finish(pp, 1500); rcc = M.finish(pc, 1500)
+    pp = M.spawn(EXE, dp, ep, lp)
+    pc = None
+    try:
+        time.sleep(0.8)
+        pc = M.spawn(EXE, dc, ec, lc)
+        deadline = time.monotonic() + TIMEOUT
+        while pp.poll() is None or pc.poll() is None:
+            if any(p.poll() not in (None, 0) for p in (pp, pc)):
+                break
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
+    finally:
+        for p in (pp, pc):
+            if p is not None and p.poll() is None:
+                p.kill()
+        rcp = M.finish(pp, 10)
+        rcc = M.finish(pc, 10) if pc is not None else -1
     tp = M.text(lp); tc = M.text(lc)
     print("      rcp=%d rcc=%d" % (rcp, rcc))
+    ck("both network instances exited cleanly", rcp == 0 and rcc == 0)
     ck("parent: NetMode ROLLBACK took", "NetMode ROLLBACK" in tp)
     adopt = re.search(r"the parent runs NetMode rollback and this end had lockstep; ADOPTING", tc)
     ck("child: ADOPTS rollback via bit 17 (asked lockstep, took the parent's rollback)", bool(adopt))
@@ -116,6 +143,19 @@ def live_loopback():
         ck("%s: every rewind honoured (unrecoverable=0)" % tag, u == "0", "unrecoverable=%s" % u)
 
 def main():
+    global EXE, OUT, TIMEOUT, DIRECT, HOSTLEVEL
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--exe", default=EXE)
+    parser.add_argument("--out", default=OUT)
+    parser.add_argument("--timeout", type=int, default=TIMEOUT)
+    parser.add_argument("--direct", action="store_true")
+    parser.add_argument("--level", type=int, default=HOSTLEVEL)
+    args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
+    EXE, OUT, TIMEOUT = os.path.abspath(args.exe), os.path.abspath(args.out), args.timeout
+    DIRECT, HOSTLEVEL = args.direct, args.level
+    FAILS.clear()
     if not os.path.exists(EXE):
         print("no walk_window.exe at %s -- build first" % EXE); return 2
     print("party_proof: exe %s  out %s" % (M.sha(EXE), OUT))

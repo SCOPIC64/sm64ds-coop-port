@@ -1071,6 +1071,17 @@ struct NitroFsNamesBoot {
             port_nitrofs_report();
     }
 };
+#ifndef PORT_ROM_CLEAN
 NitroFsNamesBoot nitro_fs_names_boot;
+#endif
 
 }  /* anonymous namespace */
+
+extern "C" void port_nitrofs_names_init(void)
+{
+#ifdef PORT_ROM_CLEAN
+    // Archive names are zero until romdata.bin loads. Registering sooner
+    // gives the ROM archive an empty key, so wireless FS_FindArchive fails.
+    static NitroFsNamesBoot boot;
+#endif
+}

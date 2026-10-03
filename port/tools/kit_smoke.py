@@ -302,6 +302,9 @@ def run_game(exe: pathlib.Path, bundle: pathlib.Path, frames: int) -> tuple[int,
     env = launch_env(bundle, asset_root=True)
     env["SM64DS_WINDOW_SELFTEST"] = str(frames)
     env["SM64DS_NO_DIALOG"] = "1"
+    env["SM64DS_NO_FOCUS"] = "1"
+    env["SM64DS_MINIMIZED"] = "1"
+    env["SM64DS_VOLUME"] = "0"
     p = subprocess.run([str(exe)], cwd=str(bundle), env=env,
                        capture_output=True, text=True, errors="replace",
                        timeout=600)
@@ -352,6 +355,8 @@ def prove_refusal(exe: pathlib.Path, bundle: pathlib.Path) -> None:
         err_file.unlink()
     env = launch_env(bundle, asset_root=False)
     env["SM64DS_NO_DIALOG"] = "1"
+    # Keep refusal diagnostics in the captured stream rather than playlog/.
+    env["SM64DS_NO_PLAYLOG"] = "1"
     p = subprocess.run([str(exe)], cwd=str(bundle), env=env,
                        capture_output=True, text=True, errors="replace",
                        timeout=300)

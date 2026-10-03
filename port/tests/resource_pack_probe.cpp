@@ -5,8 +5,8 @@
 
 int main(int argc, char **argv)
 {
-    if (argc != 2) {
-        std::fprintf(stderr, "usage: resource_pack_probe <pack-root>\n");
+    if (argc != 2 && argc != 3) {
+        std::fprintf(stderr, "usage: resource_pack_probe <pack-root> [--validate]\n");
         return 2;
     }
     std::string error;
@@ -14,6 +14,7 @@ int main(int argc, char **argv)
         std::fprintf(stderr, "%s", error.c_str());
         return 1;
     }
+    if (argc == 3 && std::string(argv[2]) == "--validate") return 0;
     const auto *character = sm64ds::packs::character(4);
     if (!character || character->name != "Probe" || character->base_character != 2)
         return 3;

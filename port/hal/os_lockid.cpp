@@ -35,9 +35,14 @@ static volatile unsigned int *lock_words(void)
 
 void port_os_lock_words_seed(void)
 {
+    // FS_Init can allocate during static initialization, before the OS boot.
+    // The later boot must preserve those live IDs rather than free them again.
+    static bool seeded;
+    if (seeded) return;
     volatile unsigned int *w = lock_words();
     w[0] = 0xffffffffu;   /* ids 0x40..0x5f all free */
     w[1] = 0xffff0000u;   /* ids 0x60..0x6f free, 0x70..0x7f reserved */
+    seeded = true;
 }
 
 // PORT_HOST_ABI: ARM `clz` primitive (func_02057020, OS_GetLockID): the ROM
@@ -50,6 +55,7 @@ void port_os_lock_words_seed(void)
 //   an undocumented shadow. The host body below is the same search written as
 //   C and is unchanged by this lane.
 int func_02057020(void) {
+    port_os_lock_words_seed();
     volatile unsigned int *w = lock_words();
     unsigned int base;
     int idx;

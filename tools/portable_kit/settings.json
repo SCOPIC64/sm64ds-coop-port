@@ -1,0 +1,11 @@
+{
+  "CameraMode": "analog",
+  "RunMode": "analog",
+  "FrameRate": 60,
+  "SmoothMotion": true,
+  "Widescreen": true,
+  "MouseCapture": false,
+  "VoiceEnabled": false,
+  "NameTags": true,
+  "NetMode": "rollback"
+}

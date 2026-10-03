@@ -266,6 +266,7 @@ extern unsigned char data_0208ee50[];
 extern int data_port_backup_device[10];
 
 void func_02042f68(int a0, unsigned char *src);   // the ROM's own arm
+void func_02060890(void);
 extern unsigned char data_020a8780[];  // hal/card_globals.cpp, the page reader
 void func_02060a64(void);          // src/func_02060a64.c (hostgen copy)
 void port_nitrofs_probe_after_boot(void);   // hal/fs_names.cpp
@@ -636,6 +637,10 @@ void port_rom_a054_arms(void)
         std::memcpy(&row_before, data_020a8760, sizeof row_before);
         const int state_before = *(int *)(data_020a8180 + 0x34);
         func_02042f68(0xd01, data_0208ee50);
+        // A DS download-play child has no cartridge. Every PC peer does:
+        // it must start the local card reader before loading its overlays.
+        if (*(int *)(data_020a8180 + 0x34) == 0)
+            func_02060890();
         std::memcpy(&row_after, data_020a8760, sizeof row_after);
 
         /* ARM 1, READ BACK OFF THE ROM'S OWN STORES: the guard word, the lock
