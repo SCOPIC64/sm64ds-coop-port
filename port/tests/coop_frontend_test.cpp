@@ -17,11 +17,12 @@ int main(int argc, char** argv) {
     assert(!valid_port("65535") && !valid_port("0") && !valid_port("1023"));
     assert(!valid_port("999999999999") && !valid_port("-1") && !valid_port("51x"));
     Menu m;
-    m.key(UP); assert(m.row == 5); m.key(DOWN); assert(m.row == 0);
-    m.key(ACCEPT); assert(m.page == PLAY);
+    m.key(UP); assert(m.row == 3); m.key(DOWN); assert(m.row == 0);
+    m.key(ACCEPT); assert(m.page == HOST);
+    m.row = 3; m.key(ACCEPT); assert(m.page == PLAY);
     m.key(LEFT); assert(m.slot == 2);
     m.key(DOWN); assert(m.key(ACCEPT) == START_SOLO);
-    m.key(BACK); m.row = 1; m.key(ACCEPT); assert(m.page == HOST);
+    m.key(BACK); assert(m.page == HOST);
     m.row = 2; assert(m.key(ACCEPT) == START_HOST);
     m.open(JOIN); m.row = 3; assert(m.key(ACCEPT) == START_JOIN);
     m.row = 0; m.key(ACCEPT); m.type('5'); m.key(BACK);
@@ -31,9 +32,9 @@ int main(int argc, char** argv) {
     m.row = 0; m.key(ACCEPT);
     for (char ch : "127.0.0.1") m.type(ch);
     m.type('x'); m.key(ACCEPT); m.row = 3; assert(m.key(ACCEPT) == START_JOIN);
-    m.open(OPTIONS); m.row = 2;
+    m.open(OPTIONS); m.row = 3; m.key(ACCEPT); assert(m.page == DISPLAY);
     assert(m.fps == 0);
-    char rate_label[80]; m.label(2, rate_label, sizeof rate_label);
+    char rate_label[80]; m.label(0, rate_label, sizeof rate_label);
     assert(std::strstr(rate_label, "NATIVE"));
     m.key(LEFT); assert(m.fps == 240);
     m.key(RIGHT); assert(m.fps == 0);
@@ -41,15 +42,25 @@ int main(int argc, char** argv) {
         m.key(RIGHT); assert(m.fps == rate);
     }
     m.fps = 165; m.key(RIGHT); assert(m.fps == 240);
-    m.row = 5;
+    m.open(SOUND);
     for (int i = 0; i < 20; ++i) m.key(LEFT);
     assert(m.volume == 0);
     for (int i = 0; i < 20; ++i) m.key(RIGHT);
     assert(m.volume == 100);
-    m.row = 6; assert(m.key(ACCEPT) == SAVE_OPTIONS);
+    m.row = 1; assert(m.key(ACCEPT) == SAVE_OPTIONS); assert(m.after_save == OPTIONS);
+    m.open(MISC); m.key(ACCEPT); assert(m.mouse_capture);
+    assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
+    const Page categories[] = { PLAYER, CAMERA, CONTROLS, DISPLAY, SOUND, MISC };
+    for (int i = 0; i < 6; ++i) {
+        m.open(OPTIONS); m.row = i; m.key(ACCEPT); assert(m.page == categories[i]);
+        if (m.page == CONTROLS) { m.key(BACK); assert(m.page == OPTIONS); }
+        else assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
+    }
+    m.open(OPTIONS); m.row = 6; assert(m.key(ACCEPT) == SAVE_OPTIONS && m.after_save == HOME);
     m.open(HOME); m.key(BACK); assert(m.page == EXIT_CONFIRM);
     m.key(ACCEPT); assert(m.page == HOME);
-    m.key(BACK); m.row = 1; assert(m.key(ACCEPT) == QUIT);
+    m.key(BACK); m.row = 1; char quit_label[20]; m.label(1, quit_label, sizeof quit_label);
+    assert(std::strcmp(quit_label, "QUIT") == 0); assert(m.key(ACCEPT) == QUIT);
 
     TouchControls touch; touch.resize(1000, 600);
     touch.down(11, 150, 450); touch.move(11, 250, 400);
@@ -80,7 +91,12 @@ int main(int argc, char** argv) {
         Canvas c = { pixels.data() + 32, w, h, stride, OVL_FONT };
         for (int page = HOME; page <= EXIT_CONFIRM; ++page) {
             m.open(static_cast<Page>(page)); draw(c, m, 100);
-            assert(hit_row(c, m, w / 2, row_top(c)) == 0);
+            for (int row = 0; row < m.rows(); ++row) {
+                assert(hit_row(c, m, button_left(c, m) + button_width(c, m) / 2,
+                               row_top(c, m) + row * row_height(c) + 1) == row);
+            }
+            assert(hit_row(c, m, -1, row_top(c, m)) == -1);
+            assert(hit_row(c, m, button_left(c, m), row_top(c, m) - 1) == -1);
         }
         for (int i = 0; i < 32; ++i) assert(pixels[i] == 0xdeadbeef);
         for (int y = 0; y < h; ++y)

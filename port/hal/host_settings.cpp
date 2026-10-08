@@ -2538,7 +2538,7 @@ extern "C" int host_setting_save_camera_mode(int mode)
 }
 
 extern "C" int host_setting_save_frontend(int camera, int movement, int fps,
-                                          int smooth, int names, int volume)
+                                          int smooth, int names, int volume, int mouse_capture)
 {
     if (camera < 0 || camera > 2 || movement < 0 || movement > 2 ||
         (fps != 0 && (fps < 60 || fps > 240)) || volume < 0 || volume > 100) return 0;
@@ -2548,12 +2548,13 @@ extern "C" int host_setting_save_frontend(int camera, int movement, int fps,
     snprintf(movement_value, sizeof movement_value, "\"%s\"", RUN_MODE_KEY[movement]);
     snprintf(fps_value, sizeof fps_value, "%d", fps);
     snprintf(volume_value, sizeof volume_value, "%d", volume);
-    const char* keys[] = { "CameraMode", "RunMode", "FrameRate", "SmoothMotion", "NameTags", "Volume" };
+    const char* keys[] = { "CameraMode", "RunMode", "FrameRate", "SmoothMotion", "NameTags", "Volume", "MouseCapture" };
     const char* vals[] = { camera_value, movement_value, fps_value, smooth ? "true" : "false",
-        names ? "true" : "false", volume_value };
-    if (!save_keys(keys, vals, 6, "front-end options")) return 0;
+        names ? "true" : "false", volume_value, mouse_capture ? "true" : "false" };
+    if (!save_keys(keys, vals, 7, "front-end options")) return 0;
     g_camera_mode = camera; g_run_mode = movement; g_frame_rate = fps;
     g_smooth_motion = !!smooth; g_name_tags = !!names; g_volume = volume;
+    g_mouse_capture = !!mouse_capture;
     return 1;
 }
 

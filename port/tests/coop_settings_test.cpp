@@ -16,6 +16,7 @@ static void expect_saved(bool native)
     assert(host_setting_smooth_motion() == (native ? 1 : 0));
     assert(host_setting_name_tags() == (native ? 0 : 1));
     assert(host_setting_volume() == 35);
+    assert(host_setting_mouse_capture() == (native ? 1 : 0));
 }
 
 int main(int argc, char** argv)
@@ -34,18 +35,18 @@ int main(int argc, char** argv)
                    "\"CameraMode\":\"ds\",\"SmoothMotion\":false,\"NameTags\":true}", file);
         assert(std::fclose(file) == 0);
         assert(host_setting_save_frontend(1, 2, native ? 0 : 144,
-                                         native ? 1 : 0, native ? 0 : 1, 35));
+                                         native ? 1 : 0, native ? 0 : 1, 35, native ? 1 : 0));
         expect_saved(native);
-        assert(!host_setting_save_frontend(-1, 2, 60, 1, 0, 35));
-        assert(!host_setting_save_frontend(1, 3, 60, 1, 0, 35));
-        assert(!host_setting_save_frontend(1, 2, 30, 1, 0, 35));
-        assert(!host_setting_save_frontend(1, 2, 241, 1, 0, 35));
-        assert(!host_setting_save_frontend(1, 2, 60, 1, 0, 101));
+        assert(!host_setting_save_frontend(-1, 2, 60, 1, 0, 35, 0));
+        assert(!host_setting_save_frontend(1, 3, 60, 1, 0, 35, 0));
+        assert(!host_setting_save_frontend(1, 2, 30, 1, 0, 35, 0));
+        assert(!host_setting_save_frontend(1, 2, 241, 1, 0, 35, 0));
+        assert(!host_setting_save_frontend(1, 2, 60, 1, 0, 101, 0));
         expect_saved(native);
         HANDLE locked = CreateFileA("settings.json", GENERIC_READ, FILE_SHARE_READ,
             nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
         assert(locked != INVALID_HANDLE_VALUE);
-        assert(!host_setting_save_frontend(0, 0, 60, 0, 1, 90));
+        assert(!host_setting_save_frontend(0, 0, 60, 0, 1, 90, native ? 0 : 1));
         expect_saved(native);
         CloseHandle(locked);
     } else {

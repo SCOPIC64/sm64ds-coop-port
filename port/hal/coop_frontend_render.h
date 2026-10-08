@@ -38,88 +38,103 @@ struct Canvas {
     }
 };
 
-inline int row_top(const Canvas& c) { return c.height * 40 / 100; }
-inline int row_height(const Canvas& c) { int h = c.height * 6 / 100; return h > 0 ? h : 1; }
-inline int hit_row(const Canvas& c, const Menu& m, int x, int y) {
-    if (!c.valid() || y >= c.height) return -1;
-    if (x < c.width / 6 || x >= c.width * 5 / 6 || y < row_top(c)) return -1;
-    int row = (y - row_top(c)) / row_height(c);
-    return row < m.rows() ? row : -1;
+// Drawing and pointer input share these regions, including the Controls back button.
+inline int panel_width(const Canvas& c, const Menu& m) {
+    return m.page == HOME ? c.width * 42 / 100 : c.width * 90 / 100;
 }
-
+inline int panel_left(const Canvas& c, const Menu& m) {
+    return m.page == HOME ? c.width / 30 : (c.width - panel_width(c, m)) / 2;
+}
+inline int button_left(const Canvas& c, const Menu& m) { return panel_left(c, m) + c.width / 50; }
+inline int button_width(const Canvas& c, const Menu& m) { return panel_width(c, m) - c.width / 25; }
+inline int row_top(const Canvas& c, const Menu& m) {
+    return c.height * (m.page == HOME ? 39 : m.page == CONTROLS ? 77 : 27) / 100;
+}
+inline int row_height(const Canvas& c) { int h = c.height * 8 / 100; return h > 0 ? h : 1; }
+inline int hit_row(const Canvas& c, const Menu& m, int x, int y) {
+    if (!c.valid() || x < 0 || y < 0 || x >= c.width || y >= c.height) return -1;
+    if (x < button_left(c, m) || x >= button_left(c, m) + button_width(c, m) ||
+        y < row_top(c, m)) return -1;
+    int row = (y - row_top(c, m)) / row_height(c);
+    if (row >= m.rows() || (y - row_top(c, m)) % row_height(c) >= row_height(c) * 4 / 5) return -1;
+    return row;
+}
+inline void panel_text(const Canvas& c, const Menu& m, int y, const char* text,
+                       uint32_t color, int size) {
+    const int x = panel_left(c, m) + (panel_width(c, m) - static_cast<int>(std::strlen(text)) * 6 * size) / 2;
+    c.text(x, y, text, color, size);
+}
 inline void draw(const Canvas& c, const Menu& menu, unsigned frame,
                  const char* loading = nullptr) {
     if (!c.valid()) return;
+    (void)frame;
     const int s = c.scale();
+    // Asset-free backdrop until the engine can render its own live title scene.
     for (int y = 0; y < c.height; ++y) {
-        for (int x = 0; x < c.width; ++x) {
-            const int checker = ((x / (40 * s)) + (y / (40 * s))) & 1;
-            const unsigned r = 10 + checker * 3 + y * 10 / c.height;
-            const unsigned g = 22 + checker * 5 + y * 16 / c.height;
-            const unsigned b = 48 + checker * 8 + y * 25 / c.height;
-            c.pixels[y * c.stride + x] = 0xff000000u | (r << 16) | (g << 8) | b;
+        const unsigned r = 46 + y * 20 / c.height;
+        const unsigned g = 103 + y * 28 / c.height;
+        const unsigned b = 158 + y * 31 / c.height;
+        c.box(0, y, c.width, 1, 0xff000000u | (r << 16) | (g << 8) | b);
+    }
+    const int px = panel_left(c, menu), pw = panel_width(c, menu);
+    c.box(px, c.height / 12, pw, c.height * 79 / 100, 0xff141414u);
+    c.box(px, c.height / 12, pw, 2 * s, 0xff4b4b4bu);
+    if (menu.page == HOME) {
+        const char* title = "SUPER MARIO";
+        const uint32_t colors[] = { 0xfff34b46u, 0xff5dbef7u, 0xffffd542u, 0xff60cd65u };
+        const int size = s * 2;
+        int x = px + (pw - static_cast<int>(std::strlen(title)) * 6 * size) / 2;
+        for (int i = 0; title[i]; ++i) {
+            char letter[] = { title[i], 0 };
+            c.text(x + size, c.height * 15 / 100 + size, letter, 0xff000000u, size);
+            c.text(x, c.height * 15 / 100, letter, colors[i % 4], size);
+            x += 6 * size;
         }
-    }
-    // Small gold star silhouettes, generated geometry rather than game assets.
-    for (int star = 0; star < 10; ++star) {
-        int x = (star * 137 + 37) % c.width;
-        int y = (star * 89 + 23) % c.height;
-        int radius = (star % 3 + 2) * s;
-        unsigned color = (star + frame / 45) % 3 ? 0xff456187u : 0xffc7a44fu;
-        for (int dy = -radius; dy <= radius; ++dy) {
-            int span = radius - std::abs(dy);
-            c.box(x - span, y + dy, span * 2 + 1, 1, color);
-        }
-    }
-    const char* words[] = { "SUPER", "MARIO" };
-    const uint32_t colors[] = { 0xffffc84bu, 0xffff655bu };
-    int logo_size = s * 3;
-    if (c.width < 500) logo_size = s * 2;
-    int x = (c.width - 11 * 6 * logo_size) / 2;
-    int y = c.height * 8 / 100;
-    for (int i = 0; i < 2; ++i) {
-        c.text(x + logo_size, y + 2 * logo_size, words[i], 0xff050d20u, logo_size);
-        c.text(x, y, words[i], colors[i], logo_size);
-        x += 6 * 6 * logo_size;
-    }
-    c.centered(c.height * 18 / 100, "64DS CO-OP", 0xff83dcffu, logo_size);
-    c.centered(c.height * 31 / 100, menu.title(), 0xffffdf82u, s);
-    if (loading) {
-        c.centered(c.height * 53 / 100, loading, 0xffffffffu, s);
-        c.centered(c.height * 64 / 100, "LOADING YOUR ADVENTURE...", 0xff92aed1u, s);
-    } else if (menu.page == CONTROLS) {
-        const char* lines[] = {
-            "WASD / ARROWS: MOVE    SPACE: JUMP",
-            "X: ATTACK    CTRL: CROUCH    SHIFT: RUN",
-            "Q/E: CAMERA TURN    R/F: CAMERA TILT",
-            "RIGHT MOUSE: LOOK    WHEEL: ZOOM",
-            "GAMEPAD: LEFT STICK MOVE / RIGHT STICK CAMERA",
-            "A: JUMP    B: ATTACK    RT: CROUCH",
-            "F5: GAME OPTIONS    F12: FULLSCREEN",
-            "ENTER / B / ESC: BACK"
-        };
-        for (int i = 0; i < 8; ++i)
-            c.centered(row_top(c) + i * row_height(c), lines[i], 0xffe7efffu, s);
+        panel_text(c, menu, c.height * 23 / 100, "64 DS CO-OP", 0xffffffffu, size);
     } else {
+        panel_text(c, menu, c.height * 16 / 100, menu.title(), 0xffffd542u, s * 2);
+    }
+    if (loading) {
+        panel_text(c, menu, c.height * 43 / 100, loading, 0xffffffffu, s);
+        panel_text(c, menu, c.height * 56 / 100, "LOADING...", 0xffddddddU, s);
+    } else {
+        if (menu.page == CONTROLS) {
+            const char* lines[] = {
+                "WASD / ARROWS: MOVE   SPACE: JUMP",
+                "X: ATTACK   CTRL: CROUCH   SHIFT: RUN",
+                "Q/E: TURN   R/F: TILT CAMERA",
+                "RIGHT MOUSE: LOOK   WHEEL: ZOOM",
+                "LEFT STICK: MOVE   RIGHT STICK: CAMERA",
+                "A: JUMP   B: ATTACK   RT: CROUCH",
+                "F5: GAME OPTIONS   F12: FULLSCREEN"
+            };
+            for (int i = 0; i < 7; ++i)
+                panel_text(c, menu, c.height * (29 + i * 6) / 100, lines[i], 0xffeeeeeeu, s);
+        }
         for (int i = 0; i < menu.rows(); ++i) {
-            int ry = row_top(c) + i * row_height(c);
-            if (i == menu.row) {
-                c.box(c.width / 6, ry - 3 * s, c.width * 2 / 3, row_height(c) - s, 0xff23466eu);
-                c.box(c.width / 6, ry - 3 * s, 3 * s, row_height(c) - s, 0xffffd061u);
-            }
+            const bool selected = i == menu.row;
+            int y = row_top(c, menu) + i * row_height(c);
+            int height = row_height(c) * 4 / 5;
+            c.box(button_left(c, menu), y, button_width(c, menu), height,
+                  selected ? 0xff0078d7u : 0xff4b4b4bu);
+            c.box(button_left(c, menu) + s, y + s, button_width(c, menu) - 2 * s, height - 2 * s,
+                  selected ? 0xffe5f1fbu : 0xffdededeu);
             char label[80]; menu.label(i, label, sizeof label);
-            c.centered(ry, label, i == menu.row ? 0xffffdf82u : 0xffe7efffu, s);
+            int text_size = s;
+            const int chars = static_cast<int>(std::strlen(label));
+            while (text_size > 1 && chars * 6 * text_size > button_width(c, menu) - 4 * s) --text_size;
+            panel_text(c, menu, y + (height - 8 * text_size) / 2, label, 0xff0b0b0bu, text_size);
         }
     }
     const char* footer = menu.message[0] ? menu.message :
-        menu.editing ? "TYPE WITH KEYBOARD - ENTER TO FINISH" :
-        (menu.page == HOST || menu.page == JOIN) ? "LAN CO-OP - BOTH PLAYERS NEED THIS VERSION" :
+        menu.editing ? "TYPE ADDRESS / PORT - ENTER TO FINISH" :
+        (menu.page == HOST || menu.page == JOIN) ? "LAN CO-OP - MATCHING VERSIONS REQUIRED" :
 #ifdef SM64DS_HANDHELD
         "D-PAD: CHOOSE   A: SELECT   B: BACK";
 #else
-        "ARROWS / D-PAD: CHOOSE   ENTER / A: SELECT   ESC / B: BACK";
+        "ARROWS: CHOOSE   ENTER: SELECT   ESC: BACK";
 #endif
-    c.centered(c.height * 91 / 100, footer, menu.message[0] ? 0xffffad8eu : 0xffa4bad6u, s);
-    c.centered(c.height * 96 / 100, "SM64DS CO-OP  /  0.5.4 PREVIEW", 0xff6b88b0u, s);
+    c.centered(c.height * 91 / 100, footer, menu.message[0] ? 0xffffad8eu : 0xffffffffu, s);
+    c.centered(c.height * 96 / 100, "SM64DS CO-OP / 0.5.4 PREVIEW", 0xffddddddU, s);
 }
 } // namespace coop_frontend

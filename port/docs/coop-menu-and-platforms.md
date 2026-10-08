@@ -7,11 +7,17 @@ decomp sources, manifests, or runtime tables with the 0.5.4 release.
 ## Windows integration
 
 Ordinary launches open a CoopDX-inspired menu inside the existing game process
-and window. Play selects save A/B/C. The existing retail save-loading routines
+and window. The main panel provides Host, Join, Options and Quit; Host also
+opens Single Player to select save A/B/C. Options groups the supported settings
+under Player, Camera, Controls, Display, Sound and Misc. The existing retail save-loading routines
 run behind a loading screen; their memory layout and cartridge data remain
 unchanged. Host/Join use the same LAN transport and separate co-op saves as the
 0.5.4 preview's batch launchers. Options save through the existing settings
-writer and preserve unrelated keys. Keyboard, mouse, and gamepad navigate the
+writer and preserve unrelated keys, including mouse capture. Back from a settings
+category saves and returns to Options; Back from Options saves and returns home.
+The panel layout, light buttons, blue selection border and multicolored wordmark
+follow CoopDX's menu organization. Its current gradient backdrop is temporary;
+it does not yet display a live castle scene or import CoopDX assets. Keyboard, mouse, and gamepad navigate the
 front end. F5 retains the development menu during gameplay.
 
 The executable discovers its asset root beside itself when no explicit root was

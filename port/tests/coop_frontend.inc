@@ -62,6 +62,7 @@ static int coop_frontend_run()
     g_coop_menu.fps = host_setting_frame_rate();
     g_coop_menu.smooth = host_setting_smooth_motion() != 0;
     g_coop_menu.names = host_setting_name_tags() != 0;
+    g_coop_menu.mouse_capture = host_setting_mouse_capture() != 0;
     int volume = host_setting_volume();
     g_coop_menu.volume = volume < 0 ? 80 : volume;
     g_entry_hwnd = host_window_open(0, &g_entry_hdc, "Super Mario 64 DS Co-op");
@@ -131,8 +132,9 @@ static int coop_frontend_run()
         if (action == coop_frontend::QUIT) { g_coop_active = false; return 0; }
         if (action == coop_frontend::SAVE_OPTIONS) {
             if (host_setting_save_frontend(g_coop_menu.camera, g_coop_menu.movement,
-                    g_coop_menu.fps, g_coop_menu.smooth, g_coop_menu.names, g_coop_menu.volume))
-                g_coop_menu.open(coop_frontend::HOME);
+                    g_coop_menu.fps, g_coop_menu.smooth, g_coop_menu.names, g_coop_menu.volume,
+                    g_coop_menu.mouse_capture))
+                g_coop_menu.open(g_coop_menu.after_save);
             else snprintf(g_coop_menu.message, sizeof g_coop_menu.message,
                           "Could not save settings. Check folder access.");
         }
