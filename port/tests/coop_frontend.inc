@@ -92,6 +92,20 @@ static int coop_frontend_run()
     g_present_bi = &g_bi;
     g_present_fb = &menu_fb;
     g_coop_active = true;
+    // ROM-free startup check of the actual host and framebuffer. Run only in
+    // an isolated folder: screenshots are written beside the executable.
+    if (getenv("SM64DS_MENU_SELFTEST")) {
+        bool ok = true;
+        for (int page = coop_frontend::HOME; page <= coop_frontend::EXIT_CONFIRM; ++page) {
+            g_coop_menu.open(static_cast<coop_frontend::Page>(page));
+            coop_draw(menu_fb, 0); present();
+            char name[48]; snprintf(name, sizeof name, "coop-menu-%02d.bmp", page);
+            if (!ntr::ppu_write_bmp(name, menu_fb)) ok = false;
+        }
+        g_coop_active = false;
+        fprintf(stderr, "[coop-menu] startup selftest %s\n", ok ? "PASS" : "FAIL");
+        return ok ? 0 : -1;
+    }
     unsigned previous = ~0u;
     unsigned frame = 0;
     for (;;) {

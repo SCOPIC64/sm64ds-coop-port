@@ -45,6 +45,13 @@ cmake --build build/frontend --config Debug
 ctest --test-dir build/frontend -C Debug --output-on-failure
 ```
 
+After linking Windows, copy the executable into an isolated empty directory and
+run it from a different working directory with `SM64DS_MENU_SELFTEST=1`. This
+exercises the actual window, temporary menu framebuffer and executable-directory
+default without a ROM. It writes `coop-menu-00.bmp` through `coop-menu-11.bmp`
+beside the executable and returns nonzero if a screenshot could not be written.
+Inspect these captures; this check does not enter gameplay or import assets.
+
 These tests cover menu routes, malformed addresses/ports, save selection, option
 bounds, render clipping at several aspect ratios, simultaneous touches, shared
 button ownership, slide-off release, cancellation and rotation. They do not boot
