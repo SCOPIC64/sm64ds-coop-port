@@ -1371,6 +1371,17 @@ target_include_directories(resource_pack_probe PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/hal")
 target_link_libraries(resource_pack_probe PRIVATE lua_resource_pack)
 
+include(CTest)
+if(BUILD_TESTING)
+    add_test(NAME resource_pack_v2
+        COMMAND resource_pack_probe
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/resource_pack_fixture")
+    add_test(NAME resource_pack_independent_rejection
+        COMMAND resource_pack_probe
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/resource_pack_invalid_fixture"
+            --expect-errors)
+endif()
+
 port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_gate1.txt" SLICE_LINES)
 set(SLICE_SOURCES "")
 foreach(line IN LISTS SLICE_LINES)
