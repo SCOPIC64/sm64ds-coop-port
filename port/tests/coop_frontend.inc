@@ -1,9 +1,25 @@
+static coop_frontend::RomFont g_coop_rom_font;
+
+extern "C" const unsigned char *port_fs_archive_member(unsigned fileID,
+                                                        unsigned *len_out);
+extern "C" unsigned char data_0208f074[];
+
+static void coop_load_rom_font()
+{
+    unsigned size = 0;
+    const unsigned char *tiles = port_fs_archive_member(0x980e, &size);
+    if (g_coop_rom_font.load(tiles, size, data_0208f074, 256))
+        fprintf(stderr, "[coop-menu] using the extracted SM64DS message font\n");
+    else
+        fprintf(stderr, "[coop-menu] extracted font unavailable; using fallback\n");
+}
+
 // Included after the window/presentation helpers in walk_window.cpp.
 // Runs in the game process and reuses its HWND for the adventure.
 static void coop_draw(ntr::Framebuffer& fb, unsigned frame, const char* loading = 0)
 {
     coop_frontend::Canvas canvas = { &fb.px[0][0], ntr::active_w,
-        ntr::active_h, ntr::SCREEN_W, OVL_FONT };
+        ntr::active_h, ntr::SCREEN_W, OVL_FONT, &g_coop_rom_font };
     coop_frontend::draw(canvas, g_coop_menu, frame, loading);
 }
 
@@ -57,6 +73,7 @@ static void coop_session_environment(coop_frontend::Action action)
 static int coop_frontend_run()
 {
     if (!coop_frontend_wanted()) return 1;
+    coop_load_rom_font();
     g_coop_menu.camera = host_setting_camera_mode();
     g_coop_menu.movement = host_setting_run_mode();
     g_coop_menu.fps = host_setting_frame_rate();
@@ -133,7 +150,7 @@ static int coop_frontend_run()
         }
         if (g_mouse_click_new) {
             coop_frontend::Canvas c = { &menu_fb.px[0][0], ntr::active_w,
-                ntr::active_h, ntr::SCREEN_W, OVL_FONT };
+                ntr::active_h, ntr::SCREEN_W, OVL_FONT, &g_coop_rom_font };
             int row = coop_frontend::hit_row(c, g_coop_menu, g_mouse_click_x, g_mouse_click_y);
             if (row >= 0) {
                 g_coop_menu.row = row;

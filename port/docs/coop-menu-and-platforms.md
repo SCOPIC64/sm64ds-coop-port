@@ -16,7 +16,11 @@ unchanged. Host/Join use the same LAN transport and separate co-op saves as the
 writer and preserve unrelated keys, including mouse capture. Back from a settings
 category saves and returns to Options; Back from Options saves and returns home.
 The panel layout, light buttons, blue selection border and multicolored wordmark
-follow CoopDX's menu organization. Its current gradient backdrop is temporary;
+follow CoopDX's menu organization. When the player's extracted cartridge data
+is available, the menu decodes the game's own message-font tiles and proportional
+widths at runtime; unsupported punctuation falls back glyph-by-glyph to the
+port's checked-in debug font. No font or other cartridge bytes are distributed.
+Its current gradient backdrop is temporary;
 it does not yet display a live castle scene or import CoopDX assets. Keyboard, mouse, and gamepad navigate the
 front end. F5 retains the development menu during gameplay.
 
