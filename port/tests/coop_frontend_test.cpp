@@ -84,6 +84,21 @@ int main(int argc, char** argv) {
     uint32_t tiny[3] = { 0xdeadbeef, 0, 0xdeadbeef };
     Canvas small = { tiny + 1, 1, 1, 1, OVL_FONT };
     draw(small, m, 0); assert(tiny[0] == 0xdeadbeef && tiny[2] == 0xdeadbeef);
+    // A synthetic copy of the ROM tile layout proves the decoder without
+    // checking any Nintendo glyph bytes into the repository.
+    std::vector<uint8_t> tiles(0x4000);
+    uint8_t widths[256] = {};
+    const int a_code = RomFont::game_code('A');
+    const size_t a_top = static_cast<size_t>(
+        ((a_code & 0x1f) + ((a_code & 0xe0) << 1)) << 5);
+    tiles[a_top] = 0x11;
+    tiles[a_top + 0x400] = 0x11;
+    widths[a_code] = 7;
+    RomFont rom_font;
+    assert(rom_font.load(tiles.data(), tiles.size(), widths, sizeof widths));
+    assert(rom_font.present['A' - 32] && rom_font.advances['A' - 32] == 7);
+    Canvas rom_canvas = { tiny + 1, 1, 1, 1, OVL_FONT, &rom_font };
+    assert(rom_canvas.measure("AA", 1) == 14 && rom_canvas.glyph_height() == 16);
     // Guard pixels ensure drawing respects both extent and stride at all sizes.
     for (auto dims : { std::pair<int,int>{512,384}, {1024,576}, {1280,800}, {800,1280} }) {
         int w = dims.first, h = dims.second, stride = w + 16;
