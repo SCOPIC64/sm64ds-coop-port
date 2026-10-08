@@ -43,5 +43,5 @@ jobs:
           if not defined VSINSTALL exit /b 1
           call "%VSINSTALL%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
           mkdir build\frontend-host
-          cl /nologo /c /std:c++14 /EHsc /vmg /vmm /Oy- /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /DNTR_WIDE_RT /DPORT_ROM_CLEAN /Iport /Iport\ntr\include /Iinclude port\tests\walk_window.cpp /Fobuild\frontend-host\walk_window.obj || exit /b 1
-          cl /nologo /c /std:c++14 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\host_settings.cpp /Fobuild\frontend-host\host_settings.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /Oy- /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /DNTR_WIDE_RT /DPORT_ROM_CLEAN /Iport /Iport\ntr\include /Iinclude port\tests\walk_window.cpp /Fobuild\frontend-host\walk_window.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\host_settings.cpp /Fobuild\frontend-host\host_settings.obj || exit /b 1

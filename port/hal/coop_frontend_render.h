@@ -10,6 +10,7 @@ struct Canvas {
     uint32_t* pixels;
     int width, height, stride;
     const unsigned char (*font)[8];
+    bool valid() const { return pixels && font && width > 0 && height > 0 && stride >= width; }
     int scale() const {
         int s = height / 256;
         if (s > width / 384) s = width / 384;
@@ -38,8 +39,9 @@ struct Canvas {
 };
 
 inline int row_top(const Canvas& c) { return c.height * 40 / 100; }
-inline int row_height(const Canvas& c) { return c.height * 6 / 100; }
+inline int row_height(const Canvas& c) { int h = c.height * 6 / 100; return h > 0 ? h : 1; }
 inline int hit_row(const Canvas& c, const Menu& m, int x, int y) {
+    if (!c.valid() || y >= c.height) return -1;
     if (x < c.width / 6 || x >= c.width * 5 / 6 || y < row_top(c)) return -1;
     int row = (y - row_top(c)) / row_height(c);
     return row < m.rows() ? row : -1;
@@ -47,6 +49,7 @@ inline int hit_row(const Canvas& c, const Menu& m, int x, int y) {
 
 inline void draw(const Canvas& c, const Menu& menu, unsigned frame,
                  const char* loading = nullptr) {
+    if (!c.valid()) return;
     const int s = c.scale();
     for (int y = 0; y < c.height; ++y) {
         for (int x = 0; x < c.width; ++x) {

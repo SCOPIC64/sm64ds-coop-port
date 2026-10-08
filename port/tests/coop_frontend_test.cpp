@@ -58,6 +58,11 @@ int main(int argc, char** argv) {
     touch.resize(1000, 600, 20, 30, 20, 30);
     touch.down(9, 950, 450); assert(touch.state().buttons == 0x1000);
 
+    Canvas empty = { nullptr, 0, 0, 0, OVL_FONT };
+    draw(empty, m, 0); assert(hit_row(empty, m, 0, 0) == -1);
+    uint32_t tiny[3] = { 0xdeadbeef, 0, 0xdeadbeef };
+    Canvas small = { tiny + 1, 1, 1, 1, OVL_FONT };
+    draw(small, m, 0); assert(tiny[0] == 0xdeadbeef && tiny[2] == 0xdeadbeef);
     // Guard pixels ensure drawing respects both extent and stride at all sizes.
     for (auto dims : { std::pair<int,int>{512,384}, {1024,576}, {1280,800}, {800,1280} }) {
         int w = dims.first, h = dims.second, stride = w + 16;
