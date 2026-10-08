@@ -10441,7 +10441,11 @@ int main(void)
         if (!count || count >= sizeof exe) return 2;
         char* slash = strrchr(exe, '\\');
         if (!slash) return 2;
-        *slash = 0;
+        if (slash == exe + 2) {
+            // A drive root must remain absolute. A trailing forward slash also
+            // stays literal when this directory is quoted for the importer.
+            *slash = '/'; slash[1] = 0;
+        } else *slash = 0;
         _putenv_s("SM64DS_ASSET_ROOT", exe);
         if (!SetCurrentDirectoryA(exe)) return 2;
     }

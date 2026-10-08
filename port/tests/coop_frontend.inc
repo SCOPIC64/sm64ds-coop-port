@@ -69,7 +69,23 @@ static int coop_frontend_run()
 #ifdef SM64DS_HANDHELD
     fullscreen_toggle(g_entry_hwnd);
 #endif
-    static ntr::Framebuffer menu_fb;
+    // Reserve the game's fixed DS ranges before allocating this temporary
+    // buffer (main already ran io_init). Another static framebuffer would
+    // enlarge the loaded image and can change its collision with those ranges.
+    struct MenuBuffer {
+        ntr::Framebuffer* data;
+        MenuBuffer() : data(static_cast<ntr::Framebuffer*>(VirtualAlloc(0,
+            sizeof(ntr::Framebuffer), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE))) {}
+        ~MenuBuffer() {
+            if (g_present_fb == data) g_present_fb = 0;
+            if (data) VirtualFree(data, 0, MEM_RELEASE);
+        }
+    } menu_buffer;
+    if (!menu_buffer.data) {
+        fprintf(stderr, "[coop-menu] could not allocate the menu screen\n");
+        return -1;
+    }
+    ntr::Framebuffer& menu_fb = *menu_buffer.data;
     g_present_hwnd = g_entry_hwnd;
     g_present_hdc = g_entry_hdc;
     g_present_bi = &g_bi;
