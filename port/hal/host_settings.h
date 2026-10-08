@@ -44,6 +44,9 @@ int host_setting_swap_camera_turn(void);
    boot. */
 int host_setting_camera_mode(void);
 int host_setting_save_camera_mode(int mode);
+/* Save the front-end choices together, preserving unrelated settings. */
+int host_setting_save_frontend(int camera, int movement, int fps,
+                              int smooth, int names, int volume);
 
 /* ---- THE CONTROL BINDINGS, ONE KEY PER ACTION ----------------------------
    Why they are here at all: the F5 debug menu could rebind exactly one thing

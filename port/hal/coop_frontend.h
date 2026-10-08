@@ -1,0 +1,172 @@
+#pragma once
+
+// Port-owned front end. No Nintendo assets, platform calls or game-state writes.
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
+
+namespace coop_frontend {
+enum Page { HOME, PLAY, HOST, JOIN, OPTIONS, CONTROLS, EXIT_CONFIRM };
+enum Action { NONE, START_SOLO, START_HOST, START_JOIN, SAVE_OPTIONS, QUIT };
+enum Key { UP, DOWN, LEFT, RIGHT, ACCEPT, BACK };
+
+inline bool valid_address(const char* text) {
+    // Deliberately IPv4 only, matching comms_loopback's supported transport.
+    if (!text || !*text) return false;
+    const char* p = text;
+    for (int part = 0; part < 4; ++part) {
+        int value = 0, digits = 0;
+        while (*p >= '0' && *p <= '9') {
+            value = value * 10 + (*p++ - '0');
+            if (++digits > 3 || value > 255) return false;
+        }
+        if (!digits) return false;
+        if (part < 3) { if (*p++ != '.') return false; }
+        else if (*p) return false;
+    }
+    return true;
+}
+
+inline bool valid_port(const char* text) {
+    if (!text || !*text) return false;
+    unsigned value = 0;
+    for (const char* p = text; *p; ++p) {
+        if (*p < '0' || *p > '9') return false;
+        value = value * 10 + (*p - '0');
+        if (value > 65534) return false;
+    }
+    return value >= 1024;
+}
+
+struct Menu {
+    Page page = HOME;
+    int row = 0, slot = 0, character = 0;
+    int camera = 0, movement = 1, fps = 60, volume = 80;
+    bool smooth = true, names = true, editing = false;
+    char address[16] = "192.168.1.2", port[6] = "51765";
+    char edit_backup[16] = "";
+    char message[128] = "";
+
+    int rows() const {
+        switch (page) {
+        case HOME: return 6;
+        case PLAY: return 3;
+        case HOST: return 4;
+        case JOIN: return 5;
+        case OPTIONS: return 7;
+        case CONTROLS: return 1;
+        case EXIT_CONFIRM: return 2;
+        }
+        return 0;
+    }
+    const char* title() const {
+        switch (page) {
+        case HOME: return "LET'S PLAY TOGETHER";
+        case PLAY: return "SINGLE PLAYER";
+        case HOST: return "HOST A GAME";
+        case JOIN: return "JOIN A GAME";
+        case OPTIONS: return "OPTIONS";
+        case CONTROLS: return "CONTROLS";
+        case EXIT_CONFIRM: return "QUIT THE GAME?";
+        }
+        return "";
+    }
+    void open(Page target) { page = target; row = 0; editing = false; message[0] = 0; }
+    char* field() {
+        if (page == JOIN && row == 0) return address;
+        if ((page == HOST && row == 0) || (page == JOIN && row == 1)) return port;
+        return nullptr;
+    }
+    void type(char ch) {
+        char* p = editing ? field() : nullptr;
+        if (!p) return;
+        size_t size = p == address ? sizeof address : sizeof port;
+        size_t n = std::strlen(p);
+        if (ch == '\b') { if (n) p[n - 1] = 0; }
+        else if (n + 1 < size && ((ch >= '0' && ch <= '9') ||
+                                  (p == address && ch == '.'))) {
+            p[n] = ch; p[n + 1] = 0;
+        }
+    }
+    void label(int index, char* out, size_t size) const {
+        static const char* home[] = { "PLAY", "HOST GAME", "JOIN GAME", "OPTIONS", "CONTROLS", "QUIT" };
+        static const char* chars[] = { "MARIO", "LUIGI", "WARIO", "YOSHI" };
+        static const char* cameras[] = { "ANALOG", "FREE", "DS" };
+        static const char* movement_names[] = { "BUTTON", "ANALOG", "AUTO" };
+        out[0] = 0;
+        if (index < 0 || index >= rows()) return;
+        if (page == HOME) std::snprintf(out, size, "%s", home[index]);
+        else if (page == PLAY) {
+            if (index == 0) std::snprintf(out, size, "SAVE FILE    < %c >", 'A' + slot);
+            else std::snprintf(out, size, "%s", index == 1 ? "START GAME" : "BACK");
+        } else if (page == HOST || page == JOIN) {
+            int offset = page == JOIN ? 1 : 0;
+            if (page == JOIN && index == 0) std::snprintf(out, size, "ADDRESS    %s%s", address, editing && row == index ? "_" : "");
+            else if (index == offset) std::snprintf(out, size, "PORT       %s%s", port, editing && row == index ? "_" : "");
+            else if (index == offset + 1) std::snprintf(out, size, "CHARACTER  < %s >", chars[character]);
+            else std::snprintf(out, size, "%s", index == offset + 2 ? (page == HOST ? "START HOSTING" : "CONNECT") : "BACK");
+        } else if (page == OPTIONS) {
+            switch (index) {
+            case 0: std::snprintf(out, size, "CAMERA         < %s >", cameras[camera]); break;
+            case 1: std::snprintf(out, size, "MOVEMENT       < %s >", movement_names[movement]); break;
+            case 2: std::snprintf(out, size, "FRAME RATE     < %d >", fps); break;
+            case 3: std::snprintf(out, size, "SMOOTH MOTION  < %s >", smooth ? "ON" : "OFF"); break;
+            case 4: std::snprintf(out, size, "PLAYER NAMES   < %s >", names ? "ON" : "OFF"); break;
+            case 5: std::snprintf(out, size, "VOLUME         < %d >", volume); break;
+            case 6: std::snprintf(out, size, "SAVE AND BACK"); break;
+            }
+        } else if (page == EXIT_CONFIRM) std::snprintf(out, size, "%s", index == 0 ? "KEEP PLAYING" : "QUIT");
+        else std::snprintf(out, size, "BACK");
+    }
+    Action key(Key key) {
+        if (editing) {
+            if (key == BACK) {
+                char* p = field();
+                if (p) std::strcpy(p, edit_backup);
+            }
+            if (key == BACK || key == ACCEPT) editing = false;
+            return NONE;
+        }
+        if (key == BACK) { open(page == HOME ? EXIT_CONFIRM : HOME); return NONE; }
+        if (key == UP || key == DOWN) {
+            row = (row + rows() + (key == UP ? -1 : 1)) % rows(); return NONE;
+        }
+        const int delta = key == LEFT ? -1 : 1;
+        const bool change = key == LEFT || key == RIGHT || key == ACCEPT;
+        if (!change) return NONE;
+        if (page == HOME && key == ACCEPT) {
+            static const Page pages[] = { PLAY, HOST, JOIN, OPTIONS, CONTROLS, EXIT_CONFIRM };
+            open(pages[row]);
+        } else if (page == PLAY) {
+            if (row == 0) slot = (slot + 3 + delta) % 3;
+            else if (key == ACCEPT && row == 1) return START_SOLO;
+            else if (key == ACCEPT) open(HOME);
+        } else if (page == HOST || page == JOIN) {
+            const int offset = page == JOIN ? 1 : 0;
+            if (field() && key == ACCEPT) {
+                std::strcpy(edit_backup, field()); editing = true; field()[0] = 0;
+            }
+            else if (row == offset + 1) character = (character + 4 + delta) % 4;
+            else if (key == ACCEPT && row == offset + 2) {
+                if (!valid_port(port)) std::snprintf(message, sizeof message, "Use a port from 1024 to 65534.");
+                else if (page == JOIN && !valid_address(address)) std::snprintf(message, sizeof message, "Enter the host's IPv4 address.");
+                else return page == HOST ? START_HOST : START_JOIN;
+            } else if (key == ACCEPT && row == offset + 3) open(HOME);
+        } else if (page == OPTIONS) {
+            switch (row) {
+            case 0: camera = (camera + 3 + delta) % 3; break;
+            case 1: movement = (movement + 3 + delta) % 3; break;
+            case 2: fps = fps == 60 ? 30 : 60; break;
+            case 3: smooth = !smooth; break;
+            case 4: names = !names; break;
+            case 5: volume += delta * 10; if (volume < 0) volume = 0; if (volume > 100) volume = 100; break;
+            case 6: if (key == ACCEPT) return SAVE_OPTIONS;
+            }
+        } else if (page == EXIT_CONFIRM && key == ACCEPT) {
+            if (row == 1) return QUIT;
+            open(HOME);
+        } else if (page == CONTROLS && key == ACCEPT) open(HOME);
+        return NONE;
+    }
+};
+} // namespace coop_frontend

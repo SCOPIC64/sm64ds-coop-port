@@ -1,0 +1,28 @@
+name: Portable front-end checks (not game builds)
+on:
+  pull_request:
+    paths:
+      - 'port/hal/coop_*'
+      - 'port/tests/coop_*'
+      - 'port/tests/overlay_font.h'
+      - 'port/frontend/**'
+      - '.github/workflows/frontend-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frontend:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+        handheld: ['OFF', 'ON']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure portable menu and input tests
+        run: cmake -S port/frontend -B build/frontend -DHANDHELD=${{ matrix.handheld }}
+      - name: Build tests with warnings as errors
+        run: cmake --build build/frontend --config Debug
+      - name: Test navigation, validation, render bounds and multi-touch
+        run: ctest --test-dir build/frontend -C Debug --output-on-failure

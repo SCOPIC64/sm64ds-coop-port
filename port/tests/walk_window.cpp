@@ -412,6 +412,10 @@ static bool winapi_load(void)
 #include "hal/vs_width.h"   /* run vs16: the port's player width */
 #include "fault_probe.h"
 #include "overlay_font.h"
+#include "hal/coop_frontend_render.h"
+static coop_frontend::Menu g_coop_menu;
+static coop_frontend::Action g_coop_action = coop_frontend::NONE;
+static bool g_coop_active, g_coop_loading;
 #include "hal/host_settings.h"   /* settings.json, the launcher's file */
 #include "hal/perf_log.h"        /* run perf1: the player performance report */
 #include "hal/comms_seam.h"       /* run mg15 lane MP1: the radio seam */
@@ -8439,6 +8443,23 @@ static int g_user_sized;
 
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
+    if (g_coop_active && m == WM_CHAR) {
+        g_coop_menu.type(static_cast<char>(w));
+        return 0;
+    }
+    if ((g_coop_active || g_coop_loading) && m == WM_KEYDOWN) {
+        if (g_coop_active && !(l & (1 << 30))) {
+            int k = w == VK_UP ? coop_frontend::UP : w == VK_DOWN ? coop_frontend::DOWN :
+                w == VK_LEFT ? coop_frontend::LEFT : w == VK_RIGHT ? coop_frontend::RIGHT :
+                w == VK_RETURN ? coop_frontend::ACCEPT : w == VK_ESCAPE ? coop_frontend::BACK : -1;
+            if (k >= 0) {
+                coop_frontend::Action a = g_coop_menu.key(static_cast<coop_frontend::Key>(k));
+                if (a != coop_frontend::NONE) g_coop_action = a;
+            }
+        }
+        // F11/F12 remain available below; no game/debug input during the menu.
+        if (w != VK_F11 && w != VK_F12) return 0;
+    }
     /* the capture is dropped here as well as on the frame test, because a
        window being destroyed has no more frames to test on */
     if (m == WM_DESTROY) {
@@ -9639,6 +9660,8 @@ static int port_scene_want_window(void)
 static HWND g_entry_hwnd;
 static HDC  g_entry_hdc;
 
+#include "coop_frontend.inc"
+
 /* ---- ONE COPY OF THE SCENE PATH'S PER-FRAME HOST DUTIES ------------------
  * (run link100, lane STARSEL5.)
  *
@@ -9673,6 +9696,7 @@ static int scene_host_input_frame(HWND hwnd, int frame, XPad *pad,
         W.TranslateMessage_(&msg);
         W.DispatchMessageA_(&msg);
     }
+    if (g_coop_loading) return 0; // retail title receives only its carried save pick
     /* the focus edge, read once a frame BEFORE any key is. Coming back,
        every key starts stale; going away needs no work, because key_live
        is already returning released. */
@@ -9841,6 +9865,12 @@ static int scene_host_input_frame(HWND hwnd, int frame, XPad *pad,
 static void scene_host_present_frame(HWND hwnd, int stacked,
                                      ntr::Framebuffer &fb)
 {
+    if (g_coop_loading) {
+        coop_draw(fb, 0, "OPENING YOUR SAVE FILE");
+        present();
+        g_mouse_click_new = 0;
+        return;
+    }
     uint32_t *stack_img = stacked
             ? hal_sub_screen_stacked_image(&fb.px[0][0]) : 0;
     const OvlSurface surf =
@@ -9945,11 +9975,13 @@ static int scene_window_run(void)
        is hal/scene_boot.cpp's -- the ROM's own IsMinigameActorID -- asked here
        rather than invented here, and port_scene_begin's second ask is a no-op
        so the setter never reports a late write that is in fact correct. */
-    port_scene_layout_propose();
+    if (!g_coop_loading) port_scene_layout_propose();
     const int stacked = hal_sub_screen_stacked();
 
     HDC hdc = 0;
-    HWND hwnd = host_window_open(
+    HWND hwnd = g_entry_hwnd;
+    if (hwnd) hdc = g_entry_hdc;
+    else hwnd = host_window_open(
         stacked, &hdc,
         "SM64DS   |   stylus = left mouse drag   Space jump   X punch"
         "   Ctrl crouch   |   arrows / d-pad   Enter start"
@@ -10145,6 +10177,7 @@ static int scene_window_run(void)
        title's own slot hits, captures and trap counts behind. Answers 0 and
        prints nothing unless the bridge is armed AND the handoff completed. */
     port_title_entry_commit();
+    g_coop_loading = false;
     return scene_rc;
 }
 
@@ -10400,6 +10433,18 @@ extern "C" void port_frame_ctrl_publish(void)
 
 int main(void)
 {
+    // Double-clicking the game is sufficient; no batch file supplies its root.
+    // Preserve explicit roots used by tests and developer launches.
+    if (!getenv("SM64DS_ASSET_ROOT")) {
+        char exe[MAX_PATH];
+        DWORD count = GetModuleFileNameA(0, exe, sizeof exe);
+        if (!count || count >= sizeof exe) return 2;
+        char* slash = strrchr(exe, '\\');
+        if (!slash) return 2;
+        *slash = 0;
+        _putenv_s("SM64DS_ASSET_ROOT", exe);
+        if (!SetCurrentDirectoryA(exe)) return 2;
+    }
     pt_arm();   /* run perf2: SM64DS_PERF_TRACE, inert unset */
     /* THE ASPECT IS CHOSEN HERE, ONCE, BEFORE ANYTHING TOUCHES THE FRAMEBUFFER.
        host_setting_aspect() reads the Aspect key from settings.json (or
@@ -10670,6 +10715,10 @@ int main(void)
        block that a fatal loss prints goes in the log here too. */
     if (ntr::io_reserve_lost_mask()) fputs(ntr::io_reserve_detail(), stderr);
     if (!winapi_load()) { fprintf(stderr, "winapi_load failed\n"); return 2; }
+    {
+        const int menu_result = coop_frontend_run();
+        if (menu_result <= 0) return menu_result == 0 ? 0 : 2;
+    }
     /* run mg16 lane MP2: the loopback carrier, if and only if SM64DS_COMMS_ROLE
        names a role. With the env unset this installs nothing and returns false,
        the seam keeps its own solo answers, and every path below is the one that
@@ -11778,7 +11827,7 @@ int main(void)
        rather than leaving the title's window standing and opening a second one
        beside it. Only a windowed title run can satisfy both tests; a headless
        one recorded no handle and takes the ordinary open below. */
-    if (port_title_entry_taken() && g_entry_hwnd) {
+    if (g_entry_hwnd) {
         hwnd = g_entry_hwnd;
         hdc = g_entry_hdc;
         fprintf(stderr, "[title-entry] reusing the title's own window for the "

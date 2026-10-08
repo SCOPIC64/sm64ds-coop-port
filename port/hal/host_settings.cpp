@@ -2537,6 +2537,26 @@ extern "C" int host_setting_save_camera_mode(int mode)
     return save_keys(keys, vals, 1, "camera mode");
 }
 
+extern "C" int host_setting_save_frontend(int camera, int movement, int fps,
+                                          int smooth, int names, int volume)
+{
+    if (camera < 0 || camera > 2 || movement < 0 || movement > 2 ||
+        (fps != 30 && fps != 60) || volume < 0 || volume > 100) return 0;
+    load_once();
+    char camera_value[24], movement_value[24], fps_value[8], volume_value[8];
+    snprintf(camera_value, sizeof camera_value, "\"%s\"", CAMERA_MODE_KEY[camera]);
+    snprintf(movement_value, sizeof movement_value, "\"%s\"", RUN_MODE_KEY[movement]);
+    snprintf(fps_value, sizeof fps_value, "%d", fps);
+    snprintf(volume_value, sizeof volume_value, "%d", volume);
+    const char* keys[] = { "CameraMode", "RunMode", "FrameRate", "SmoothMotion", "NameTags", "Volume" };
+    const char* vals[] = { camera_value, movement_value, fps_value, smooth ? "true" : "false",
+        names ? "true" : "false", volume_value };
+    if (!save_keys(keys, vals, 6, "front-end options")) return 0;
+    g_camera_mode = camera; g_run_mode = movement; g_frame_rate = fps;
+    g_smooth_motion = !!smooth; g_name_tags = !!names; g_volume = volume;
+    return 1;
+}
+
 /* ---- PadLayouts -----------------------------------------------------------
    See the header. The table is what load_once parsed plus whatever the learn
    flow saved this run. */
