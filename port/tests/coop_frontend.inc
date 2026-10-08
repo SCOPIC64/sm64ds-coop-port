@@ -59,7 +59,7 @@ static int coop_frontend_run()
     if (!coop_frontend_wanted()) return 1;
     g_coop_menu.camera = host_setting_camera_mode();
     g_coop_menu.movement = host_setting_run_mode();
-    g_coop_menu.fps = host_setting_frame_rate() == 30 ? 30 : 60;
+    g_coop_menu.fps = host_setting_frame_rate();
     g_coop_menu.smooth = host_setting_smooth_motion() != 0;
     g_coop_menu.names = host_setting_name_tags() != 0;
     int volume = host_setting_volume();

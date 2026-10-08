@@ -46,6 +46,12 @@ the game or establish multiplayer or device compatibility. The separate CI
 matrix checks this component on Windows, Linux and macOS, with `HANDHELD` both
 off and on. It publishes no game binaries.
 
+Windows/MSVC also tests the actual options writer in separate processes: native
+timing and 144 Hz survive a restart, boolean options keep their values, unrelated
+settings survive, and a locked-file save leaves the cached settings intact.
+The frame-rate menu uses the engine's native-timing sentinel (0), or presentation
+rates from 60 to 240 Hz; it does not change the game clock.
+
 ## SteamOS
 
 CoopDX's build workflow builds Linux normally and SteamOS from the same code with

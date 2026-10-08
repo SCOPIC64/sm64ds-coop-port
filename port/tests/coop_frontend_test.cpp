@@ -31,7 +31,17 @@ int main(int argc, char** argv) {
     m.row = 0; m.key(ACCEPT);
     for (char ch : "127.0.0.1") m.type(ch);
     m.type('x'); m.key(ACCEPT); m.row = 3; assert(m.key(ACCEPT) == START_JOIN);
-    m.open(OPTIONS); m.row = 5;
+    m.open(OPTIONS); m.row = 2;
+    assert(m.fps == 0);
+    char rate_label[80]; m.label(2, rate_label, sizeof rate_label);
+    assert(std::strstr(rate_label, "NATIVE"));
+    m.key(LEFT); assert(m.fps == 240);
+    m.key(RIGHT); assert(m.fps == 0);
+    for (int rate : { 60, 90, 120, 144, 240, 0 }) {
+        m.key(RIGHT); assert(m.fps == rate);
+    }
+    m.fps = 165; m.key(RIGHT); assert(m.fps == 240);
+    m.row = 5;
     for (int i = 0; i < 20; ++i) m.key(LEFT);
     assert(m.volume == 0);
     for (int i = 0; i < 20; ++i) m.key(RIGHT);

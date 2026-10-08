@@ -2541,7 +2541,7 @@ extern "C" int host_setting_save_frontend(int camera, int movement, int fps,
                                           int smooth, int names, int volume)
 {
     if (camera < 0 || camera > 2 || movement < 0 || movement > 2 ||
-        (fps != 30 && fps != 60) || volume < 0 || volume > 100) return 0;
+        (fps != 0 && (fps < 60 || fps > 240)) || volume < 0 || volume > 100) return 0;
     load_once();
     char camera_value[24], movement_value[24], fps_value[8], volume_value[8];
     snprintf(camera_value, sizeof camera_value, "\"%s\"", CAMERA_MODE_KEY[camera]);

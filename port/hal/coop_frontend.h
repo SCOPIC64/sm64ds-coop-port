@@ -41,7 +41,7 @@ inline bool valid_port(const char* text) {
 struct Menu {
     Page page = HOME;
     int row = 0, slot = 0, character = 0;
-    int camera = 0, movement = 1, fps = 60, volume = 80;
+    int camera = 0, movement = 1, fps = 0, volume = 80;
     bool smooth = true, names = true, editing = false;
     char address[16] = "192.168.1.2", port[6] = "51765";
     char edit_backup[16] = "";
@@ -109,7 +109,10 @@ struct Menu {
             switch (index) {
             case 0: std::snprintf(out, size, "CAMERA         < %s >", cameras[camera]); break;
             case 1: std::snprintf(out, size, "MOVEMENT       < %s >", movement_names[movement]); break;
-            case 2: std::snprintf(out, size, "FRAME RATE     < %d >", fps); break;
+            case 2:
+                if (fps == 0) std::snprintf(out, size, "FRAME RATE     < NATIVE >");
+                else std::snprintf(out, size, "FRAME RATE     < %d >", fps);
+                break;
             case 3: std::snprintf(out, size, "SMOOTH MOTION  < %s >", smooth ? "ON" : "OFF"); break;
             case 4: std::snprintf(out, size, "PLAYER NAMES   < %s >", names ? "ON" : "OFF"); break;
             case 5: std::snprintf(out, size, "VOLUME         < %d >", volume); break;
@@ -156,7 +159,13 @@ struct Menu {
             switch (row) {
             case 0: camera = (camera + 3 + delta) % 3; break;
             case 1: movement = (movement + 3 + delta) % 3; break;
-            case 2: fps = fps == 60 ? 30 : 60; break;
+            case 2: {
+                const int rates[] = { 0, 60, 90, 120, 144, 240 };
+                int index = 0;
+                for (int i = 0; i < 6; ++i) if (fps >= rates[i]) index = i;
+                fps = rates[(index + delta + 6) % 6];
+                break;
+            }
             case 3: smooth = !smooth; break;
             case 4: names = !names; break;
             case 5: volume += delta * 10; if (volume < 0) volume = 0; if (volume > 100) volume = 100; break;
