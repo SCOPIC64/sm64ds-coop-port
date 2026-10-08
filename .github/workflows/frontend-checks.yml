@@ -6,6 +6,8 @@ on:
       - 'port/tests/coop_*'
       - 'port/tests/overlay_font.h'
       - 'port/frontend/**'
+      - 'port/tests/walk_window.cpp'
+      - 'port/hal/host_settings.*'
       - '.github/workflows/frontend-checks.yml'
   workflow_dispatch:
 permissions:
@@ -26,3 +28,20 @@ jobs:
         run: cmake --build build/frontend --config Debug
       - name: Test navigation, validation, render bounds and multi-touch
         run: ctest --test-dir build/frontend -C Debug --output-on-failure
+  windows-integration:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Compile the actual changed host files, without cartridge generators or
+      # linking a game. This catches Windows API/type/ordering regressions that
+      # the portable model tests cannot see. It does not verify game runtime.
+      - name: Compile Windows host integration with the 32-bit engine ABI
+        shell: cmd
+        run: |
+          set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+          for /f "usebackq delims=" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSINSTALL=%%I"
+          if not defined VSINSTALL exit /b 1
+          call "%VSINSTALL%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
+          mkdir build\frontend-host
+          cl /nologo /c /std:c++14 /EHsc /vmg /vmm /Oy- /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /DNTR_WIDE_RT /DPORT_ROM_CLEAN /Iport /Iport\ntr\include /Iinclude port\tests\walk_window.cpp /Fobuild\frontend-host\walk_window.obj || exit /b 1
+          cl /nologo /c /std:c++14 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\host_settings.cpp /Fobuild\frontend-host\host_settings.obj || exit /b 1

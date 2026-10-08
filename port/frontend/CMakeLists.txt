@@ -10,6 +10,9 @@ if(HANDHELD)
     target_compile_definitions(coop_frontend_test PRIVATE SM64DS_HANDHELD=1)
 endif()
 if(MSVC)
+    # Standard C APIs keep this component portable. All copies are bounded by
+    # the model's fixed field capacities; MSVC's *_s APIs are not portable.
+    target_compile_definitions(coop_frontend_test PRIVATE _CRT_SECURE_NO_WARNINGS)
     target_compile_options(coop_frontend_test PRIVATE /W4 /WX /UNDEBUG)
 else()
     target_compile_options(coop_frontend_test PRIVATE -Wall -Wextra -Werror -UNDEBUG)
