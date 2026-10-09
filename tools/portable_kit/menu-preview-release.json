@@ -1,8 +1,8 @@
 {
-  "exe_sha256": "7087e9c8753aad5242b5d9a203fc58263e652d9262b13843f93d99922362174b",
-  "artifact_sha256": "454325e5138cd9cc2399847644bc1361f1490d6aa88e9a13dff9817c4bba5dc3",
-  "artifact_bytes": 3439153,
-  "exe_bytes": 9937920,
+  "exe_sha256": "9690edcb309ab9ea0eb5b7f5420d89add1d8ff2d3c72aac682f7183a9f5f56c9",
+  "artifact_sha256": "2c7337f7a0c921f73726705499a777132cec21ecc6da8a5232fa4f0e012ad338",
+  "artifact_bytes": 3444575,
+  "exe_bytes": 9943040,
   "archive_files": [
     "sm64ds coop.exe",
     "README.txt",
@@ -15,71 +15,76 @@
       {
         "test": "audio",
         "exit": 0,
-        "seconds": 0.25
+        "seconds": 0.24
       },
       {
         "test": "custom-media",
         "exit": 0,
-        "seconds": 0.17
+        "seconds": 0.09
       },
       {
         "test": "backdrop-1",
         "exit": 0,
-        "seconds": 3.58
+        "seconds": 3.61
       },
       {
         "test": "backdrop-2",
         "exit": 0,
-        "seconds": 3.73
+        "seconds": 3.58
       },
       {
         "test": "backdrop-3",
         "exit": 0,
-        "seconds": 3.66
+        "seconds": 3.59
       },
       {
         "test": "backdrop-4",
         "exit": 0,
-        "seconds": 3.67
+        "seconds": 3.56
       },
       {
         "test": "backdrop-5",
         "exit": 0,
-        "seconds": 3.66
+        "seconds": 3.61
       },
       {
         "test": "backdrop-6",
         "exit": 0,
-        "seconds": 3.73
+        "seconds": 3.69
       },
       {
         "test": "backdrop-7",
         "exit": 0,
-        "seconds": 3.77
+        "seconds": 3.55
       },
       {
         "test": "backdrop-8",
         "exit": 0,
-        "seconds": 3.75
+        "seconds": 3.67
       },
       {
         "test": "scenery-tour",
         "exit": 0,
-        "seconds": 8.17
+        "seconds": 8.38
+      },
+      {
+        "test": "staff-roll",
+        "exit": 0,
+        "seconds": 48.42
       },
       {
         "test": "game",
         "exit": 0,
-        "seconds": 1.45
+        "seconds": 1.53
       }
     ]
   },
-  "tag": "v0.5.5-menu-preview.1",
-  "title": "SM64DS Co-op 0.5.5 menu preview — Windows",
-  "source_commit": "ad73b136a19cdce20433be1c19a1c26637ca9893",
-  "artifact_blob": "ba7cf2088fd791a91c1626cf5a7dcd197e00c384",
+  "tag": "v0.5.5-menu-preview.2",
+  "title": "SM64DS Co-op menu preview.2 — Staff Roll background fix",
+  "source_commit": "8f4a1c6e727f7fe682933df565f0eb8bade74cc8",
   "platforms": [
     "windows-x86"
   ],
-  "notes": "Windows preview with the integrated retro co-op menu, three adventure-save cards, readable menu text and expanded backgrounds.\n\n- Sound: 33 built-in DS themes, menu effects, MP3/FLAC/WAV custom music, individual-song playback, Shuffle Custom and Shuffle All.\n- Display: eight built-in choices including a Staff Roll scenery tour; PNG/JPEG/BMP custom backgrounds.\n- Custom media imports validate files, preserve existing files and store selections by filename. Unicode music filenames work on Windows.\n- One program EXE, no BAT launcher or separate decoder DLL. The ZIP is about 3.4 MB; the executable is about 9.5 MiB. Game assets and custom media remain external.\n\nValidation: native 32-bit build and engine memory/symbol guards; settings restart tests; all 33 songs and three effects produced audio; all supported custom formats and Unicode filenames passed; all twelve menu pages captured over eight backgrounds; scenery tour transition and 120-frame gameplay check passed. Portable menu/media CI passed on Windows, Linux and macOS with both desktop and handheld profiles.\n\nThis is a Windows prerelease. Native Linux/SteamOS, macOS, Android and iOS game binaries are not available: the engine still requires platform and ABI work. Portable CI is not a full game-port test. Online co-op, fresh-folder import and adventure save-loading still require additional runtime verification. Existing repository-wide dead-reference and asset-dependent port-build CI failures remain documented in PR #5. This preview is not a guarantee of a bug-free game.\n\nUse your own supported .nds or existing extracted data. No ROMs, Nintendo assets/audio or player saves are included.\n\n[Source changes and platform status](https://github.com/SCOPIC64/sm64ds-coop-port/pull/5)\n"
+  "artifact_blob": "d9adbfa8315856b590c0039afa028e07bd3d943d",
+  "notes": "Staff Roll now loops seven moving camera views through the DS courses, with half-second scene fades, no player or HUD, and your selected menu music continuing independently. Switching between Staff Roll and Bob-omb Battlefield correctly resets the background renderer even though both begin in the same course.\n\nThis follows CoopDX's menu credits behavior using original port camera paths through DS scenery; it does not run the retail DS ending script.\n\n**Windows x86 preview:** open `sm64ds coop.exe` directly. Choose **Options > Display > Background > Staff Roll**. Replace only the executable in an existing installation and retain your assets, settings, saves and custom-media folders. No BAT launcher or media decoder DLL is required. The ZIP contains only the executable, README and license notices; supply your own supported game data.\n\nValidation on source `8f4a1c6e727f7fe682933df565f0eb8bade74cc8`: full native build and DS-state/face-cycle/ARM9-global guards passed; 13 isolated runtime checks passed, including all seven moving cameras and the loop wrap, same-course switches, all eight backgrounds, all menu pages, DS music/SFX, custom media and a 120-frame gameplay check. Early/middle/late camera captures were inspected. All seven portable component/Windows-host jobs passed: https://github.com/SCOPIC64/sm64ds-coop-port/actions/runs/37964645377\n\nNative Linux/SteamOS, macOS, Android and iOS game releases remain unavailable. Desktop portable component tests do not verify full games on those platforms. This remains a prerelease: fresh-folder import, adventure save loading, two-client co-op and return-to-menu need further runtime testing. Existing unrelated repository dead-reference and missing-private-assets/unsupported-parser CI failures remain documented in PR #5.\n\nEXE SHA-256: `9690edcb309ab9ea0eb5b7f5420d89add1d8ff2d3c72aac682f7183a9f5f56c9`\nZIP SHA-256: `2c7337f7a0c921f73726705499a777132cec21ecc6da8a5232fa4f0e012ad338`\nSource contribution: https://github.com/SCOPIC64/sm64ds-coop-port/pull/5\n"
 }
