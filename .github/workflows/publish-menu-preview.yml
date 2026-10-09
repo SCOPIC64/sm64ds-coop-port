@@ -1,5 +1,8 @@
 name: Publish verified Windows menu preview
 on:
+  pull_request:
+    types: [synchronize]
+    paths: ['tools/portable_kit/menu-preview-release.json', '.github/workflows/publish-menu-preview.yml']
   push:
     branches: ['codex/coop-menu-single-exe']
     paths: ['tools/portable_kit/menu-preview-release.json']
@@ -10,7 +13,12 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
-    if: github.repository == 'SCOPIC64/sm64ds-coop-port'
+    if: >-
+      github.repository == 'SCOPIC64/sm64ds-coop-port' &&
+      (github.event_name == 'push' ||
+      (github.event.pull_request.number == 5 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'codex/coop-menu-single-exe'))
     runs-on: ubuntu-22.04
     env:
       GH_TOKEN: ${{ github.token }}

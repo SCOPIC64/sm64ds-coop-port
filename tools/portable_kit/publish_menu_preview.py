@@ -17,7 +17,13 @@ def api(path):
 def main():
     repo = os.environ['GH_REPO']
     assert repo == 'SCOPIC64/sm64ds-coop-port'
-    assert os.environ.get('GITHUB_REF') == 'refs/heads/codex/coop-menu-single-exe'
+    if os.environ.get('GITHUB_EVENT_NAME') == 'pull_request':
+        event=json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
+        pr=event['pull_request']
+        assert event['number']==5 and pr['head']['repo']['full_name']==repo
+        assert pr['head']['ref']=='codex/coop-menu-single-exe'
+    else:
+        assert os.environ.get('GITHUB_REF') == 'refs/heads/codex/coop-menu-single-exe'
     manifest = json.loads(Path('tools/portable_kit/menu-preview-release.json').read_text())
     tag, source = manifest['tag'], manifest['source_commit']
     assert re.fullmatch(r'v[0-9.]+-menu-preview\.[0-9]+', tag)
