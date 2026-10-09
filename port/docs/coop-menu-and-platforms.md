@@ -6,19 +6,42 @@ decomp sources, manifests, or runtime tables with the 0.5.4 release.
 
 ## Windows integration
 
-Ordinary launches open a CoopDX-inspired menu inside the existing game process
-and window. The main panel provides Host, Join, Options and Quit; Host also
-opens Single Player to select save A/B/C. Options groups the supported settings
-under Player, Camera, Controls, Display, Sound and Misc. The existing retail save-loading routines
-run behind a loading screen; their memory layout and cartridge data remain
-unchanged. Host/Join use the same LAN transport and separate co-op saves as the
-0.5.4 preview's batch launchers. Options save through the existing settings
-writer and preserve unrelated keys, including mouse capture. Back from a settings
-category saves and returns to Options; Back from Options saves and returns home.
-The panel layout, light buttons, blue selection border and multicolored wordmark
-follow CoopDX's menu organization. Its current gradient backdrop is temporary;
-it does not yet display a live castle scene or import CoopDX assets. Keyboard, mouse, and gamepad navigate the
-front end. F5 retains the development menu during gameplay.
+Ordinary launches open the menu inside the existing game process and window.
+Retro shadowed text, a hand cursor and translucent panels follow the requested
+SM64Plus presentation; Host, Join, Options and Quit retain the CoopDX arrangement.
+Options groups supported settings under Player, Camera, Controls, Display,
+Sound and Misc. Keyboard, mouse and gamepad share the same navigation model.
+F5 retains the development menu during gameplay.
+
+Host displays three real save cards with star counts, new-game status and
+damaged-save warnings. Both primary and mirrored EEPROM records are checked;
+this preview never edits or repairs the save. The fourth EEPROM record belongs
+to minigames, so it is not exposed as another adventure slot. The chosen file
+is passed to the game's existing title/save-loading routines for solo and host.
+Joining keeps its separate co-op save. Multiplayer save loading remains a
+runtime verification item before release.
+
+Sound offers Random, Off, or an individual full-length theme from the player's
+DS sound archive, including Bob-omb Battlefield and Staff Roll. Boss fights,
+short stingers and temporary power-up cues are excluded. Random selects on
+startup and after a non-looping track finishes; Next Random Song changes it
+immediately. Cursor, confirm and cancel effects are separately switchable.
+Music and effects use the existing native ARM7 sequencer and mixer; no new
+audio files are downloaded or packaged. Sound is reset before handing off to
+the game's ARM9 audio initialization.
+
+Display offers Bob-omb Battlefield, Castle Grounds and Staff Roll Tour. A
+hidden child of the same executable renders the actual DS scenery into shared
+memory, with audio, input and networking disabled and an isolated temporary
+save. A kill-on-close job ties its lifetime to the menu. Tour alternates castle
+and battlefield views every 30 seconds; it is not the cartridge's credits
+sequence. The renderer is throttled to approximately 30 frames per second.
+A gradient keeps the menu usable while the scene loads or assets are missing.
+
+Back from a settings category saves and returns to Options; Back from Options
+saves and returns home. The atomic writer preserves unrelated settings and
+keeps cached values intact after a failed write. Music, background and menu
+effects also persist across a restart.
 
 The executable discovers its asset root beside itself when no explicit root was
 provided. Developer scene/level requests and selftests bypass the front end;
@@ -52,6 +75,12 @@ default without a ROM. It writes `coop-menu-00.bmp` through `coop-menu-11.bmp`
 beside the executable and returns nonzero if a screenshot could not be written.
 Inspect these captures; this check does not enter gameplay or import assets.
 
+With private game assets available, `SM64DS_MENU_AUDIO_SELFTEST=1` checks
+non-silent output for every selectable theme and each of the three effects.
+`SM64DS_MENU_SELFTEST=1` plus `SM64DS_MENU_BACKDROP_SELFTEST=1`, `2` or `3`
+waits for ninety rendered scene frames before capturing all menu pages. Always
+use an isolated runtime folder and explicit fixture save path for these checks.
+
 These tests cover menu routes, malformed addresses/ports, save selection, option
 bounds, render clipping at several aspect ratios, simultaneous touches, shared
 button ownership, slide-off release, cancellation and rotation. They do not boot
@@ -61,7 +90,9 @@ off and on. It publishes no game binaries.
 
 Windows/MSVC also tests the actual options writer in separate processes: native
 timing and 144 Hz survive a restart, boolean options keep their values, unrelated
-settings survive, and a locked-file save leaves the cached settings intact.
+settings survive, music/background/effects persist, and a locked-file save
+leaves the cached settings intact. Save-preview tests use a golden EEPROM
+record and cover mirror fallback, corrupted checksums and invalid file sizes.
 The frame-rate menu uses the engine's native-timing sentinel (0), or presentation
 rates from 60 to 240 Hz; it does not change the game clock.
 
@@ -75,11 +106,11 @@ This front end follows that build-profile distinction. It is not a second OS
 implementation. Full native Linux/SteamOS releases are not available from this
 change; the engine platform layer still needs porting.
 
-## Remaining engine work — no non-Windows game releases yet
+## Remaining engine work â€” no non-Windows game releases yet
 
 | Platform | UI/input foundation | Full engine blocker |
 | --- | --- | --- |
-| Windows x86 | Integrated into existing host; runtime verification required | Complete MSVC build, clean-folder extraction, three save slots, two-client co-op and return-to-menu testing |
+| Windows x86 | Integrated and locally boot tested | Fresh-folder import, adventure save-loading runtime, two-client co-op and return-to-menu testing |
 | Linux / SteamOS | Portable model/render/input tests; handheld profile | Replace Win32 window, input, audio, sockets, virtual-memory and process APIs; reproduce and verify the engine ABI |
 | macOS | Portable component tests | Platform APIs plus 64-bit pointer/layout and calling-convention work for Intel and Apple Silicon |
 | Android | Multi-touch control state with stable finger IDs | Native host, ARM ABI, asset import/storage, rendering/audio/networking, lifecycle and physical-device tests |

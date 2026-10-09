@@ -19,11 +19,11 @@ int main(int argc, char** argv) {
     Menu m;
     m.key(UP); assert(m.row == 3); m.key(DOWN); assert(m.row == 0);
     m.key(ACCEPT); assert(m.page == HOST);
-    m.row = 3; m.key(ACCEPT); assert(m.page == PLAY);
+    m.row = 6; m.key(ACCEPT); assert(m.page == PLAY);
     m.key(LEFT); assert(m.slot == 2);
     m.key(DOWN); assert(m.key(ACCEPT) == START_SOLO);
     m.key(BACK); assert(m.page == HOST);
-    m.row = 2; assert(m.key(ACCEPT) == START_HOST);
+    m.row = 5; assert(m.key(ACCEPT) == START_HOST);
     m.open(JOIN); m.row = 3; assert(m.key(ACCEPT) == START_JOIN);
     m.row = 0; m.key(ACCEPT); m.type('5'); m.key(BACK);
     assert(std::strcmp(m.address, "192.168.1.2") == 0);
@@ -47,7 +47,44 @@ int main(int argc, char** argv) {
     assert(m.volume == 0);
     for (int i = 0; i < 20; ++i) m.key(RIGHT);
     assert(m.volume == 100);
-    m.row = 1; assert(m.key(ACCEPT) == SAVE_OPTIONS); assert(m.after_save == OPTIONS);
+    m.row = 1; m.key(LEFT); assert(m.music == MUSIC_OFF);
+    m.key(RIGHT); assert(m.music == MUSIC_RANDOM);
+    for (int i = 0; i < SONG_COUNT; ++i) { m.key(RIGHT); assert(m.music == i); }
+    m.key(RIGHT); assert(m.music == MUSIC_OFF);
+    m.row = 2; m.key(ACCEPT); assert(!m.menu_sounds);
+    m.row = 3; assert(m.key(ACCEPT) == NEXT_SONG);
+    m.row = 4; assert(m.key(ACCEPT) == SAVE_OPTIONS); assert(m.after_save == OPTIONS);
+    unsigned seed = 7; int previous = -1;
+    for (int i = 0; i < 1000; ++i) {
+        int next = random_song(seed, previous);
+        assert(next >= 0 && next < SONG_COUNT && next != previous); previous = next;
+    }
+    for (const Song& song : songs) assert(song.sequence != 44 && song.sequence != 45 && song.sequence != 66 && song.sequence != 67);
+    unsigned char chip[8192]; std::memset(chip,255,sizeof chip);
+    assert(!preview_save(chip,sizeof chip,0).exists && !preview_save(chip,sizeof chip,0).damaged);
+    unsigned char payload[68] = {}; std::memcpy(payload,"8000",4);
+    payload[0x14]=11; payload[0x15]=3; payload[0x41]=1;
+    // Golden cartridge record: five stars and Luigi, checksum independently
+    // computed from the native format (including the "ds mario" tag).
+    assert(save_checksum(payload)==0x71a1);
+    for (int copy=0;copy<2;++copy) {
+        unsigned char* record=chip+copy*4096+128;
+        record[0]=0xa1; record[1]=0x71;
+        std::memcpy(record+2,"ds mario",8); std::memcpy(record+10,payload,68);
+    }
+    SavePreview saved=preview_save(chip,sizeof chip,1);
+    assert(saved.exists && saved.stars==5 && saved.character==1 && !saved.damaged);
+    chip[128]^=1; saved=preview_save(chip,sizeof chip,1);
+    assert(saved.exists && saved.stars==5); // good mirror survives bad primary
+    chip[4096+128]^=1; saved=preview_save(chip,sizeof chip,1);
+    assert(!saved.exists && saved.damaged);
+    assert(preview_save(chip,sizeof chip-1,1).damaged);
+    assert(!preview_save(chip,sizeof chip,3).exists);
+    m.open(HOST); m.row = 2; m.key(ACCEPT); assert(m.slot == 2 && m.page == HOST);
+    m.saves[2].damaged = true; m.row = 5; assert(m.key(ACCEPT) == NONE && m.message[0]);
+    m.saves[2].damaged = false;
+    m.open(DISPLAY); m.row = 2; m.key(LEFT); assert(m.background == 2);
+    m.key(RIGHT); assert(m.background == 0);
     m.open(MISC); m.key(ACCEPT); assert(m.mouse_capture);
     assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
     const Page categories[] = { PLAYER, CAMERA, CONTROLS, DISPLAY, SOUND, MISC };
@@ -92,8 +129,8 @@ int main(int argc, char** argv) {
         for (int page = HOME; page <= EXIT_CONFIRM; ++page) {
             m.open(static_cast<Page>(page)); draw(c, m, 100);
             for (int row = 0; row < m.rows(); ++row) {
-                assert(hit_row(c, m, button_left(c, m) + button_width(c, m) / 2,
-                               row_top(c, m) + row * row_height(c) + 1) == row);
+                ButtonRect r = button_rect(c,m,row);
+                assert(hit_row(c, m, r.x + r.w / 2, r.y + r.h / 2) == row);
             }
             assert(hit_row(c, m, -1, row_top(c, m)) == -1);
             assert(hit_row(c, m, button_left(c, m), row_top(c, m) - 1) == -1);

@@ -47,6 +47,12 @@ int host_setting_save_camera_mode(int mode);
 /* Save the front-end choices together, preserving unrelated settings. */
 int host_setting_save_frontend(int camera, int movement, int fps,
                               int smooth, int names, int volume, int mouse_capture);
+int host_setting_menu_music(void);
+int host_setting_menu_background(void);
+int host_setting_menu_sounds(void);
+int host_setting_save_frontend_media(int camera, int movement, int fps,
+                                    int smooth, int names, int volume, int mouse_capture,
+                                    int music, int background, int menu_sounds);
 
 /* ---- THE CONTROL BINDINGS, ONE KEY PER ACTION ----------------------------
    Why they are here at all: the F5 debug menu could rebind exactly one thing

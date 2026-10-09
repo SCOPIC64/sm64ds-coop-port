@@ -17,12 +17,17 @@ static void expect_saved(bool native)
     assert(host_setting_name_tags() == (native ? 0 : 1));
     assert(host_setting_volume() == 35);
     assert(host_setting_mouse_capture() == (native ? 1 : 0));
+    assert(host_setting_menu_music() == (native ? -1 : 1));
+    assert(host_setting_menu_background() == (native ? 0 : 2));
+    assert(host_setting_menu_sounds() == (native ? 1 : 0));
 }
 
 int main(int argc, char** argv)
 {
     _set_error_mode(_OUT_TO_STDERR);
+#ifdef _MSC_VER
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
     assert(argc == 3);
     const bool native = !std::strcmp(argv[2], "native");
     assert(native || !std::strcmp(argv[2], "144"));
@@ -34,14 +39,17 @@ int main(int argc, char** argv)
         std::fputs("{\"Keep\":\"another menu's setting\",\"VoiceChatVolume\":63,"
                    "\"CameraMode\":\"ds\",\"SmoothMotion\":false,\"NameTags\":true}", file);
         assert(std::fclose(file) == 0);
-        assert(host_setting_save_frontend(1, 2, native ? 0 : 144,
-                                         native ? 1 : 0, native ? 0 : 1, 35, native ? 1 : 0));
+        assert(host_setting_save_frontend_media(1, 2, native ? 0 : 144,
+            native ? 1 : 0, native ? 0 : 1, 35, native ? 1 : 0,
+            native ? -1 : 1, native ? 0 : 2, native ? 1 : 0));
         expect_saved(native);
         assert(!host_setting_save_frontend(-1, 2, 60, 1, 0, 35, 0));
         assert(!host_setting_save_frontend(1, 3, 60, 1, 0, 35, 0));
         assert(!host_setting_save_frontend(1, 2, 30, 1, 0, 35, 0));
         assert(!host_setting_save_frontend(1, 2, 241, 1, 0, 35, 0));
         assert(!host_setting_save_frontend(1, 2, 60, 1, 0, 101, 0));
+        assert(!host_setting_save_frontend_media(1,2,60,1,0,35,0,999,0,1));
+        assert(!host_setting_save_frontend_media(1,2,60,1,0,35,0,-1,3,1));
         expect_saved(native);
         HANDLE locked = CreateFileA("settings.json", GENERIC_READ, FILE_SHARE_READ,
             nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);

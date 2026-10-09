@@ -11,6 +11,7 @@
    hand and a half-saved one must not stop the game from starting. */
 
 #include "hal/host_settings.h"
+#include "hal/coop_menu_music.h"
 
 /* run mg16 lane MP2: the instance suffix on the sibling temp file. */
 #include "instance_tag.h"
@@ -730,6 +731,7 @@ int g_net_mode = 1;   /* NetMode: 0 lockstep, 1 rollback (port/rollback); rollba
    tests/walk_window.cpp, because whether a pointer may be taken is a question
    about the window and not about this file. */
 int g_mouse_capture;
+int g_menu_music = -1, g_menu_background = 0, g_menu_sounds = 1;
 
 /* NameTags: 1 when the VS name-and-star tag over a remote player's head is
    drawn. Default 1, and unlike the Mods keys the default is ON -- see the
@@ -1650,6 +1652,11 @@ void load_once(void)
            reason they are: a settings.json written before this key existed
            reads exactly as one that turned it off, which is the old program */
         g_mouse_capture = json_bool(text, "MouseCapture", 0);
+        int music = json_int(text, "MenuMusic", -1);
+        g_menu_music = coop_frontend::music_valid(music) ? music : -1;
+        int background = json_int(text, "MenuBackground", 0);
+        g_menu_background = background >= 0 && background <= 2 ? background : 0;
+        g_menu_sounds = json_bool(text, "MenuSounds", 1);
         /* the learned controller maps; absent is none, like every key */
         padlayouts_parse(text);
         /* lane VOICE: the same reader the live re-read uses, so the boot
@@ -2537,24 +2544,42 @@ extern "C" int host_setting_save_camera_mode(int mode)
     return save_keys(keys, vals, 1, "camera mode");
 }
 
+extern "C" int host_setting_menu_music(void) { load_once(); return g_menu_music; }
+extern "C" int host_setting_menu_background(void) { load_once(); return g_menu_background; }
+extern "C" int host_setting_menu_sounds(void) { load_once(); return g_menu_sounds; }
 extern "C" int host_setting_save_frontend(int camera, int movement, int fps,
                                           int smooth, int names, int volume, int mouse_capture)
 {
+    load_once();
+    return host_setting_save_frontend_media(camera, movement, fps, smooth, names,
+        volume, mouse_capture, g_menu_music, g_menu_background, g_menu_sounds);
+}
+extern "C" int host_setting_save_frontend_media(int camera, int movement, int fps,
+                                          int smooth, int names, int volume, int mouse_capture,
+                                          int music, int background, int menu_sounds)
+{
     if (camera < 0 || camera > 2 || movement < 0 || movement > 2 ||
-        (fps != 0 && (fps < 60 || fps > 240)) || volume < 0 || volume > 100) return 0;
+        (fps != 0 && (fps < 60 || fps > 240)) || volume < 0 || volume > 100 ||
+        !coop_frontend::music_valid(music) || background < 0 || background > 2) return 0;
     load_once();
     char camera_value[24], movement_value[24], fps_value[8], volume_value[8];
     snprintf(camera_value, sizeof camera_value, "\"%s\"", CAMERA_MODE_KEY[camera]);
     snprintf(movement_value, sizeof movement_value, "\"%s\"", RUN_MODE_KEY[movement]);
     snprintf(fps_value, sizeof fps_value, "%d", fps);
     snprintf(volume_value, sizeof volume_value, "%d", volume);
-    const char* keys[] = { "CameraMode", "RunMode", "FrameRate", "SmoothMotion", "NameTags", "Volume", "MouseCapture" };
+    char music_value[12], background_value[12];
+    snprintf(music_value, sizeof music_value, "%d", music);
+    snprintf(background_value, sizeof background_value, "%d", background);
+    const char* keys[] = { "CameraMode", "RunMode", "FrameRate", "SmoothMotion", "NameTags", "Volume", "MouseCapture",
+        "MenuMusic", "MenuBackground", "MenuSounds" };
     const char* vals[] = { camera_value, movement_value, fps_value, smooth ? "true" : "false",
-        names ? "true" : "false", volume_value, mouse_capture ? "true" : "false" };
-    if (!save_keys(keys, vals, 7, "front-end options")) return 0;
+        names ? "true" : "false", volume_value, mouse_capture ? "true" : "false",
+        music_value, background_value, menu_sounds ? "true" : "false" };
+    if (!save_keys(keys, vals, 10, "front-end options")) return 0;
     g_camera_mode = camera; g_run_mode = movement; g_frame_rate = fps;
     g_smooth_motion = !!smooth; g_name_tags = !!names; g_volume = volume;
     g_mouse_capture = !!mouse_capture;
+    g_menu_music = music; g_menu_background = background; g_menu_sounds = !!menu_sounds;
     return 1;
 }
 

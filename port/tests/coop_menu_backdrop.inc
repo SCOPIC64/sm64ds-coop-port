@@ -1,0 +1,129 @@
+#include <vector>
+
+struct CoopSceneFrame {
+    volatile LONG lock;
+    unsigned serial;
+    uint32_t pixels[512 * 384];
+};
+static bool coop_backdrop_child() { return getenv("SM64DS_MENU_BACKDROP_CHILD") != 0; }
+
+// A hidden instance of this SAME executable renders the actual DS level.
+// It has isolated saves, no network, no audio and no input. A kill-on-close
+// job guarantees that closing/crashing the menu also closes its renderer.
+class CoopBackdrop {
+    HANDLE mapping_ = 0, job_ = 0, process_ = 0;
+    CoopSceneFrame* shared_ = 0;
+    std::vector<uint32_t> pixels_;
+    int choice_ = -1, level_ = -1;
+    unsigned last_serial_ = 0;
+    DWORD next_scene_ = 0, retry_ = 0;
+    char save_[MAX_PATH] = "";
+    struct Env {
+        const char* name; char old[2048]; bool present;
+        Env(const char* key, const char* value) : name(key) {
+            DWORD n = GetEnvironmentVariableA(key, old, sizeof old);
+            present = n > 0 && n < sizeof old;
+            SetEnvironmentVariableA(key, value);
+        }
+        ~Env() { SetEnvironmentVariableA(name, present ? old : 0); }
+    };
+public:
+    ~CoopBackdrop() { stop(); }
+    void stop() {
+        if (job_) CloseHandle(job_);
+        job_ = 0;
+        if (process_) { WaitForSingleObject(process_, 1000); CloseHandle(process_); }
+        process_ = 0;
+        if (shared_) UnmapViewOfFile(shared_);
+        shared_ = 0;
+        if (mapping_) CloseHandle(mapping_);
+        mapping_ = 0;
+        if (save_[0]) { DeleteFileA(save_); char temp[MAX_PATH + 8]; snprintf(temp,sizeof temp,"%s.tmp",save_); DeleteFileA(temp); save_[0]=0; }
+        last_serial_ = 0;
+    }
+    bool start(int level) {
+        stop(); level_ = level;
+        char exe[MAX_PATH], name[96], lv[16];
+        DWORD n = GetModuleFileNameA(0, exe, sizeof exe);
+        if (!n || n >= sizeof exe) return false;
+        snprintf(name,sizeof name,"Local\\SM64DSMenu-%lu-%lu",GetCurrentProcessId(),GetTickCount());
+        mapping_=CreateFileMappingA(INVALID_HANDLE_VALUE,0,PAGE_READWRITE,0,sizeof(CoopSceneFrame),name);
+        if (!mapping_) return false;
+        shared_=static_cast<CoopSceneFrame*>(MapViewOfFile(mapping_,FILE_MAP_ALL_ACCESS,0,0,sizeof(CoopSceneFrame)));
+        if (!shared_) { stop(); return false; }
+        memset(shared_,0,sizeof *shared_);
+        job_=CreateJobObjectA(0,0);
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits={};
+        limits.BasicLimitInformation.LimitFlags=JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        if (!job_ || !SetInformationJobObject(job_,JobObjectExtendedLimitInformation,&limits,sizeof limits)) { stop(); return false; }
+        const char* root=getenv("SM64DS_ASSET_ROOT");
+        snprintf(save_,sizeof save_,"%s/build/menu-backdrop-%lu-%lu.sav",root?root:".",GetCurrentProcessId(),GetTickCount());
+        if (GetFileAttributesA(save_) != INVALID_FILE_ATTRIBUTES) { save_[0]=0; stop(); return false; }
+        snprintf(lv,sizeof lv,"%d",level);
+        Env child("SM64DS_MENU_BACKDROP_CHILD","1"), map("SM64DS_MENU_BACKDROP_MAP",name), level_env("SM64DS_LEVEL",lv);
+        Env frames("SM64DS_WINDOW_SELFTEST","2000000000"), idle("SM64DS_SELFTEST_IDLE","1"), orbit("SM64DS_SELFTEST_ORBIT","1");
+        Env save("SM64DS_SAVE_PATH",save_), audio("SM64DS_NO_AUDIO","1"), log("SM64DS_NO_PLAYLOG","1");
+        Env focus("SM64DS_NO_FOCUS","1"), freecam("SM64DS_FREECAM",0);
+        Env boot("SM64DS_BOOT_FILE",0), scene("SM64DS_SCENE",0), classic("SM64DS_CLASSIC_MENU",0), menu_test("SM64DS_MENU_SELFTEST",0);
+        Env audio_test("SM64DS_MENU_AUDIO_SELFTEST",0), bg_test("SM64DS_MENU_BACKDROP_SELFTEST",0), wav("SM64DS_WAV_DUMP",0);
+        Env role("SM64DS_COMMS_ROLE",0), party("SM64DS_PARTY",0), vs("SM64DS_VS_MAP",0), no_dialog("SM64DS_NO_DIALOG","1");
+        SECURITY_ATTRIBUTES security={sizeof security,0,TRUE};
+        HANDLE sink=CreateFileA("NUL",GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,&security,OPEN_EXISTING,0,0);
+        STARTUPINFOA si={}; si.cb=sizeof si; si.dwFlags=STARTF_USESHOWWINDOW|STARTF_USESTDHANDLES; si.wShowWindow=SW_HIDE;
+        si.hStdInput=si.hStdOutput=si.hStdError=sink;
+        PROCESS_INFORMATION pi={}; char command[MAX_PATH+4]; snprintf(command,sizeof command,"\"%s\"",exe);
+        BOOL created=CreateProcessA(exe,command,0,0,TRUE,CREATE_SUSPENDED|CREATE_NO_WINDOW,0,root,&si,&pi);
+        if (sink!=INVALID_HANDLE_VALUE) CloseHandle(sink);
+        if (!created) { stop(); return false; }
+        if (!AssignProcessToJobObject(job_,pi.hProcess)) {
+            TerminateProcess(pi.hProcess,2); CloseHandle(pi.hThread); CloseHandle(pi.hProcess); stop(); return false;
+        }
+        process_=pi.hProcess; ResumeThread(pi.hThread); CloseHandle(pi.hThread);
+        return true;
+    }
+    void tick(int choice) {
+        DWORD now=GetTickCount();
+        if (choice != choice_) { choice_=choice; next_scene_=now; retry_=now; }
+        int level=choice==0?6:1;
+        if (choice==2) {
+            // A DS scenery tour, like the credits backdrop in CoopDX.
+            if (static_cast<LONG>(now-next_scene_)>=0) { level=level_==1?6:1; next_scene_=now+30000; }
+            else level=level_>0?level_:1;
+        }
+        bool exited=process_ && WaitForSingleObject(process_,0)==WAIT_OBJECT_0;
+        if ((!process_ || exited || level!=level_) && static_cast<LONG>(now-retry_)>=0) {
+            if (!start(level)) fprintf(stderr,"[coop-menu] backdrop could not start; menu stays available\n");
+            retry_=now+3000;
+        }
+        if (shared_ && shared_->serial!=last_serial_ && InterlockedCompareExchange(&shared_->lock,1,0)==0) {
+            if (shared_->serial) {
+                if (pixels_.empty()) pixels_.resize(512*384);
+                memcpy(pixels_.data(),shared_->pixels,sizeof shared_->pixels); last_serial_=shared_->serial;
+            }
+            InterlockedExchange(&shared_->lock,0);
+        }
+    }
+    const uint32_t* image() const { return pixels_.empty()?0:pixels_.data(); }
+    unsigned serial() const { return last_serial_; }
+};
+
+static void coop_backdrop_publish(const ntr::Framebuffer& fb) {
+    if (!coop_backdrop_child()) return;
+    static HANDLE mapping=0;
+    static CoopSceneFrame* shared=0;
+    if (!mapping) {
+        const char* name=getenv("SM64DS_MENU_BACKDROP_MAP");
+        if (!name || strncmp(name,"Local\\SM64DSMenu-",sizeof("Local\\SM64DSMenu-")-1)) return;
+        mapping=OpenFileMappingA(FILE_MAP_ALL_ACCESS,FALSE,name);
+        if (mapping) shared=static_cast<CoopSceneFrame*>(MapViewOfFile(mapping,FILE_MAP_ALL_ACCESS,0,0,sizeof(CoopSceneFrame)));
+    }
+    if (shared && InterlockedCompareExchange(&shared->lock,1,0)==0) {
+        for (int y=0;y<384;++y) for(int x=0;x<512;++x)
+            shared->pixels[y*512+x]=fb.px[y*ntr::active_h/384][x*ntr::active_w/512];
+        ++shared->serial; InterlockedExchange(&shared->lock,0);
+    }
+    // Limit this preview renderer even though the engine's test loop is unpaced.
+    static DWORD last=GetTickCount(); DWORD now=GetTickCount(), elapsed=now-last;
+    if(elapsed<33) Sleep(33-elapsed);
+    last=GetTickCount();
+}

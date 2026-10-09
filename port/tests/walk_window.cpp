@@ -416,6 +416,7 @@ static bool winapi_load(void)
 static coop_frontend::Menu g_coop_menu;
 static coop_frontend::Action g_coop_action = coop_frontend::NONE;
 static bool g_coop_active, g_coop_loading;
+static int g_coop_sound = -1;
 #include "hal/host_settings.h"   /* settings.json, the launcher's file */
 #include "hal/perf_log.h"        /* run perf1: the player performance report */
 #include "hal/comms_seam.h"       /* run mg15 lane MP1: the radio seam */
@@ -8453,6 +8454,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
                 w == VK_LEFT ? coop_frontend::LEFT : w == VK_RIGHT ? coop_frontend::RIGHT :
                 w == VK_RETURN ? coop_frontend::ACCEPT : w == VK_ESCAPE ? coop_frontend::BACK : -1;
             if (k >= 0) {
+                g_coop_sound = k == coop_frontend::ACCEPT ? 30 : k == coop_frontend::BACK ? 123 : 0;
                 coop_frontend::Action a = g_coop_menu.key(static_cast<coop_frontend::Key>(k));
                 if (a != coop_frontend::NONE) g_coop_action = a;
             }
@@ -8888,6 +8890,10 @@ static int host_show_mode(int nofocus)
     int want = -1;
     if (!W.ShowWindow_)
         return -1;      /* no show call available; keep WS_VISIBLE */
+    /* The menu's private renderer must never create a visible second window.
+       This explicit mode is separate from a launcher's console hide request. */
+    if (getenv("SM64DS_MENU_BACKDROP_CHILD"))
+        return SW_HIDE;
     STARTUPINFOA si;
     memset(&si, 0, sizeof si);
     si.cb = sizeof si;
@@ -13339,7 +13345,8 @@ int main(void)
                    from the lens. Deliberately the raw bit and not
                    cam_bit_right: this probes the ROM's reader, so it must
                    not move when a player's binding preference does. */
-                if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20)
+                if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20 &&
+                    (!coop_backdrop_child() || frame % 12 == 0))
                     cam_rot |= 0x100;
             }
             if (menu_on) btn = 0;   /* enter/A belong to the menu, not to him */
@@ -17241,6 +17248,7 @@ int main(void)
         /* the rollback probe's re-run skips the rasteriser (SM64DS_ROLLBACK_DET_SKIP) */
         if (!rb_resim_skip_render() && !rb_skip_render())
         ntr::gx_render(fb);
+        coop_backdrop_publish(fb);
         /* run interp1: the tick's 3D is final; key its recorded stream and
            pair it with the previous tick's. A frame that went down the host
            split path, under the F5 menu, in the stacked layout or through

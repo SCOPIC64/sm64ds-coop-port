@@ -4,11 +4,13 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include "coop_menu_music.h"
+#include "coop_save_preview.h"
 
 namespace coop_frontend {
 enum Page { HOME, PLAY, HOST, JOIN, OPTIONS, PLAYER, CAMERA, CONTROLS,
             DISPLAY, SOUND, MISC, EXIT_CONFIRM };
-enum Action { NONE, START_SOLO, START_HOST, START_JOIN, SAVE_OPTIONS, QUIT };
+enum Action { NONE, START_SOLO, START_HOST, START_JOIN, SAVE_OPTIONS, NEXT_SONG, QUIT };
 enum Key { UP, DOWN, LEFT, RIGHT, ACCEPT, BACK };
 
 inline bool valid_address(const char* text) {
@@ -44,6 +46,10 @@ struct Menu {
     Page after_save = HOME;
     int row = 0, slot = 0, character = 0;
     int camera = 0, movement = 1, fps = 0, volume = 80;
+    int music = MUSIC_RANDOM, background = 0;
+    bool menu_sounds = true;
+    SavePreview saves[3];
+    char now_playing[48] = "";
     bool smooth = true, names = true, mouse_capture = false, editing = false;
     char address[16] = "192.168.1.2", port[6] = "51765";
     char edit_backup[16] = "";
@@ -53,11 +59,13 @@ struct Menu {
         switch (page) {
         case HOME: return 4;
         case PLAY: return 3;
-        case HOST: return 5;
+        case HOST: return 8;
         case JOIN: return 5;
         case OPTIONS: return 7;
-        case PLAYER: case DISPLAY: return 3;
-        case CAMERA: case SOUND: case MISC: return 2;
+        case PLAYER: return 3;
+        case DISPLAY: return 4;
+        case SOUND: return 5;
+        case CAMERA: case MISC: return 2;
         case CONTROLS: return 1;
         case EXIT_CONFIRM: return 2;
         }
@@ -83,7 +91,7 @@ struct Menu {
     void open(Page target) { page = target; row = 0; editing = false; message[0] = 0; }
     char* field() {
         if (page == JOIN && row == 0) return address;
-        if ((page == HOST && row == 0) || (page == JOIN && row == 1)) return port;
+        if ((page == HOST && row == 3) || (page == JOIN && row == 1)) return port;
         return nullptr;
     }
     void type(char ch) {
@@ -108,13 +116,18 @@ struct Menu {
         else if (page == PLAY) {
             if (index == 0) std::snprintf(out, size, "SAVE FILE    < %c >", 'A' + slot);
             else std::snprintf(out, size, "%s", index == 1 ? "START GAME" : "BACK");
+        } else if (page == HOST && index < 3) {
+            const SavePreview& save = saves[index];
+            if (save.damaged) std::snprintf(out, size, "FILE %c   DAMAGED", 'A' + index);
+            else if (save.exists) std::snprintf(out, size, "FILE %c   %d STARS", 'A' + index, save.stars);
+            else std::snprintf(out, size, "FILE %c   NEW", 'A' + index);
         } else if (page == HOST || page == JOIN) {
-            int offset = page == JOIN ? 1 : 0;
+            int offset = page == JOIN ? 1 : 3;
             if (page == JOIN && index == 0) std::snprintf(out, size, "ADDRESS    %s%s", address, editing && row == index ? "_" : "");
             else if (index == offset) std::snprintf(out, size, "PORT       %s%s", port, editing && row == index ? "_" : "");
             else if (index == offset + 1) std::snprintf(out, size, "CHARACTER  < %s >", chars[character]);
             else std::snprintf(out, size, "%s", index == offset + 2 ? (page == HOST ? "START HOSTING" : "CONNECT") :
-                page == HOST && index == 3 ? "SINGLE PLAYER" : "BACK");
+                page == HOST && index == 6 ? "SINGLE PLAYER" : "BACK");
         } else if (page == OPTIONS) {
             static const char* categories[] = { "PLAYER", "CAMERA", "CONTROLS", "DISPLAY", "SOUND", "MISC", "SAVE AND BACK" };
             std::snprintf(out, size, "%s", categories[index]);
@@ -128,8 +141,17 @@ struct Menu {
             if (index == 0) {
                 if (fps == 0) std::snprintf(out, size, "FRAME RATE     < NATIVE >");
                 else std::snprintf(out, size, "FRAME RATE     < %d >", fps);
-            } else std::snprintf(out, size, "SMOOTH MOTION  < %s >", smooth ? "ON" : "OFF");
-        } else if (page == SOUND) std::snprintf(out, size, "VOLUME         < %d >", volume);
+            } else if (index == 1) std::snprintf(out, size, "SMOOTH MOTION  < %s >", smooth ? "ON" : "OFF");
+            else {
+                static const char* backgrounds[] = { "BOB-OMB BATTLEFIELD", "CASTLE GROUNDS", "STAFF ROLL TOUR" };
+                std::snprintf(out, size, "BACKGROUND  < %s >", backgrounds[background]);
+            }
+        } else if (page == SOUND) {
+            if (index == 0) std::snprintf(out, size, "VOLUME       < %d >", volume);
+            else if (index == 1) std::snprintf(out, size, "MENU MUSIC   < %s >", music_name(music));
+            else if (index == 2) std::snprintf(out, size, "MENU SOUNDS  < %s >", menu_sounds ? "ON" : "OFF");
+            else std::snprintf(out, size, "NEXT RANDOM SONG");
+        }
         else if (page == MISC) std::snprintf(out, size, "CAPTURE MOUSE  < %s >", mouse_capture ? "ON" : "OFF");
         else std::snprintf(out, size, "BACK");
     }
@@ -163,19 +185,28 @@ struct Menu {
             open(pages[row]);
         } else if (page == PLAY) {
             if (row == 0) slot = (slot + 3 + delta) % 3;
-            else if (key == ACCEPT && row == 1) return START_SOLO;
+            else if (key == ACCEPT && row == 1) {
+                if (saves[slot].damaged) std::snprintf(message, sizeof message, "Save damaged. Choose another slot.");
+                else return START_SOLO;
+            }
             else if (key == ACCEPT) open(HOST);
         } else if (page == HOST || page == JOIN) {
-            const int offset = page == JOIN ? 1 : 0;
+            const int offset = page == JOIN ? 1 : 3;
+            if (page == HOST && row < 3) {
+                if (key == LEFT || key == RIGHT) row = (row + 3 + delta) % 3;
+                slot = row;
+                return NONE;
+            }
             if (field() && key == ACCEPT) {
                 std::strcpy(edit_backup, field()); editing = true; field()[0] = 0;
             }
             else if (row == offset + 1) character = (character + 4 + delta) % 4;
             else if (key == ACCEPT && row == offset + 2) {
-                if (!valid_port(port)) std::snprintf(message, sizeof message, "Use a port from 1024 to 65534.");
+                if (page == HOST && saves[slot].damaged) std::snprintf(message, sizeof message, "Save damaged. Choose another slot.");
+                else if (!valid_port(port)) std::snprintf(message, sizeof message, "Use a port from 1024 to 65534.");
                 else if (page == JOIN && !valid_address(address)) std::snprintf(message, sizeof message, "Enter the host's IPv4 address.");
                 else return page == HOST ? START_HOST : START_JOIN;
-            } else if (key == ACCEPT && page == HOST && row == 3) open(PLAY);
+            } else if (key == ACCEPT && page == HOST && row == 6) open(PLAY);
             else if (key == ACCEPT && row == rows() - 1) open(HOME);
         } else if (page == OPTIONS) {
             if (key == ACCEPT) {
@@ -195,8 +226,15 @@ struct Menu {
                 int index = 0;
                 for (int i = 0; i < 6; ++i) if (fps >= rates[i]) index = i;
                 fps = rates[(index + delta + 6) % 6];
-            } else if (page == DISPLAY) smooth = !smooth;
-            else if (page == SOUND) { volume += delta * 10; if (volume < 0) volume = 0; if (volume > 100) volume = 100; }
+            } else if (page == DISPLAY) {
+                if (row == 1) smooth = !smooth;
+                else background = (background + 3 + delta) % 3;
+            } else if (page == SOUND) {
+                if (row == 0) { volume += delta * 10; if (volume < 0) volume = 0; if (volume > 100) volume = 100; }
+                else if (row == 1) music = music_step(music, delta);
+                else if (row == 2) menu_sounds = !menu_sounds;
+                else if (key == ACCEPT) return NEXT_SONG;
+            }
             else if (page == MISC) mouse_capture = !mouse_capture;
         } else if (page == EXIT_CONFIRM && key == ACCEPT) {
             if (row == 1) return QUIT;
