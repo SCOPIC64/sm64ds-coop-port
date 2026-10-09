@@ -39,7 +39,15 @@ bool MusicDecoder::open(const char* path) {
     close();
     if (!impl_ || !path || !*path) return false;
     ma_decoder_config config = ma_decoder_config_init(ma_format_s16, 2, 32768);
+#ifdef _WIN32
+    int count=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,path,-1,0,0);
+    if(count<=0)return false;
+    std::vector<wchar_t> wide(static_cast<size_t>(count));
+    if(!MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,path,-1,wide.data(),count))return false;
+    impl_->ready = ma_decoder_init_file_w(wide.data(), &config, &impl_->decoder) == MA_SUCCESS;
+#else
     impl_->ready = ma_decoder_init_file(path, &config, &impl_->decoder) == MA_SUCCESS;
+#endif
     impl_->end = !impl_->ready;
     return impl_->ready;
 }

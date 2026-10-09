@@ -24,6 +24,11 @@ int main() {
         std::printf("PASS: %s decoded/resampled, %u frames, peak %d\n",name,total,peak);
     }
     assert(!decoder.open("missing-custom-music.wav") && decoder.ended());
+    std::string unicode=std::string(COOP_MEDIA_FIXTURES)+"/menu-tone-\xc3\xa9.wav";
+    assert(decoder.open(unicode.c_str()));
+    short unicode_pcm[2048]; assert(decoder.read(unicode_pcm,1024)>0);
+    decoder.close();
+    assert(!decoder.open("missing-custom-music.wav"));
     short silence[8]={1,1,1,1,1,1,1,1}; assert(decoder.read(silence,4)==0);
     for(short v:silence)assert(v==0);
     std::vector<uint32_t> pixels;
