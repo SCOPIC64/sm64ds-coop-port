@@ -47,12 +47,24 @@ def main():
         exe = archive.read('sm64ds coop.exe')
         assert exe[:2] == b'MZ'
         assert hashlib.sha256(exe).hexdigest() == manifest['exe_sha256']
-    # Refuse to replace a release/tag that already exists.
+    # A repeat event may verify the identical release, but must never replace it.
     releases = api(f'repos/{repo}/releases?per_page=100')
-    assert not any(r['tag_name'] == tag for r in releases), 'Release already exists'
+    matches=[r for r in releases if r['tag_name']==tag]
+    filename='SM64DS-Coop-' + tag[1:] + '-Windows-x86.zip'
+    if matches:
+        existing=matches[0]
+        assert not existing['draft'] and existing['prerelease']
+        assert existing['target_commitish']==source, 'Existing release has different source'
+        assets=existing['assets']
+        assert len(assets)==1 and assets[0]['name']==filename and assets[0]['state']=='uploaded'
+        assert assets[0]['digest']=='sha256:'+manifest['artifact_sha256'], 'Existing asset differs'
+        ref=api(f'repos/{repo}/git/ref/tags/{tag}')
+        assert ref['object']['type']=='commit' and ref['object']['sha']==source
+        print('Verified existing release:',existing['html_url'])
+        return
     refs = api(f'repos/{repo}/git/matching-refs/tags/{tag}')
     assert not any(r['ref'] == 'refs/tags/' + tag for r in refs), 'Tag already exists'
-    artifact = Path('SM64DS-Coop-' + tag[1:] + '-Windows-x86.zip')
+    artifact = Path(filename)
     artifact.write_bytes(data)
     notes = Path('menu-preview-notes.md')
     notes.write_text(manifest['notes'], encoding='utf-8')
