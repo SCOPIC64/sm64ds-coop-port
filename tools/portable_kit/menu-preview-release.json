@@ -1,0 +1,85 @@
+{
+  "exe_sha256": "7087e9c8753aad5242b5d9a203fc58263e652d9262b13843f93d99922362174b",
+  "artifact_sha256": "454325e5138cd9cc2399847644bc1361f1490d6aa88e9a13dff9817c4bba5dc3",
+  "artifact_bytes": 3439153,
+  "exe_bytes": 9937920,
+  "archive_files": [
+    "sm64ds coop.exe",
+    "README.txt",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.txt"
+  ],
+  "local_validation": {
+    "passed": true,
+    "tests": [
+      {
+        "test": "audio",
+        "exit": 0,
+        "seconds": 0.25
+      },
+      {
+        "test": "custom-media",
+        "exit": 0,
+        "seconds": 0.17
+      },
+      {
+        "test": "backdrop-1",
+        "exit": 0,
+        "seconds": 3.58
+      },
+      {
+        "test": "backdrop-2",
+        "exit": 0,
+        "seconds": 3.73
+      },
+      {
+        "test": "backdrop-3",
+        "exit": 0,
+        "seconds": 3.66
+      },
+      {
+        "test": "backdrop-4",
+        "exit": 0,
+        "seconds": 3.67
+      },
+      {
+        "test": "backdrop-5",
+        "exit": 0,
+        "seconds": 3.66
+      },
+      {
+        "test": "backdrop-6",
+        "exit": 0,
+        "seconds": 3.73
+      },
+      {
+        "test": "backdrop-7",
+        "exit": 0,
+        "seconds": 3.77
+      },
+      {
+        "test": "backdrop-8",
+        "exit": 0,
+        "seconds": 3.75
+      },
+      {
+        "test": "scenery-tour",
+        "exit": 0,
+        "seconds": 8.17
+      },
+      {
+        "test": "game",
+        "exit": 0,
+        "seconds": 1.45
+      }
+    ]
+  },
+  "tag": "v0.5.5-menu-preview.1",
+  "title": "SM64DS Co-op 0.5.5 menu preview — Windows",
+  "source_commit": "ad73b136a19cdce20433be1c19a1c26637ca9893",
+  "artifact_blob": "ba7cf2088fd791a91c1626cf5a7dcd197e00c384",
+  "platforms": [
+    "windows-x86"
+  ],
+  "notes": "Windows preview with the integrated retro co-op menu, three adventure-save cards, readable menu text and expanded backgrounds.\n\n- Sound: 33 built-in DS themes, menu effects, MP3/FLAC/WAV custom music, individual-song playback, Shuffle Custom and Shuffle All.\n- Display: eight built-in choices including a Staff Roll scenery tour; PNG/JPEG/BMP custom backgrounds.\n- Custom media imports validate files, preserve existing files and store selections by filename. Unicode music filenames work on Windows.\n- One program EXE, no BAT launcher or separate decoder DLL. The ZIP is about 3.4 MB; the executable is about 9.5 MiB. Game assets and custom media remain external.\n\nValidation: native 32-bit build and engine memory/symbol guards; settings restart tests; all 33 songs and three effects produced audio; all supported custom formats and Unicode filenames passed; all twelve menu pages captured over eight backgrounds; scenery tour transition and 120-frame gameplay check passed. Portable menu/media CI passed on Windows, Linux and macOS with both desktop and handheld profiles.\n\nThis is a Windows prerelease. Native Linux/SteamOS, macOS, Android and iOS game binaries are not available: the engine still requires platform and ABI work. Portable CI is not a full game-port test. Online co-op, fresh-folder import and adventure save-loading still require additional runtime verification. Existing repository-wide dead-reference and asset-dependent port-build CI failures remain documented in PR #5. This preview is not a guarantee of a bug-free game.\n\nUse your own supported .nds or existing extracted data. No ROMs, Nintendo assets/audio or player saves are included.\n\n[Source changes and platform status](https://github.com/SCOPIC64/sm64ds-coop-port/pull/5)\n"
+}
