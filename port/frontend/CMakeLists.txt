@@ -23,6 +23,23 @@ endif()
 enable_testing()
 add_test(NAME menu_and_multitouch COMMAND coop_frontend_test)
 
+add_library(coop_media_decode STATIC ../hal/coop_media_decode.cpp)
+target_compile_features(coop_media_decode PRIVATE cxx_std_11)
+if(MSVC)
+    target_compile_definitions(coop_media_decode PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+add_executable(coop_media_test ../tests/coop_media_test.cpp)
+target_include_directories(coop_media_test PRIVATE ..)
+target_compile_features(coop_media_test PRIVATE cxx_std_11)
+target_compile_definitions(coop_media_test PRIVATE COOP_MEDIA_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/../tests/fixtures")
+target_link_libraries(coop_media_test PRIVATE coop_media_decode)
+if(MSVC)
+    target_compile_options(coop_media_test PRIVATE /UNDEBUG)
+else()
+    target_compile_options(coop_media_test PRIVATE -UNDEBUG)
+endif()
+add_test(NAME custom_media_formats COMMAND coop_media_test)
+
 if(WIN32 AND MSVC)
     # Separate processes catch differences between the saved cache and a fresh
     # load. Keep all files in an isolated fixture beside the test executable.

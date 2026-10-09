@@ -53,7 +53,16 @@ int main(int argc, char** argv) {
     m.key(RIGHT); assert(m.music == MUSIC_OFF);
     m.row = 2; m.key(ACCEPT); assert(!m.menu_sounds);
     m.row = 3; assert(m.key(ACCEPT) == NEXT_SONG);
-    m.row = 4; assert(m.key(ACCEPT) == SAVE_OPTIONS); assert(m.after_save == OPTIONS);
+    m.row = 4; assert(m.key(ACCEPT) == IMPORT_MUSIC);
+    m.row = 5; assert(m.key(ACCEPT) == RELOAD_MEDIA);
+    m.row = 6; assert(m.key(ACCEPT) == SAVE_OPTIONS); assert(m.after_save == OPTIONS);
+    m.custom_music_count=2; std::strcpy(m.custom_music[0],"My song");
+    m.music=SONG_COUNT-1; m.row=1; m.key(RIGHT); assert(m.music==SONG_COUNT);
+    m.label(1,rate_label,sizeof rate_label); assert(std::strstr(rate_label,"My song"));
+    m.key(RIGHT); assert(m.music==SONG_COUNT+1);
+    m.key(RIGHT); assert(m.music==MUSIC_RANDOM_ALL);
+    m.key(RIGHT); assert(m.music==MUSIC_RANDOM_CUSTOM);
+    m.custom_music_count=0; m.music=MUSIC_RANDOM_CUSTOM; m.key(RIGHT); assert(m.music==0);
     unsigned seed = 7; int previous = -1;
     for (int i = 0; i < 1000; ++i) {
         int next = random_song(seed, previous);
@@ -83,8 +92,14 @@ int main(int argc, char** argv) {
     m.open(HOST); m.row = 2; m.key(ACCEPT); assert(m.slot == 2 && m.page == HOST);
     m.saves[2].damaged = true; m.row = 5; assert(m.key(ACCEPT) == NONE && m.message[0]);
     m.saves[2].damaged = false;
-    m.open(DISPLAY); m.row = 2; m.key(LEFT); assert(m.background == 2);
+    m.open(DISPLAY); m.row = 2; m.key(LEFT); assert(m.background == BACKGROUND_BUILTIN_COUNT-1);
     m.key(RIGHT); assert(m.background == 0);
+    m.custom_background_count=1; std::strcpy(m.custom_backgrounds[0],"My picture");
+    m.key(LEFT); assert(m.background==BACKGROUND_BUILTIN_COUNT);
+    m.label(2,rate_label,sizeof rate_label); assert(std::strstr(rate_label,"My picture"));
+    m.row=3; assert(m.key(ACCEPT)==IMPORT_BACKGROUND);
+    m.row=4; assert(m.key(ACCEPT)==RELOAD_MEDIA);
+    m.custom_background_count=0; m.background=0;
     m.open(MISC); m.key(ACCEPT); assert(m.mouse_capture);
     assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
     const Page categories[] = { PLAYER, CAMERA, CONTROLS, DISPLAY, SOUND, MISC };

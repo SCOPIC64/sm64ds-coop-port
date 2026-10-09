@@ -1,5 +1,6 @@
 // Included after the window/presentation helpers in walk_window.cpp.
 // Runs in the game process and reuses its HWND for the adventure.
+#include "coop_menu_media.inc"
 #include "coop_menu_audio.inc"
 #include "coop_menu_backdrop.inc"
 static const uint32_t* g_coop_backdrop = 0;
@@ -75,6 +76,10 @@ static int coop_frontend_run()
     g_coop_menu.music = host_setting_menu_music();
     g_coop_menu.background = host_setting_menu_background();
     g_coop_menu.menu_sounds = host_setting_menu_sounds() != 0;
+    snprintf(g_coop_menu.music_file,sizeof g_coop_menu.music_file,"%s",host_setting_menu_music_file());
+    snprintf(g_coop_menu.background_file,sizeof g_coop_menu.background_file,"%s",host_setting_menu_background_file());
+    CoopMediaLibrary media;
+    media.refresh(g_coop_menu);
     const char* save_path = getenv("SM64DS_SAVE_PATH");
     coop_frontend::read_save_previews(save_path ? save_path : "save/sm64ds.sav", g_coop_menu.saves);
     g_entry_hwnd = host_window_open(0, &g_entry_hdc, "Super Mario 64 DS Co-op");
@@ -104,14 +109,28 @@ static int coop_frontend_run()
     g_present_bi = &g_bi;
     g_present_fb = &menu_fb;
     g_coop_active = true;
-    CoopMenuAudio music;
-    CoopBackdrop backdrop;
+    CoopMenuAudio music(media);
+    CoopBackdrop backdrop(media);
     struct ClearBackdrop { ~ClearBackdrop() { g_coop_backdrop = 0; } } clear_backdrop;
     if (getenv("SM64DS_MENU_AUDIO_SELFTEST")) {
         bool ok = music.test();
         g_coop_active = false;
         fprintf(stderr, "[coop-menu] music and SFX selftest %s\n", ok ? "PASS" : "FAIL");
         return ok ? 0 : -1;
+    }
+    if(getenv("SM64DS_MENU_CUSTOM_MEDIA_SELFTEST")) {
+        bool ok=!media.music.empty() && !media.backgrounds.empty() && music.test_custom(g_coop_menu);
+        for(size_t i=0;i<media.backgrounds.size();++i) {
+            std::vector<uint32_t> pixels;
+            bool pass=coop_media::image(media.backgrounds[i].utf8.c_str(),pixels,512,384);
+            ok=ok&&pass;
+            fprintf(stderr,"[coop-menu] custom background %s: %s\n",pass?"PASS":"FAIL",media.backgrounds[i].label.c_str());
+        }
+        g_coop_menu.background=coop_frontend::BACKGROUND_BUILTIN_COUNT;
+        backdrop.tick(g_coop_menu.background); g_coop_backdrop=backdrop.image();
+        if(ok){coop_draw(menu_fb,0);ntr::ppu_write_bmp("custom-menu.bmp",menu_fb);}
+        g_coop_active=false;
+        fprintf(stderr,"[coop-menu] custom media selftest %s\n",ok?"PASS":"FAIL");return ok?0:-1;
     }
     // ROM-free startup check of the actual host and framebuffer. Run only in
     // an isolated folder: screenshots are written beside the executable.
@@ -120,12 +139,19 @@ static int coop_frontend_run()
         const char* bg_test = getenv("SM64DS_MENU_BACKDROP_SELFTEST");
         if (bg_test) {
             g_coop_menu.background = atoi(bg_test) - 1;
-            if (g_coop_menu.background < 0 || g_coop_menu.background > 2) return -1;
+            if (g_coop_menu.background < 0 || g_coop_menu.background >= coop_frontend::BACKGROUND_BUILTIN_COUNT) return -1;
             DWORD deadline = GetTickCount() + 30000;
             while (backdrop.serial() < 90 && static_cast<LONG>(GetTickCount()-deadline) < 0) {
                 backdrop.tick(g_coop_menu.background); Sleep(16);
             }
             ok = backdrop.serial() >= 90;
+            if(g_coop_menu.background==2 && getenv("SM64DS_MENU_TOUR_TEST")) {
+                while((backdrop.scenes()<2 || backdrop.serial()<45) && static_cast<LONG>(GetTickCount()-deadline)<0) {
+                    backdrop.tick(g_coop_menu.background);Sleep(16);
+                }
+                ok=ok && backdrop.scenes()>=2 && backdrop.serial()>=45;
+                fprintf(stderr,"[coop-menu] tour transition selftest %s scenes=%u\n",ok?"PASS":"FAIL",backdrop.scenes());
+            }
             g_coop_backdrop = backdrop.image();
             fprintf(stderr,"[coop-menu] live backdrop selftest %s serial=%u\n",ok?"PASS":"FAIL",backdrop.serial());
         }
@@ -180,13 +206,23 @@ static int coop_frontend_run()
         g_coop_action = coop_frontend::NONE;
         if (action == coop_frontend::QUIT) { g_coop_active = false; return 0; }
         if (action == coop_frontend::NEXT_SONG) {
-            g_coop_menu.music = coop_frontend::MUSIC_RANDOM;
+            if(g_coop_menu.music==coop_frontend::MUSIC_OFF)g_coop_menu.music=coop_frontend::MUSIC_RANDOM;
+            else if(g_coop_menu.music>=0)g_coop_menu.music=(g_coop_menu.music+1)%(coop_frontend::SONG_COUNT+g_coop_menu.custom_music_count);
             music.next(g_coop_menu);
         }
+        if(action==coop_frontend::IMPORT_MUSIC || action==coop_frontend::IMPORT_BACKGROUND || action==coop_frontend::RELOAD_MEDIA) {
+            media.selection(g_coop_menu);
+            if(action==coop_frontend::RELOAD_MEDIA) {
+                media.refresh(g_coop_menu);snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"Custom files refreshed.");
+            } else media.add(action==coop_frontend::IMPORT_MUSIC,g_entry_hwnd,g_coop_menu);
+            music.invalidate();backdrop.invalidate();
+        }
         if (action == coop_frontend::SAVE_OPTIONS) {
-            if (host_setting_save_frontend_media(g_coop_menu.camera, g_coop_menu.movement,
+            media.selection(g_coop_menu);
+            if (host_setting_save_frontend_custom(g_coop_menu.camera, g_coop_menu.movement,
                     g_coop_menu.fps, g_coop_menu.smooth, g_coop_menu.names, g_coop_menu.volume,
-                    g_coop_menu.mouse_capture, g_coop_menu.music, g_coop_menu.background, g_coop_menu.menu_sounds))
+                    g_coop_menu.mouse_capture, g_coop_menu.music, g_coop_menu.background, g_coop_menu.menu_sounds,
+                    g_coop_menu.music_file,g_coop_menu.background_file))
                 g_coop_menu.open(g_coop_menu.after_save);
             else snprintf(g_coop_menu.message, sizeof g_coop_menu.message,
                           "Could not save settings. Check folder access.");
@@ -206,7 +242,7 @@ static int coop_frontend_run()
             fprintf(stderr, "[coop-menu] start action %d, same process and window\n", static_cast<int>(action));
             return 1;
         }
-        if (coop_assets_ready()) {
+        if (g_coop_menu.background >= coop_frontend::BACKGROUND_BUILTIN_COUNT || coop_assets_ready()) {
             backdrop.tick(g_coop_menu.background);
             g_coop_backdrop = backdrop.image();
         }

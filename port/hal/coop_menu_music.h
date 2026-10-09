@@ -22,23 +22,32 @@ static const Song songs[] = {
     {18, "PIRANHA MINIGAME"}, {19, "LOVES ME LOVES ME NOT"},
     {20, "PSYCHIC SAFARI"}, {76, "VS CASTLE"}, {77, "VS SLIDER"}
 };
-enum { SONG_COUNT = sizeof songs / sizeof songs[0], MUSIC_RANDOM = -1, MUSIC_OFF = -2 };
+enum { SONG_COUNT = sizeof songs / sizeof songs[0], MUSIC_RANDOM = -1, MUSIC_OFF = -2,
+       MUSIC_RANDOM_CUSTOM = -3, MUSIC_RANDOM_ALL = -4, MAX_CUSTOM_MEDIA = 256 };
 inline const char* music_name(int choice) {
-    return choice == MUSIC_OFF ? "OFF" : choice < 0 ? "RANDOM" :
+    return choice == MUSIC_RANDOM_ALL ? "SHUFFLE ALL" : choice == MUSIC_RANDOM_CUSTOM ? "SHUFFLE CUSTOM" :
+        choice == MUSIC_OFF ? "OFF" : choice < 0 ? "RANDOM DS" :
         choice < SONG_COUNT ? songs[choice].name : "RANDOM";
 }
-inline bool music_valid(int choice) { return choice >= MUSIC_OFF && choice < SONG_COUNT; }
-inline int music_step(int choice, int delta) {
+inline bool music_valid(int choice) { return choice >= MUSIC_RANDOM_ALL && choice < SONG_COUNT + MAX_CUSTOM_MEDIA; }
+inline int music_step(int choice, int delta, int custom_count = 0) {
     if (!music_valid(choice)) choice = MUSIC_RANDOM;
-    return (choice + 2 + delta + SONG_COUNT + 2) % (SONG_COUNT + 2) - 2;
+    if (custom_count < 0) custom_count = 0;
+    if (custom_count > MAX_CUSTOM_MEDIA) custom_count = MAX_CUSTOM_MEDIA;
+    int low = custom_count ? MUSIC_RANDOM_ALL : MUSIC_OFF;
+    int count = SONG_COUNT + custom_count - low;
+    if (choice < low || choice >= SONG_COUNT + custom_count) choice = MUSIC_RANDOM;
+    return (choice - low + delta + count) % count + low;
 }
 // Choose from a small PRNG and avoid the previous track.
-inline int random_song(unsigned& state, int previous = -1) {
+inline int random_item(unsigned& state, int total, int previous = -1) {
+    if (total <= 1) return 0;
     if (!state) state = 0x6d2b79f5u;
     state ^= state << 13; state ^= state >> 17; state ^= state << 5;
-    const int count = previous >= 0 && previous < SONG_COUNT ? SONG_COUNT - 1 : SONG_COUNT;
+    const int count = previous >= 0 && previous < total ? total - 1 : total;
     int next = static_cast<int>(state % static_cast<unsigned>(count));
-    if (previous >= 0 && previous < SONG_COUNT && next >= previous) ++next;
+    if (previous >= 0 && previous < total && next >= previous) ++next;
     return next;
 }
+inline int random_song(unsigned& state, int previous = -1) { return random_item(state,SONG_COUNT,previous); }
 }

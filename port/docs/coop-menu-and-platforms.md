@@ -21,22 +21,43 @@ is passed to the game's existing title/save-loading routines for solo and host.
 Joining keeps its separate co-op save. Multiplayer save loading remains a
 runtime verification item before release.
 
-Sound offers Random, Off, or an individual full-length theme from the player's
+Sound offers Random DS, Off, or an individual full-length theme from the player's
 DS sound archive, including Bob-omb Battlefield and Staff Roll. Boss fights,
 short stingers and temporary power-up cues are excluded. Random selects on
 startup and after a non-looping track finishes; Next Random Song changes it
 immediately. Cursor, confirm and cancel effects are separately switchable.
-Music and effects use the existing native ARM7 sequencer and mixer; no new
-audio files are downloaded or packaged. Sound is reset before handing off to
+Built-in music and effects use the existing native ARM7 sequencer and mixer; no
+Nintendo audio files are downloaded or packaged. Sound is reset before handing off to
 the game's ARM9 audio initialization.
 
-Display offers Bob-omb Battlefield, Castle Grounds and Staff Roll Tour. A
+Add Custom Music opens a file picker for MP3, FLAC or WAV. A validated copy goes
+into `menu/music` beside the executable. Select one song to loop it, Shuffle
+Custom to shuffle those files, or Shuffle All to mix them with the DS themes.
+Next Song skips immediately. Shuffle avoids repeating the previous item when
+there are at least two available. Refresh Custom Files scans both libraries.
+Custom music streams through the existing menu mixer at 32768 Hz, stereo PCM;
+the decoder does not open another audio device. The menu gains apply to both
+sources. The decoder is vendored with its license and pinned provenance.
+
+Display offers Bob-omb Battlefield, Castle Grounds, Staff Roll Scenery,
+Whomp's Fortress, Cool Cool Mountain, Jolly Roger Bay, Lethal Lava Land and
+Dire Dire Docks. A
 hidden child of the same executable renders the actual DS scenery into shared
 memory, with audio, input and networking disabled and an isolated temporary
-save. A kill-on-close job ties its lifetime to the menu. Tour alternates castle
-and battlefield views every 30 seconds; it is not the cartridge's credits
+save. A kill-on-close job ties its lifetime to the menu. The scenery tour cycles
+seven views every 20 seconds; it is not the cartridge's credits
 sequence. The renderer is throttled to approximately 30 frames per second.
 A gradient keeps the menu usable while the scene loads or assets are missing.
+
+Add Custom Background accepts PNG, JPEG or BMP and copies a validated image to
+`menu/backgrounds`. Images are cropped to fill the menu and decoded only when
+the selection changes. Custom pictures work before game data is imported.
+Libraries expose at most 256 files each. Imports never overwrite an existing
+file, accept music up to 512 MiB and images up to 32 MiB, and reject undecodable
+files. Custom selections persist by filename, so sorting a new file into the
+library does not select a different song or picture after restart. A missing
+selected file falls back to a built-in choice. Removing files and pressing
+Refresh updates the available choices. Back saves settings.
 
 Back from a settings category saves and returns to Options; Back from Options
 saves and returns home. The atomic writer preserves unrelated settings and
@@ -77,9 +98,13 @@ Inspect these captures; this check does not enter gameplay or import assets.
 
 With private game assets available, `SM64DS_MENU_AUDIO_SELFTEST=1` checks
 non-silent output for every selectable theme and each of the three effects.
-`SM64DS_MENU_SELFTEST=1` plus `SM64DS_MENU_BACKDROP_SELFTEST=1`, `2` or `3`
+`SM64DS_MENU_SELFTEST=1` plus `SM64DS_MENU_BACKDROP_SELFTEST=1` through `8`
 waits for ninety rendered scene frames before capturing all menu pages. Always
 use an isolated runtime folder and explicit fixture save path for these checks.
+`SM64DS_MENU_TOUR_TEST=1` additionally checks a scenery transition.
+`SM64DS_MENU_CUSTOM_MEDIA_SELFTEST=1` checks the isolated custom libraries and
+captures a custom-background menu. Portable decoder tests use synthetic tones
+and generated color images for every supported format, with no cartridge data.
 
 These tests cover menu routes, malformed addresses/ports, save selection, option
 bounds, render clipping at several aspect ratios, simultaneous touches, shared
@@ -106,7 +131,7 @@ This front end follows that build-profile distinction. It is not a second OS
 implementation. Full native Linux/SteamOS releases are not available from this
 change; the engine platform layer still needs porting.
 
-## Remaining engine work â€” no non-Windows game releases yet
+## Remaining engine work — no non-Windows game releases yet
 
 | Platform | UI/input foundation | Full engine blocker |
 | --- | --- | --- |

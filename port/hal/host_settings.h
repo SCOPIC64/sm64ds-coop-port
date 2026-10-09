@@ -50,6 +50,12 @@ int host_setting_save_frontend(int camera, int movement, int fps,
 int host_setting_menu_music(void);
 int host_setting_menu_background(void);
 int host_setting_menu_sounds(void);
+const char* host_setting_menu_music_file(void);
+const char* host_setting_menu_background_file(void);
+int host_setting_save_frontend_custom(int camera, int movement, int fps,
+    int smooth, int names, int volume, int mouse_capture,
+    int music, int background, int menu_sounds,
+    const char* music_file, const char* background_file);
 int host_setting_save_frontend_media(int camera, int movement, int fps,
                                     int smooth, int names, int volume, int mouse_capture,
                                     int music, int background, int menu_sounds);

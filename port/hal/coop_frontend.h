@@ -10,7 +10,9 @@
 namespace coop_frontend {
 enum Page { HOME, PLAY, HOST, JOIN, OPTIONS, PLAYER, CAMERA, CONTROLS,
             DISPLAY, SOUND, MISC, EXIT_CONFIRM };
-enum Action { NONE, START_SOLO, START_HOST, START_JOIN, SAVE_OPTIONS, NEXT_SONG, QUIT };
+enum Action { NONE, START_SOLO, START_HOST, START_JOIN, SAVE_OPTIONS, NEXT_SONG,
+              IMPORT_MUSIC, IMPORT_BACKGROUND, RELOAD_MEDIA, QUIT };
+enum { BACKGROUND_BUILTIN_COUNT = 8 };
 enum Key { UP, DOWN, LEFT, RIGHT, ACCEPT, BACK };
 
 inline bool valid_address(const char* text) {
@@ -48,6 +50,9 @@ struct Menu {
     int camera = 0, movement = 1, fps = 0, volume = 80;
     int music = MUSIC_RANDOM, background = 0;
     bool menu_sounds = true;
+    int custom_music_count = 0, custom_background_count = 0;
+    char custom_music[MAX_CUSTOM_MEDIA][48] = {}, custom_backgrounds[MAX_CUSTOM_MEDIA][48] = {};
+    char music_file[1024] = "", background_file[1024] = "";
     SavePreview saves[3];
     char now_playing[48] = "";
     bool smooth = true, names = true, mouse_capture = false, editing = false;
@@ -63,8 +68,8 @@ struct Menu {
         case JOIN: return 5;
         case OPTIONS: return 7;
         case PLAYER: return 3;
-        case DISPLAY: return 4;
-        case SOUND: return 5;
+        case DISPLAY: return 6;
+        case SOUND: return 7;
         case CAMERA: case MISC: return 2;
         case CONTROLS: return 1;
         case EXIT_CONFIRM: return 2;
@@ -142,15 +147,23 @@ struct Menu {
                 if (fps == 0) std::snprintf(out, size, "FRAME RATE     < NATIVE >");
                 else std::snprintf(out, size, "FRAME RATE     < %d >", fps);
             } else if (index == 1) std::snprintf(out, size, "SMOOTH MOTION  < %s >", smooth ? "ON" : "OFF");
-            else {
-                static const char* backgrounds[] = { "BOB-OMB BATTLEFIELD", "CASTLE GROUNDS", "STAFF ROLL TOUR" };
-                std::snprintf(out, size, "BACKGROUND  < %s >", backgrounds[background]);
-            }
+            else if (index == 2) {
+                static const char* backgrounds[] = { "BOB-OMB BATTLEFIELD", "CASTLE GROUNDS", "STAFF ROLL SCENERY",
+                    "WHOMP'S FORTRESS", "COOL COOL MOUNTAIN", "JOLLY ROGER BAY", "LETHAL LAVA LAND", "DIRE DIRE DOCKS" };
+                const int custom = background - BACKGROUND_BUILTIN_COUNT;
+                const char* name = background >= 0 && background < BACKGROUND_BUILTIN_COUNT ? backgrounds[background] :
+                    custom >= 0 && custom < custom_background_count ? custom_backgrounds[custom] : "BOB-OMB BATTLEFIELD";
+                std::snprintf(out, size, "BACKGROUND < %s >", name);
+            } else std::snprintf(out, size, "%s", index == 3 ? "ADD CUSTOM BACKGROUND" : "REFRESH CUSTOM FILES");
         } else if (page == SOUND) {
             if (index == 0) std::snprintf(out, size, "VOLUME       < %d >", volume);
-            else if (index == 1) std::snprintf(out, size, "MENU MUSIC   < %s >", music_name(music));
+            else if (index == 1) {
+                int custom = music - SONG_COUNT;
+                const char* name = custom >= 0 && custom < custom_music_count ? custom_music[custom] : music_name(music);
+                std::snprintf(out, size, "MUSIC < %s >", name);
+            }
             else if (index == 2) std::snprintf(out, size, "MENU SOUNDS  < %s >", menu_sounds ? "ON" : "OFF");
-            else std::snprintf(out, size, "NEXT RANDOM SONG");
+            else std::snprintf(out, size, "%s", index == 3 ? "NEXT SONG" : index == 4 ? "ADD CUSTOM MUSIC" : "REFRESH CUSTOM FILES");
         }
         else if (page == MISC) std::snprintf(out, size, "CAPTURE MOUSE  < %s >", mouse_capture ? "ON" : "OFF");
         else std::snprintf(out, size, "BACK");
@@ -228,12 +241,14 @@ struct Menu {
                 fps = rates[(index + delta + 6) % 6];
             } else if (page == DISPLAY) {
                 if (row == 1) smooth = !smooth;
-                else background = (background + 3 + delta) % 3;
+                else if (row == 2) background = (background + BACKGROUND_BUILTIN_COUNT + custom_background_count + delta) %
+                    (BACKGROUND_BUILTIN_COUNT + custom_background_count);
+                else if (key == ACCEPT) return row == 3 ? IMPORT_BACKGROUND : RELOAD_MEDIA;
             } else if (page == SOUND) {
                 if (row == 0) { volume += delta * 10; if (volume < 0) volume = 0; if (volume > 100) volume = 100; }
-                else if (row == 1) music = music_step(music, delta);
+                else if (row == 1) music = music_step(music, delta, custom_music_count);
                 else if (row == 2) menu_sounds = !menu_sounds;
-                else if (key == ACCEPT) return NEXT_SONG;
+                else if (key == ACCEPT) return row == 3 ? NEXT_SONG : row == 4 ? IMPORT_MUSIC : RELOAD_MEDIA;
             }
             else if (page == MISC) mouse_capture = !mouse_capture;
         } else if (page == EXIT_CONFIRM && key == ACCEPT) {

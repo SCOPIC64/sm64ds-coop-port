@@ -94,7 +94,7 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
         int x=px+(pw-static_cast<int>(std::strlen(title))*6*size)/2;
         for (int i=0; title[i]; ++i) { char one[]={title[i],0}; c.shadow(x,c.height*16/100,one,colors[i%4],size); x+=6*size; }
         panel_text(c,menu,c.height*24/100,"64 DS CO-OP",0xffffffffu,size);
-        panel_text(c,menu,c.height*32/100,"PLUS MENU",0xffffdf60u,s);
+        panel_text(c,menu,c.height*32/100,"MAIN MENU",0xffffdf60u,s);
     } else panel_text(c,menu,c.height*16/100,menu.title(),0xffffdf60u,s*2);
     if (loading) {
         panel_text(c,menu,c.height*45/100,loading,0xffffffffu,s);
@@ -125,7 +125,7 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
             }
             if(selected) { c.shade(r.x,r.y,r.w,r.h,50); hand(c,r.x+2*s,r.y+(r.h-8*s)/2,s); }
             char label[80]; menu.label(i,label,sizeof label);
-            int size=s; while(size>1 && static_cast<int>(std::strlen(label))*6*size>r.w-22*s) --size;
+            int size=s*2; while(size>1 && static_cast<int>(std::strlen(label))*6*size>r.w-22*s) --size;
             const int x=menu.page==HOME?r.x+20*s:r.x+(r.w-static_cast<int>(std::strlen(label))*6*size)/2;
             c.shadow(x,r.y+(r.h-8*size)/2,label,selected?0xffffdf60u:0xffffffffu,size);
         }

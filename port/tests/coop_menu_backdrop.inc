@@ -18,6 +18,9 @@ class CoopBackdrop {
     unsigned last_serial_ = 0;
     DWORD next_scene_ = 0, retry_ = 0;
     char save_[MAX_PATH] = "";
+    CoopMediaLibrary& library_;
+    int tour_ = -1;
+    unsigned scenes_ = 0;
     struct Env {
         const char* name; char old[2048]; bool present;
         Env(const char* key, const char* value) : name(key) {
@@ -28,6 +31,8 @@ class CoopBackdrop {
         ~Env() { SetEnvironmentVariableA(name, present ? old : 0); }
     };
 public:
+    explicit CoopBackdrop(CoopMediaLibrary& library) : library_(library) {}
+    void invalidate() { choice_=-1; }
     ~CoopBackdrop() { stop(); }
     void stop() {
         if (job_) CloseHandle(job_);
@@ -79,15 +84,33 @@ public:
             TerminateProcess(pi.hProcess,2); CloseHandle(pi.hThread); CloseHandle(pi.hProcess); stop(); return false;
         }
         process_=pi.hProcess; ResumeThread(pi.hThread); CloseHandle(pi.hThread);
+        ++scenes_;
         return true;
     }
     void tick(int choice) {
         DWORD now=GetTickCount();
-        if (choice != choice_) { choice_=choice; next_scene_=now; retry_=now; }
-        int level=choice==0?6:1;
+        bool changed=choice!=choice_;
+        if (changed) { choice_=choice; next_scene_=now; retry_=now; tour_=-1; }
+        if(choice>=coop_frontend::BACKGROUND_BUILTIN_COUNT) {
+            if(changed) {
+                stop();
+                int index=choice-coop_frontend::BACKGROUND_BUILTIN_COUNT;
+                if(index<static_cast<int>(library_.backgrounds.size()) &&
+                    !coop_media::image(library_.backgrounds[index].utf8.c_str(),pixels_,512,384))
+                    fprintf(stderr,"[coop-menu] custom background unavailable\n");
+            }
+            return;
+        }
+        const int levels[]={6,1,1,7,10,8,14,18};
+        int level=choice>=0 && choice<coop_frontend::BACKGROUND_BUILTIN_COUNT?levels[choice]:6;
         if (choice==2) {
-            // A DS scenery tour, like the credits backdrop in CoopDX.
-            if (static_cast<LONG>(now-next_scene_)>=0) { level=level_==1?6:1; next_scene_=now+30000; }
+            // Credits-style panoramas across the DS courses, rather than the
+            // retail ending scene (which would run cutscene/game state).
+            const int tour[]={1,6,7,10,8,14,18};
+            if (static_cast<LONG>(now-next_scene_)>=0) {
+                tour_=(tour_+1)%7; level=tour[tour_];
+                next_scene_=now+(getenv("SM64DS_MENU_TOUR_TEST")?6000:20000);
+            }
             else level=level_>0?level_:1;
         }
         bool exited=process_ && WaitForSingleObject(process_,0)==WAIT_OBJECT_0;
@@ -105,6 +128,7 @@ public:
     }
     const uint32_t* image() const { return pixels_.empty()?0:pixels_.data(); }
     unsigned serial() const { return last_serial_; }
+    unsigned scenes() const { return scenes_; }
 };
 
 static void coop_backdrop_publish(const ntr::Framebuffer& fb) {

@@ -17824,6 +17824,7 @@ target_include_directories(walk_window PRIVATE
 # (NTR_HIRES2, the fixed 512x384 tier); the wide-max buffer with a 4:3 default
 # active size is byte-for-byte that build when the key is off.
 target_link_libraries(walk_window PRIVATE ntr_wide_rt lua_resource_pack)
+target_sources(walk_window PRIVATE hal/coop_media_decode.cpp)
 target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
     ${PORT_REPO_ROOT_DEF}
     # GATE STARSEL (run link100, lane STARSELENTRY): this target carries

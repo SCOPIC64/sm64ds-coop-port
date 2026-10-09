@@ -6,6 +6,8 @@ on:
       - 'port/tests/coop_*'
       - 'port/tests/overlay_font.h'
       - 'port/frontend/**'
+      - 'port/tests/fixtures/**'
+      - 'port/third_party/miniaudio/**'
       - 'port/tests/walk_window.cpp'
       - 'port/hal/host_settings.*'
       - '.github/workflows/frontend-checks.yml'
@@ -26,7 +28,7 @@ jobs:
         run: cmake -S port/frontend -B build/frontend -DHANDHELD=${{ matrix.handheld }}
       - name: Build tests with warnings as errors
         run: cmake --build build/frontend --config Debug
-      - name: Test navigation, validation, render bounds and multi-touch
+      - name: Test menu, multi-touch, audio decoding and image formats
         run: ctest --test-dir build/frontend -C Debug --output-on-failure
   windows-integration:
     runs-on: windows-latest

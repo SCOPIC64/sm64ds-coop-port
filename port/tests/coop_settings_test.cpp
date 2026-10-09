@@ -20,6 +20,8 @@ static void expect_saved(bool native)
     assert(host_setting_menu_music() == (native ? -1 : 1));
     assert(host_setting_menu_background() == (native ? 0 : 2));
     assert(host_setting_menu_sounds() == (native ? 1 : 0));
+    assert(!std::strcmp(host_setting_menu_music_file(),native ? "" : "test-song.mp3"));
+    assert(!std::strcmp(host_setting_menu_background_file(),native ? "" : "test-picture.png"));
 }
 
 int main(int argc, char** argv)
@@ -39,9 +41,10 @@ int main(int argc, char** argv)
         std::fputs("{\"Keep\":\"another menu's setting\",\"VoiceChatVolume\":63,"
                    "\"CameraMode\":\"ds\",\"SmoothMotion\":false,\"NameTags\":true}", file);
         assert(std::fclose(file) == 0);
-        assert(host_setting_save_frontend_media(1, 2, native ? 0 : 144,
+        assert(host_setting_save_frontend_custom(1, 2, native ? 0 : 144,
             native ? 1 : 0, native ? 0 : 1, 35, native ? 1 : 0,
-            native ? -1 : 1, native ? 0 : 2, native ? 1 : 0));
+            native ? -1 : 1, native ? 0 : 2, native ? 1 : 0,
+            native ? "" : "test-song.mp3", native ? "" : "test-picture.png"));
         expect_saved(native);
         assert(!host_setting_save_frontend(-1, 2, 60, 1, 0, 35, 0));
         assert(!host_setting_save_frontend(1, 3, 60, 1, 0, 35, 0));
@@ -49,7 +52,9 @@ int main(int argc, char** argv)
         assert(!host_setting_save_frontend(1, 2, 241, 1, 0, 35, 0));
         assert(!host_setting_save_frontend(1, 2, 60, 1, 0, 101, 0));
         assert(!host_setting_save_frontend_media(1,2,60,1,0,35,0,999,0,1));
-        assert(!host_setting_save_frontend_media(1,2,60,1,0,35,0,-1,3,1));
+        assert(!host_setting_save_frontend_media(1,2,60,1,0,35,0,-1,999,1));
+        assert(!host_setting_save_frontend_custom(1,2,60,1,0,35,0,-1,0,1,"../bad.wav",""));
+        assert(!host_setting_save_frontend_custom(1,2,60,1,0,35,0,-1,0,1,"quote\".wav",""));
         expect_saved(native);
         HANDLE locked = CreateFileA("settings.json", GENERIC_READ, FILE_SHARE_READ,
             nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
