@@ -1,0 +1,21 @@
+name: Publish verified Windows menu preview
+on:
+  push:
+    branches: ['codex/coop-menu-single-exe']
+    paths: ['tools/portable_kit/menu-preview-release.json']
+permissions:
+  contents: write
+concurrency:
+  group: publish-menu-preview
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.repository == 'SCOPIC64/sm64ds-coop-port'
+    runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate and publish tested Windows artifact
+        run: python3 tools/portable_kit/publish_menu_preview.py

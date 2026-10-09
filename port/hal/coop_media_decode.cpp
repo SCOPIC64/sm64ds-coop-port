@@ -23,6 +23,7 @@
 #define STBI_NO_HDR
 #define STBI_NO_LINEAR
 #define STBI_WINDOWS_UTF8
+#define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
 
