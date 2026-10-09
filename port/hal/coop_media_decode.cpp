@@ -4,6 +4,9 @@
 #include <cstring>
 #include <new>
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #define MA_NO_DEVICE_IO
 #define MA_NO_THREADING
 #define MA_NO_ENGINE
