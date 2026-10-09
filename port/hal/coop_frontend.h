@@ -148,7 +148,7 @@ struct Menu {
                 else std::snprintf(out, size, "FRAME RATE     < %d >", fps);
             } else if (index == 1) std::snprintf(out, size, "SMOOTH MOTION  < %s >", smooth ? "ON" : "OFF");
             else if (index == 2) {
-                static const char* backgrounds[] = { "BOB-OMB BATTLEFIELD", "CASTLE GROUNDS", "STAFF ROLL SCENERY",
+                static const char* backgrounds[] = { "BOB-OMB BATTLEFIELD", "CASTLE GROUNDS", "STAFF ROLL",
                     "WHOMP'S FORTRESS", "COOL COOL MOUNTAIN", "JOLLY ROGER BAY", "LETHAL LAVA LAND", "DIRE DIRE DOCKS" };
                 const int custom = background - BACKGROUND_BUILTIN_COUNT;
                 const char* name = background >= 0 && background < BACKGROUND_BUILTIN_COUNT ? backgrounds[background] :

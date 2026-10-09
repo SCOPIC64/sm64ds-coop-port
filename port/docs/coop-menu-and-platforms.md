@@ -39,14 +39,24 @@ Custom music streams through the existing menu mixer at 32768 Hz, stereo PCM;
 the decoder does not open another audio device. The menu gains apply to both
 sources. The decoder is vendored with its license and pinned provenance.
 
-Display offers Bob-omb Battlefield, Castle Grounds, Staff Roll Scenery,
+Display offers Bob-omb Battlefield, Castle Grounds, Staff Roll,
 Whomp's Fortress, Cool Cool Mountain, Jolly Roger Bay, Lethal Lava Land and
 Dire Dire Docks. A
 hidden child of the same executable renders the actual DS scenery into shared
 memory, with audio, input and networking disabled and an isolated temporary
-save. A kill-on-close job ties its lifetime to the menu. The scenery tour cycles
-seven views every 20 seconds; it is not the cartridge's credits
-sequence. The renderer is throttled to approximately 30 frames per second.
+save. A kill-on-close job ties its lifetime to the menu. Staff Roll follows
+CoopDX's menu credits behavior: moving cinematic cameras, no player or HUD,
+scene fades and a repeating course sequence, while retaining the selected menu
+music. Seven port-owned Bezier flyovers show Bob-omb Battlefield, Whomp's
+Fortress, Cool Cool Mountain, Jolly Roger Bay, Lethal Lava Land, Dire Dire Docks
+and Castle Grounds. Each lasts 12 seconds, starting when its first rendered
+frame arrives, with half-second fades. These are original camera paths through
+the DS scenery, not the cartridge's original ending script. Skybox placement
+follows the cinematic camera. The renderer is throttled to approximately 30
+frames per second. Gameplay cameras and actor rendering are unchanged outside
+this isolated background child.
+
+Reference: https://github.com/coop-deluxe/sm64coopdx/blob/main/src/game/level_update.c
 A gradient keeps the menu usable while the scene loads or assets are missing.
 
 Add Custom Background accepts PNG, JPEG or BMP and copies a validated image to
@@ -102,6 +112,11 @@ non-silent output for every selectable theme and each of the three effects.
 waits for ninety rendered scene frames before capturing all menu pages. Always
 use an isolated runtime folder and explicit fixture save path for these checks.
 `SM64DS_MENU_TOUR_TEST=1` additionally checks a scenery transition.
+`SM64DS_MENU_STAFF_ROLL_SELFTEST=1` with `SM64DS_MENU_TOUR_TEST=1` checks all
+seven moving cameras and the wrap back to the first shot using six-second test
+shots, saving `staff-roll-00.bmp` through `staff-roll-06.bmp` and a menu capture.
+The portable `staff_roll_cameras` test checks trajectory continuity, coordinate
+bounds, fades, shot wrapping and timer rollover.
 `SM64DS_MENU_CUSTOM_MEDIA_SELFTEST=1` checks the isolated custom libraries and
 captures a custom-background menu. Portable decoder tests use synthetic tones
 and generated color images for every supported format, with no cartridge data.

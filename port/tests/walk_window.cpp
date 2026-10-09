@@ -3931,6 +3931,7 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
    analog and free modes (stood down during a cutscene, the fc48 gate), and
    the widescreen widen of the Clipper Camera::Render has just seeded. Frames
    the ROM does not walk make the old hand calls instead and never reach it. */
+#include "coop_staff_roll_camera.inc"
 static char *g_k1_player;       /* the level loop's player, set per ROM frame */
 static void k1_level_camera_render_hook(void *cam)
 {
@@ -3940,7 +3941,7 @@ static void k1_level_camera_render_hook(void *cam)
     const int cutscene_cam = !no_cutscene_cam && data_0209fc48 != 0;
     if (cam_mode == CAM_ANALOG && !rb_replaying() && g_k1_player)
         an_step_pivot(g_k1_player);
-    if (cam_mode != CAM_DS && !cutscene_cam) {
+    if (!coop_staff_roll_camera(cam) && cam_mode != CAM_DS && !cutscene_cam) {
         int fceye[3];
         const int *pivot = cam_mode == CAM_ANALOG
                                ? an_pivot
@@ -16633,7 +16634,7 @@ int main(void)
                    view: hal_camera_render has just parked the script-driven view in
                    data_0209b3ec, and leaving it there is what makes the star-get
                    fly-around visible instead of overwritten. */
-                if (cam_mode != CAM_DS && !cutscene_cam) {
+                if (!coop_staff_roll_camera(cam) && cam_mode != CAM_DS && !cutscene_cam) {
                     int fceye[3];
                     const int *pivot = cam_mode == CAM_ANALOG
                                            ? an_pivot
@@ -16965,7 +16966,7 @@ int main(void)
                    the second. (ShadowModel::RenderAll sits between them, on
                    the ROM and here.) */
                 if (!rb_skip_render())
-                    port_stage_render_skybox(stage);
+                    coop_staff_roll_skybox(stage,cam);
                 /* Stage::Render's first block, in its place in the order:
                    advance the shown areas' BTA texture animations (the
                    waterfall), which RenderModel below then applies. */
@@ -17138,10 +17139,11 @@ int main(void)
                     hal_player_texseq_tick(other);
                 continue;
             }
-            if (void *other = data_0209f394[pi])
-                hal_render_player_world(other);
+            if (!coop_staff_roll_child()) {
+                if (void *other = data_0209f394[pi]) hal_render_player_world(other);
+            }
         }
-        if (!rb_skip_render())
+        if (!rb_skip_render() && !coop_staff_roll_child())
             hal_render_player_world(player);
         else
             hal_player_texseq_tick(player);
