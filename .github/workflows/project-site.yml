@@ -1,0 +1,61 @@
+name: Project website
+on:
+  push:
+    branches: [coop-port, codex/project-website]
+    paths: ['website/**', '.github/workflows/project-site.yml']
+  pull_request:
+    paths: ['website/**', '.github/workflows/project-site.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: project-site-${{ github.event_name }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      pages_ready: ${{ steps.pages.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate catalogue and approval policy
+        run: |
+          python3 website/validate_catalog.py
+          python3 -m unittest discover -s website -p 'test_*.py'
+      - name: Upload static site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: website/public
+      - name: Check Pages configuration
+        id: pages
+        if: github.event_name != 'pull_request' && github.repository == 'SCOPIC64/sm64ds-coop-port'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if mode=$(gh api "repos/$GH_REPO/pages" --jq '.build_type' 2>/dev/null) && [ "$mode" = workflow ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Site validated and uploaded. Enable Settings > Pages > GitHub Actions, then rerun this workflow to publish.'
+          fi
+  deploy:
+    needs: build
+    if: needs.build.outputs.pages_ready == 'true' && github.event_name != 'pull_request'
+    runs-on: ubuntu-22.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Deploy website
+        id: deployment
+        uses: actions/deploy-pages@v4
