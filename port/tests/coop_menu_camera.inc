@@ -2,8 +2,9 @@
 // Reference: coop-deluxe/sm64coopdx, src/game/level_update.c, update_menu_level.
 // The original DS credits keep their own players, scripts and camera lifecycle.
 extern "C" {
-    extern void (*port_menu_player_preview_hook)(void*);
+    extern void (*port_menu_player_preview_hook)(void*, bool);
     extern unsigned char data_ov002_02110154[];
+    void func_ov002_020e444c(void*);
 }
 struct CoopMenuPose {
     int level, position[3], eye[3];
@@ -22,7 +23,7 @@ static short coop_menu_yaw;
 static bool coop_menu_player_child() {
     return getenv("SM64DS_MENU_BACKDROP_CHILD") && !coop_staff_roll_child();
 }
-static void coop_menu_player_prepare(void* player) {
+static void coop_menu_player_prepare(void* player,bool before) {
     if(!coop_menu_player_child() || !player || !g_mc)return;
     char* p=static_cast<char*>(player);
     if(!coop_menu_pose_ready) {
@@ -63,6 +64,10 @@ static void coop_menu_player_prepare(void* player) {
             coop_menu_eye[0]/4096,coop_menu_eye[1]/4096,coop_menu_eye[2]/4096,(int)coop_menu_yaw);
     }
     memcpy(p+0x5c,coop_menu_position,sizeof coop_menu_position);
+    memcpy(p+0x68,coop_menu_position,sizeof coop_menu_position);
+    // Use the DS collision query's scripted-position mode. Its floor/wall
+    // queries still run, but cannot sweep Mario back toward his entrance.
+    *(unsigned*)(p+0x390)|=0x2010u;
     *(short*)(p+0x8c)=0;*(short*)(p+0x8e)=coop_menu_yaw;*(short*)(p+0x90)=0;
     *(short*)(p+0x94)=coop_menu_yaw;
     *(int*)(p+0x98)=0;memset(p+0xa4,0,3*sizeof(int));
@@ -72,8 +77,17 @@ static void coop_menu_player_prepare(void* player) {
     // Actual gameplay retains the DS introduction and saved hint flags.
     *(unsigned char*)(p+0x71e)=0;*(unsigned char*)(p+0x71f)=0;
     data_0209b454[0]&=~0x800000;
-    if(*(void**)(p+0x370)!=data_ov002_02110154)
+    if(before && *(void**)(p+0x370)!=data_ov002_02110154)
         _ZN6Player11ChangeStateERNS_5StateE(player,data_ov002_02110154);
+    if(!before) {
+        // Recompose BOTH native body/head matrices after the DS state tick.
+        // Behavior already registered the shadow. The native no-shadow byte
+        // prevents a second registration (which would cycle its linked list).
+        const unsigned char shadow=*(unsigned char*)(p+0x717);
+        *(unsigned char*)(p+0x717)=1;
+        func_ov002_020e444c(player);
+        *(unsigned char*)(p+0x717)=shadow;
+    }
 }
 static bool coop_menu_camera(void* cam) {
     if(!coop_menu_player_child() || !cam || !coop_menu_pose_ready)return false;

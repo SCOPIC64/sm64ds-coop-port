@@ -58,6 +58,10 @@ to DS collision floors. Dire Dire Docks has no CoopDX menu preset and uses its
 DS entrance ledge. HUD and dialogue are hidden across menu scenery. Enemies and
 scenery keep running so the original credits behavior remains intact. The renderer is paced at
 approximately 30 frames per second; its selected menu music plays independently.
+Ordinary previews pin Mario before and after the native state tick, retain his
+health, and recompose the native body/head transforms without registering his
+shadow twice. Runtime checks compare the actual model's forward axis with the
+camera direction after 90 rendered frames in each ordinary course.
 
 Reference: https://github.com/coop-deluxe/sm64coopdx/blob/main/src/game/level_update.c
 A gradient keeps the menu usable while the scene loads or assets are missing.

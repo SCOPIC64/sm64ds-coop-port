@@ -37,7 +37,7 @@ namespace ntr { struct GxTriangle; const GxTriangle *gx_polygons(std::size_t &n)
    read by the F3 overlay in port/tests/walk_window.cpp */
 extern "C" unsigned g_port_unhosted_hits = 0;
 // The window host supplies this only for its isolated, non-credits preview.
-extern "C" void (*port_menu_player_preview_hook)(void*) = nullptr;
+extern "C" void (*port_menu_player_preview_hook)(void*, bool) = nullptr;
 
 extern "C" unsigned int _ZNK6Player14GetBodyModelIDEjb(char *, unsigned int, char);
 extern "C" unsigned func_ov002_020becf4(char *self, unsigned j, int b);
@@ -80,8 +80,12 @@ int hal_player_st_walk_main(void *p)
 int hal_player_behavior(void *p)
 {
     Player* player=(Player*)p;
-    if(port_menu_player_preview_hook)port_menu_player_preview_hook(p);
+    if(port_menu_player_preview_hook) {
+        port_menu_player_preview_hook(p,true);
+        player->Player::Heal(0x880); // Keep menu Mario healthy as in CoopDX.
+    }
     const int result=player->Player::Behavior();
+    if(port_menu_player_preview_hook)port_menu_player_preview_hook(p,false);
     static const bool credits=std::getenv("SM64DS_MENU_BACKDROP_CHILD") && std::getenv("SM64DS_MENU_NATIVE_STAFF_ROLL");
     if(credits) {
         // Behavior registers the shadow independently of the body render.

@@ -183,6 +183,11 @@ static int coop_frontend_run()
                 backdrop.tick(g_coop_menu.background); Sleep(16);
             }
             ok = backdrop.serial() >= 90;
+            if(g_coop_menu.background!=2) {
+                const int facing=backdrop.mario_front_milli();
+                ok=ok && facing>=990;
+                fprintf(stderr,"[coop-menu] Mario facing camera %s dot=%d\n",facing>=990?"PASS":"FAIL",facing);
+            }
             if(g_coop_menu.background==2 && getenv("SM64DS_MENU_TOUR_TEST")) {
                 while((backdrop.credits_visits()<2 || backdrop.serial()<45) && static_cast<LONG>(GetTickCount()-deadline)<0) {
                     backdrop.tick(g_coop_menu.background);Sleep(16);

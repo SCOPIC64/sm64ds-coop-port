@@ -9,6 +9,7 @@ struct CoopSceneFrame {
     unsigned credits_cursor;
     int credits_level;
     int credits_shot;
+    int mario_front_milli;
     uint32_t pixels[512 * 384];
 };
 static bool coop_backdrop_child() { return getenv("SM64DS_MENU_BACKDROP_CHILD") != 0; }
@@ -33,6 +34,7 @@ class CoopBackdrop {
     int camera_eye_[3] = {};
     unsigned credits_script_=0,credits_cursor_=0;
     int credits_level_=-1;
+    int mario_front_milli_=-1001;
     struct Env {
         const char* name; char old[2048]; bool present;
         Env(const char* key, const char* value) : name(key) {
@@ -59,6 +61,7 @@ public:
         last_serial_ = 0;
         last_credits_script_=0;
         credits_script_=credits_cursor_=0;credits_level_=-1;
+        mario_front_milli_=-1001;
         visible_ = false;
         cinematic_frames_ = 0;
     }
@@ -139,6 +142,7 @@ public:
                 cinematic_frames_=shared_->cinematic_frames;
                 credits_script_=shared_->credits_script;credits_cursor_=shared_->credits_cursor;
                 credits_level_=shared_->credits_level;
+                mario_front_milli_=shared_->mario_front_milli;
                 if(choice==2) {
                     tour_=shared_->credits_shot;
                     if(shared_->credits_script && shared_->credits_script!=last_credits_script_) {
@@ -158,6 +162,7 @@ public:
     unsigned credits_cursor() const { return credits_cursor_; }
     int credits_level() const { return credits_level_; }
     unsigned credits_visits() const { return credits_visits_; }
+    int mario_front_milli() const { return mario_front_milli_; }
     unsigned serial() const { return last_serial_; }
     unsigned scenes() const { return scenes_; }
     int shot() const { return tour_; }
@@ -185,6 +190,22 @@ static void coop_backdrop_publish(const ntr::Framebuffer& fb) {
         shared->credits_level=data_0209f2f8;
         const unsigned char* script=(const unsigned char*)(size_t)data_0209fc48;
         shared->credits_shot=coop_staff_roll_child() && script && script[0]==8 && script[1]==0x2e?script[7]-1:-1;
+        shared->mario_front_milli=-1001;
+        // Verify the rendered model's heading, rather than the requested yaw.
+        // This catches native collision/state updates displacing the preview.
+        if(!coop_staff_roll_child() && data_0209f394[0] && data_0209f318) {
+            char* player=(char*)data_0209f394[0];
+            unsigned body=_ZNK6Player14GetBodyModelIDEjb(player,*(unsigned*)(player+8)&0xff,0);
+            char* model=body<4?((char**)(player+0xdc))[body]:nullptr;
+            if(model) {
+                const int* matrix=(const int*)(model+0x1c);
+                const int* eye=(const int*)((char*)data_0209f318+0x8c);
+                const double x=(double)eye[0]-*(int*)(player+0x5c);
+                const double z=(double)eye[2]-*(int*)(player+0x64);
+                const double length=std::sqrt((x*x+z*z)*((double)matrix[6]*matrix[6]+(double)matrix[8]*matrix[8]));
+                if(length>0)shared->mario_front_milli=(int)((x*matrix[6]+z*matrix[8])*1000/length);
+            }
+        }
         ++shared->serial; InterlockedExchange(&shared->lock,0);
     }
     // Limit this preview renderer even though the engine's test loop is unpaced.
