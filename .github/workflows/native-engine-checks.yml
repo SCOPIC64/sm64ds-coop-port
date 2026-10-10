@@ -1,0 +1,80 @@
+name: Native engine foundation (not game packages)
+on:
+  push:
+    branches: ['codex/native-platforms']
+  pull_request:
+    paths:
+      - 'port/native/**'
+      - 'port/ntr/**'
+      - 'port/tools/native_headers.py'
+      - 'port/tests/coop_native_runtime_test.cpp'
+      - 'port/tests/coop_engine_abi_probe.cpp'
+      - 'port/tests/coop_frame_context_test.cpp'
+      - 'port/third_party/minicoro/**'
+      - '.github/workflows/native-engine-checks.yml'
+permissions:
+  contents: read
+jobs:
+  linux-engine-core:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the native 32-bit compiler runtime
+        run: sudo apt-get update && sudo apt-get install -y clang g++-multilib ninja-build
+      - name: Configure the real DS hardware and frame-runtime library
+        run: cmake -S port/native -B build/native-core -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-m32 -DCMAKE_BUILD_TYPE=Debug
+      - name: Compile native core and actual Player ABI prerequisites
+        run: cmake --build build/native-core --parallel 2
+      - name: Run fixed-address I/O, state layout and actual frame/IRQ tests
+        run: ctest --test-dir build/native-core --output-on-failure
+  frame-context:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure native context tests
+        run: cmake -S port/frontend -B build/native-context
+      - name: Build actual stack-switch implementation
+        run: cmake --build build/native-context --config Debug --target coop_frame_context_test --parallel 2
+      - name: Exercise nested yields, thread ownership and stop/restart
+        run: ctest --test-dir build/native-context -C Debug -R native_stack_context --output-on-failure
+  android-context:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile actual frame backend for Android ARM32 and ARM64 (not an APK)
+        shell: bash
+        run: |
+          ndk=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          mkdir -p build/native-context
+          for target in armv7a-linux-androideabi26 aarch64-linux-android26; do
+            compiler="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/$target-clang++"
+            test -x "$compiler"
+            "$compiler" -std=c++17 -Wall -Wextra -Werror -Iport/ntr/include -c port/ntr/frame_context.cpp -o "build/native-context/$target.o"
+          done
+  ios-context:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile actual frame backend for iOS ARM64 (not an IPA)
+        shell: bash
+        run: |
+          sdk=$(xcrun --sdk iphoneos --show-sdk-path)
+          mkdir -p build/native-context
+          xcrun --sdk iphoneos clang++ -target arm64-apple-ios14.0 -isysroot "$sdk" -std=c++17 -Wall -Wextra -Werror -Iport/ntr/include -c port/ntr/frame_context.cpp -o build/native-context/ios-arm64.o
+  windows-runtime:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile existing Windows game runtime with the 32-bit ABI
+        shell: cmd
+        run: |
+          set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+          for /f "usebackq delims=" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSINSTALL=%%I"
+          if not defined VSINSTALL exit /b 1
+          call "%VSINSTALL%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
+          mkdir build\native-context
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /Iport /Iport\ntr\include port\ntr\rt.cpp /Fobuild\native-context\windows-rt.obj || exit /b 1

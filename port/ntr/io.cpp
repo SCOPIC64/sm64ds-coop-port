@@ -1004,7 +1004,7 @@ const char *io_reserve_player_text() {
     if (!lost_name) return "";
 
     // The clearest single fact we have: what was actually sitting there.
-    char namebuf[MAX_PATH];
+    char namebuf[kNameMax];
     const char *who = nullptr;
     for (unsigned k = 0; k < g_occ_n; ++k) {
         if (g_occ[k].region_base == lost_base) {

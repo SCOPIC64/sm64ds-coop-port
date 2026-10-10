@@ -24243,3 +24243,6 @@ foreach(_xrel1_map IN LISTS OV_DATA_MAPS)
     math(EXPR _xrel1_mounts "${_xrel1_mounts} + 1")
 endforeach()
 message(STATUS "XREL1: ${_xrel1_mounts} ovdata mount(s) rebuild when their overlay's config changes")
+
+# Native frame-context wiring; the existing Windows fiber backend is retained.
+include("${CMAKE_CURRENT_SOURCE_DIR}/native/context-targets.cmake")
