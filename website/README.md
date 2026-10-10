@@ -4,6 +4,21 @@ The static site lives in `website/public`. It has Windows release downloads,
 a searchable gameplay/texture catalogue, installation guides and honest platform
 status. It uses no account service, tracking, remote fonts or public upload form.
 
+The home page uses a dark project-site layout. The mod directory uses compact
+blue list rows and category navigation inspired by the CoopDX community site.
+`mods.html`, `guides.html` and `lobbies.html` are separate static pages. Category
+counts come from the real catalogue. All artwork is text/CSS, without copied
+game or CoopDX assets.
+
+## Lobby hosting
+
+Pages serves static files and cannot run the Python room service or UDP relay.
+The existing tools are under `port/tools/lobby` and `port/tools/relay`; they need
+a separate host. The new menu currently uses direct connections. The lobby page
+explains what works today and does not publish private room codes or present a
+fake public directory. Public listing, native menu integration and deployment
+must be completed before a site-to-game lobby flow can be enabled.
+
 ## Publish on GitHub Pages
 
 Open repository **Settings → Pages → Build and deployment → Source → GitHub
