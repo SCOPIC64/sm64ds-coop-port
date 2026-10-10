@@ -3,3 +3,5 @@
 
 extern "C" char data_020a4d38[0x20]
     __attribute__((alias("_ZN6Memory16rootHeapIteratorE")));
+extern "C" int data_020a4d34
+    __attribute__((alias("_ZN6Memory25isRootHeapIterInitializedE")));
