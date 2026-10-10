@@ -76,7 +76,20 @@ int hal_player_st_walk_init(void *p)
 int hal_player_st_walk_main(void *p)
 { return ((Player *)p)->Player::St_Walk_Main(); }
 int hal_player_behavior(void *p)
-{ return ((Player *)p)->Player::Behavior(); }
+{
+    Player* player=(Player*)p;
+    const int result=player->Player::Behavior();
+    static const bool backdrop=std::getenv("SM64DS_MENU_BACKDROP_CHILD")!=nullptr;
+    if(backdrop) {
+        // Behavior registers the shadow independently of the body render.
+        // Collapse only this player's shadow in the private menu renderer;
+        // scenery/enemy shadows and the native list/freeze protocol stay live.
+        player->mShadowModel.scale.x=0;
+        player->mShadowModel.scale.y=0;
+        player->mShadowModel.scale.z=0;
+    }
+    return result;
+}
 /* the walk demo renders the Player's current body ModelAnim in place:
    identity model matrix, bones posed from the anim Behavior advanced */
 /* level model render for the window: identity world matrix (stage models
