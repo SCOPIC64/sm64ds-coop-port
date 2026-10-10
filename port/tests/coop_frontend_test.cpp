@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
     assert(!valid_port("65535") && !valid_port("0") && !valid_port("1023"));
     assert(!valid_port("999999999999") && !valid_port("-1") && !valid_port("51x"));
     Menu m;
-    m.key(UP); assert(m.row == 3); m.key(DOWN); assert(m.row == 0);
+    m.key(UP); assert(m.row == 4); m.key(DOWN); assert(m.row == 0);
     m.key(ACCEPT); assert(m.page == HOST);
     m.row = 6; m.key(ACCEPT); assert(m.page == PLAY);
     m.key(LEFT); assert(m.slot == 2);
@@ -109,8 +109,17 @@ int main(int argc, char** argv) {
         else assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
     }
     m.open(OPTIONS); m.row = 6; assert(m.key(ACCEPT) == SAVE_OPTIONS && m.after_save == HOME);
-    m.open(PLAYER);m.row=1;m.key(ACCEPT);assert(m.movement_mod==1);
-    m.key(LEFT);assert(m.movement_mod==0);
+    m.open(PLAYER);m.row=1;m.key(ACCEPT);assert(m.page==MODS);
+    m.mod_count=6;m.open(MODS);m.row=0;assert(m.key(ACCEPT)==TOGGLE_MOD);
+    m.row=4;m.key(RIGHT);assert(m.mod_page==1 && m.shown_mods()==2 && m.row==2);
+    m.row=3;assert(m.key(ACCEPT)==RELOAD_MODS);
+    m.row=4;m.key(ACCEPT);assert(m.page==TEXTURES);
+    assert(m.key(ACCEPT)==TEXTURE_CAPTURE);m.row=1;assert(m.key(ACCEPT)==TEXTURE_PACK);
+    m.in_game=true;m.open(PAUSE);assert(m.key(BACK)==RESUME);
+    m.row=1;m.key(ACCEPT);assert(m.page==OPTIONS);
+    assert(m.key(BACK)==SAVE_OPTIONS && m.after_save==PAUSE);
+    m.open(MODS);m.key(BACK);assert(m.page==PAUSE);m.in_game=false;
+    m.mod_page=0;m.mod_count=48;
     m.open(CAMERA);m.camera=2;m.key(RIGHT);assert(m.camera==3);
     m.label(0,rate_label,sizeof rate_label);assert(std::strstr(rate_label,"SM64 CAM"));
     m.key(RIGHT);assert(m.camera==0);m.key(LEFT);assert(m.camera==3);
@@ -149,7 +158,7 @@ int main(int argc, char** argv) {
         int w = dims.first, h = dims.second, stride = w + 16;
         std::vector<uint32_t> pixels(stride * h + 64, 0xdeadbeef);
         Canvas c = { pixels.data() + 32, w, h, stride, OVL_FONT };
-        for (int page = HOME; page <= EXIT_CONFIRM; ++page) {
+        for (int page = HOME; page <= PAUSE; ++page) {
             m.open(static_cast<Page>(page)); draw(c, m, 100);
             for (int row = 0; row < m.rows(); ++row) {
                 ButtonRect r = button_rect(c,m,row);

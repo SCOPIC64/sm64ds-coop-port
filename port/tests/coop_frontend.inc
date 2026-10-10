@@ -1,5 +1,6 @@
 // Included after the window/presentation helpers in walk_window.cpp.
 // Runs in the game process and reuses its HWND for the adventure.
+#include <shellapi.h>
 #include "coop_menu_media.inc"
 #include "coop_menu_audio.inc"
 #include "coop_menu_backdrop.inc"
@@ -62,9 +63,8 @@ static void coop_session_environment(coop_frontend::Action action)
     }
 }
 
-static int coop_frontend_run()
+static void coop_read_options()
 {
-    if (!coop_frontend_wanted()) return 1;
     g_coop_menu.camera = host_setting_camera_mode();
     g_coop_menu.movement = host_setting_run_mode();
     g_coop_menu.movement_mod=host_setting_movement_mod();
@@ -80,6 +80,66 @@ static int coop_frontend_run()
     g_coop_menu.menu_sounds = host_setting_menu_sounds() != 0;
     snprintf(g_coop_menu.music_file,sizeof g_coop_menu.music_file,"%s",host_setting_menu_music_file());
     snprintf(g_coop_menu.background_file,sizeof g_coop_menu.background_file,"%s",host_setting_menu_background_file());
+}
+static void coop_refresh_mods() {
+    g_coop_menu.mod_count=(int)sm64ds::mods::count();
+    if(g_coop_menu.mod_page*4>=g_coop_menu.mod_count)g_coop_menu.mod_page=0;
+    for(int i=0;i<g_coop_menu.mod_count;++i) {
+        auto mod=sm64ds::mods::info(i);
+        snprintf(g_coop_menu.mod_names[i],64,"%.63s",mod.name.c_str());
+        snprintf(g_coop_menu.mod_descriptions[i],96,"%.95s",mod.failed?mod.error.c_str():mod.description.c_str());
+        g_coop_menu.mod_enabled[i]=mod.enabled;g_coop_menu.mod_failed[i]=mod.failed;
+    }
+}
+static bool coop_tools_action(coop_frontend::Action action) {
+    std::string error;
+    if(action==coop_frontend::TOGGLE_MOD || action==coop_frontend::RELOAD_MODS) {
+        if(port::comms_loopback_stats().installed) {
+            snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"Change gameplay mods before a network session.");return true;
+        }
+        if(action==coop_frontend::TOGGLE_MOD) {
+            const int i=g_coop_menu.selected_mod();
+            sm64ds::mods::set_enabled(i,!g_coop_menu.mod_enabled[i],error);
+        } else {
+            const char* root=getenv("SM64DS_MODS");sm64ds::mods::load(root?root:"mods",false,error);
+        }
+        coop_refresh_mods();
+        snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.110s",error.empty()?"Mod selection saved.":error.c_str());
+        return true;
+    }
+    if(action==coop_frontend::TEXTURE_CAPTURE) {
+        g_coop_menu.capture_textures=!g_coop_menu.capture_textures;
+        if(g_coop_menu.capture_textures) {
+            std::error_code ec;std::filesystem::create_directories("texture-work/capture",ec);
+            if(ec){g_coop_menu.capture_textures=false;error=ec.message();}
+        }
+        ntr::hdtex_capture("texture-work/capture",g_coop_menu.capture_textures);
+        ntr::gx_invalidate_textures();
+        snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.110s",error.empty()?
+            (g_coop_menu.capture_textures?"Capture started. Play levels to collect textures.":"Texture capture stopped."):error.c_str());return true;
+    }
+    if(action==coop_frontend::TEXTURE_PACK) {
+        std::string created;
+        bool ok=sm64ds::textures::create_pack("texture-work/capture","mods/resource-packs",created,error);
+        snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.110s",ok?"Pack created. Edit its PNGs; restart to load it.":error.c_str());return true;
+    }
+    if(action==coop_frontend::OPEN_TEXTURE_FOLDER) {
+        std::error_code ec;std::filesystem::create_directories("texture-work",ec);
+        std::filesystem::create_directories("mods/resource-packs",ec);
+        ShellExecuteW(g_entry_hwnd,L"open",L"texture-work",0,0,SW_SHOWNORMAL);
+        ShellExecuteW(g_entry_hwnd,L"open",L"mods/resource-packs",0,0,SW_SHOWNORMAL);return true;
+    }
+    return false;
+}
+static int coop_frontend_run()
+{
+    if(!getenv("SM64DS_MENU_BACKDROP_CHILD")) {
+        const char* root=getenv("SM64DS_MODS");std::string error;
+        if(!sm64ds::mods::load(root?root:"mods",host_setting_movement_mod()!=0,error))
+            fprintf(stderr,"[mods] %s\n",error.c_str());
+    }
+    if (!coop_frontend_wanted()) return 1;
+    coop_read_options();coop_refresh_mods();
     CoopMediaLibrary media;
     media.refresh(g_coop_menu);
     const char* save_path = getenv("SM64DS_SAVE_PATH");
@@ -198,7 +258,7 @@ static int coop_frontend_run()
             g_coop_backdrop = backdrop.image();
             fprintf(stderr,"[coop-menu] live backdrop selftest %s serial=%u\n",ok?"PASS":"FAIL",backdrop.serial());
         }
-        for (int page = coop_frontend::HOME; page <= coop_frontend::EXIT_CONFIRM; ++page) {
+        for (int page = coop_frontend::HOME; page <= coop_frontend::PAUSE; ++page) {
             g_coop_menu.open(static_cast<coop_frontend::Page>(page));
             coop_draw(menu_fb, 0); present();
             char name[48]; snprintf(name, sizeof name, "coop-menu-%02d.bmp", page);
@@ -247,6 +307,7 @@ static int coop_frontend_run()
         }
         coop_frontend::Action action = g_coop_action;
         g_coop_action = coop_frontend::NONE;
+        coop_tools_action(action);
         if (action == coop_frontend::QUIT) { g_coop_active = false; return 0; }
         if (action == coop_frontend::NEXT_SONG) {
             if(g_coop_menu.music==coop_frontend::MUSIC_OFF)g_coop_menu.music=coop_frontend::MUSIC_RANDOM;
@@ -265,7 +326,7 @@ static int coop_frontend_run()
             if (host_setting_save_frontend_gameplay(g_coop_menu.camera, g_coop_menu.movement,
                     g_coop_menu.fps, g_coop_menu.smooth, g_coop_menu.names, g_coop_menu.volume,
                     g_coop_menu.mouse_capture, g_coop_menu.music, g_coop_menu.background, g_coop_menu.menu_sounds,
-                    g_coop_menu.music_file,g_coop_menu.background_file,g_coop_menu.movement_mod,g_coop_menu.object_distance))
+                    g_coop_menu.music_file,g_coop_menu.background_file,0,g_coop_menu.object_distance))
                 g_coop_menu.open(g_coop_menu.after_save);
             else snprintf(g_coop_menu.message, sizeof g_coop_menu.message,
                           "Could not save settings. Check folder access.");

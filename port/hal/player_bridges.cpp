@@ -16,7 +16,8 @@
 #include "Player.h"
 #include "player_fields.h"   /* run mg16 lane MP4: the one place field offsets live */
 #include "host_settings.h"   /* port::adventure_ghost_mode() for the ghost pass */
-#include "coop_sm64_movement.h"
+#include "coop_mods.h"
+#include "comms_loopback.h"
 #include "comms_seam.h"      /* port::sync_stats(): the local-write witness */
 #include "ShadowModel.h"
 #include "TextureSequence.h"
@@ -36,6 +37,30 @@ namespace ntr { struct GxTriangle; const GxTriangle *gx_polygons(std::size_t &n)
 /* how many times hal_call_state_fn fell off the end of its switch this run --
    read by the F3 overlay in port/tests/walk_window.cpp */
 extern "C" unsigned g_port_unhosted_hits = 0;
+extern "C" unsigned char data_0209f2d8;
+extern "C" int data_0209fc48;
+static sm64ds::mods::PlayerState mod_player(const Player* p) {
+    sm64ds::mods::PlayerState s;
+    s.character=p->mCharacter; s.jump_stage=p->mJumpComboStage;
+    s.facing_yaw=p->mAngleY; s.desired_yaw=p->mDesiredAngleY; s.previous_yaw=p->mPrevAngleY;
+    s.horizontal_speed=p->mHorzSpeed/4096.0f; s.vertical_speed=p->mVertSpeed/4096.0f;
+    s.gravity=p->mVertAccel/4096.0f; s.terminal_velocity=p->mTerminalVelocity/4096.0f;
+    s.floor_normal=p->mFloorNormalY/4096.0f; s.sink_depth=p->mSinkDepth/4096.0f;
+    s.airborne=p->mIsAirborne; s.mega=p->mIsMega; s.wings=p->mHasWings;
+    s.no_control=p->mIsNoControl; s.multiplayer=data_0209f2d8!=0;
+    s.cutscene=data_0209fc48!=0; s.jump_flag=(p->mStateFlags&0x200)!=0;
+    s.launch_speed=s.horizontal_speed;
+    return s;
+}
+static void mod_apply(Player* p,const sm64ds::mods::PlayerState& s) {
+    p->mHorzSpeed=(int)(s.horizontal_speed*4096); p->mVertSpeed=(int)(s.vertical_speed*4096);
+    p->mVertAccel=(int)(s.gravity*4096); p->mTerminalVelocity=(int)(s.terminal_velocity*4096);
+    p->mPrevAngleY=(short)s.previous_yaw;
+}
+static void mod_dispatch(Player* p,sm64ds::mods::Event event) {
+    if(port::comms_loopback_stats().installed)return;
+    auto s=mod_player(p); if(sm64ds::mods::dispatch(event,s))mod_apply(p,s);
+}
 // The window host supplies this only for its isolated, non-credits preview.
 extern "C" void (*port_menu_player_preview_hook)(void*, bool) = nullptr;
 
@@ -84,7 +109,9 @@ int hal_player_behavior(void *p)
         port_menu_player_preview_hook(p,true);
         player->Player::Heal(0x880); // Keep menu Mario healthy as in CoopDX.
     }
+    mod_dispatch(player,sm64ds::mods::Event::before_update);
     const int result=player->Player::Behavior();
+    mod_dispatch(player,sm64ds::mods::Event::after_update);
     if(port_menu_player_preview_hook)port_menu_player_preview_hook(p,false);
     static const bool credits=std::getenv("SM64DS_MENU_BACKDROP_CHILD") && std::getenv("SM64DS_MENU_NATIVE_STAFF_ROLL");
     if(credits) {
@@ -397,22 +424,23 @@ extern void *data_0209f394[];         /* per-slot Player* */
 extern unsigned char data_0209f250;   /* local player index */
 extern int data_0209fc48;
 }
-static bool sm64_movement_active(const Player* player) {
-    return host_setting_movement_mod() && player->mCharacter==0 &&
-        data_0209f2d8==0 && !data_0209fc48 && !player->mIsMega &&
-        !player->mHasWings && !player->mIsNoControl;
-}
 extern "C" int port_sm64_walk_update(void* self,int magnitude,short old_yaw) {
     Player* player=(Player*)self;
-    if(!sm64_movement_active(player))return 0;
-    player->mHorzSpeed=coop_sm64::walk_speed(player->mHorzSpeed,magnitude,
-        player->mFloorNormalY>=3891,player->mSinkDepth);
-    if(magnitude)player->mPrevAngleY=coop_sm64::turn(old_yaw,player->mDesiredAngleY);
+    if(port::comms_loopback_stats().installed)return 0;
+    auto state=mod_player(player); state.stick=magnitude/4096.0f;
+    state.previous_yaw=old_yaw;
+    if(!sm64ds::mods::dispatch(sm64ds::mods::Event::walk,state))return 0;
+    mod_apply(player,state);
     if(std::getenv("SM64DS_GAMEPLAY_PROBE")) {
         static unsigned calls=0;
         if(calls++%30==0)std::fprintf(stderr,"[sm64-mod] walk speed=%d stick=%d\n",player->mHorzSpeed,magnitude);
     }
     return 1;
+}
+extern "C" int port_sm64_can_inspect(const void* self) {
+    const Player* p=(const Player*)self;
+    return p && !p->mIsAirborne && !p->mIsNoControl && !p->mIsMega &&
+        std::abs(p->mHorzSpeed)<4096;
 }
 
 /* ---- THE GHOST ALPHA -------------------------------------------------------
@@ -2192,21 +2220,12 @@ static int hal_call_state_base(void *self, unsigned ds_addr)
 
 extern "C" int hal_call_state_fn(void *self,unsigned ds_addr) {
     Player* player=(Player*)self;
-    const bool active=sm64_movement_active(player);
-    const int speed=player->mHorzSpeed;
+    const float launch=player->mHorzSpeed/4096.0f;
     int result=hal_call_state_base(self,ds_addr);
-    if(active && sm64_movement_active(player)) {
-        if(ds_addr==0x020e22c0 && player->mIsAirborne) {
-            player->mVertSpeed=coop_sm64::jump_launch(player->mJumpComboStage,speed);
-            if(!(player->mStateFlags&0x200))player->mHorzSpeed=(int)((long long)speed*4/5);
-            player->mVertAccel=-4*4096;player->mTerminalVelocity=-75*4096;
-        } else if(ds_addr==0x020e127c && player->mIsAirborne) {
-            player->mVertSpeed=30*4096;
-            player->mHorzSpeed=(std::min)((int)((long long)speed*3/2),48*4096);
-            player->mVertAccel=-2*4096;player->mTerminalVelocity=-75*4096;
-        } else if(ds_addr==0x020e200c || ds_addr==0x020e2118) {
-            player->mVertAccel=-4*4096;player->mTerminalVelocity=-75*4096;
-        }
+    if(port::comms_loopback_stats().installed)return result;
+    auto state=mod_player(player); state.action=ds_addr; state.launch_speed=launch;
+    if(sm64ds::mods::dispatch(sm64ds::mods::Event::state,state)) {
+        mod_apply(player,state);
         if(std::getenv("SM64DS_GAMEPLAY_PROBE") && (ds_addr==0x020e22c0 || ds_addr==0x020e127c))
             std::fprintf(stderr,"[sm64-mod] launch action=%08x vertical=%d horizontal=%d stage=%d\n",ds_addr,
                 player->mVertSpeed,player->mHorzSpeed,player->mJumpComboStage);

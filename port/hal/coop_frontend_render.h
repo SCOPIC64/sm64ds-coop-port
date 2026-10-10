@@ -73,12 +73,12 @@ inline void hand(const Canvas& c, int x, int y, int s) {
         if (rows[yy] & (0x80>>xx)) c.box(x+xx*s,y+yy*s,s,s,0xffffffffu);
 }
 inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* loading=nullptr,
-                 const uint32_t* backdrop=nullptr, int bw=512, int bh=384) {
+                 const uint32_t* backdrop=nullptr, int bw=512, int bh=384, int bs=0) {
     if (!c.valid()) return;
     const int s=c.scale();
     for (int y=0; y<c.height; ++y) for (int x=0; x<c.width; ++x) {
         uint32_t v;
-        if (backdrop && bw>0 && bh>0) v=backdrop[(y*bh/c.height)*bw+x*bw/c.width];
+        if (backdrop && bw>0 && bh>0) v=backdrop[(y*bh/c.height)*(bs?bs:bw)+x*bw/c.width];
         else {
             // The menu remains usable before ROM import or while a scene loads.
             unsigned red=50+static_cast<unsigned>(y*30/c.height), green=110+static_cast<unsigned>(y*35/c.height);
@@ -102,8 +102,8 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
     } else {
         if (menu.page==CONTROLS) {
             const char* lines[]={"WASD / ARROWS: MOVE   SPACE: JUMP","X: ATTACK   CTRL: CROUCH   SHIFT: RUN",
-                "Q/E: TURN   R/F: TILT OR SM64 ZOOM","RIGHT MOUSE: LOOK   WHEEL: ZOOM","LEFT STICK: MOVE   RIGHT STICK: CAMERA",
-                "A: JUMP   B: ATTACK   RT: CROUCH","F5: GAME OPTIONS   F12: FULLSCREEN"};
+                "SM64: R C-UP   F OUT   V MARIO/LAKITU","RIGHT MOUSE: LOOK   WHEEL: ZOOM","LEFT STICK: MOVE   RIGHT STICK: CAMERA",
+                "A: JUMP   B: ATTACK   RT: CROUCH","ENTER / START: PAUSE   F12: FULLSCREEN"};
             for (int i=0;i<7;++i) panel_text(c,menu,c.height*(29+i*6)/100,lines[i],0xffffffffu,s);
         }
         for (int i=0;i<menu.rows();++i) {
@@ -131,10 +131,14 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
         }
     }
     const char* detail=nullptr;
-    if(menu.page==PLAYER && menu.row==1)detail="SM64 SPEED & JUMPS - MARIO ONLY (BETA)";
-    if(menu.page==CAMERA && menu.camera==3)detail="Q/E: STEP TURN   R/F: ZOOM   C: BEHIND";
+    if(menu.page==MODS && menu.row<menu.shown_mods())detail=menu.mod_descriptions[menu.selected_mod()];
+    if(menu.page==TEXTURES)detail="CAPTURE WHILE PLAYING, THEN EDIT THE PNGS";
+    if(menu.page==CAMERA && menu.camera==3)detail="Q/E: TURN  R: C-UP  F: OUT  V: MARIO/LAKITU";
     if(menu.page==DISPLAY && menu.row==3)detail="NEAR: FEWER OBJECTS   FAR: MORE OBJECTS";
-    if(detail)panel_text(c,menu,c.height*80/100,detail,0xffddddddU,s);
+    if(detail) {
+        char line[76];std::snprintf(line,sizeof line,"%.75s",detail);
+        panel_text(c,menu,c.height*(menu.page==MODS?22:80)/100,line,0xffddddddU,s);
+    }
     if(menu.now_playing[0]) {
         char now[64]; std::snprintf(now,sizeof now,"MUSIC: %s",menu.now_playing);
         c.shadow(c.width*52/100,c.height*85/100,now,0xffffffffu,s);

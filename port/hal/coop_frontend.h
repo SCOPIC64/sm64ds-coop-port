@@ -9,9 +9,10 @@
 
 namespace coop_frontend {
 enum Page { HOME, PLAY, HOST, JOIN, OPTIONS, PLAYER, CAMERA, CONTROLS,
-            DISPLAY, SOUND, MISC, EXIT_CONFIRM };
+            DISPLAY, SOUND, MISC, EXIT_CONFIRM, MODS, TEXTURES, PAUSE };
 enum Action { NONE, START_SOLO, START_HOST, START_JOIN, SAVE_OPTIONS, NEXT_SONG,
-              IMPORT_MUSIC, IMPORT_BACKGROUND, RELOAD_MEDIA, QUIT };
+              IMPORT_MUSIC, IMPORT_BACKGROUND, RELOAD_MEDIA, QUIT, TOGGLE_MOD, RELOAD_MODS,
+              TEXTURE_CAPTURE, TEXTURE_PACK, OPEN_TEXTURE_FOLDER, RESUME };
 enum { BACKGROUND_BUILTIN_COUNT = 8 };
 enum Key { UP, DOWN, LEFT, RIGHT, ACCEPT, BACK };
 
@@ -48,7 +49,13 @@ struct Menu {
     Page after_save = HOME;
     int row = 0, slot = 0, character = 0;
     int camera = 0, movement = 1, fps = 0, volume = 80;
-    int movement_mod = 0, object_distance = 0;
+    int movement_mod = 0, object_distance = 0; // Old setting retained for one-time migration.
+    bool in_game = false, capture_textures = false;
+    int mod_count = 0, mod_page = 0;
+    char mod_names[48][64] = {}, mod_descriptions[48][96] = {};
+    bool mod_enabled[48] = {}, mod_failed[48] = {};
+    int shown_mods() const { int n=mod_count-mod_page*4; return n<0?0:n>4?4:n; }
+    int selected_mod() const { return mod_page*4+row; }
     int music = MUSIC_RANDOM, background = 0;
     bool menu_sounds = true;
     int custom_music_count = 0, custom_background_count = 0;
@@ -63,7 +70,7 @@ struct Menu {
 
     int rows() const {
         switch (page) {
-        case HOME: return 4;
+        case HOME: return 5;
         case PLAY: return 3;
         case HOST: return 8;
         case JOIN: return 5;
@@ -74,6 +81,9 @@ struct Menu {
         case CAMERA: case MISC: return 2;
         case CONTROLS: return 1;
         case EXIT_CONFIRM: return 2;
+        case MODS: return shown_mods()+4;
+        case TEXTURES: return 4;
+        case PAUSE: return 4;
         }
         return 0;
     }
@@ -91,6 +101,9 @@ struct Menu {
         case MISC: return "MISC";
         case CONTROLS: return "CONTROLS";
         case EXIT_CONFIRM: return "QUIT THE GAME?";
+        case MODS: return "MODS";
+        case TEXTURES: return "TEXTURE PACKS";
+        case PAUSE: return "PAUSED";
         }
         return "";
     }
@@ -112,7 +125,7 @@ struct Menu {
         }
     }
     void label(int index, char* out, size_t size) const {
-        static const char* home[] = { "HOST", "JOIN", "OPTIONS", "QUIT" };
+        static const char* home[] = { "HOST", "JOIN", "MODS", "OPTIONS", "QUIT" };
         static const char* chars[] = { "MARIO", "LUIGI", "WARIO", "YOSHI" };
         static const char* cameras[] = { "ANALOG", "FREE", "DS", "SM64 CAM" };
         static const char* movement_names[] = { "BUTTON", "ANALOG", "AUTO" };
@@ -137,12 +150,24 @@ struct Menu {
         } else if (page == OPTIONS) {
             static const char* categories[] = { "PLAYER", "CAMERA", "CONTROLS", "DISPLAY", "SOUND", "MISC", "SAVE AND BACK" };
             std::snprintf(out, size, "%s", categories[index]);
+        } else if (page == MODS) {
+            if(index<shown_mods()) {
+                int i=mod_page*4+index;
+                std::snprintf(out,size,"%s < %s >",mod_names[i],mod_failed[i]?"ERROR":mod_enabled[i]?"ON":"OFF");
+            } else if(index==shown_mods()) std::snprintf(out,size,"PAGE < %d / %d >",mod_page+1,(mod_count+3)/4>0?(mod_count+3)/4:1);
+            else std::snprintf(out,size,"%s",index==shown_mods()+1?"REFRESH MODS":index==shown_mods()+2?"TEXTURE PACK TOOLS":"BACK");
+        } else if(page==TEXTURES) {
+            const char* labels[]={capture_textures?"STOP TEXTURE CAPTURE":"START TEXTURE CAPTURE","CREATE PACK FROM CAPTURE","OPEN TEXTURE FOLDERS","BACK"};
+            std::snprintf(out,size,"%s",labels[index]);
+        } else if(page==PAUSE) {
+            const char* labels[]={"RESUME","OPTIONS","MODS","QUIT"};
+            std::snprintf(out,size,"%s",labels[index]);
         } else if (page == EXIT_CONFIRM) std::snprintf(out, size, "%s", index == 0 ? "KEEP PLAYING" : "QUIT");
         else if (index == rows() - 1) std::snprintf(out, size, "BACK");
         else if (page == CAMERA) std::snprintf(out, size, "CAMERA         < %s >", cameras[camera]);
         else if (page == PLAYER) {
             if (index == 0) std::snprintf(out, size, "RUN MODE       < %s >", movement_names[movement]);
-            else if(index==1)std::snprintf(out,size,"MOVEMENT MOD < %s >",movement_mod?"SM64":"OFF");
+            else if(index==1)std::snprintf(out,size,"OPEN MODS");
             else std::snprintf(out, size, "PLAYER NAMES   < %s >", names ? "ON" : "OFF");
         } else if (page == DISPLAY) {
             if (index == 0) {
@@ -183,13 +208,16 @@ struct Menu {
             return NONE;
         }
         if (key == BACK) {
+            if(page==PAUSE)return RESUME;
+            if(page==MODS){open(in_game?PAUSE:HOME);return NONE;}
+            if(page==TEXTURES){open(MODS);return NONE;}
             if (page == OPTIONS || page == PLAYER || page == CAMERA ||
                 page == DISPLAY || page == SOUND || page == MISC) {
-                after_save = page == OPTIONS ? HOME : OPTIONS;
+                after_save = page == OPTIONS ? (in_game?PAUSE:HOME) : OPTIONS;
                 return SAVE_OPTIONS;
             }
             open(page == HOME ? EXIT_CONFIRM : page == PLAY ? HOST :
-                 page == CONTROLS ? OPTIONS : HOME);
+                 page == CONTROLS ? OPTIONS : in_game?PAUSE:HOME);
             return NONE;
         }
         if (key == UP || key == DOWN) {
@@ -199,8 +227,25 @@ struct Menu {
         const bool change = key == LEFT || key == RIGHT || key == ACCEPT;
         if (!change) return NONE;
         if (page == HOME && key == ACCEPT) {
-            static const Page pages[] = { HOST, JOIN, OPTIONS, EXIT_CONFIRM };
+            static const Page pages[] = { HOST, JOIN, MODS, OPTIONS, EXIT_CONFIRM };
             open(pages[row]);
+        } else if(page==MODS) {
+            if(row<shown_mods())return TOGGLE_MOD;
+            if(row==shown_mods()) {
+                int pages=(mod_count+3)/4; if(pages<1)pages=1;
+                mod_page=(mod_page+pages+delta)%pages; row=shown_mods();
+            } else if(key==ACCEPT) {
+                if(row==shown_mods()+1)return RELOAD_MODS;
+                if(row==shown_mods()+2)open(TEXTURES);else open(in_game?PAUSE:HOME);
+            }
+        } else if(page==TEXTURES && key==ACCEPT) {
+            if(row==0)return TEXTURE_CAPTURE;
+            if(row==1)return TEXTURE_PACK;
+            if(row==2)return OPEN_TEXTURE_FOLDER;
+            open(MODS);
+        } else if(page==PAUSE && key==ACCEPT) {
+            if(row==0)return RESUME;
+            open(row==1?OPTIONS:row==2?MODS:EXIT_CONFIRM);
         } else if (page == PLAY) {
             if (row == 0) slot = (slot + 3 + delta) % 3;
             else if (key == ACCEPT && row == 1) {
@@ -229,7 +274,7 @@ struct Menu {
         } else if (page == OPTIONS) {
             if (key == ACCEPT) {
                 static const Page categories[] = { PLAYER, CAMERA, CONTROLS, DISPLAY, SOUND, MISC };
-                if (row == 6) { after_save = HOME; return SAVE_OPTIONS; }
+                if (row == 6) { after_save = in_game?PAUSE:HOME; return SAVE_OPTIONS; }
                 open(categories[row]);
             }
         } else if (page == PLAYER || page == CAMERA || page == DISPLAY || page == SOUND || page == MISC) {
@@ -238,7 +283,7 @@ struct Menu {
             } else if (page == CAMERA) camera = (camera + 4 + delta) % 4;
             else if (page == PLAYER) {
                 if (row == 0) movement = (movement + 3 + delta) % 3;
-                else if(row==1)movement_mod=!movement_mod;
+                else if(row==1)open(MODS);
                 else names = !names;
             } else if (page == DISPLAY && row == 0) {
                 const int rates[] = { 0, 60, 90, 120, 144, 240 };
@@ -260,7 +305,7 @@ struct Menu {
             else if (page == MISC) mouse_capture = !mouse_capture;
         } else if (page == EXIT_CONFIRM && key == ACCEPT) {
             if (row == 1) return QUIT;
-            open(HOME);
+            open(in_game?PAUSE:HOME);
         } else if (page == CONTROLS && key == ACCEPT) open(OPTIONS);
         return NONE;
     }

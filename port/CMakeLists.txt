@@ -24243,3 +24243,11 @@ foreach(_xrel1_map IN LISTS OV_DATA_MAPS)
     math(EXPR _xrel1_mounts "${_xrel1_mounts} + 1")
 endforeach()
 message(STATUS "XREL1: ${_xrel1_mounts} ovdata mount(s) rebuild when their overlay's config changes")
+
+# Port-only gameplay scripts; retail source and DS structure layouts stay intact.
+include(hal/coop_mods.cmake)
+coop_add_mods(walk_window lua_resource_pack)
+coop_add_mods(walk_window_hires lua_resource_pack)
+
+target_sources(walk_window PRIVATE hal/coop_texture_tools.cpp)
+target_sources(walk_window_hires PRIVATE hal/coop_texture_tools.cpp)
