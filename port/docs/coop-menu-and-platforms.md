@@ -193,9 +193,9 @@ change; the engine platform layer still needs porting.
 | --- | --- | --- |
 | Windows x86 | Integrated and locally boot tested | Fresh-folder import, adventure save-loading runtime, two-client co-op and return-to-menu testing |
 | Linux / SteamOS | Portable component tests; handheld profile; safe native memory reservation | Replace remaining Win32 window/input/audio/socket/process APIs and verify the engine ABI |
-| macOS | Portable component tests and POSIX memory backend | Platform APIs plus 64-bit pointer/layout and calling-convention work for Intel and Apple Silicon |
+| macOS | Portable component tests and Mach memory backend | Platform APIs plus 64-bit pointer/layout and calling-convention work for Intel and Apple Silicon |
 | Android | Native component compile check, reusable multi-touch and page-size-aware memory backend | Native host, ARM ABI, asset import/storage, rendering/audio/networking, lifecycle and physical-device tests |
-| iOS | Native component compile check, reusable touch and POSIX memory backend | ARM64 engine portability, UIKit/SDL adapter, sandbox/storage, memory requirements, signing and device testing |
+| iOS | Native component compile check, reusable touch and Mach memory backend | ARM64 engine portability, UIKit/SDL adapter, sandbox/storage, memory requirements, signing and device testing |
 
 The current port depends on four-byte pointers, MSVC-specific forwarding,
 pointer-to-member representations, and fixed DS address mappings. Changing a
@@ -224,7 +224,9 @@ The POSIX DS-range reservation now works without assuming
 non-destructive address hint is available, it verifies the returned address
 and releases any unwanted mapping. It never uses `MAP_FIXED` to overwrite
 another allocation. Mapping spans use the actual system page size, including
-16 KB systems. Windows game reservation and write-watch behavior are unchanged.
+16 KB systems. Apple uses Mach fixed allocation without the overwrite flag,
+which refuses occupied regions and supports its allocation ranges. Windows
+game reservation and write-watch behavior are unchanged.
 
 Portable native-memory tests check allocation, overlapping-request rejection
 without losing existing bytes, release/reallocation, overflow and 4/16 KB span
@@ -233,4 +235,5 @@ movement/camera and touch components against Android arm64 and iOS arm64 SDKs.
 Those compile jobs produce no APK/IPA and establish no on-device gameplay claim.
 
 References: [Linux mmap](https://man7.org/linux/man-pages/man2/mmap.2.html),
-[Android page sizes](https://source.android.com/docs/core/architecture/16kb-page-size/16kb).
+[Android page sizes](https://source.android.com/docs/core/architecture/16kb-page-size/16kb),
+[Apple VM allocation flags](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/mach/vm_statistics.h).

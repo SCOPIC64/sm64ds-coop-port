@@ -11,8 +11,24 @@ int main() {
     assert(!span(1,1,3,begin,length));
     assert(!span((std::numeric_limits<uintptr_t>::max)()-10,32,4096,begin,length));
     assert(!map_at(0,4096) && !map_at(0x70000000,0));
-    const uintptr_t base=sizeof(uintptr_t)>4?static_cast<uintptr_t>(0x200000000ULL):0x70000000;
     const size_t bytes=page_size()+1;
+    // Ask the OS for a valid range first; a guessed constant can fall outside
+    // Apple Silicon's allocation ranges or into an ASLR mapping.
+    uintptr_t base=0;
+#if defined(_WIN32)
+    void* available=VirtualAlloc(nullptr,bytes,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
+    assert(available);base=reinterpret_cast<uintptr_t>(available);
+    assert(VirtualFree(available,0,MEM_RELEASE));
+#elif defined(__APPLE__)
+    vm_address_t available=0;
+    assert(vm_allocate(mach_task_self(),&available,bytes,VM_FLAGS_ANYWHERE)==KERN_SUCCESS);
+    base=static_cast<uintptr_t>(available);
+    assert(vm_deallocate(mach_task_self(),available,bytes)==KERN_SUCCESS);
+#else
+    void* available=mmap(nullptr,bytes,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+    assert(available!=MAP_FAILED);base=reinterpret_cast<uintptr_t>(available);
+    assert(munmap(available,bytes)==0);
+#endif
     unsigned char* memory=static_cast<unsigned char*>(map_at(base,bytes));
     assert(memory && reinterpret_cast<uintptr_t>(memory)==base);
     memory[0]=0xa5;memory[bytes-1]=0x5a;

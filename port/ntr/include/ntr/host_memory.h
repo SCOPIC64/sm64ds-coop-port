@@ -7,6 +7,9 @@
 #else
 #include <sys/mman.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#endif
 #endif
 
 namespace ntr { namespace host_memory {
@@ -28,7 +31,7 @@ inline bool span(uintptr_t address,size_t bytes,size_t page,uintptr_t& begin,siz
     return length!=0;
 }
 // Never replace somebody else's mapping. On kernels that ignore NOREPLACE,
-// or systems without it (including Apple), verify the returned address and
+// or systems without it, verify the returned address and
 // release an unwanted hint allocation. Runtime page size also covers 16 KB.
 inline void* map_at(uintptr_t address,size_t bytes) {
     uintptr_t begin=0;size_t length=0;
@@ -37,6 +40,14 @@ inline void* map_at(uintptr_t address,size_t bytes) {
     SYSTEM_INFO info;GetSystemInfo(&info);
     if(begin%info.dwAllocationGranularity)return nullptr;
     void* result=VirtualAlloc(reinterpret_cast<void*>(begin),length,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
+#elif defined(__APPLE__)
+    // Mach's fixed allocation refuses occupied regions unless OVERWRITE is
+    // explicitly requested. Unlike an mmap hint, this also works with the
+    // address ranges enforced by recent Apple Silicon kernels.
+    vm_address_t target=static_cast<vm_address_t>(begin);
+    if(vm_allocate(mach_task_self(),&target,length,VM_FLAGS_FIXED)!=KERN_SUCCESS)return nullptr;
+    void* result=reinterpret_cast<void*>(target);
+    if(target!=begin){vm_deallocate(mach_task_self(),target,length);return nullptr;}
 #else
     int flags=MAP_PRIVATE|MAP_ANONYMOUS;
 #if defined(MAP_FIXED_NOREPLACE) && !defined(NTR_TEST_MMAP_HINT)
@@ -53,6 +64,8 @@ inline bool unmap(void* address,size_t bytes) {
     if(!span(reinterpret_cast<uintptr_t>(address),bytes,page_size(),begin,length))return false;
 #if defined(_WIN32)
     return VirtualFree(reinterpret_cast<void*>(begin),0,MEM_RELEASE)!=0;
+#elif defined(__APPLE__)
+    return vm_deallocate(mach_task_self(),static_cast<vm_address_t>(begin),length)==KERN_SUCCESS;
 #else
     return munmap(reinterpret_cast<void*>(begin),length)==0;
 #endif
