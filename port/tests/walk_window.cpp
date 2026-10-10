@@ -3935,6 +3935,7 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
    the widescreen widen of the Clipper Camera::Render has just seeded. Frames
    the ROM does not walk make the old hand calls instead and never reach it. */
 #include "coop_staff_roll_camera.inc"
+#include "coop_menu_camera.inc"
 #include "coop_sm64_camera.inc"
 static char *g_k1_player;       /* the level loop's player, set per ROM frame */
 static void k1_level_camera_render_hook(void *cam)
@@ -3945,7 +3946,7 @@ static void k1_level_camera_render_hook(void *cam)
     const int cutscene_cam = !no_cutscene_cam && data_0209fc48 != 0;
     if (cam_mode == CAM_ANALOG && !rb_replaying() && g_k1_player)
         an_step_pivot(g_k1_player);
-    if (!coop_staff_roll_camera(cam) && !coop_sm64_camera_draw(cam,g_k1_player) && cam_mode != CAM_DS && !cutscene_cam) {
+    if (!coop_menu_camera(cam) && !coop_staff_roll_camera(cam) && !coop_sm64_camera_draw(cam,g_k1_player) && cam_mode != CAM_DS && !cutscene_cam) {
         int fceye[3];
         const int *pivot = cam_mode == CAM_ANALOG
                                ? an_pivot
@@ -10444,6 +10445,7 @@ extern "C" void port_frame_ctrl_publish(void)
 
 int main(void)
 {
+    if(coop_menu_player_child())port_menu_player_preview_hook=coop_menu_player_prepare;
     // Double-clicking the game is sufficient; no batch file supplies its root.
     // Preserve explicit roots used by tests and developer launches.
     if (!getenv("SM64DS_ASSET_ROOT")) {
@@ -16655,7 +16657,7 @@ int main(void)
                    view: hal_camera_render has just parked the script-driven view in
                    data_0209b3ec, and leaving it there is what makes the star-get
                    fly-around visible instead of overwritten. */
-                if (!coop_staff_roll_camera(cam) && !coop_sm64_camera_draw(cam,c) && cam_mode != CAM_DS && !cutscene_cam) {
+                if (!coop_menu_camera(cam) && !coop_staff_roll_camera(cam) && !coop_sm64_camera_draw(cam,c) && cam_mode != CAM_DS && !cutscene_cam) {
                     int fceye[3];
                     const int *pivot = cam_mode == CAM_ANALOG
                                            ? an_pivot
@@ -17160,11 +17162,11 @@ int main(void)
                     hal_player_texseq_tick(other);
                 continue;
             }
-            if (!coop_backdrop_child()) {
+            if (!coop_staff_roll_child()) {
                 if (void *other = data_0209f394[pi]) hal_render_player_world(other);
             }
         }
-        if (!rb_skip_render() && !coop_backdrop_child())
+        if (!rb_skip_render() && !coop_staff_roll_child())
             hal_render_player_world(player);
         else
             hal_player_texseq_tick(player);

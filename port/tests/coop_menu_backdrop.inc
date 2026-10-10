@@ -31,6 +31,8 @@ class CoopBackdrop {
     unsigned cinematic_frames_ = 0;
     unsigned credits_visits_ = 0, last_credits_script_ = 0;
     int camera_eye_[3] = {};
+    unsigned credits_script_=0,credits_cursor_=0;
+    int credits_level_=-1;
     struct Env {
         const char* name; char old[2048]; bool present;
         Env(const char* key, const char* value) : name(key) {
@@ -56,6 +58,7 @@ public:
         if (save_[0]) { DeleteFileA(save_); char temp[MAX_PATH + 8]; snprintf(temp,sizeof temp,"%s.tmp",save_); DeleteFileA(temp); save_[0]=0; }
         last_serial_ = 0;
         last_credits_script_=0;
+        credits_script_=credits_cursor_=0;credits_level_=-1;
         visible_ = false;
         cinematic_frames_ = 0;
     }
@@ -81,7 +84,9 @@ public:
         snprintf(shot_text,sizeof shot_text,"%d",shot);
         Env child("SM64DS_MENU_BACKDROP_CHILD","1"), map("SM64DS_MENU_BACKDROP_MAP",name), level_env("SM64DS_LEVEL",lv);
         Env cinematic("SM64DS_MENU_NATIVE_STAFF_ROLL",shot>=0?"1":0), old_cinematic("SM64DS_MENU_STAFF_ROLL_SHOT",0), actors("SM64DS_NO_ACTORS",0);
-        Env frames("SM64DS_WINDOW_SELFTEST","2000000000"), idle("SM64DS_SELFTEST_IDLE","1"), orbit("SM64DS_SELFTEST_ORBIT",shot>=0?0:"1");
+        Env frames("SM64DS_WINDOW_SELFTEST","2000000000"), idle("SM64DS_SELFTEST_IDLE","1"), orbit("SM64DS_SELFTEST_ORBIT",0);
+        Env character("SM64DS_CHARACTER","0"), camera_test("SM64DS_GAMEPLAY_PROBE",0);
+        Env aspect("SM64DS_ASPECT","4:3"), scale("SM64DS_RENDER_SCALE","2"), rate("SM64DS_FRAME_RATE","0");
         Env save("SM64DS_SAVE_PATH",save_), audio("SM64DS_NO_AUDIO","1"), log("SM64DS_NO_PLAYLOG","1");
         Env focus("SM64DS_NO_FOCUS","1"), freecam("SM64DS_FREECAM",0);
         Env panel("SM64DS_SUB_PANEL","0");
@@ -89,7 +94,9 @@ public:
         Env audio_test("SM64DS_MENU_AUDIO_SELFTEST",0), bg_test("SM64DS_MENU_BACKDROP_SELFTEST",0), wav("SM64DS_WAV_DUMP",0);
         Env role("SM64DS_COMMS_ROLE",0), party("SM64DS_PARTY",0), vs("SM64DS_VS_MAP",0), no_dialog("SM64DS_NO_DIALOG","1");
         SECURITY_ATTRIBUTES security={sizeof security,0,TRUE};
-        HANDLE sink=CreateFileA("NUL",GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,&security,OPEN_EXISTING,0,0);
+        const char* trace=getenv("SM64DS_MENU_BACKDROP_TRACE");
+        HANDLE sink=CreateFileA(trace?trace:"NUL",GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,
+            &security,trace?CREATE_ALWAYS:OPEN_EXISTING,0,0);
         STARTUPINFOA si={}; si.cb=sizeof si; si.dwFlags=STARTF_USESHOWWINDOW|STARTF_USESTDHANDLES; si.wShowWindow=SW_HIDE;
         si.hStdInput=si.hStdOutput=si.hStdError=sink;
         PROCESS_INFORMATION pi={}; char command[MAX_PATH+4]; snprintf(command,sizeof command,"\"%s\"",exe);
@@ -130,6 +137,8 @@ public:
                 if (pixels_.empty()) pixels_.resize(512*384);
                 memcpy(pixels_.data(),shared_->pixels,sizeof shared_->pixels); last_serial_=shared_->serial;
                 cinematic_frames_=shared_->cinematic_frames;
+                credits_script_=shared_->credits_script;credits_cursor_=shared_->credits_cursor;
+                credits_level_=shared_->credits_level;
                 if(choice==2) {
                     tour_=shared_->credits_shot;
                     if(shared_->credits_script && shared_->credits_script!=last_credits_script_) {
@@ -145,9 +154,9 @@ public:
         }
     }
     const uint32_t* image() const { return pixels_.empty()?0:pixels_.data(); }
-    unsigned credits_script() const { return shared_?shared_->credits_script:0; }
-    unsigned credits_cursor() const { return shared_?shared_->credits_cursor:0; }
-    int credits_level() const { return shared_?shared_->credits_level:-1; }
+    unsigned credits_script() const { return credits_script_; }
+    unsigned credits_cursor() const { return credits_cursor_; }
+    int credits_level() const { return credits_level_; }
     unsigned credits_visits() const { return credits_visits_; }
     unsigned serial() const { return last_serial_; }
     unsigned scenes() const { return scenes_; }

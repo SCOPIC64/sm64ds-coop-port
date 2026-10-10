@@ -36,6 +36,8 @@ namespace ntr { struct GxTriangle; const GxTriangle *gx_polygons(std::size_t &n)
 /* how many times hal_call_state_fn fell off the end of its switch this run --
    read by the F3 overlay in port/tests/walk_window.cpp */
 extern "C" unsigned g_port_unhosted_hits = 0;
+// The window host supplies this only for its isolated, non-credits preview.
+extern "C" void (*port_menu_player_preview_hook)(void*) = nullptr;
 
 extern "C" unsigned int _ZNK6Player14GetBodyModelIDEjb(char *, unsigned int, char);
 extern "C" unsigned func_ov002_020becf4(char *self, unsigned j, int b);
@@ -78,9 +80,10 @@ int hal_player_st_walk_main(void *p)
 int hal_player_behavior(void *p)
 {
     Player* player=(Player*)p;
+    if(port_menu_player_preview_hook)port_menu_player_preview_hook(p);
     const int result=player->Player::Behavior();
-    static const bool backdrop=std::getenv("SM64DS_MENU_BACKDROP_CHILD")!=nullptr;
-    if(backdrop) {
+    static const bool credits=std::getenv("SM64DS_MENU_BACKDROP_CHILD") && std::getenv("SM64DS_MENU_NATIVE_STAFF_ROLL");
+    if(credits) {
         // Behavior registers the shadow independently of the body render.
         // Collapse only this player's shadow in the private menu renderer;
         // scenery/enemy shadows and the native list/freeze protocol stay live.
@@ -1551,7 +1554,7 @@ extern "C" int port_player_render_hidden(const void *player)
     // Cutscene-spawned players also use this gate. Hiding only the harness's
     // local-player draw leaves the rest of the cast visible in menu previews.
     static const bool backdrop=getenv("SM64DS_MENU_BACKDROP_CHILD")!=nullptr;
-    if(backdrop)return 1;
+    if(backdrop)return getenv("SM64DS_MENU_NATIVE_STAFF_ROLL")?1:0;
     const char *c = (const char *)player;
     const unsigned char no = *(const unsigned char *)(c + 0x6d8);
     /* :44-48  VS liveness (0.3.2: kPortMaxPlayers is sixteen) */

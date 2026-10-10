@@ -51,9 +51,12 @@ music. It runs the cartridge's 20 course-panorama Kuppa scripts, including
 their original camera splines, 204-frame scene timing, course changes and DS
 fades. The final panorama returns to the first one before the ending cast scene.
 This changes only the isolated renderer's RAM. It does not change ROM files,
-player saves or ordinary cutscenes. All Player render paths, including other
-cutscene players, are hidden in this renderer. Enemies and scenery keep running
-so the original credits behavior remains intact. The renderer is paced at
+player saves or ordinary cutscenes. Staff Roll hides all Player render paths,
+including other cutscene players and their shadows. The other built-in scenes
+show idle Mario facing a fixed camera at CoopDX's course locations, adjusted
+to DS collision floors. Dire Dire Docks has no CoopDX menu preset and uses its
+DS entrance ledge. HUD and dialogue are hidden across menu scenery. Enemies and
+scenery keep running so the original credits behavior remains intact. The renderer is paced at
 approximately 30 frames per second; its selected menu music plays independently.
 
 Reference: https://github.com/coop-deluxe/sm64coopdx/blob/main/src/game/level_update.c
