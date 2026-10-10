@@ -1,6 +1,5 @@
 // Included after the window/presentation helpers in walk_window.cpp.
 // Runs in the game process and reuses its HWND for the adventure.
-#include <shellapi.h>
 #include "coop_menu_media.inc"
 #include "coop_menu_audio.inc"
 #include "coop_menu_backdrop.inc"
@@ -126,8 +125,16 @@ static bool coop_tools_action(coop_frontend::Action action) {
     if(action==coop_frontend::OPEN_TEXTURE_FOLDER) {
         std::error_code ec;std::filesystem::create_directories("texture-work",ec);
         std::filesystem::create_directories("mods/resource-packs",ec);
-        ShellExecuteW(g_entry_hwnd,L"open",L"texture-work",0,0,SW_SHOWNORMAL);
-        ShellExecuteW(g_entry_hwnd,L"open",L"mods/resource-packs",0,0,SW_SHOWNORMAL);return true;
+        // Load the shell after the DS address ranges are reserved. Importing
+        // shell32 at process startup can claim those ranges before our TLS hook.
+        HMODULE shell=LoadLibraryW(L"shell32.dll");
+        using Open=HINSTANCE(WINAPI*)(HWND,LPCWSTR,LPCWSTR,LPCWSTR,LPCWSTR,INT);
+        Open open=shell?reinterpret_cast<Open>(GetProcAddress(shell,"ShellExecuteW")):nullptr;
+        if(open) {
+            open(g_entry_hwnd,L"open",L"texture-work",0,0,SW_SHOWNORMAL);
+            open(g_entry_hwnd,L"open",L"mods/resource-packs",0,0,SW_SHOWNORMAL);
+        } else snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"Could not open the texture folders.");
+        if(shell)FreeLibrary(shell);return true;
     }
     return false;
 }
