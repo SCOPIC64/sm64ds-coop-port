@@ -39,6 +39,8 @@ jobs:
             build/native-core/native_heap_test
             build/native-core/native_graphics_test
             port/docs/native-port-progress.md
+            LICENSE
+            port/third_party/minicoro/LICENSE
           if-no-files-found: error
   frame-context:
     strategy:
@@ -101,6 +103,8 @@ jobs:
             build/android-core/native_heap_test
             build/android-core/native_graphics_test
             port/docs/native-port-progress.md
+            LICENSE
+            port/third_party/minicoro/LICENSE
           if-no-files-found: error
   windows-runtime:
     runs-on: windows-latest
@@ -115,3 +119,4 @@ jobs:
           call "%VSINSTALL%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
           mkdir build\native-context
           cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /Iport /Iport\ntr\include port\ntr\rt.cpp /Fobuild\native-context\windows-rt.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /DSM64DS_PLATFORM_PC /D_CRT_SECURE_NO_WARNINGS /Iinclude /Iport /Iport\hal port\hal\heap_globals.cpp /Fobuild\native-context\windows-heap-globals.obj || exit /b 1

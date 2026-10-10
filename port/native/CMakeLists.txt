@@ -5,7 +5,7 @@ project(sm64ds_native_core LANGUAGES CXX)
 # The game still needs its native window/audio/network layer and ABI bridges.
 if((NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
         OR NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
-    message(FATAL_ERROR "The native DS core requires 32-bit Linux or Android; ARM64 game layouts are not ported")
+    message(FATAL_ERROR "The native DS core requires 32-bit Linux or Android; 64-bit game layouts are not ported")
 endif()
 if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(FATAL_ERROR "Clang is required for the existing DS state-section declarations")
