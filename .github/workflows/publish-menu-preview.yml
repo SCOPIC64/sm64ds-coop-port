@@ -25,5 +25,8 @@ jobs:
       GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
+      - name: Check portable archive contract
+        run: python3 -m unittest tools.portable_kit.test_menu_preview_archive
       - name: Validate and publish tested Windows artifact
         run: python3 tools/portable_kit/publish_menu_preview.py
+

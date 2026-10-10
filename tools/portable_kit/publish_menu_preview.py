@@ -14,6 +14,25 @@ def api(path):
     return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
 
 
+def validate_archive(data, manifest, movement_script=None):
+    required = {'sm64ds coop.exe', 'README.txt', 'LICENSE', 'THIRD-PARTY-NOTICES.txt'}
+    allowed = required | {'mods/README.txt', 'mods/sm64-movement/main.lua',
+                          'mods/resource-packs/README.txt', 'texture-work/capture/README.txt'}
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        members = archive.namelist()
+        assert len(members) == len(set(members)), 'Duplicate archive entry'
+        assert sorted(members) == sorted(manifest['archive_files'])
+        assert required <= set(members) <= allowed, 'Unexpected archive entry'
+        assert archive.testzip() is None, 'Corrupted archive entry'
+        exe = archive.read('sm64ds coop.exe')
+        assert exe[:2] == b'MZ'
+        assert hashlib.sha256(exe).hexdigest() == manifest['exe_sha256']
+        if 'mods/sm64-movement/main.lua' in members:
+            script = archive.read('mods/sm64-movement/main.lua')
+            assert script == movement_script, 'Bundled movement differs from source'
+            assert hashlib.sha256(script).hexdigest() == manifest['bundled_mod_sha256']
+
+
 def main():
     repo = os.environ['GH_REPO']
     assert repo == 'SCOPIC64/sm64ds-coop-port'
@@ -40,13 +59,13 @@ def main():
     assert response['encoding'] == 'base64'
     data = base64.b64decode(response['content'])
     assert hashlib.sha256(data).hexdigest() == manifest['artifact_sha256']
-    # The archive contains only the executable and redistributable documentation.
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        assert sorted(archive.namelist()) == sorted(manifest['archive_files'])
-        assert set(archive.namelist()) <= {'sm64ds coop.exe', 'README.txt', 'LICENSE', 'THIRD-PARTY-NOTICES.txt'}
-        exe = archive.read('sm64ds coop.exe')
-        assert exe[:2] == b'MZ'
-        assert hashlib.sha256(exe).hexdigest() == manifest['exe_sha256']
+    # Only the executable, documentation and the reviewed default mod are allowed.
+    movement_script = None
+    if 'mods/sm64-movement/main.lua' in manifest['archive_files']:
+        response = api(f'repos/{repo}/contents/port/mods/sm64-movement/main.lua?ref={source}')
+        assert response['encoding'] == 'base64'
+        movement_script = base64.b64decode(response['content'])
+    validate_archive(data, manifest, movement_script)
     # A repeat event may verify the identical release, but must never replace it.
     releases = api(f'repos/{repo}/releases?per_page=100')
     matches=[r for r in releases if r['tag_name']==tag]
@@ -75,3 +94,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
