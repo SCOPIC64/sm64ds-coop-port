@@ -1,0 +1,20 @@
+name: Approved modder review
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths: ['website/**', '.github/workflows/mod-catalog-review.yml', '.github/workflows/project-site.yml']
+permissions:
+  contents: read
+jobs:
+  policy:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out trusted base policy only
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Check submitter against trusted approvals
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 website/check_submission.py
