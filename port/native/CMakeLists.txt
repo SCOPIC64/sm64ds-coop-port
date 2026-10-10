@@ -59,3 +59,29 @@ target_compile_features(native_player_compile PRIVATE cxx_std_17)
 target_compile_definitions(native_player_compile PRIVATE SM64DS_PLATFORM_PC)
 target_include_directories(native_player_compile PRIVATE ${PORT_ROOT}/../include ${PORT_ROOT} ${PORT_ROOT}/ntr/include)
 target_compile_options(native_player_compile PRIVATE -fms-extensions -include "${NATIVE_TYPES}")
+
+# Execute recovered game allocator methods, including their native class calls.
+# A constructor-return bridge is necessary: SysV constructors do not return this.
+set(NATIVE_CREATE_HEAP "${CMAKE_CURRENT_BINARY_DIR}/native-create-heap.cpp")
+add_custom_command(OUTPUT "${NATIVE_CREATE_HEAP}"
+    COMMAND ${Python3_EXECUTABLE} ${PORT_ROOT}/tools/native_heap_source.py
+        --root ${PORT_ROOT}/.. --out "${NATIVE_CREATE_HEAP}"
+    DEPENDS ${PORT_ROOT}/tools/native_heap_source.py
+        ${PORT_ROOT}/../src/_ZN4Heap28CreateExpandingHeapAllocatorEPvjj.cpp)
+file(STRINGS "${PORT_ROOT}/slice_gate2.txt" NATIVE_HEAP_ROWS REGEX "^src/")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PORT_ROOT}/slice_gate2.txt")
+set(NATIVE_HEAP_SOURCES "")
+foreach(row IN LISTS NATIVE_HEAP_ROWS)
+    if(NOT row STREQUAL "src/_ZN4Heap28CreateExpandingHeapAllocatorEPvjj.cpp")
+        list(APPEND NATIVE_HEAP_SOURCES "${PORT_ROOT}/../${row}")
+    endif()
+endforeach()
+add_executable(native_heap_test ${PORT_ROOT}/tests/smoke_heap.cpp
+    heap_bridge.cpp heap_globals.cpp ${NATIVE_HEAP_SOURCES} "${NATIVE_CREATE_HEAP}")
+add_dependencies(native_heap_test native_types)
+target_compile_features(native_heap_test PRIVATE cxx_std_17)
+target_compile_definitions(native_heap_test PRIVATE SM64DS_PLATFORM_PC)
+target_include_directories(native_heap_test PRIVATE ${PORT_ROOT}/../include ${PORT_ROOT} ${PORT_ROOT}/hal)
+target_compile_options(native_heap_test PRIVATE -UNDEBUG -fno-pie -fms-extensions -include "${NATIVE_TYPES}")
+target_link_options(native_heap_test PRIVATE -no-pie)
+add_test(NAME native_game_allocator_5000_operations COMMAND native_heap_test)

@@ -7,6 +7,7 @@ on:
       - 'port/native/**'
       - 'port/ntr/**'
       - 'port/tools/native_headers.py'
+      - 'port/tools/native_heap_source.py'
       - 'port/tests/coop_native_runtime_test.cpp'
       - 'port/tests/coop_engine_abi_probe.cpp'
       - 'port/tests/coop_frame_context_test.cpp'
