@@ -30,7 +30,11 @@ static bool coop_pause_input(int pad_live,const XPad* pad) {
     static unsigned previous_buttons=~0u;
     const unsigned pressed=buttons&~previous_buttons;previous_buttons=buttons;
     if(!g_coop_pause) {
+        // Dialogue, save prompts and cutscenes own Start until they finish.
+        // Opening this overlay there consumes their confirm input and freezes
+        // the message animation in solo play.
         if(!edge || menu_on || !g_menu_host.player || data_0209fc48 ||
+            data_0209d660 || data_0209f204[0] ||
             ((data_0209f20c[0]|data_0209f294[0]|data_0209f2c4[0])&255))return false;
         coop_read_options();coop_refresh_mods();
         g_coop_menu.in_game=true;g_coop_menu.open(coop_frontend::PAUSE);

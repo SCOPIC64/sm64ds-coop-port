@@ -23,7 +23,7 @@ extern "C" {
 namespace sm64ds::mods {
 namespace fs = std::filesystem;
 namespace {
-constexpr std::size_t max_mods = 48, max_script = 1024 * 1024;
+constexpr std::size_t max_mods = 48, max_script = 1024 * 1024, max_files = 32;
 constexpr std::size_t per_mod_memory = 4 * 1024 * 1024;
 constexpr std::size_t total_memory = 32 * 1024 * 1024;
 std::size_t used_memory = 0;
@@ -71,7 +71,7 @@ int api_hook(lua_State* L) {
         if (!std::strcmp(name, event_name(static_cast<Event>(i)))) event = i;
     if (event < 0) return luaL_error(L, "unknown player event: %s", name);
     Mod* mod = owner(L);
-    if (!mod->loading) return luaL_error(L, "register hooks while loading main.lua");
+    if (!mod->loading) return luaL_error(L, "register hooks while loading mod scripts");
     if (mod->hooks[event].size() >= 16) return luaL_error(L, "too many hooks");
     lua_pushvalue(L, 2);
     mod->hooks[event].push_back(luaL_ref(L, LUA_REGISTRYINDEX));
@@ -111,10 +111,48 @@ int prepare(lua_State* L) {
     sandbox(L, static_cast<Mod*>(lua_touserdata(L, 1)));
     return 0;
 }
+bool read_scripts(const fs::path& main, std::vector<std::pair<std::string, std::string>>& scripts,
+                  std::string& error) {
+    std::vector<fs::path> files{main};
+    std::error_code ec;
+    if (main.filename() == "main.lua") {
+        for (fs::directory_iterator it(main.parent_path(), ec), end;
+             !ec && it != end; it.increment(ec)) {
+            const auto status = it->symlink_status(ec);
+            if (ec) break;
+            if (it->path() != main && fs::is_regular_file(status) &&
+                it->path().extension() == ".lua") files.push_back(it->path());
+            if (files.size() > max_files) { error = "Mod exceeds 32 Lua files"; return false; }
+        }
+        if (ec) { error = "Cannot scan mod scripts: " + ec.message(); return false; }
+        std::sort(files.begin() + 1, files.end());
+    }
+    std::size_t total = 0;
+    for (const auto& file : files) {
+        // Read bounded source through filesystem paths, including Unicode on Windows.
+        // Files are checked again on enable/refresh, not just during discovery.
+        const auto size = fs::file_size(file, ec);
+        if (ec || size > max_script - total) { error = "Mod scripts exceed 1 MiB or cannot be read"; return false; }
+        if (!fs::is_regular_file(fs::symlink_status(file, ec)) || ec) {
+            error = "Mod scripts must be regular files"; return false;
+        }
+        std::ifstream input(file, std::ios::binary);
+        std::string source(static_cast<std::size_t>(size), '\0');
+        if (!input || (size && !input.read(source.data(), static_cast<std::streamsize>(size))) ||
+            input.peek() != std::char_traits<char>::eof()) {
+            error = "Cannot read mod script: " + file.filename().u8string(); return false;
+        }
+        total += source.size();
+        scripts.emplace_back("@" + file.filename().u8string(), std::move(source));
+    }
+    return true;
+}
 bool start(Mod& mod) {
     if (mod.lua) { lua_close(mod.lua); mod.lua = nullptr; }
     for (auto& hooks : mod.hooks) hooks.clear();
     mod.info.failed = false; mod.info.error.clear();
+    std::vector<std::pair<std::string, std::string>> scripts;
+    if (!read_scripts(mod.script, scripts, mod.info.error)) { mod.info.failed = true; return false; }
     mod.lua = lua_newstate(allocate, &mod);
     if (!mod.lua) { mod.info.error = "Cannot allocate Lua state"; mod.info.failed = true; return false; }
     lua_sethook(mod.lua, instruction_limit, LUA_MASKCOUNT, 100000);
@@ -124,8 +162,12 @@ bool start(Mod& mod) {
         lua_pop(mod.lua, 1); return false;
     }
     mod.loading = true;
-    const int loaded = luaL_loadfilex(mod.lua, mod.script.string().c_str(), "t");
-    const int result = loaded == LUA_OK ? lua_pcall(mod.lua, 0, 0, 0) : loaded;
+    int result = LUA_OK;
+    for (const auto& script : scripts) {
+        result = luaL_loadbufferx(mod.lua, script.second.data(), script.second.size(), script.first.c_str(), "t");
+        if (result == LUA_OK) result = lua_pcall(mod.lua, 0, 0, 0);
+        if (result != LUA_OK) break;
+    }
     mod.loading = false;
     if (result != LUA_OK) {
         const char* message = lua_tostring(mod.lua, -1);

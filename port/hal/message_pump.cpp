@@ -74,6 +74,8 @@
 //    trace). Nothing under port/tools reads either; both were properties of
 //    the host pump, not of the game.
 
+#include <cstdio>
+#include <cstdlib>
 extern "C" {
 
 void _ZN7Message6UpdateEv(void *self);     /* Message::Update, faced in reverse_bridges */
@@ -124,4 +126,15 @@ void Message::Update()
 extern "C" void port_message_pump(void)
 {
     Stage::UpdateMessage_rom();
+    if (std::getenv("SM64DS_DIALOGUE_TRACE")) {
+        extern unsigned char data_0209d660, data_0209d6bc, data_0209d66c;
+        extern unsigned char data_0209f204, data_0209f2d8, data_020a0e40;
+        extern unsigned short data_020a0e5a;
+        static unsigned frame = 0;
+        if (frame % 10 == 0 || data_020a0e5a)
+            std::fprintf(stderr,"[dialogue] tick=%u active=%u step=%u wait=%u pressed=%04x owner=%u session=%u player=%u\n",
+                frame, data_0209d660, data_0209d6bc, data_0209d66c,
+                data_020a0e5a, data_0209f204, data_0209f2d8, data_020a0e40);
+        ++frame;
+    }
 }

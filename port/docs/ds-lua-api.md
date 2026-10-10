@@ -6,6 +6,14 @@ New mods start disabled. `mods/enabled.txt` stores the selection. The executable
 creates `mods/sm64-movement/main.lua` on first launch and never overwrites edits.
 SM64 movement is implemented entirely in that Lua file; switch it off for DS movement.
 
+Single `.lua` files can also go directly in `mods`. For a multi-file mod, put
+`main.lua` and your other `.lua` files in one folder. `main.lua` runs first,
+then the other files in alphabetical order, sharing the same sandbox and globals.
+Use prefixes such as `10-helpers.lua` and `20-hooks.lua` for a chosen order.
+Nested folders are not executed. A mod can contain up to 32 scripts totalling
+1 MiB; its memory and instruction limits apply across all files. An error in
+any file disables the whole mod. ZIP downloads must be extracted into `mods`.
+
 This is a DS API. CoopDX scripts that use its Mario structs or hooks need adapting.
 Gameplay hooks currently run in solo adventure only. Network gameplay continues
 with native DS movement because the rollback snapshot does not capture Lua state.
@@ -68,9 +76,20 @@ C resets the camera behind Mario. Mario stays visible. The original N64 constant
 are adapted to DS collision geometry; N64-specific level camera volumes are not
 part of this port. Reference: https://github.com/n64decomp/sm64/blob/master/src/game/camera.c
 
-Enter, Escape or controller Start opens the adventure pause menu. Resume with
+Enter, Escape or controller Start opens the adventure pause menu. During native
+dialogue these buttons confirm the text instead. Resume with
 Resume/Escape/Start. Title and level-clear dialogs retain their native Start input.
 Solo pauses simulation; network sessions continue with neutral local controls.
+
+The Windows dialogue regression can be run with a built EXE and local game data:
+
+```sh
+python port/tools/check_dialogue_controls.py --exe <game.exe> --assets <game-folder> --work <new-test-folder>
+```
+
+It checks the locked-door text with the native door camera, keyboard and
+controller Start input, a no-input control, and normal pause/resume afterward.
+Saves, mods and captures stay in the new test folder.
 
 ## Texture pack creation
 

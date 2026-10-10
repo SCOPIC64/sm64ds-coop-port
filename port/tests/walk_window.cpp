@@ -905,6 +905,7 @@ extern int data_0209f20c[], data_0209f294[], data_0209f2c4[];
    (hal/auto_bss.cpp, hal/w8a_stage_storage.cpp). */
 extern "C" unsigned char data_0209f248[];  /* the pause sub-state that RAN */
 extern "C" unsigned char data_0209f1ec[];  /* the pause sub-state asked for */
+extern "C" unsigned char data_0209f204[];  /* native menu input ownership */
 extern "C" unsigned char data_0209f22c[];  /* the whole-function cooldown */
 extern "C" unsigned char data_0209f2b4[];  /* how many menu buttons are up */
 /* THE LEVEL-CLEAR SCREEN'S OWN WORDS, for the SM64DS_LC_WATCH instrument
@@ -6989,7 +6990,12 @@ static unsigned short host_ds_buttons(int pad_live, const XPad *pad)
 static unsigned short host_menu_raw_keys(int pad_live, const XPad *pad)
 {
     unsigned short raw = 0;
-    if (!g_coop_pause && !g_coop_start_swallow && key_act(HOST_KEY_START)) raw |= 0x08;
+    // Escape shares the desktop menu action with Start. While the native
+    // dialogue/save UI owns input, send it the same DS confirm button.
+    const bool native_menu = data_0209d660 || data_0209fc48 || data_0209f204[0] ||
+        data_0209f20c[0] || data_0209f294[0] || data_0209f2c4[0];
+    if (!g_coop_pause && !g_coop_start_swallow &&
+        (key_act(HOST_KEY_START) || (native_menu && key_live(VK_ESCAPE)))) raw |= 0x08;
     if (key_act(HOST_KEY_SELECT)) raw |= 0x04;
     if (pad_live) {
         if (!g_coop_pause && !g_coop_start_swallow && pad_act(pad, HOST_PAD_START)) raw |= 0x08;
