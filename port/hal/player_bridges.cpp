@@ -1537,8 +1537,8 @@ extern "C" int port_player_render_hidden(const void *player)
 {
     // Cutscene-spawned players also use this gate. Hiding only the harness's
     // local-player draw leaves the rest of the cast visible in menu previews.
-    static const bool backdrop_credits=getenv("SM64DS_MENU_BACKDROP_CHILD") && getenv("SM64DS_MENU_NATIVE_STAFF_ROLL");
-    if(backdrop_credits)return 1;
+    static const bool backdrop=getenv("SM64DS_MENU_BACKDROP_CHILD")!=nullptr;
+    if(backdrop)return 1;
     const char *c = (const char *)player;
     const unsigned char no = *(const unsigned char *)(c + 0x6d8);
     /* :44-48  VS liveness (0.3.2: kPortMaxPlayers is sixteen) */

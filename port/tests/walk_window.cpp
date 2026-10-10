@@ -17160,11 +17160,11 @@ int main(void)
                     hal_player_texseq_tick(other);
                 continue;
             }
-            if (!coop_staff_roll_child()) {
+            if (!coop_backdrop_child()) {
                 if (void *other = data_0209f394[pi]) hal_render_player_world(other);
             }
         }
-        if (!rb_skip_render() && !coop_staff_roll_child())
+        if (!rb_skip_render() && !coop_backdrop_child())
             hal_render_player_world(player);
         else
             hal_player_texseq_tick(player);
@@ -17316,7 +17316,9 @@ int main(void)
            the covered pixels over the 3D framebuffer. Before the fade composite,
            so the box dims with the master-brightness blend the same as the DS. */
         pt_mark(PS_COMP_A);
-        if (!rb_skip_render())
+        // Menu scenery has no game HUD or dialogue, including course-entry
+        // messages in ordinary previews. The native fade still runs below.
+        if (!rb_skip_render() && !coop_backdrop_child())
             port_message_composite_engine_a(&fb);
         ph_end(PH_RASTER, t_phase);
         /* Bottom of the DS 2D frame: upload the shadows the game filled,
