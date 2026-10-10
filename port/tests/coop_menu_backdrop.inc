@@ -86,7 +86,7 @@ public:
         Env cinematic("SM64DS_MENU_NATIVE_STAFF_ROLL",shot>=0?"1":0), old_cinematic("SM64DS_MENU_STAFF_ROLL_SHOT",0), actors("SM64DS_NO_ACTORS",0);
         Env frames("SM64DS_WINDOW_SELFTEST","2000000000"), idle("SM64DS_SELFTEST_IDLE","1"), orbit("SM64DS_SELFTEST_ORBIT",0);
         Env character("SM64DS_CHARACTER","0"), camera_test("SM64DS_GAMEPLAY_PROBE",0);
-        Env aspect("SM64DS_ASPECT","4:3"), scale("SM64DS_RENDER_SCALE","2"), rate("SM64DS_FRAME_RATE","0");
+        Env aspect("SM64DS_ASPECT","0"), scale("SM64DS_RENDER_SCALE","2"), rate("SM64DS_FRAME_RATE","0");
         Env save("SM64DS_SAVE_PATH",save_), audio("SM64DS_NO_AUDIO","1"), log("SM64DS_NO_PLAYLOG","1");
         Env focus("SM64DS_NO_FOCUS","1"), freecam("SM64DS_FREECAM",0);
         Env panel("SM64DS_SUB_PANEL","0");
