@@ -3,8 +3,9 @@ project(sm64ds_native_core LANGUAGES CXX)
 
 # This builds the real DS hardware/runtime library, not a playable game host.
 # The game still needs its native window/audio/network layer and ABI bridges.
-if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
-    message(FATAL_ERROR "The native DS core currently requires 32-bit Linux; use Clang with -m32")
+if((NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+        OR NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message(FATAL_ERROR "The native DS core requires 32-bit Linux or Android; ARM64 game layouts are not ported")
 endif()
 if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(FATAL_ERROR "Clang is required for the existing DS state-section declarations")
@@ -32,16 +33,25 @@ add_library(sm64ds_native_core STATIC
 target_compile_features(sm64ds_native_core PUBLIC cxx_std_17)
 target_include_directories(sm64ds_native_core PUBLIC ${PORT_ROOT}/ntr/include)
 target_include_directories(sm64ds_native_core PRIVATE ${PORT_ROOT})
-target_compile_options(sm64ds_native_core PRIVATE -fms-extensions -fno-pie)
+target_compile_options(sm64ds_native_core PRIVATE -fms-extensions $<$<PLATFORM_ID:Linux>:-fno-pie>)
 target_link_libraries(sm64ds_native_core PUBLIC Threads::Threads)
 
 add_executable(native_runtime_test ${PORT_ROOT}/tests/coop_native_runtime_test.cpp)
-target_compile_options(native_runtime_test PRIVATE -UNDEBUG -fno-pie)
+target_compile_options(native_runtime_test PRIVATE -UNDEBUG $<$<PLATFORM_ID:Linux>:-fno-pie>)
 target_link_libraries(native_runtime_test PRIVATE sm64ds_native_core)
 # Preserve the existing grouped DS globals and the adjacent IRQ callback bank.
-target_link_options(native_runtime_test PRIVATE -no-pie "LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/dsstate.ld")
+target_link_options(native_runtime_test PRIVATE $<$<PLATFORM_ID:Linux>:-no-pie>
+    "LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/dsstate.ld")
 enable_testing()
 add_test(NAME actual_native_frame_loop_and_irq COMMAND native_runtime_test)
+
+# Exercise the actual 2D renderer without cartridge data or a window host.
+add_executable(native_graphics_test ${PORT_ROOT}/tests/smoke_objwin.cpp)
+target_compile_options(native_graphics_test PRIVATE -UNDEBUG $<$<PLATFORM_ID:Linux>:-fno-pie>)
+target_link_libraries(native_graphics_test PRIVATE sm64ds_native_core)
+target_link_options(native_graphics_test PRIVATE $<$<PLATFORM_ID:Linux>:-no-pie>
+    "LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/dsstate.ld")
+add_test(NAME native_sprite_window_and_pixels COMMAND native_graphics_test)
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(NATIVE_TYPES "${CMAKE_CURRENT_BINARY_DIR}/native-types.h")
@@ -82,6 +92,7 @@ add_dependencies(native_heap_test native_types)
 target_compile_features(native_heap_test PRIVATE cxx_std_17)
 target_compile_definitions(native_heap_test PRIVATE SM64DS_PLATFORM_PC)
 target_include_directories(native_heap_test PRIVATE ${PORT_ROOT}/../include ${PORT_ROOT} ${PORT_ROOT}/hal)
-target_compile_options(native_heap_test PRIVATE -UNDEBUG -fno-pie -fms-extensions -include "${NATIVE_TYPES}")
-target_link_options(native_heap_test PRIVATE -no-pie)
+target_compile_options(native_heap_test PRIVATE -UNDEBUG $<$<PLATFORM_ID:Linux>:-fno-pie>
+    -fms-extensions -include "${NATIVE_TYPES}")
+target_link_options(native_heap_test PRIVATE $<$<PLATFORM_ID:Linux>:-no-pie>)
 add_test(NAME native_game_allocator_5000_operations COMMAND native_heap_test)

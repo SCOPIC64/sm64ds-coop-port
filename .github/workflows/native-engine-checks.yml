@@ -29,6 +29,17 @@ jobs:
         run: cmake --build build/native-core --parallel 2
       - name: Run I/O, state, frame/IRQ and actual allocator tests
         run: ctest --test-dir build/native-core --output-on-failure
+      - name: Keep native core outputs for developer testing (not a game package)
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-core-linux-i686
+          path: |
+            build/native-core/libsm64ds_native_core.a
+            build/native-core/native_runtime_test
+            build/native-core/native_heap_test
+            build/native-core/native_graphics_test
+            port/docs/native-port-progress.md
+          if-no-files-found: error
   frame-context:
     strategy:
       fail-fast: false
@@ -67,6 +78,30 @@ jobs:
           sdk=$(xcrun --sdk iphoneos --show-sdk-path)
           mkdir -p build/native-context
           xcrun --sdk iphoneos clang++ -target arm64-apple-ios14.0 -isysroot "$sdk" -std=c++17 -Wall -Wextra -Werror -Iport/ntr/include -c port/ntr/frame_context.cpp -o build/native-context/ios-arm64.o
+  android-engine-core:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and link actual ARM32 core and allocator (not an APK)
+        shell: bash
+        run: |
+          ndk=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          cmake -S port/native -B build/android-core -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ndk/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=armeabi-v7a -DANDROID_PLATFORM=android-26 \
+            -DANDROID_STL=c++_static -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build/android-core --parallel 2
+      - name: Keep SDK-linked core outputs (not on-device gameplay proof)
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-core-android-armeabi-v7a
+          path: |
+            build/android-core/libsm64ds_native_core.a
+            build/android-core/native_runtime_test
+            build/android-core/native_heap_test
+            build/android-core/native_graphics_test
+            port/docs/native-port-progress.md
+          if-no-files-found: error
   windows-runtime:
     runs-on: windows-latest
     steps:
