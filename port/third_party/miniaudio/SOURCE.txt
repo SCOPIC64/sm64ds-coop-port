@@ -1,0 +1,4 @@
+miniaudio 0.11.25
+https://raw.githubusercontent.com/mackron/miniaudio/9634bedb5b5a2ca38c1ee7108a9358a4e233f14d/miniaudio.h
+SHA256 ac7af4de748b7e26b777f37e01cee313a308a7296a3eb080e2906b320cc55c89
+Dual MIT/public-domain license retained at end of header.

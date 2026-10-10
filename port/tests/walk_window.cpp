@@ -412,11 +412,20 @@ static bool winapi_load(void)
 #include "hal/vs_width.h"   /* run vs16: the port's player width */
 #include "fault_probe.h"
 #include "overlay_font.h"
+#include "hal/coop_frontend_render.h"
+static coop_frontend::Menu g_coop_menu;
+static coop_frontend::Action g_coop_action = coop_frontend::NONE;
+static bool g_coop_active, g_coop_loading, g_coop_pause, g_coop_start_swallow;
+static unsigned g_coop_pad_swallow, g_coop_pad_held;
+static int g_coop_sound = -1;
 #include "hal/host_settings.h"   /* settings.json, the launcher's file */
 #include "hal/perf_log.h"        /* run perf1: the player performance report */
 #include "hal/comms_seam.h"       /* run mg15 lane MP1: the radio seam */
 #include "hal/voice_chat.h"      /* lane VOICE: proximity voice chat */
 #include "hal/comms_loopback.h"   /* run mg16 lane MP2: the loopback carrier */
+#include <filesystem>
+#include "hal/coop_mods.h"
+#include "hal/coop_texture_tools.h"
 #include "hal/resource_pack.h"    /* declarative Lua resource packs */
 /* run mg16 lane MP3: hal/comms_lockstep.h is RETIRED. Its transcription of
    src/func_0203ea5c.c existed only because that TU was in no slice; the TU is
@@ -896,6 +905,7 @@ extern int data_0209f20c[], data_0209f294[], data_0209f2c4[];
    (hal/auto_bss.cpp, hal/w8a_stage_storage.cpp). */
 extern "C" unsigned char data_0209f248[];  /* the pause sub-state that RAN */
 extern "C" unsigned char data_0209f1ec[];  /* the pause sub-state asked for */
+extern "C" unsigned char data_0209f204[];  /* native menu input ownership */
 extern "C" unsigned char data_0209f22c[];  /* the whole-function cooldown */
 extern "C" unsigned char data_0209f2b4[];  /* how many menu buttons are up */
 /* THE LEVEL-CLEAR SCREEN'S OWN WORDS, for the SM64DS_LC_WATCH instrument
@@ -3752,12 +3762,14 @@ static const int CAM_STEP = 0x400;       /* the ROM's quantum, 0x0200a6a8 */
    game's, which is the invariant the block above is about -- an actor the rig
    can see but the game camera cannot stays dormant, and that is the price of
    leaving the actor alone rather than a bug to chase. */
-enum { CAM_ANALOG = 0, CAM_FREE = 1, CAM_DS = 2 };
+#include "hal/coop_sm64_camera.h"
+enum { CAM_ANALOG = 0, CAM_FREE = 1, CAM_DS = 2, CAM_SM64 = 3 };
+static coop_sm64::Lakitu sm64_camera;
 static int cam_mode = CAM_DS;    /* main promotes it once the Camera is up */
 
 static const char *cam_mode_name(int m)
 {
-    return m == CAM_ANALOG ? "analog" : (m == CAM_FREE ? "freecam" : "DS");
+    return m == CAM_ANALOG ? "analog" : m == CAM_FREE ? "freecam" : m == CAM_SM64 ? "SM64 cam" : "DS";
 }
 
 static short fc_yaw;             /* heading from the pivot to the eye */
@@ -3864,6 +3876,7 @@ static void fc_eye(const int *pivot, int *eye)
    defend, which is exactly when the ROM's number should be in charge. */
 static void fc_seed(void *cam)
 {
+    sm64_camera.live=false;
     char *k = (char *)cam;
     int *at = (int *)(k + 0x80);
     int *eye = (int *)(k + 0x8c);
@@ -3926,6 +3939,9 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
    analog and free modes (stood down during a cutscene, the fc48 gate), and
    the widescreen widen of the Clipper Camera::Render has just seeded. Frames
    the ROM does not walk make the old hand calls instead and never reach it. */
+#include "coop_staff_roll_camera.inc"
+#include "coop_menu_camera.inc"
+#include "coop_sm64_camera.inc"
 static char *g_k1_player;       /* the level loop's player, set per ROM frame */
 static void k1_level_camera_render_hook(void *cam)
 {
@@ -3935,7 +3951,7 @@ static void k1_level_camera_render_hook(void *cam)
     const int cutscene_cam = !no_cutscene_cam && data_0209fc48 != 0;
     if (cam_mode == CAM_ANALOG && !rb_replaying() && g_k1_player)
         an_step_pivot(g_k1_player);
-    if (cam_mode != CAM_DS && !cutscene_cam) {
+    if (!coop_menu_camera(cam) && !coop_staff_roll_camera(cam) && !coop_sm64_camera_draw(cam,g_k1_player) && cam_mode != CAM_DS && !cutscene_cam) {
         int fceye[3];
         const int *pivot = cam_mode == CAM_ANALOG
                                ? an_pivot
@@ -5820,8 +5836,10 @@ static void menu_draw(const OvlSurface &fb)
    is g_menu_host above, filled by whichever loop is running, and every row
    that needs one of those refuses in words when a scene is underneath it.
    Nothing else about the block changed. */
+static bool coop_pause_input(int pad_live,const XPad* pad);
 static void menu_input(int pad_live, const XPad *pad)
 {
+    if(coop_pause_input(pad_live,pad))return;
     if (g_selftest) return;
     static unsigned menu_prev;
     unsigned held = 0;
@@ -5830,29 +5848,8 @@ static void menu_input(int pad_live, const XPad *pad)
        focus gate and the stale-key latch with everything else. Under a
        selftest this block never runs at all, so routing it here changes
        nothing an automated run sees. */
-    /* ESCAPE IS AN ALIAS OF F5 (Tango's ask, run mg10 lane ESC), and this line
-       is the whole of it. Escape used to close the game outright, from the
-       window procedure -- the one key in this program that acted without
-       passing the three gates key_live carries. Quitting by accident is the
-       cheapest bug a play session has: the F-row keys sit next to each other
-       and the one a person reaches for to back out of anything took the
-       session with it.
-
-       AN ALIAS AND NOT A SECOND ENTRY POINT, on purpose. Sharing bit 0 with F5
-       and pad BACK means escape inherits, with no code of its own, every rule
-       the toggle already follows: the selftest gate (a comparator run reads
-       every key released, so nothing an automated run does can press this), the
-       rebind-capture gate, the focus gate, the stale-key latch across an
-       alt-tab, and the one-step-per-press edge. It also means escape CLOSES the
-       menu as well as opening it, which is the half of the ask that matters --
-       the key that opens the picker is the key that puts it away.
-
-       QUITTING IS THE WINDOW'S CLOSE BUTTON now, and alt+F4, both of which
-       arrive as WM_DESTROY and leave through the same PostQuitMessage escape
-       always did. Nothing else in this file quits: the only other
-       PostQuitMessage calls are that one and the two relaunch rows, which quit
-       because they have just started a replacement process. */
-    if (key_live(VK_F5) || key_live(VK_ESCAPE)) held |= 1u << 0;
+    // F5 remains the developer menu; Start/Escape use the front-end pause menu.
+    if (key_live(VK_F5)) held |= 1u << 0;
     /* WASD NAVIGATES TOO, as plain aliases of the arrows (Tango's ask). Same
        key_live call, so they arrive behind the focus gate, the stale-key latch
        and the rebind-capture gate with everything else; same held-mask bit, so
@@ -6250,8 +6247,8 @@ static void menu_input(int pad_live, const XPad *pad)
                 break;
             case MENU_CAMERA:
                 if (g_menu_host.real_camera) {
-                    cam_mode = dec ? (cam_mode + 2) % 3
-                                   : (cam_mode + 1) % 3;
+                    cam_mode = dec ? (cam_mode + 3) % 4
+                                   : (cam_mode + 1) % 4;
                     if (cam_mode != CAM_DS) fc_seed(g_menu_host.cam);
                     if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
                     /* persisted on the spot like the run row, and for the
@@ -6942,6 +6939,8 @@ static void click_test_finish(void)
    port/scene_window.txt section 5a. */
 static unsigned short host_ds_buttons(int pad_live, const XPad *pad)
 {
+    XPad filtered={};
+    if(pad){filtered=*pad;filtered.buttons&=~g_coop_pad_swallow;pad=&filtered;}
     unsigned short btn = 0;
     /* EVERY KEY HERE IS A BINDING (settings.json KeyJump, KeyAttack,
        KeyCrouch; hal/host_settings.h), read through key_act so 0 is unbound.
@@ -6991,10 +6990,15 @@ static unsigned short host_ds_buttons(int pad_live, const XPad *pad)
 static unsigned short host_menu_raw_keys(int pad_live, const XPad *pad)
 {
     unsigned short raw = 0;
-    if (key_act(HOST_KEY_START))  raw |= 0x08;
+    // Escape shares the desktop menu action with Start. While the native
+    // dialogue/save UI owns input, send it the same DS confirm button.
+    const bool native_menu = data_0209d660 || data_0209fc48 || data_0209f204[0] ||
+        data_0209f20c[0] || data_0209f294[0] || data_0209f2c4[0];
+    if (!g_coop_pause && !g_coop_start_swallow &&
+        (key_act(HOST_KEY_START) || (native_menu && key_live(VK_ESCAPE)))) raw |= 0x08;
     if (key_act(HOST_KEY_SELECT)) raw |= 0x04;
     if (pad_live) {
-        if (pad_act(pad, HOST_PAD_START))  raw |= 0x08;
+        if (!g_coop_pause && !g_coop_start_swallow && pad_act(pad, HOST_PAD_START)) raw |= 0x08;
         if (pad_act(pad, HOST_PAD_SELECT)) raw |= 0x04;
     }
     return raw;
@@ -8415,7 +8419,7 @@ static int mo_capture_want(int selftest, int stacked)
     if (selftest) return 0;             /* no player, no pointer */
     if (stacked) return 0;              /* the bottom half is a touchscreen */
     if (cam_mode == CAM_DS) return 0;   /* the mouse steers nothing there */
-    if (menu_on) return 0;              /* escape is the release */
+    if (menu_on || g_coop_pause) return 0; /* a menu releases the pointer */
     /* THE LEVEL-CLEAR SAVE MENU IS A PEN MOMENT (hal/sub_screen.cpp's own
        predicate, the same one the screen swap reads). While it is up the
        bottom screen carries three touch boxes and nothing else answers them,
@@ -8439,6 +8443,24 @@ static int g_user_sized;
 
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
+    if (g_coop_active && m == WM_CHAR) {
+        g_coop_menu.type(static_cast<char>(w));
+        return 0;
+    }
+    if ((g_coop_active || g_coop_loading) && m == WM_KEYDOWN) {
+        if (g_coop_active && !(l & (1 << 30))) {
+            int k = w == VK_UP ? coop_frontend::UP : w == VK_DOWN ? coop_frontend::DOWN :
+                w == VK_LEFT ? coop_frontend::LEFT : w == VK_RIGHT ? coop_frontend::RIGHT :
+                w == VK_RETURN ? coop_frontend::ACCEPT : w == VK_ESCAPE ? coop_frontend::BACK : -1;
+            if (k >= 0) {
+                g_coop_sound = k == coop_frontend::ACCEPT ? 30 : k == coop_frontend::BACK ? 123 : 0;
+                coop_frontend::Action a = g_coop_menu.key(static_cast<coop_frontend::Key>(k));
+                if (a != coop_frontend::NONE) g_coop_action = a;
+            }
+        }
+        // F11/F12 remain available below; no game/debug input during the menu.
+        if (w != VK_F11 && w != VK_F12) return 0;
+    }
     /* the capture is dropped here as well as on the frame test, because a
        window being destroyed has no more frames to test on */
     if (m == WM_DESTROY) {
@@ -8460,21 +8482,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         if (!(l & (1 << 30))) g_rebind_key = (int)w;
         return 0;
     }
-    /* THERE IS NO ESCAPE BRANCH HERE ANY MORE (run mg10, lane ESC), and its
-       absence is the feature. It read
-           if (m == WM_KEYDOWN && w == VK_ESCAPE) { mo_release(); quit; }
-       so escape closed the game. It is now an alias of F5 -- it opens and
-       closes the debug menu -- and it is read where F5 is read, in menu_input's
-       held-mask, so it passes the selftest gate, the rebind-capture gate, the
-       focus gate and the stale-key latch that a branch up here would each have
-       had to re-solve. The rebind capture above still swallows it before
-       anything else sees it, for the reason it always did.
-
-       Escape now falls through to DefWindowProcA with every other key, which
-       does nothing with it. THE WINDOW'S CLOSE BUTTON AND ALT+F4 ARE THE QUIT,
-       and they were always the other way out: they arrive as WM_CLOSE, the
-       default handler destroys the window, and WM_DESTROY above posts the quit
-       message escape used to post directly. */
+    // Start/Escape are handled by the input loop. Window close and Alt+F4 quit.
     switch (m) {
     case WM_DEVICECHANGE:
         /* a controller came or went: the pad backend's worker scans now
@@ -8867,6 +8875,10 @@ static int host_show_mode(int nofocus)
     int want = -1;
     if (!W.ShowWindow_)
         return -1;      /* no show call available; keep WS_VISIBLE */
+    /* The menu's private renderer must never create a visible second window.
+       This explicit mode is separate from a launcher's console hide request. */
+    if (getenv("SM64DS_MENU_BACKDROP_CHILD"))
+        return SW_HIDE;
     STARTUPINFOA si;
     memset(&si, 0, sizeof si);
     si.cb = sizeof si;
@@ -9639,6 +9651,9 @@ static int port_scene_want_window(void)
 static HWND g_entry_hwnd;
 static HDC  g_entry_hdc;
 
+#include "coop_frontend.inc"
+#include "coop_pause.inc"
+
 /* ---- ONE COPY OF THE SCENE PATH'S PER-FRAME HOST DUTIES ------------------
  * (run link100, lane STARSEL5.)
  *
@@ -9673,6 +9688,7 @@ static int scene_host_input_frame(HWND hwnd, int frame, XPad *pad,
         W.TranslateMessage_(&msg);
         W.DispatchMessageA_(&msg);
     }
+    if (g_coop_loading) return 0; // retail title receives only its carried save pick
     /* the focus edge, read once a frame BEFORE any key is. Coming back,
        every key starts stale; going away needs no work, because key_live
        is already returning released. */
@@ -9841,6 +9857,12 @@ static int scene_host_input_frame(HWND hwnd, int frame, XPad *pad,
 static void scene_host_present_frame(HWND hwnd, int stacked,
                                      ntr::Framebuffer &fb)
 {
+    if (g_coop_loading) {
+        coop_draw(fb, 0, "OPENING YOUR SAVE FILE");
+        present();
+        g_mouse_click_new = 0;
+        return;
+    }
     uint32_t *stack_img = stacked
             ? hal_sub_screen_stacked_image(&fb.px[0][0]) : 0;
     const OvlSurface surf =
@@ -9858,7 +9880,7 @@ static void scene_host_present_frame(HWND hwnd, int stacked,
         os.menu_paused = menu_on;
         ovl_draw(surf, os);
     }
-    if (menu_on) menu_draw(surf);
+    if(g_coop_pause)coop_pause_draw(surf);else if (menu_on) menu_draw(surf);
     if (!rb_skip_render())
         toast_draw(surf);
 
@@ -9945,11 +9967,13 @@ static int scene_window_run(void)
        is hal/scene_boot.cpp's -- the ROM's own IsMinigameActorID -- asked here
        rather than invented here, and port_scene_begin's second ask is a no-op
        so the setter never reports a late write that is in fact correct. */
-    port_scene_layout_propose();
+    if (!g_coop_loading) port_scene_layout_propose();
     const int stacked = hal_sub_screen_stacked();
 
     HDC hdc = 0;
-    HWND hwnd = host_window_open(
+    HWND hwnd = g_entry_hwnd;
+    if (hwnd) hdc = g_entry_hdc;
+    else hwnd = host_window_open(
         stacked, &hdc,
         "SM64DS   |   stylus = left mouse drag   Space jump   X punch"
         "   Ctrl crouch   |   arrows / d-pad   Enter start"
@@ -10145,6 +10169,7 @@ static int scene_window_run(void)
        title's own slot hits, captures and trap counts behind. Answers 0 and
        prints nothing unless the bridge is armed AND the handoff completed. */
     port_title_entry_commit();
+    g_coop_loading = false;
     return scene_rc;
 }
 
@@ -10400,6 +10425,23 @@ extern "C" void port_frame_ctrl_publish(void)
 
 int main(void)
 {
+    if(coop_menu_player_child())port_menu_player_preview_hook=coop_menu_player_prepare;
+    // Double-clicking the game is sufficient; no batch file supplies its root.
+    // Preserve explicit roots used by tests and developer launches.
+    if (!getenv("SM64DS_ASSET_ROOT")) {
+        char exe[MAX_PATH];
+        DWORD count = GetModuleFileNameA(0, exe, sizeof exe);
+        if (!count || count >= sizeof exe) return 2;
+        char* slash = strrchr(exe, '\\');
+        if (!slash) return 2;
+        if (slash == exe + 2) {
+            // A drive root must remain absolute. A trailing forward slash also
+            // stays literal when this directory is quoted for the importer.
+            *slash = '/'; slash[1] = 0;
+        } else *slash = 0;
+        _putenv_s("SM64DS_ASSET_ROOT", exe);
+        if (!SetCurrentDirectoryA(exe)) return 2;
+    }
     pt_arm();   /* run perf2: SM64DS_PERF_TRACE, inert unset */
     /* THE ASPECT IS CHOSEN HERE, ONCE, BEFORE ANYTHING TOUCHES THE FRAMEBUFFER.
        host_setting_aspect() reads the Aspect key from settings.json (or
@@ -10670,6 +10712,10 @@ int main(void)
        block that a fatal loss prints goes in the log here too. */
     if (ntr::io_reserve_lost_mask()) fputs(ntr::io_reserve_detail(), stderr);
     if (!winapi_load()) { fprintf(stderr, "winapi_load failed\n"); return 2; }
+    {
+        const int menu_result = coop_frontend_run();
+        if (menu_result <= 0) return menu_result == 0 ? 0 : 2;
+    }
     /* run mg16 lane MP2: the loopback carrier, if and only if SM64DS_COMMS_ROLE
        names a role. With the env unset this installs nothing and returns false,
        the seam keeps its own solo answers, and every path below is the one that
@@ -11116,7 +11162,13 @@ int main(void)
 
     /* Game mode 0 (adventure) -- LoadClsnAndObjects branches its minimap
        and HUD spawns on this, and Stage::CheckInput reads it later. */
-    data_0209f2d8 = 0;
+    data_0209f2d8 = coop_staff_roll_child() ? 2 : 0;
+    if (coop_staff_roll_child()) {
+        // Enter the course-tour portion directly. Constructors have already
+        // relocated its camera paths and continuation pointers from ROM data.
+        coop_staff_roll_queue();
+        fprintf(stderr,"[staff-roll] queued original DS credits script %p\n",data_02087c00);
+    }
 
     /* ---- VS wiring lane: THE VS BOOT --------------------------------------
        SM64DS_VS_MAP=<0..3> makes this boot a VS match on the ROM's own map
@@ -11778,7 +11830,7 @@ int main(void)
        rather than leaving the title's window standing and opening a second one
        beside it. Only a windowed title run can satisfy both tests; a headless
        one recorded no handle and takes the ordinary open below. */
-    if (port_title_entry_taken() && g_entry_hwnd) {
+    if (g_entry_hwnd) {
         hwnd = g_entry_hwnd;
         hdc = g_entry_hdc;
         fprintf(stderr, "[title-entry] reusing the title's own window for the "
@@ -12807,14 +12859,15 @@ int main(void)
                    numbering IS the CAM_ numbering: 0 analog, 1 freecam, 2 ds.
                    The three environment knobs below still win over the file. */
                 cam_mode = selftest ? CAM_DS : host_setting_camera_mode();
-                if (cam_mode < CAM_ANALOG || cam_mode > CAM_DS) cam_mode = CAM_DS;
+                if (cam_mode < CAM_ANALOG || cam_mode > CAM_SM64) cam_mode = CAM_DS;
                 if (getenv("SM64DS_ANALOG_CAMERA")) cam_mode = CAM_ANALOG;
                 if (getenv("SM64DS_DS_CAMERA")) cam_mode = CAM_DS;
                 if (getenv("SM64DS_FREECAM")) cam_mode = CAM_FREE;
+                if (getenv("SM64DS_SM64_CAMERA")) cam_mode = CAM_SM64;
                 if (cam_mode != CAM_DS) fc_seed(cam);
             }
             int now = key_live(VK_F1) ||
-                      (pad_live && (pad.buttons & 0x0080));
+                      (cam_mode!=CAM_SM64 && pad_live && (pad.buttons & 0x0080));
             if (selftest && getenv("SM64DS_SELFTEST_FREECAM")) {
                 /* the probe wants the mod ON at 20 and OFF three quarters
                    through, which a three-way cycle cannot express -- so set
@@ -12824,14 +12877,33 @@ int main(void)
                 now = 0;
             }
             if (now && !fc_edge) {
-                cam_mode = (cam_mode + 1) % 3;   /* analog -> freecam -> DS */
+                cam_mode = (cam_mode + 1) % 4;   /* analog -> freecam -> DS */
                 if (cam_mode != CAM_DS) fc_seed(cam);
                 if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
                 fprintf(stderr, "[cam] mode %s\n", cam_mode_name(cam_mode));
             }
             fc_edge = now;
         }
-        if (cam_mode != CAM_DS && !rb_replaying()) {
+        if (cam_mode == CAM_SM64 && !rb_replaying() && !g_coop_active && !menu_on) {
+            unsigned buttons=0;
+            if(key_live('Q') || stick_rx<-10000 || (pad_live && (pad.buttons&0x0100)))buttons|=coop_sm64::Lakitu::LEFT;
+            if(key_live('E') || stick_rx>10000 || (pad_live && (pad.buttons&0x0200)))buttons|=coop_sm64::Lakitu::RIGHT;
+            if(key_live('R') || stick_ry>10000 || mouse_wheel>0)buttons|=coop_sm64::Lakitu::UP;
+            if(key_live('F') || stick_ry<-10000 || mouse_wheel<0)buttons|=coop_sm64::Lakitu::DOWN;
+            if(key_live('C'))buttons|=coop_sm64::Lakitu::BEHIND;
+            if(key_live('V') || (pad_live && (pad.buttons&0x0080)))buttons|=coop_sm64::Lakitu::TOGGLE;
+            if(key_act(HOST_KEY_JUMP) || key_act(HOST_KEY_ATTACK) ||
+                (pad_live && (pad_act(&pad,HOST_PAD_JUMP) || pad_act(&pad,HOST_PAD_ATTACK))))buttons|=coop_sm64::Lakitu::CANCEL;
+            if(!sm64_camera.live && cam)sm64_camera.seed((const int*)(c+0x5c),(const int*)((char*)cam+0x8c),*(short*)(c+0x8e));
+            bool can_inspect=!data_0209fc48 && port_sm64_can_inspect(c);
+            sm64_camera.input(buttons,*(short*)(c+0x8e),can_inspect);
+            float look_x=pad_live?pad.lx/32767.0f:0,look_y=pad_live?pad.ly/32767.0f:0;
+            if(key_act(HOST_KEY_LEFT))look_x-=1;if(key_act(HOST_KEY_RIGHT))look_x+=1;
+            if(key_act(HOST_KEY_UP))look_y+=1;if(key_act(HOST_KEY_DOWN))look_y-=1;
+            if(std::abs(look_x)<0.2f)look_x=0;if(std::abs(look_y)<0.2f)look_y=0;
+            sm64_camera.look(look_x,look_y);
+        }
+        if (cam_mode != CAM_DS && cam_mode != CAM_SM64 && !rb_replaying()) {
             /* the rig's own frame: orbit and tilt at a rate proportional to
                the stick, zoom on the bumpers or R/F, C back behind Mario.
                `rig_touched` is what tells the analog auto-recenter to keep its
@@ -12937,7 +13009,7 @@ int main(void)
         /* the menu owns the arrow keys and the d-pad while it is open, so no
            walk comes out of them; the tick is skipped below either way, but
            the stick record should not be left describing a press either */
-        if (menu_on) { dx = 0; dz = 0; }
+        if (menu_on || g_coop_pause || (cam_mode==CAM_SM64 && sm64_camera.inspecting)) { dx = 0; dz = 0; }
         {
             unsigned short raw = 0;
             if (dz > 0) raw |= 0x40;   /* up    */
@@ -12992,7 +13064,7 @@ int main(void)
                and read once below it; see the function's own banner. */
             g_fc_pad = pad;
             g_fc_pad_live = pad_live;
-            g_fc_menu_on = menu_on;
+            g_fc_menu_on = menu_on || g_coop_pause || (cam_mode==CAM_SM64 && sm64_camera.inspecting);
             g_fc_selftest = selftest;
             /* STAGE::CheckInput IS THE STAGE'S AGAIN (run link100, lane FRAME).
                This is where the port used to call it -- Stage::Behavior:107,
@@ -13286,15 +13358,16 @@ int main(void)
                    from the lens. Deliberately the raw bit and not
                    cam_bit_right: this probes the ROM's reader, so it must
                    not move when a player's binding preference does. */
-                if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20)
+                if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20 &&
+                    (!coop_backdrop_child() || frame % 12 == 0))
                     cam_rot |= 0x100;
             }
-            if (menu_on) btn = 0;   /* enter/A belong to the menu, not to him */
-            g_fc_cam_rot = menu_on ? 0 : cam_rot;
+            if (menu_on || g_coop_pause) btn = 0;   /* enter/A belong to the menu, not to him */
+            g_fc_cam_rot = (menu_on || g_coop_pause) ? 0 : cam_rot;
             /* TEMPORARY: fold the scripted probe's A/B into the button word so
                StartTalk's b==0 gate (data_0209f49e & 3) sees the press, and the
                camera-rotate readers do not (mask to bits 0-1). SM64DS_PROBE_INPUT. */
-            if (!menu_on)
+            if (!menu_on && !g_coop_pause)
                 btn |= (unsigned short)(port_input_probe_bits(
                     port_rom_frame_checked(frame, "input-probe-bits")) & 0x3);
             /* run mg16 lane MPBTN: the button half of the published key word,
@@ -13311,8 +13384,8 @@ int main(void)
                comms stash must agree bit for bit. */
             const unsigned short port_raw_bt_bits_for_mirror = (unsigned short)(
                 host_btn_to_raw_keys(btn) |
-                (menu_on ? 0 : host_menu_raw_keys(pad_live, &pad)) |
-                (menu_on ? 0 : port_input_probe_bits(
+                ((menu_on || g_coop_pause) ? 0 : host_menu_raw_keys(pad_live, &pad)) |
+                ((menu_on || g_coop_pause) ? 0 : port_input_probe_bits(
                     port_rom_frame_checked(frame, "input-probe-raw"))));
             port_raw_btn_stash(port_raw_bt_bits_for_mirror);
             /* THE PAD MIRROR (run link100, lane INPUTRAW; moved here from
@@ -16573,7 +16646,7 @@ int main(void)
                    view: hal_camera_render has just parked the script-driven view in
                    data_0209b3ec, and leaving it there is what makes the star-get
                    fly-around visible instead of overwritten. */
-                if (cam_mode != CAM_DS && !cutscene_cam) {
+                if (!coop_menu_camera(cam) && !coop_staff_roll_camera(cam) && !coop_sm64_camera_draw(cam,c) && cam_mode != CAM_DS && !cutscene_cam) {
                     int fceye[3];
                     const int *pivot = cam_mode == CAM_ANALOG
                                            ? an_pivot
@@ -16905,7 +16978,7 @@ int main(void)
                    the second. (ShadowModel::RenderAll sits between them, on
                    the ROM and here.) */
                 if (!rb_skip_render())
-                    port_stage_render_skybox(stage);
+                    coop_staff_roll_skybox(stage,cam);
                 /* Stage::Render's first block, in its place in the order:
                    advance the shown areas' BTA texture animations (the
                    waterfall), which RenderModel below then applies. */
@@ -17078,10 +17151,11 @@ int main(void)
                     hal_player_texseq_tick(other);
                 continue;
             }
-            if (void *other = data_0209f394[pi])
-                hal_render_player_world(other);
+            if (!coop_staff_roll_child()) {
+                if (void *other = data_0209f394[pi]) hal_render_player_world(other);
+            }
         }
-        if (!rb_skip_render())
+        if (!rb_skip_render() && !coop_staff_roll_child())
             hal_render_player_world(player);
         else
             hal_player_texseq_tick(player);
@@ -17233,7 +17307,9 @@ int main(void)
            the covered pixels over the 3D framebuffer. Before the fade composite,
            so the box dims with the master-brightness blend the same as the DS. */
         pt_mark(PS_COMP_A);
-        if (!rb_skip_render())
+        // Menu scenery has no game HUD or dialogue, including course-entry
+        // messages in ordinary previews. The native fade still runs below.
+        if (!rb_skip_render() && !coop_backdrop_child())
             port_message_composite_engine_a(&fb);
         ph_end(PH_RASTER, t_phase);
         /* Bottom of the DS 2D frame: upload the shadows the game filled,
@@ -17243,6 +17319,7 @@ int main(void)
         pt_mark(PS_SUB);
         if (!rb_skip_render())
         hal_sub_screen_present(&fb.px[0][0], ntr::active_w, ntr::active_h);
+        coop_backdrop_publish(fb);
         pt_mark(PS_FADE_OVL);
         if (g_ip_on > 0 && g_ip_tick_ok) ip_snap(g_ip_p2, fb);
 
@@ -17391,7 +17468,7 @@ int main(void)
            which is why no adventure selftest BMP moves. */
         if (!rb_skip_render()) {
         nt_draw(surf);
-        if (menu_on) menu_draw(surf);
+        if(g_coop_pause)coop_pause_draw(surf);else if (menu_on) menu_draw(surf);
         }
         /* THE WINNER, once a VS match is over. Centred, over everything, for
            the whole grace window before the process closes -- which is what

@@ -1,0 +1,111 @@
+{
+  "tag": "v0.5.6-menu-preview.1",
+  "source_commit": "ac0a066195292a95e827f80dc305a0dc8648d280",
+  "exe_sha256": "009fda6da2191d8b33bfbb4530350ce87b47803095e3c4b5bc70742968c9ecbb",
+  "artifact_sha256": "7825d630813e78285cb1f0375dc3815f16c8f0f9bcc3e236386238022e7ab8b6",
+  "artifact_bytes": 3476070,
+  "exe_bytes": 9978368,
+  "bundled_mod_sha256": "3e53002541a7e5a627d5a73f79aae10b33c7a9b99bea2d5a36ac7402f95fc504",
+  "archive_files": [
+    "sm64ds coop.exe",
+    "README.txt",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.txt",
+    "mods/README.txt",
+    "mods/resource-packs/README.txt",
+    "texture-work/capture/README.txt",
+    "mods/sm64-movement/main.lua"
+  ],
+  "local_validation": {
+    "passed": true,
+    "tests": [
+      {
+        "test": "stock-walk",
+        "exit": 0,
+        "seconds": 9.33
+      },
+      {
+        "test": "lua-walk",
+        "exit": 0,
+        "seconds": 6.77
+      },
+      {
+        "test": "lua-jumps",
+        "exit": 0,
+        "seconds": 6.84
+      },
+      {
+        "test": "lua-longjump",
+        "exit": 0,
+        "seconds": 4.12
+      },
+      {
+        "test": "luigi-stock",
+        "exit": 0,
+        "seconds": 8.95
+      },
+      {
+        "test": "camera-zoom",
+        "exit": 0,
+        "seconds": 6.42
+      },
+      {
+        "test": "camera-c-up",
+        "exit": 0,
+        "seconds": 6.03
+      },
+      {
+        "test": "start-resume",
+        "exit": 0,
+        "seconds": 8.53
+      },
+      {
+        "test": "pause-screen",
+        "exit": 0,
+        "seconds": 5.06
+      },
+      {
+        "test": "lua-ds-api",
+        "exit": 0,
+        "seconds": 6.51
+      },
+      {
+        "test": "menu-pages",
+        "exit": 0,
+        "seconds": 6.49
+      },
+      {
+        "test": "texture-capture",
+        "exit": 0,
+        "seconds": 12.02
+      },
+      {
+        "test": "audio",
+        "exit": 0,
+        "seconds": 2.69
+      },
+      {
+        "test": "custom-media",
+        "exit": 0,
+        "seconds": 0.62
+      },
+      {
+        "test": "staff-roll",
+        "exit": 0,
+        "seconds": 65.3
+      }
+    ],
+    "portable_checks": 11,
+    "github_run": "https://github.com/SCOPIC64/sm64ds-coop-port/actions/runs/38062581158",
+    "github_jobs": 9,
+    "source_files_verified": 24,
+    "archive_contract_checks": 3
+  },
+  "title": "SM64DS Co-op 0.5.6 preview \u2014 Lua mods, SM64 camera and pause menu",
+  "platforms": [
+    "windows-x86"
+  ],
+  "artifact_blob": "ee5f869a54d07d662c10190a8c21cc2d4075fa3b",
+  "notes": "This Windows preview adds **DS Lua mods**, an editable **SM64 Movement mod**, **C-Up inspection and Lakitu/Mario camera modes**, an adventure **Start/Resume menu**, and **texture pack creation tools**.\n\nOpen `sm64ds coop.exe` directly. Extract the portable ZIP alongside your existing game data, retaining saves and settings. It includes `mods/sm64-movement/main.lua`, `mods/resource-packs` and `texture-work/capture`; existing edited mods should be retained. The EXE creates the movement script if absent and never overwrites edits. The download includes no cartridge data, original textures, music or saves.\n\n**Mods:** put `mods/<name>/main.lua` beside the EXE, enable it in Mods, and use Refresh Mods after editing. The movement mod adapts Mario walking/turning and jump launches; disabling it restores DS movement. Gameplay Lua currently runs only in solo adventure because co-op rollback does not snapshot Lua state. CoopDX scripts need adapting to the [DS API](https://github.com/SCOPIC64/sm64ds-coop-port/blob/ac0a066195292a95e827f80dc305a0dc8648d280/port/docs/ds-lua-api.md).\n\n**SM64 Cam:** select Options > Camera > SM64 Cam. Q/E rotate, F zooms out, R returns near and then enters C-Up inspection while standing still. WASD looks around; jump/attack exits. V or right-stick click switches Lakitu/Mario. Mario stays visible; N64 distances/look limits use DS collision geometry, without N64-specific level camera volumes. Enter/Escape/controller Start opens the adventure pause menu.\n\n**Textures:** Mods > Texture Pack Tools > Start Texture Capture; play the areas to edit, then Create Pack From Capture. Edit the generated PNGs in `mods/resource-packs/my-texture-pack-NNN/assets` and restart. Existing packs are never overwritten. Publish your replacement artwork rather than unedited captures.\n\nValidation on source `ac0a066195292a95e827f80dc305a0dc8648d280`: full Windows game build and DS-state/face-cycle/ARM9-global/gxbank/tail-jump guards passed; 12 new actual-game checks plus music/SFX, custom media and the complete original DS Staff Roll cycle passed. Eleven local component checks, three archive-contract checks and all nine [desktop/Windows-host/mobile-component CI jobs](https://github.com/SCOPIC64/sm64ds-coop-port/actions/runs/38062581158) passed. Rendered Mods, Texture Packs, Pause and Mario camera captures were inspected.\n\n**Platform status:** this release is Windows x86. Full Linux/SteamOS, macOS, Android and iOS game apps remain unfinished; the [native foundation contribution](https://github.com/SCOPIC64/sm64ds-coop-port/pull/8) and component/core builds are not playable packages or touchscreen device tests. Fresh-folder import, save loading, two-client co-op and return-to-menu need further runtime verification. Existing unrelated repository CI failures remain documented in PR #5.\n\nEXE SHA-256: `009fda6da2191d8b33bfbb4530350ce87b47803095e3c4b5bc70742968c9ecbb`\nZIP SHA-256: `7825d630813e78285cb1f0375dc3815f16c8f0f9bcc3e236386238022e7ab8b6`\nSource contribution: https://github.com/SCOPIC64/sm64ds-coop-port/pull/5\n"
+}
+

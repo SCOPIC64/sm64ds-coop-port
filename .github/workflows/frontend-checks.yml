@@ -1,0 +1,83 @@
+name: Portable front-end checks (not game builds)
+on:
+  pull_request:
+    paths:
+      - 'port/hal/coop_*'
+      - 'port/tests/coop_*'
+      - 'port/tests/overlay_font.h'
+      - 'port/frontend/**'
+      - 'port/tests/fixtures/**'
+      - 'port/third_party/miniaudio/**'
+      - 'port/tests/walk_window.cpp'
+      - 'port/hal/host_settings.*'
+      - 'port/hal/player_bridges.cpp'
+      - 'port/hal/actor_classes.cpp'
+      - 'port/unmatched/func_ov002_020d3b9c.c'
+      - 'port/ntr/include/ntr/host_memory.h'
+      - 'port/ntr/io.cpp'
+      - '.github/workflows/frontend-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frontend:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+        handheld: ['OFF', 'ON']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure portable menu and input tests
+        run: cmake -S port/frontend -B build/frontend -DHANDHELD=${{ matrix.handheld }}
+      - name: Build tests with warnings as errors
+        run: cmake --build build/frontend --config Debug
+      - name: Test menu, multi-touch, audio decoding and image formats
+        run: ctest --test-dir build/frontend -C Debug --output-on-failure
+  windows-integration:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Compile the actual changed host files, without cartridge generators or
+      # linking a game. This catches Windows API/type/ordering regressions that
+      # the portable model tests cannot see. It does not verify game runtime.
+      - name: Compile Windows host integration with the 32-bit engine ABI
+        shell: cmd
+        run: |
+          set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+          for /f "usebackq delims=" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSINSTALL=%%I"
+          if not defined VSINSTALL exit /b 1
+          call "%VSINSTALL%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
+          mkdir build\frontend-host
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /Oy- /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /DNTR_WIDE_RT /DPORT_ROM_CLEAN /Iport /Iport\ntr\include /Iinclude port\tests\walk_window.cpp /Fobuild\frontend-host\walk_window.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\host_settings.cpp /Fobuild\frontend-host\host_settings.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\player_bridges.cpp /Fobuild\frontend-host\player_bridges.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\actor_classes.cpp /Fobuild\frontend-host\actor_classes.obj || exit /b 1
+          cl /nologo /c /D_CRT_SECURE_NO_WARNINGS /Iinclude port\unmatched\func_ov002_020d3b9c.c /Fobuild\frontend-host\walking.obj || exit /b 1
+  android-components:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile memory, gameplay models and multi-touch for Android arm64 (not an APK)
+        shell: bash
+        run: |
+          ndk=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          compiler="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++"
+          test -x "$compiler"
+          mkdir -p build/mobile-components
+          for source in coop_frontend_test coop_staff_roll_test coop_host_memory_test; do
+            "$compiler" -std=c++17 -Wall -Wextra -Werror -UNDEBUG -Iport -Iport/ntr/include -c "port/tests/$source.cpp" -o "build/mobile-components/$source.o"
+          done
+  ios-components:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile memory, gameplay models and multi-touch for iOS arm64 (not an IPA)
+        shell: bash
+        run: |
+          sdk=$(xcrun --sdk iphoneos --show-sdk-path)
+          mkdir -p build/mobile-components
+          for source in coop_frontend_test coop_staff_roll_test coop_host_memory_test; do
+            xcrun --sdk iphoneos clang++ -target arm64-apple-ios14.0 -isysroot "$sdk" -std=c++17 -Wall -Wextra -Werror -UNDEBUG -Iport -Iport/ntr/include -c "port/tests/$source.cpp" -o "build/mobile-components/$source.o"
+          done

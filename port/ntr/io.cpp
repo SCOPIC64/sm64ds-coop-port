@@ -17,7 +17,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
-#include <sys/mman.h>
+#include "ntr/host_memory.h"
 #endif
 
 namespace ntr {
@@ -389,9 +389,7 @@ void *map_fixed(uintptr_t base, size_t size) {
                                (watch_writes(base) ? MEM_WRITE_WATCH : 0),
                            PAGE_READWRITE);
 #else
-    void *p = mmap(reinterpret_cast<void *>(base), size, PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
-    if (p == MAP_FAILED) p = nullptr;
+    void *p = host_memory::map_at(base,size);
 #endif
     if (p) std::memset(p, 0, size);
     return p;

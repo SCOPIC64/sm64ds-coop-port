@@ -1,0 +1,32 @@
+name: Publish verified Windows menu preview
+on:
+  pull_request:
+    types: [synchronize]
+    paths: ['tools/portable_kit/menu-preview-release.json', '.github/workflows/publish-menu-preview.yml']
+  push:
+    branches: ['codex/coop-menu-single-exe']
+    paths: ['tools/portable_kit/menu-preview-release.json']
+permissions:
+  contents: write
+concurrency:
+  group: publish-menu-preview
+  cancel-in-progress: false
+jobs:
+  release:
+    if: >-
+      github.repository == 'SCOPIC64/sm64ds-coop-port' &&
+      (github.event_name == 'push' ||
+      (github.event.pull_request.number == 5 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'codex/coop-menu-single-exe'))
+    runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check portable archive contract
+        run: python3 -m unittest tools.portable_kit.test_menu_preview_archive
+      - name: Validate and publish tested Windows artifact
+        run: python3 tools/portable_kit/publish_menu_preview.py
+
