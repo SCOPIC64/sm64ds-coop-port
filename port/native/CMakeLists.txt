@@ -77,7 +77,7 @@ foreach(row IN LISTS NATIVE_HEAP_ROWS)
     endif()
 endforeach()
 add_executable(native_heap_test ${PORT_ROOT}/tests/smoke_heap.cpp
-    heap_bridge.cpp heap_globals.cpp ${NATIVE_HEAP_SOURCES} "${NATIVE_CREATE_HEAP}")
+    heap_bridge.cpp ${PORT_ROOT}/hal/heap_globals.cpp ${NATIVE_HEAP_SOURCES} "${NATIVE_CREATE_HEAP}")
 add_dependencies(native_heap_test native_types)
 target_compile_features(native_heap_test PRIVATE cxx_std_17)
 target_compile_definitions(native_heap_test PRIVATE SM64DS_PLATFORM_PC)

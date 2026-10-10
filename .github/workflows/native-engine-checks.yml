@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'port/native/**'
+      - 'port/hal/heap_globals.cpp'
       - 'port/ntr/**'
       - 'port/tools/native_headers.py'
       - 'port/tools/native_heap_source.py'
@@ -26,7 +27,7 @@ jobs:
         run: cmake -S port/native -B build/native-core -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-m32 -DCMAKE_BUILD_TYPE=Debug
       - name: Compile native core and actual Player ABI prerequisites
         run: cmake --build build/native-core --parallel 2
-      - name: Run fixed-address I/O, state layout and actual frame/IRQ tests
+      - name: Run I/O, state, frame/IRQ and actual allocator tests
         run: ctest --test-dir build/native-core --output-on-failure
   frame-context:
     strategy:
