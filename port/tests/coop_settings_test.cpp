@@ -10,7 +10,9 @@ extern "C" int host_setting_run_mode(void);
 
 static void expect_saved(bool native)
 {
-    assert(host_setting_camera_mode() == 1);
+    assert(host_setting_camera_mode() == (native ? 1 : 3));
+    assert(host_setting_movement_mod() == (native ? 0 : 1));
+    assert(host_setting_object_distance() == (native ? 0 : 4));
     assert(host_setting_run_mode() == 2);
     assert(host_setting_frame_rate() == (native ? 0 : 144));
     assert(host_setting_smooth_motion() == (native ? 1 : 0));
@@ -41,10 +43,14 @@ int main(int argc, char** argv)
         std::fputs("{\"Keep\":\"another menu's setting\",\"VoiceChatVolume\":63,"
                    "\"CameraMode\":\"ds\",\"SmoothMotion\":false,\"NameTags\":true}", file);
         assert(std::fclose(file) == 0);
-        assert(host_setting_save_frontend_custom(1, 2, native ? 0 : 144,
+        assert(host_setting_save_frontend_gameplay(native ? 1 : 3, 2, native ? 0 : 144,
             native ? 1 : 0, native ? 0 : 1, 35, native ? 1 : 0,
             native ? -1 : 1, native ? 0 : 2, native ? 1 : 0,
-            native ? "" : "test-song.mp3", native ? "" : "test-picture.png"));
+            native ? "" : "test-song.mp3", native ? "" : "test-picture.png",
+            native ? 0 : 1, native ? 0 : 4));
+        assert(!host_setting_save_frontend_gameplay(4,2,60,1,0,35,0,-1,0,1,"","",0,0));
+        assert(!host_setting_save_frontend_gameplay(3,2,60,1,0,35,0,-1,0,1,"","",2,0));
+        assert(!host_setting_save_frontend_gameplay(3,2,60,1,0,35,0,-1,0,1,"","",1,5));
         expect_saved(native);
         assert(!host_setting_save_frontend(-1, 2, 60, 1, 0, 35, 0));
         assert(!host_setting_save_frontend(1, 3, 60, 1, 0, 35, 0));

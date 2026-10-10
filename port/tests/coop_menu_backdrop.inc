@@ -5,6 +5,10 @@ struct CoopSceneFrame {
     unsigned serial;
     unsigned cinematic_frames;
     int camera_eye[3];
+    unsigned credits_script;
+    unsigned credits_cursor;
+    int credits_level;
+    int credits_shot;
     uint32_t pixels[512 * 384];
 };
 static bool coop_backdrop_child() { return getenv("SM64DS_MENU_BACKDROP_CHILD") != 0; }
@@ -16,17 +20,16 @@ class CoopBackdrop {
     HANDLE mapping_ = 0, job_ = 0, process_ = 0;
     CoopSceneFrame* shared_ = 0;
     std::vector<uint32_t> pixels_;
-    std::vector<uint32_t> faded_;
     int choice_ = -1, level_ = -1;
     unsigned last_serial_ = 0;
-    DWORD next_scene_ = 0, retry_ = 0;
+    DWORD retry_ = 0;
     char save_[MAX_PATH] = "";
     CoopMediaLibrary& library_;
     int tour_ = -1;
     unsigned scenes_ = 0;
     bool visible_ = false;
-    DWORD visible_start_ = 0;
     unsigned cinematic_frames_ = 0;
+    unsigned credits_visits_ = 0, last_credits_script_ = 0;
     int camera_eye_[3] = {};
     struct Env {
         const char* name; char old[2048]; bool present;
@@ -52,6 +55,7 @@ public:
         mapping_ = 0;
         if (save_[0]) { DeleteFileA(save_); char temp[MAX_PATH + 8]; snprintf(temp,sizeof temp,"%s.tmp",save_); DeleteFileA(temp); save_[0]=0; }
         last_serial_ = 0;
+        last_credits_script_=0;
         visible_ = false;
         cinematic_frames_ = 0;
     }
@@ -76,10 +80,11 @@ public:
         snprintf(lv,sizeof lv,"%d",level);
         snprintf(shot_text,sizeof shot_text,"%d",shot);
         Env child("SM64DS_MENU_BACKDROP_CHILD","1"), map("SM64DS_MENU_BACKDROP_MAP",name), level_env("SM64DS_LEVEL",lv);
-        Env cinematic("SM64DS_MENU_STAFF_ROLL_SHOT",shot>=0?shot_text:0), actors("SM64DS_NO_ACTORS",shot>=0?"1":0);
+        Env cinematic("SM64DS_MENU_NATIVE_STAFF_ROLL",shot>=0?"1":0), old_cinematic("SM64DS_MENU_STAFF_ROLL_SHOT",0), actors("SM64DS_NO_ACTORS",0);
         Env frames("SM64DS_WINDOW_SELFTEST","2000000000"), idle("SM64DS_SELFTEST_IDLE","1"), orbit("SM64DS_SELFTEST_ORBIT",shot>=0?0:"1");
         Env save("SM64DS_SAVE_PATH",save_), audio("SM64DS_NO_AUDIO","1"), log("SM64DS_NO_PLAYLOG","1");
         Env focus("SM64DS_NO_FOCUS","1"), freecam("SM64DS_FREECAM",0);
+        Env panel("SM64DS_SUB_PANEL","0");
         Env boot("SM64DS_BOOT_FILE",0), scene("SM64DS_SCENE",0), classic("SM64DS_CLASSIC_MENU",0), menu_test("SM64DS_MENU_SELFTEST",0);
         Env audio_test("SM64DS_MENU_AUDIO_SELFTEST",0), bg_test("SM64DS_MENU_BACKDROP_SELFTEST",0), wav("SM64DS_WAV_DUMP",0);
         Env role("SM64DS_COMMS_ROLE",0), party("SM64DS_PARTY",0), vs("SM64DS_VS_MAP",0), no_dialog("SM64DS_NO_DIALOG","1");
@@ -101,7 +106,7 @@ public:
     void tick(int choice) {
         DWORD now=GetTickCount();
         bool changed=choice!=choice_;
-        if (changed) { choice_=choice; next_scene_=now; retry_=now; tour_=-1; visible_=false; }
+        if (changed) { choice_=choice; retry_=now; tour_=-1; visible_=false; }
         if(choice>=coop_frontend::BACKGROUND_BUILTIN_COUNT) {
             if(changed) {
                 stop();
@@ -114,16 +119,10 @@ public:
         }
         const int levels[]={6,1,1,7,10,8,14,18};
         int level=choice>=0 && choice<coop_frontend::BACKGROUND_BUILTIN_COUNT?levels[choice]:6;
-        if (choice==2) {
-            if(tour_<0)tour_=0;
-            else if(visible_ && static_cast<LONG>(now-next_scene_)>=0) {
-                tour_=coop_staff_roll::index(tour_+1); visible_=false;
-            }
-            level=coop_staff_roll::shots[tour_].level;
-        }
+        if (choice==2) { level=6; if(changed)tour_=-1; }
         bool exited=process_ && WaitForSingleObject(process_,0)==WAIT_OBJECT_0;
         if ((changed || !process_ || exited || level!=level_) && static_cast<LONG>(now-retry_)>=0) {
-            if (!start(level,choice==2?tour_:-1)) fprintf(stderr,"[coop-menu] backdrop could not start; menu stays available\n");
+            if (!start(level,choice==2?0:-1)) fprintf(stderr,"[coop-menu] backdrop could not start; menu stays available\n");
             retry_=now+3000;
         }
         if (shared_ && shared_->serial!=last_serial_ && InterlockedCompareExchange(&shared_->lock,1,0)==0) {
@@ -131,25 +130,25 @@ public:
                 if (pixels_.empty()) pixels_.resize(512*384);
                 memcpy(pixels_.data(),shared_->pixels,sizeof shared_->pixels); last_serial_=shared_->serial;
                 cinematic_frames_=shared_->cinematic_frames;
+                if(choice==2) {
+                    tour_=shared_->credits_shot;
+                    if(shared_->credits_script && shared_->credits_script!=last_credits_script_) {
+                        last_credits_script_=shared_->credits_script; ++credits_visits_;
+                    }
+                }
                 memcpy(camera_eye_,shared_->camera_eye,sizeof camera_eye_);
                 if(!visible_) {
-                    visible_=true;visible_start_=now;
-                    next_scene_=now+(getenv("SM64DS_MENU_TOUR_TEST")?6000:coop_staff_roll::DURATION_MS);
+                    visible_=true;
                 }
             }
             InterlockedExchange(&shared_->lock,0);
         }
-        if(choice==2) {
-            if(faded_.empty())faded_.resize(512*384,0xff000000);
-            unsigned duration=getenv("SM64DS_MENU_TOUR_TEST")?6000:coop_staff_roll::DURATION_MS;
-            unsigned alpha=visible_?coop_staff_roll::opacity(coop_staff_roll::elapsed(now,visible_start_),duration):0;
-            for(size_t i=0;i<faded_.size();++i) {
-                uint32_t p=pixels_.empty()?0:pixels_[i];
-                faded_[i]=0xff000000|(((p>>16&255)*alpha/255)<<16)|(((p>>8&255)*alpha/255)<<8)|((p&255)*alpha/255);
-            }
-        }
     }
-    const uint32_t* image() const { return choice_==2 && !faded_.empty()?faded_.data():pixels_.empty()?0:pixels_.data(); }
+    const uint32_t* image() const { return pixels_.empty()?0:pixels_.data(); }
+    unsigned credits_script() const { return shared_?shared_->credits_script:0; }
+    unsigned credits_cursor() const { return shared_?shared_->credits_cursor:0; }
+    int credits_level() const { return shared_?shared_->credits_level:-1; }
+    unsigned credits_visits() const { return credits_visits_; }
     unsigned serial() const { return last_serial_; }
     unsigned scenes() const { return scenes_; }
     int shot() const { return tour_; }
@@ -172,10 +171,15 @@ static void coop_backdrop_publish(const ntr::Framebuffer& fb) {
             shared->pixels[y*512+x]=fb.px[y*ntr::active_h/384][x*ntr::active_w/512];
         shared->cinematic_frames=g_staff_camera_frames;
         memcpy(shared->camera_eye,g_staff_eye,sizeof shared->camera_eye);
+        shared->credits_script=(unsigned)data_0209fc48;
+        shared->credits_cursor=data_0209b274;
+        shared->credits_level=data_0209f2f8;
+        const unsigned char* script=(const unsigned char*)(size_t)data_0209fc48;
+        shared->credits_shot=coop_staff_roll_child() && script && script[0]==8 && script[1]==0x2e?script[7]-1:-1;
         ++shared->serial; InterlockedExchange(&shared->lock,0);
     }
     // Limit this preview renderer even though the engine's test loop is unpaced.
     static DWORD last=GetTickCount(); DWORD now=GetTickCount(), elapsed=now-last;
-    if(elapsed<33) Sleep(33-elapsed);
+    if(!getenv("SM64DS_MENU_CREDITS_FAST") && elapsed<33) Sleep(33-elapsed);
     last=GetTickCount();
 }

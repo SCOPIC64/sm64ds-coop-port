@@ -102,7 +102,7 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
     } else {
         if (menu.page==CONTROLS) {
             const char* lines[]={"WASD / ARROWS: MOVE   SPACE: JUMP","X: ATTACK   CTRL: CROUCH   SHIFT: RUN",
-                "Q/E: TURN   R/F: TILT CAMERA","RIGHT MOUSE: LOOK   WHEEL: ZOOM","LEFT STICK: MOVE   RIGHT STICK: CAMERA",
+                "Q/E: TURN   R/F: TILT OR SM64 ZOOM","RIGHT MOUSE: LOOK   WHEEL: ZOOM","LEFT STICK: MOVE   RIGHT STICK: CAMERA",
                 "A: JUMP   B: ATTACK   RT: CROUCH","F5: GAME OPTIONS   F12: FULLSCREEN"};
             for (int i=0;i<7;++i) panel_text(c,menu,c.height*(29+i*6)/100,lines[i],0xffffffffu,s);
         }
@@ -130,6 +130,11 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
             c.shadow(x,r.y+(r.h-8*size)/2,label,selected?0xffffdf60u:0xffffffffu,size);
         }
     }
+    const char* detail=nullptr;
+    if(menu.page==PLAYER && menu.row==1)detail="SM64 SPEED & JUMPS - MARIO ONLY (BETA)";
+    if(menu.page==CAMERA && menu.camera==3)detail="Q/E: STEP TURN   R/F: ZOOM   C: BEHIND";
+    if(menu.page==DISPLAY && menu.row==3)detail="NEAR: FEWER OBJECTS   FAR: MORE OBJECTS";
+    if(detail)panel_text(c,menu,c.height*80/100,detail,0xffddddddU,s);
     if(menu.now_playing[0]) {
         char now[64]; std::snprintf(now,sizeof now,"MUSIC: %s",menu.now_playing);
         c.shadow(c.width*52/100,c.height*85/100,now,0xffffffffu,s);

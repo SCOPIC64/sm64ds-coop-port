@@ -47,14 +47,14 @@ memory, with audio, input and networking disabled and an isolated temporary
 save. A kill-on-close job ties its lifetime to the menu. Staff Roll follows
 CoopDX's menu credits behavior: moving cinematic cameras, no player or HUD,
 scene fades and a repeating course sequence, while retaining the selected menu
-music. Seven port-owned Bezier flyovers show Bob-omb Battlefield, Whomp's
-Fortress, Cool Cool Mountain, Jolly Roger Bay, Lethal Lava Land, Dire Dire Docks
-and Castle Grounds. Each lasts 12 seconds, starting when its first rendered
-frame arrives, with half-second fades. These are original camera paths through
-the DS scenery, not the cartridge's original ending script. Skybox placement
-follows the cinematic camera. The renderer is throttled to approximately 30
-frames per second. Gameplay cameras and actor rendering are unchanged outside
-this isolated background child.
+music. It runs the cartridge's 20 course-panorama Kuppa scripts, including
+their original camera splines, 204-frame scene timing, course changes and DS
+fades. The final panorama returns to the first one before the ending cast scene.
+This changes only the isolated renderer's RAM. It does not change ROM files,
+player saves or ordinary cutscenes. All Player render paths, including other
+cutscene players, are hidden in this renderer. Enemies and scenery keep running
+so the original credits behavior remains intact. The renderer is paced at
+approximately 30 frames per second; its selected menu music plays independently.
 
 Reference: https://github.com/coop-deluxe/sm64coopdx/blob/main/src/game/level_update.c
 A gradient keeps the menu usable while the scene loads or assets are missing.
@@ -91,6 +91,45 @@ Use `tools/portable_kit/package_single_exe.ps1 -Executable <built-exe> -Output
 <empty-folder>` to package a single program file. The legacy packaging script is
 retained for older builds. No batch launcher is needed for the new executable.
 
+## Gameplay options and existing mods
+
+The existing `fs_mods.cpp` asset/palette replacement and `stage_mods.cpp` level
+editing systems remain available. This adds a built-in optional movement mod;
+it does not add Lua scripting or compatibility with CoopDX Lua mods.
+
+* **Player > Movement Mod > SM64** applies N64 walking acceleration, a 32-unit
+  target speed, 48-unit positive cap, 0x800 facing-step limit, normal/double/triple
+  jump launches and long-jump launch/gravity constants to Mario. It defaults off.
+  Cutscenes, other characters, Mega Mario and winged actions keep DS behavior.
+  This is a beta movement profile: DS air steering, slope handling, collision
+  steps and action transitions remain in use. It is not the complete N64
+  moveset. All co-op participants should use matching movement preferences.
+* **Camera > SM64 Cam** adds a default Lakitu-style camera with 45-degree
+  C-side turns over 16 ticks, 800/1200 zoom, slower yaw follow while moving and
+  lateral pan. Q/E, bumpers or right-stick edges step the camera; R/F or vertical
+  right-stick movement select zoom; C recenters behind Mario. DS collision
+  rays keep the camera clear of walls and floors. Camera motion advances once
+  per simulation tick even when the view is loaded more than once. Original
+  cutscenes still own their camera. N64 level-specific volumes and all alternate
+  N64 camera modes are not reproduced; this is a beta adaptation to DS levels.
+* **Display > Object Distance** chooses DS Default, Near (2000), Medium (6000),
+  Far (16000) or Unlimited world units. It changes object drawing and preserves
+  the native area/lifecycle gates and object simulation. Unlimited removes the
+  distance limit, not area visibility or the renderer's projection range.
+  Objects beyond their native behavior range can retain their last animation
+  pose; raising the draw distance does not rewrite DS object logic.
+
+These choices persist through the same atomic settings writer as the existing
+options, preserving unrelated keys and failed-write cache state.
+
+Research references: [N64 camera](https://github.com/n64decomp/sm64/blob/master/src/game/camera.c),
+[walking](https://github.com/n64decomp/sm64/blob/master/src/game/mario_actions_moving.c),
+[jump launches](https://github.com/n64decomp/sm64/blob/master/src/game/mario.c),
+[air steering](https://github.com/n64decomp/sm64/blob/master/src/game/mario_actions_airborne.c),
+and [gravity/collision](https://github.com/n64decomp/sm64/blob/master/src/game/mario_step.c).
+The helpers implement the measured constants in the DS fixed-point world;
+their portable tests do not prove that all DS gameplay behaves like N64 SM64.
+
 ## Portable UI/input checks
 
 ```
@@ -103,7 +142,7 @@ After linking Windows, copy the executable into an isolated empty directory and
 run it from a different working directory with `SM64DS_MENU_SELFTEST=1`. This
 exercises the actual window, temporary menu framebuffer and executable-directory
 default without a ROM. It writes `coop-menu-00.bmp` through `coop-menu-11.bmp`
-beside the executable and returns nonzero if a screenshot could not be written.
+in the test working directory and returns nonzero if a screenshot could not be written.
 Inspect these captures; this check does not enter gameplay or import assets.
 
 With private game assets available, `SM64DS_MENU_AUDIO_SELFTEST=1` checks
@@ -113,10 +152,12 @@ waits for ninety rendered scene frames before capturing all menu pages. Always
 use an isolated runtime folder and explicit fixture save path for these checks.
 `SM64DS_MENU_TOUR_TEST=1` additionally checks a scenery transition.
 `SM64DS_MENU_STAFF_ROLL_SELFTEST=1` with `SM64DS_MENU_TOUR_TEST=1` checks all
-seven moving cameras and the wrap back to the first shot using six-second test
-shots, saving `staff-roll-00.bmp` through `staff-roll-06.bmp` and a menu capture.
-The portable `staff_roll_cameras` test checks trajectory continuity, coordinate
-bounds, fades, shot wrapping and timer rollover.
+20 original moving camera sequences, course IDs and the wrap to the first
+script. Captures are `staff-roll-00.bmp` through `staff-roll-19.bmp` and a menu
+capture. `SM64DS_MENU_CREDITS_FAST=1` removes renderer sleeping for this test;
+it leaves original script frame counts and camera paths intact. The portable
+`gameplay_models_and_credits_order` test checks independent N64 movement
+checkpoints, discrete camera input, object limits and the DS course order.
 `SM64DS_MENU_CUSTOM_MEDIA_SELFTEST=1` checks the isolated custom libraries and
 captures a custom-background menu. Portable decoder tests use synthetic tones
 and generated color images for every supported format, with no cartridge data.
@@ -151,10 +192,10 @@ change; the engine platform layer still needs porting.
 | Platform | UI/input foundation | Full engine blocker |
 | --- | --- | --- |
 | Windows x86 | Integrated and locally boot tested | Fresh-folder import, adventure save-loading runtime, two-client co-op and return-to-menu testing |
-| Linux / SteamOS | Portable model/render/input tests; handheld profile | Replace Win32 window, input, audio, sockets, virtual-memory and process APIs; reproduce and verify the engine ABI |
-| macOS | Portable component tests | Platform APIs plus 64-bit pointer/layout and calling-convention work for Intel and Apple Silicon |
-| Android | Multi-touch control state with stable finger IDs | Native host, ARM ABI, asset import/storage, rendering/audio/networking, lifecycle and physical-device tests |
-| iOS | Same reusable touch state | ARM64 engine portability, UIKit/SDL adapter, sandbox/storage, memory requirements, signing and device testing |
+| Linux / SteamOS | Portable component tests; handheld profile; safe native memory reservation | Replace remaining Win32 window/input/audio/socket/process APIs and verify the engine ABI |
+| macOS | Portable component tests and POSIX memory backend | Platform APIs plus 64-bit pointer/layout and calling-convention work for Intel and Apple Silicon |
+| Android | Native component compile check, reusable multi-touch and page-size-aware memory backend | Native host, ARM ABI, asset import/storage, rendering/audio/networking, lifecycle and physical-device tests |
+| iOS | Native component compile check, reusable touch and POSIX memory backend | ARM64 engine portability, UIKit/SDL adapter, sandbox/storage, memory requirements, signing and device testing |
 
 The current port depends on four-byte pointers, MSVC-specific forwarding,
 pointer-to-member representations, and fixed DS address mappings. Changing a
@@ -175,3 +216,21 @@ failed joins, disconnects, level transitions and save persistence. Mobile also
 needs simultaneous movement/jump/attack, touch cancellation, orientation, safe
 areas, background/resume and keyboard tests on real devices. Passing component
 tests is not a promise of a bug-free game.
+
+## Native memory foundation
+
+The POSIX DS-range reservation now works without assuming
+`MAP_FIXED_NOREPLACE` is defined. When the kernel ignores that flag or only a
+non-destructive address hint is available, it verifies the returned address
+and releases any unwanted mapping. It never uses `MAP_FIXED` to overwrite
+another allocation. Mapping spans use the actual system page size, including
+16 KB systems. Windows game reservation and write-watch behavior are unchanged.
+
+Portable native-memory tests check allocation, overlapping-request rejection
+without losing existing bytes, release/reallocation, overflow and 4/16 KB span
+calculation, including the hint-only branch. CI also compiles the memory,
+movement/camera and touch components against Android arm64 and iOS arm64 SDKs.
+Those compile jobs produce no APK/IPA and establish no on-device gameplay claim.
+
+References: [Linux mmap](https://man7.org/linux/man-pages/man2/mmap.2.html),
+[Android page sizes](https://source.android.com/docs/core/architecture/16kb-page-size/16kb).

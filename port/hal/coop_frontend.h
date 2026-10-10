@@ -48,6 +48,7 @@ struct Menu {
     Page after_save = HOME;
     int row = 0, slot = 0, character = 0;
     int camera = 0, movement = 1, fps = 0, volume = 80;
+    int movement_mod = 0, object_distance = 0;
     int music = MUSIC_RANDOM, background = 0;
     bool menu_sounds = true;
     int custom_music_count = 0, custom_background_count = 0;
@@ -67,8 +68,8 @@ struct Menu {
         case HOST: return 8;
         case JOIN: return 5;
         case OPTIONS: return 7;
-        case PLAYER: return 3;
-        case DISPLAY: return 6;
+        case PLAYER: return 4;
+        case DISPLAY: return 7;
         case SOUND: return 7;
         case CAMERA: case MISC: return 2;
         case CONTROLS: return 1;
@@ -113,7 +114,7 @@ struct Menu {
     void label(int index, char* out, size_t size) const {
         static const char* home[] = { "HOST", "JOIN", "OPTIONS", "QUIT" };
         static const char* chars[] = { "MARIO", "LUIGI", "WARIO", "YOSHI" };
-        static const char* cameras[] = { "ANALOG", "FREE", "DS" };
+        static const char* cameras[] = { "ANALOG", "FREE", "DS", "SM64 CAM" };
         static const char* movement_names[] = { "BUTTON", "ANALOG", "AUTO" };
         out[0] = 0;
         if (index < 0 || index >= rows()) return;
@@ -140,7 +141,8 @@ struct Menu {
         else if (index == rows() - 1) std::snprintf(out, size, "BACK");
         else if (page == CAMERA) std::snprintf(out, size, "CAMERA         < %s >", cameras[camera]);
         else if (page == PLAYER) {
-            if (index == 0) std::snprintf(out, size, "MOVEMENT       < %s >", movement_names[movement]);
+            if (index == 0) std::snprintf(out, size, "RUN MODE       < %s >", movement_names[movement]);
+            else if(index==1)std::snprintf(out,size,"MOVEMENT MOD < %s >",movement_mod?"SM64":"OFF");
             else std::snprintf(out, size, "PLAYER NAMES   < %s >", names ? "ON" : "OFF");
         } else if (page == DISPLAY) {
             if (index == 0) {
@@ -154,7 +156,10 @@ struct Menu {
                 const char* name = background >= 0 && background < BACKGROUND_BUILTIN_COUNT ? backgrounds[background] :
                     custom >= 0 && custom < custom_background_count ? custom_backgrounds[custom] : "BOB-OMB BATTLEFIELD";
                 std::snprintf(out, size, "BACKGROUND < %s >", name);
-            } else std::snprintf(out, size, "%s", index == 3 ? "ADD CUSTOM BACKGROUND" : "REFRESH CUSTOM FILES");
+            } else if(index==3) {
+                static const char* distances[]={"DS DEFAULT","NEAR","MEDIUM","FAR","UNLIMITED"};
+                std::snprintf(out,size,"OBJECT DISTANCE < %s >",distances[object_distance]);
+            } else std::snprintf(out, size, "%s", index == 4 ? "ADD CUSTOM BACKGROUND" : "REFRESH CUSTOM FILES");
         } else if (page == SOUND) {
             if (index == 0) std::snprintf(out, size, "VOLUME       < %d >", volume);
             else if (index == 1) {
@@ -230,9 +235,10 @@ struct Menu {
         } else if (page == PLAYER || page == CAMERA || page == DISPLAY || page == SOUND || page == MISC) {
             if (row == rows() - 1) {
                 if (key == ACCEPT) { after_save = OPTIONS; return SAVE_OPTIONS; }
-            } else if (page == CAMERA) camera = (camera + 3 + delta) % 3;
+            } else if (page == CAMERA) camera = (camera + 4 + delta) % 4;
             else if (page == PLAYER) {
                 if (row == 0) movement = (movement + 3 + delta) % 3;
+                else if(row==1)movement_mod=!movement_mod;
                 else names = !names;
             } else if (page == DISPLAY && row == 0) {
                 const int rates[] = { 0, 60, 90, 120, 144, 240 };
@@ -243,7 +249,8 @@ struct Menu {
                 if (row == 1) smooth = !smooth;
                 else if (row == 2) background = (background + BACKGROUND_BUILTIN_COUNT + custom_background_count + delta) %
                     (BACKGROUND_BUILTIN_COUNT + custom_background_count);
-                else if (key == ACCEPT) return row == 3 ? IMPORT_BACKGROUND : RELOAD_MEDIA;
+                else if(row==3)object_distance=(object_distance+5+delta)%5;
+                else if (key == ACCEPT) return row == 4 ? IMPORT_BACKGROUND : RELOAD_MEDIA;
             } else if (page == SOUND) {
                 if (row == 0) { volume += delta * 10; if (volume < 0) volume = 0; if (volume > 100) volume = 100; }
                 else if (row == 1) music = music_step(music, delta, custom_music_count);

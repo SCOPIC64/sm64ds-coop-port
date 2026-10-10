@@ -524,7 +524,8 @@ const char *const RUN_MODE_KEY[3] = { "button", "analog", "auto" };
    stay one F1 press (or one menu row) away. The header carries the rest.
    Read by name and, like RunMode, by number too. */
 int g_camera_mode;                   /* default 2, ds */
-const char *const CAMERA_MODE_KEY[3] = { "analog", "freecam", "ds" };
+const char *const CAMERA_MODE_KEY[4] = { "analog", "freecam", "ds", "sm64" };
+int g_movement_mod = 0, g_object_distance = 0;
 
 /* ---- THE CONTROL BINDINGS -------------------------------------------------
    One settings.json key per action, keyboard and pad in two tables indexed by
@@ -1465,7 +1466,7 @@ void load_once(void)
             char mode[16];
             if (json_str(text, "CameraMode", mode, sizeof mode)) {
                 int matched = 0;
-                for (int i = 0; i < 3; ++i)
+                for (int i = 0; i < 4; ++i)
                     if (strlen(mode) == strlen(CAMERA_MODE_KEY[i]) &&
                         ieq(mode, CAMERA_MODE_KEY[i], strlen(mode))) {
                         g_camera_mode = i;
@@ -1473,7 +1474,7 @@ void load_once(void)
                     }
                 if (!matched) {
                     const int n = json_int(text, "CameraMode", 2);
-                    if (n >= 0 && n <= 2) g_camera_mode = n;
+                    if (n >= 0 && n <= 3) g_camera_mode = n;
                 }
             }
         }
@@ -1659,6 +1660,11 @@ void load_once(void)
            reads exactly as one that turned it off, which is the old program */
         g_mouse_capture = json_bool(text, "MouseCapture", 0);
         int music = json_int(text, "MenuMusic", -1);
+        char movement_mod[32] = "";
+        json_str(text,"MovementMod",movement_mod,sizeof movement_mod);
+        g_movement_mod = !strcmp(movement_mod,"sm64");
+        int object_distance = json_int(text,"ObjectViewDistance",0);
+        g_object_distance = object_distance >= 0 && object_distance <= 4 ? object_distance : 0;
         g_menu_music = coop_frontend::music_valid(music) ? music : -1;
         int background = json_int(text, "MenuBackground", 0);
         g_menu_background = background >= 0 && background < 8 + coop_frontend::MAX_CUSTOM_MEDIA ? background : 0;
@@ -2545,7 +2551,7 @@ extern "C" int host_setting_save_run(int mode, int key, int pad)
 extern "C" int host_setting_save_camera_mode(int mode)
 {
     load_once();
-    if (mode < 0 || mode > 2) mode = 0;
+    if (mode < 0 || mode > 3) mode = 0;
     g_camera_mode = mode;
     char v[24];
     snprintf(v, sizeof v, "\"%s\"", CAMERA_MODE_KEY[mode]);
@@ -2555,6 +2561,17 @@ extern "C" int host_setting_save_camera_mode(int mode)
 }
 
 extern "C" int host_setting_menu_music(void) { load_once(); return g_menu_music; }
+extern "C" int host_setting_movement_mod(void) {
+    load_once();
+    const char* override=getenv("SM64DS_MOVEMENT_MOD");
+    return override ? !strcmp(override,"sm64") : g_movement_mod;
+}
+extern "C" int host_setting_object_distance(void) {
+    load_once();
+    const char* override=getenv("SM64DS_OBJECT_DISTANCE");
+    const int value=override?atoi(override):g_object_distance;
+    return value>=0 && value<=4?value:0;
+}
 extern "C" int host_setting_menu_background(void) { load_once(); return g_menu_background; }
 extern "C" int host_setting_menu_sounds(void) { load_once(); return g_menu_sounds; }
 extern "C" const char* host_setting_menu_music_file(void) { load_once(); return g_menu_music_file; }
@@ -2579,7 +2596,17 @@ extern "C" int host_setting_save_frontend_custom(int camera, int movement, int f
                                           int music, int background, int menu_sounds,
                                           const char* music_file, const char* background_file)
 {
-    if (camera < 0 || camera > 2 || movement < 0 || movement > 2 ||
+    load_once();
+    return host_setting_save_frontend_gameplay(camera,movement,fps,smooth,names,volume,mouse_capture,
+        music,background,menu_sounds,music_file,background_file,g_movement_mod,g_object_distance);
+}
+extern "C" int host_setting_save_frontend_gameplay(int camera, int movement, int fps,
+    int smooth, int names, int volume, int mouse_capture, int music,
+    int background, int menu_sounds, const char* music_file,
+    const char* background_file, int movement_mod, int object_distance)
+{
+    if (camera < 0 || camera > 3 || movement < 0 || movement > 2 ||
+        movement_mod<0 || movement_mod>1 || object_distance<0 || object_distance>4 ||
         (fps != 0 && (fps < 60 || fps > 240)) || volume < 0 || volume > 100 ||
         !coop_frontend::music_valid(music) || background < 0 || background >= 8 + coop_frontend::MAX_CUSTOM_MEDIA ||
         !menu_file_valid(music_file) || !menu_file_valid(background_file)) return 0;
@@ -2595,12 +2622,15 @@ extern "C" int host_setting_save_frontend_custom(int camera, int movement, int f
     char music_file_value[1030], background_file_value[1030];
     snprintf(music_file_value,sizeof music_file_value,"\"%s\"",music_file);
     snprintf(background_file_value,sizeof background_file_value,"\"%s\"",background_file);
+    char distance_value[8];snprintf(distance_value,sizeof distance_value,"%d",object_distance);
     const char* keys[] = { "CameraMode", "RunMode", "FrameRate", "SmoothMotion", "NameTags", "Volume", "MouseCapture",
-        "MenuMusic", "MenuBackground", "MenuSounds", "MenuCustomSong", "MenuCustomBackground" };
+        "MenuMusic", "MenuBackground", "MenuSounds", "MenuCustomSong", "MenuCustomBackground", "MovementMod", "ObjectViewDistance" };
     const char* vals[] = { camera_value, movement_value, fps_value, smooth ? "true" : "false",
         names ? "true" : "false", volume_value, mouse_capture ? "true" : "false",
-        music_value, background_value, menu_sounds ? "true" : "false", music_file_value, background_file_value };
-    if (!save_keys(keys, vals, 12, "front-end options")) return 0;
+        music_value, background_value, menu_sounds ? "true" : "false", music_file_value, background_file_value,
+        movement_mod?"\"sm64\"":"\"off\"",distance_value };
+    if (!save_keys(keys, vals, 14, "front-end options")) return 0;
+    g_movement_mod=movement_mod;g_object_distance=object_distance;
     g_camera_mode = camera; g_run_mode = movement; g_frame_rate = fps;
     g_smooth_motion = !!smooth; g_name_tags = !!names; g_volume = volume;
     g_mouse_capture = !!mouse_capture;

@@ -44,6 +44,12 @@ int host_setting_swap_camera_turn(void);
    boot. */
 int host_setting_camera_mode(void);
 int host_setting_save_camera_mode(int mode);
+int host_setting_movement_mod(void);
+int host_setting_object_distance(void);
+int host_setting_save_frontend_gameplay(int camera, int movement, int fps,
+    int smooth, int names, int volume, int mouse_capture, int music,
+    int background, int menu_sounds, const char* music_file,
+    const char* background_file, int movement_mod, int object_distance);
 /* Save the front-end choices together, preserving unrelated settings. */
 int host_setting_save_frontend(int camera, int movement, int fps,
                               int smooth, int names, int volume, int mouse_capture);

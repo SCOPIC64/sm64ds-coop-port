@@ -1125,7 +1125,9 @@ __ZN8dActor_c11LandingDustEb                                             ?Landin
 __ZN8dActor_c11OnAttacked1ERS_                                           ?OnAttacked1@dActor_c@@UAEHAAU1@@Z                               0x02010144 R
 __ZN8dActor_c11OnAttacked2ERS_                                           ?OnAttacked2@dActor_c@@UAEHAAU1@@Z                               0x02010140 R
 __ZN8dActor_c11SpawnNumberERK7Vector3jbtPS_                              ?SpawnNumber@dActor_c@@QAEPAU1@ABUVector3@@I_NGPAU1@@Z           0x02010044 R
-__ZN8dActor_c12BeforeRenderEv                                            ?BeforeRender@dActor_c@@UAEHXZ                                   0x02010f78 R
+# The host object-distance gate in hal/actor_classes.cpp owns this flat name.
+# It calls the qualified DS method after applying the selected render range.
+# actor_classes.cpp is linked by all three targets that use this ledger.
 __ZN8dActor_c13AfterBehaviorEj                                           ?AfterBehavior@dActor_c@@UAEXI@Z                                 0x02010fc8 R
 __ZN8dActor_c13ClosestPlayerEv                                           ?ClosestPlayer@dActor_c@@QAEPAUPlayer@@XZ                        0x02010ad8 R
 # FLIPPED F -> R at run linkfull wave 27, lane S1 (the first main -> port file

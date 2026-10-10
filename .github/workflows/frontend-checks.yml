@@ -10,6 +10,11 @@ on:
       - 'port/third_party/miniaudio/**'
       - 'port/tests/walk_window.cpp'
       - 'port/hal/host_settings.*'
+      - 'port/hal/player_bridges.cpp'
+      - 'port/hal/actor_classes.cpp'
+      - 'port/unmatched/func_ov002_020d3b9c.c'
+      - 'port/ntr/include/ntr/host_memory.h'
+      - 'port/ntr/io.cpp'
       - '.github/workflows/frontend-checks.yml'
   workflow_dispatch:
 permissions:
@@ -47,3 +52,32 @@ jobs:
           mkdir build\frontend-host
           cl /nologo /c /std:c++17 /EHsc /vmg /vmm /Oy- /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /DNTR_WIDE_RT /DPORT_ROM_CLEAN /Iport /Iport\ntr\include /Iinclude port\tests\walk_window.cpp /Fobuild\frontend-host\walk_window.obj || exit /b 1
           cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\host_settings.cpp /Fobuild\frontend-host\host_settings.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\player_bridges.cpp /Fobuild\frontend-host\player_bridges.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\actor_classes.cpp /Fobuild\frontend-host\actor_classes.obj || exit /b 1
+          cl /nologo /c /D_CRT_SECURE_NO_WARNINGS /Iinclude port\unmatched\func_ov002_020d3b9c.c /Fobuild\frontend-host\walking.obj || exit /b 1
+  android-components:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile memory, gameplay models and multi-touch for Android arm64 (not an APK)
+        shell: bash
+        run: |
+          ndk=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          compiler="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++"
+          test -x "$compiler"
+          mkdir -p build/mobile-components
+          for source in coop_frontend_test coop_staff_roll_test coop_host_memory_test; do
+            "$compiler" -std=c++17 -Wall -Wextra -Werror -UNDEBUG -Iport -Iport/ntr/include -c "port/tests/$source.cpp" -o "build/mobile-components/$source.o"
+          done
+  ios-components:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile memory, gameplay models and multi-touch for iOS arm64 (not an IPA)
+        shell: bash
+        run: |
+          sdk=$(xcrun --sdk iphoneos --show-sdk-path)
+          mkdir -p build/mobile-components
+          for source in coop_frontend_test coop_staff_roll_test coop_host_memory_test; do
+            xcrun --sdk iphoneos clang++ -target arm64-apple-ios14.0 -isysroot "$sdk" -std=c++17 -Wall -Wextra -Werror -UNDEBUG -Iport -Iport/ntr/include -c "port/tests/$source.cpp" -o "build/mobile-components/$source.o"
+          done

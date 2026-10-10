@@ -74,6 +74,9 @@ extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 
 #include "dActor_c.h"
 #include "fBase_c.h"
+#include "host_settings.h"
+#include "coop_object_visibility.h"
+extern "C" void* data_0209f318;
 #include "dtor_faces_cpp.h"
 
 extern "C" {
@@ -160,6 +163,30 @@ static void __fastcall ac_abeh(void *s, void *, unsigned a)
    OFF_SCREEN (0x8) when the actor asked to be culled off screen (0x2) -- and
    both bits are set by Actor::BeforeBehavior out of the SpawnInfo's own
    radius and cull distance. Printed once per actor id. */
+extern "C" int _ZN8dActor_c12BeforeRenderEv(void *s)
+{
+    const int preference=host_setting_object_distance();
+    dActor_c* actor=(dActor_c*)s;
+    if(preference && data_0209f318 && actor->actorID<0x14b) {
+        const int* eye=(const int*)((const char*)data_0209f318+0x8c);
+        if(!coop_objects::within(preference,&actor->mPosX,eye)) {
+            static bool reported=false;
+            if(!reported && std::getenv("SM64DS_GAMEPLAY_PROBE")) {
+                std::fprintf(stderr,"[object-distance] culled actor=%u limit=%d\n",actor->actorID,coop_objects::limit(preference));
+                reported=true;
+            }
+            return 0;
+        }
+        // Preserve the base lifecycle and area gate while letting the chosen
+        // render limit replace the DS per-object distance limit for this call.
+        const unsigned saved=actor->mFlags;
+        actor->mFlags&=~8u;
+        const int result=actor->dActor_c::BeforeRender();
+        actor->mFlags=saved;
+        return result;
+    }
+    return actor->dActor_c::BeforeRender();
+}
 static int __fastcall ac_bren(void *s, void *)
 {
     int r = _ZN8dActor_c12BeforeRenderEv(s);

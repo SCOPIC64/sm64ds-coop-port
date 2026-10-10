@@ -3757,12 +3757,14 @@ static const int CAM_STEP = 0x400;       /* the ROM's quantum, 0x0200a6a8 */
    game's, which is the invariant the block above is about -- an actor the rig
    can see but the game camera cannot stays dormant, and that is the price of
    leaving the actor alone rather than a bug to chase. */
-enum { CAM_ANALOG = 0, CAM_FREE = 1, CAM_DS = 2 };
+#include "hal/coop_sm64_camera.h"
+enum { CAM_ANALOG = 0, CAM_FREE = 1, CAM_DS = 2, CAM_SM64 = 3 };
+static coop_sm64::Lakitu sm64_camera;
 static int cam_mode = CAM_DS;    /* main promotes it once the Camera is up */
 
 static const char *cam_mode_name(int m)
 {
-    return m == CAM_ANALOG ? "analog" : (m == CAM_FREE ? "freecam" : "DS");
+    return m == CAM_ANALOG ? "analog" : m == CAM_FREE ? "freecam" : m == CAM_SM64 ? "SM64 cam" : "DS";
 }
 
 static short fc_yaw;             /* heading from the pivot to the eye */
@@ -3869,6 +3871,7 @@ static void fc_eye(const int *pivot, int *eye)
    defend, which is exactly when the ROM's number should be in charge. */
 static void fc_seed(void *cam)
 {
+    sm64_camera.live=false;
     char *k = (char *)cam;
     int *at = (int *)(k + 0x80);
     int *eye = (int *)(k + 0x8c);
@@ -3932,6 +3935,7 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
    the widescreen widen of the Clipper Camera::Render has just seeded. Frames
    the ROM does not walk make the old hand calls instead and never reach it. */
 #include "coop_staff_roll_camera.inc"
+#include "coop_sm64_camera.inc"
 static char *g_k1_player;       /* the level loop's player, set per ROM frame */
 static void k1_level_camera_render_hook(void *cam)
 {
@@ -3941,7 +3945,7 @@ static void k1_level_camera_render_hook(void *cam)
     const int cutscene_cam = !no_cutscene_cam && data_0209fc48 != 0;
     if (cam_mode == CAM_ANALOG && !rb_replaying() && g_k1_player)
         an_step_pivot(g_k1_player);
-    if (!coop_staff_roll_camera(cam) && cam_mode != CAM_DS && !cutscene_cam) {
+    if (!coop_staff_roll_camera(cam) && !coop_sm64_camera_draw(cam,g_k1_player) && cam_mode != CAM_DS && !cutscene_cam) {
         int fceye[3];
         const int *pivot = cam_mode == CAM_ANALOG
                                ? an_pivot
@@ -6256,8 +6260,8 @@ static void menu_input(int pad_live, const XPad *pad)
                 break;
             case MENU_CAMERA:
                 if (g_menu_host.real_camera) {
-                    cam_mode = dec ? (cam_mode + 2) % 3
-                                   : (cam_mode + 1) % 3;
+                    cam_mode = dec ? (cam_mode + 3) % 4
+                                   : (cam_mode + 1) % 4;
                     if (cam_mode != CAM_DS) fc_seed(g_menu_host.cam);
                     if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
                     /* persisted on the spot like the run row, and for the
@@ -11176,7 +11180,13 @@ int main(void)
 
     /* Game mode 0 (adventure) -- LoadClsnAndObjects branches its minimap
        and HUD spawns on this, and Stage::CheckInput reads it later. */
-    data_0209f2d8 = 0;
+    data_0209f2d8 = coop_staff_roll_child() ? 2 : 0;
+    if (coop_staff_roll_child()) {
+        // Enter the course-tour portion directly. Constructors have already
+        // relocated its camera paths and continuation pointers from ROM data.
+        coop_staff_roll_queue();
+        fprintf(stderr,"[staff-roll] queued original DS credits script %p\n",data_02087c00);
+    }
 
     /* ---- VS wiring lane: THE VS BOOT --------------------------------------
        SM64DS_VS_MAP=<0..3> makes this boot a VS match on the ROM's own map
@@ -12867,10 +12877,11 @@ int main(void)
                    numbering IS the CAM_ numbering: 0 analog, 1 freecam, 2 ds.
                    The three environment knobs below still win over the file. */
                 cam_mode = selftest ? CAM_DS : host_setting_camera_mode();
-                if (cam_mode < CAM_ANALOG || cam_mode > CAM_DS) cam_mode = CAM_DS;
+                if (cam_mode < CAM_ANALOG || cam_mode > CAM_SM64) cam_mode = CAM_DS;
                 if (getenv("SM64DS_ANALOG_CAMERA")) cam_mode = CAM_ANALOG;
                 if (getenv("SM64DS_DS_CAMERA")) cam_mode = CAM_DS;
                 if (getenv("SM64DS_FREECAM")) cam_mode = CAM_FREE;
+                if (getenv("SM64DS_SM64_CAMERA")) cam_mode = CAM_SM64;
                 if (cam_mode != CAM_DS) fc_seed(cam);
             }
             int now = key_live(VK_F1) ||
@@ -12884,14 +12895,24 @@ int main(void)
                 now = 0;
             }
             if (now && !fc_edge) {
-                cam_mode = (cam_mode + 1) % 3;   /* analog -> freecam -> DS */
+                cam_mode = (cam_mode + 1) % 4;   /* analog -> freecam -> DS */
                 if (cam_mode != CAM_DS) fc_seed(cam);
                 if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
                 fprintf(stderr, "[cam] mode %s\n", cam_mode_name(cam_mode));
             }
             fc_edge = now;
         }
-        if (cam_mode != CAM_DS && !rb_replaying()) {
+        if (cam_mode == CAM_SM64 && !rb_replaying()) {
+            unsigned buttons=0;
+            if(key_live('Q') || stick_rx<-10000 || (pad_live && (pad.buttons&0x0100)))buttons|=coop_sm64::Lakitu::LEFT;
+            if(key_live('E') || stick_rx>10000 || (pad_live && (pad.buttons&0x0200)))buttons|=coop_sm64::Lakitu::RIGHT;
+            if(key_live('R') || stick_ry>10000 || mouse_wheel>0)buttons|=coop_sm64::Lakitu::UP;
+            if(key_live('F') || stick_ry<-10000 || mouse_wheel<0)buttons|=coop_sm64::Lakitu::DOWN;
+            if(key_live('C'))buttons|=coop_sm64::Lakitu::BEHIND;
+            if(!sm64_camera.live && cam)sm64_camera.seed((const int*)(c+0x5c),(const int*)((char*)cam+0x8c),*(short*)(c+0x8e));
+            sm64_camera.input(buttons,*(short*)(c+0x8e));
+        }
+        if (cam_mode != CAM_DS && cam_mode != CAM_SM64 && !rb_replaying()) {
             /* the rig's own frame: orbit and tilt at a rate proportional to
                the stick, zoom on the bumpers or R/F, C back behind Mario.
                `rig_touched` is what tells the analog auto-recenter to keep its
@@ -16634,7 +16655,7 @@ int main(void)
                    view: hal_camera_render has just parked the script-driven view in
                    data_0209b3ec, and leaving it there is what makes the star-get
                    fly-around visible instead of overwritten. */
-                if (!coop_staff_roll_camera(cam) && cam_mode != CAM_DS && !cutscene_cam) {
+                if (!coop_staff_roll_camera(cam) && !coop_sm64_camera_draw(cam,c) && cam_mode != CAM_DS && !cutscene_cam) {
                     int fceye[3];
                     const int *pivot = cam_mode == CAM_ANALOG
                                            ? an_pivot
@@ -17250,7 +17271,6 @@ int main(void)
         /* the rollback probe's re-run skips the rasteriser (SM64DS_ROLLBACK_DET_SKIP) */
         if (!rb_resim_skip_render() && !rb_skip_render())
         ntr::gx_render(fb);
-        coop_backdrop_publish(fb);
         /* run interp1: the tick's 3D is final; key its recorded stream and
            pair it with the previous tick's. A frame that went down the host
            split path, under the F5 menu, in the stacked layout or through
@@ -17306,6 +17326,7 @@ int main(void)
         pt_mark(PS_SUB);
         if (!rb_skip_render())
         hal_sub_screen_present(&fb.px[0][0], ntr::active_w, ntr::active_h);
+        coop_backdrop_publish(fb);
         pt_mark(PS_FADE_OVL);
         if (g_ip_on > 0 && g_ip_tick_ok) ip_snap(g_ip_p2, fb);
 

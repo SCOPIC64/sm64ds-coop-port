@@ -16,6 +16,7 @@
 #include "Player.h"
 #include "player_fields.h"   /* run mg16 lane MP4: the one place field offsets live */
 #include "host_settings.h"   /* port::adventure_ghost_mode() for the ghost pass */
+#include "coop_sm64_movement.h"
 #include "comms_seam.h"      /* port::sync_stats(): the local-write witness */
 #include "ShadowModel.h"
 #include "TextureSequence.h"
@@ -374,6 +375,24 @@ extern unsigned char data_0209fc5c[]; /* per-slot "this slot is live"; BYTE
                                          stride, the ROM's own width */
 extern void *data_0209f394[];         /* per-slot Player* */
 extern unsigned char data_0209f250;   /* local player index */
+extern int data_0209fc48;
+}
+static bool sm64_movement_active(const Player* player) {
+    return host_setting_movement_mod() && player->mCharacter==0 &&
+        data_0209f2d8==0 && !data_0209fc48 && !player->mIsMega &&
+        !player->mHasWings && !player->mIsNoControl;
+}
+extern "C" int port_sm64_walk_update(void* self,int magnitude,short old_yaw) {
+    Player* player=(Player*)self;
+    if(!sm64_movement_active(player))return 0;
+    player->mHorzSpeed=coop_sm64::walk_speed(player->mHorzSpeed,magnitude,
+        player->mFloorNormalY>=3891,player->mSinkDepth);
+    if(magnitude)player->mPrevAngleY=coop_sm64::turn(old_yaw,player->mDesiredAngleY);
+    if(std::getenv("SM64DS_GAMEPLAY_PROBE")) {
+        static unsigned calls=0;
+        if(calls++%30==0)std::fprintf(stderr,"[sm64-mod] walk speed=%d stick=%d\n",player->mHorzSpeed,magnitude);
+    }
+    return 1;
 }
 
 /* ---- THE GHOST ALPHA -------------------------------------------------------
@@ -1516,6 +1535,10 @@ static void vscol_probe(char *c, int frame, std::size_t tris_before)
    gates 1-3 and rode the eater visibly until mFlags&0x10 got honoured here. */
 extern "C" int port_player_render_hidden(const void *player)
 {
+    // Cutscene-spawned players also use this gate. Hiding only the harness's
+    // local-player draw leaves the rest of the cast visible in menu previews.
+    static const bool backdrop_credits=getenv("SM64DS_MENU_BACKDROP_CHILD") && getenv("SM64DS_MENU_NATIVE_STAFF_ROLL");
+    if(backdrop_credits)return 1;
     const char *c = (const char *)player;
     const unsigned char no = *(const unsigned char *)(c + 0x6d8);
     /* :44-48  VS liveness (0.3.2: kPortMaxPlayers is sixteen) */
@@ -2040,7 +2063,7 @@ extern "C" int port_player_st_swingplayer_main(void *self);
    (the sinit's PMF table pairs it with the EndingFly state; see the case). */
 extern "C" int _ZN6Player17St_EndingFly_MainEv(char *self);
 
-extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
+static int hal_call_state_base(void *self, unsigned ds_addr)
 {
     {
         static int on = -1;
@@ -2145,6 +2168,30 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
     std::fprintf(stderr, "  [state] unhosted state fn 0x%08x (no-op)\n",
                  ds_addr);
     return 1;
+}
+
+extern "C" int hal_call_state_fn(void *self,unsigned ds_addr) {
+    Player* player=(Player*)self;
+    const bool active=sm64_movement_active(player);
+    const int speed=player->mHorzSpeed;
+    int result=hal_call_state_base(self,ds_addr);
+    if(active && sm64_movement_active(player)) {
+        if(ds_addr==0x020e22c0 && player->mIsAirborne) {
+            player->mVertSpeed=coop_sm64::jump_launch(player->mJumpComboStage,speed);
+            if(!(player->mStateFlags&0x200))player->mHorzSpeed=(int)((long long)speed*4/5);
+            player->mVertAccel=-4*4096;player->mTerminalVelocity=-75*4096;
+        } else if(ds_addr==0x020e127c && player->mIsAirborne) {
+            player->mVertSpeed=30*4096;
+            player->mHorzSpeed=(std::min)((int)((long long)speed*3/2),48*4096);
+            player->mVertAccel=-2*4096;player->mTerminalVelocity=-75*4096;
+        } else if(ds_addr==0x020e200c || ds_addr==0x020e2118) {
+            player->mVertAccel=-4*4096;player->mTerminalVelocity=-75*4096;
+        }
+        if(std::getenv("SM64DS_GAMEPLAY_PROBE") && (ds_addr==0x020e22c0 || ds_addr==0x020e127c))
+            std::fprintf(stderr,"[sm64-mod] launch action=%08x vertical=%d horizontal=%d stage=%d\n",ds_addr,
+                player->mVertSpeed,player->mHorzSpeed,player->mJumpComboStage);
+    }
+    return result;
 }
 
 /* ---- LIVE CHARACTER SWAP (port mod) ------------------------------------

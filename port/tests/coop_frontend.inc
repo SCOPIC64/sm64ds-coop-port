@@ -67,6 +67,8 @@ static int coop_frontend_run()
     if (!coop_frontend_wanted()) return 1;
     g_coop_menu.camera = host_setting_camera_mode();
     g_coop_menu.movement = host_setting_run_mode();
+    g_coop_menu.movement_mod=host_setting_movement_mod();
+    g_coop_menu.object_distance=host_setting_object_distance();
     g_coop_menu.fps = host_setting_frame_rate();
     g_coop_menu.smooth = host_setting_smooth_motion() != 0;
     g_coop_menu.names = host_setting_name_tags() != 0;
@@ -133,55 +135,39 @@ static int coop_frontend_run()
         fprintf(stderr,"[coop-menu] custom media selftest %s\n",ok?"PASS":"FAIL");return ok?0:-1;
     }
     if(getenv("SM64DS_MENU_STAFF_ROLL_SELFTEST")) {
-        // These choices share BOB. The renderer must restart even when the
-        // level ID is unchanged, entering and leaving cinematic mode correctly.
         const int choices[]={0,2,0};
-        for(int i=0;i<3;++i) {
-            DWORD until=GetTickCount()+10000;
-            backdrop.tick(choices[i]);
-            while(backdrop.serial()<15 && static_cast<LONG>(GetTickCount()-until)<0) {
-                backdrop.tick(choices[i]);Sleep(16);
-            }
-            bool pass=backdrop.serial()>=15 && ((backdrop.cinematic_frames()>0)==(choices[i]==2));
-            fprintf(stderr,"[coop-menu] same-course switch %d %s\n",choices[i],pass?"PASS":"FAIL");
+        for(int choice:choices) {
+            DWORD deadline=GetTickCount()+15000;
+            backdrop.tick(choice);
+            while(backdrop.serial()<15 && static_cast<LONG>(GetTickCount()-deadline)<0){backdrop.tick(choice);Sleep(16);}
+            bool pass=backdrop.serial()>=15 && ((backdrop.cinematic_frames()>0)==(choice==2));
+            fprintf(stderr,"[coop-menu] same-course switch %d %s\n",choice,pass?"PASS":"FAIL");
             if(!pass)return -1;
         }
         g_coop_menu.background=2;
-        unsigned loop_start=backdrop.scenes();
-        DWORD deadline=GetTickCount()+65000;
-        bool sampled[coop_staff_roll::SHOT_COUNT]={},moving[coop_staff_roll::SHOT_COUNT]={};
-        int first_eye[coop_staff_roll::SHOT_COUNT][3]={};
-        bool ok=true;
-        bool edge_captured[coop_staff_roll::SHOT_COUNT][2]={};
+        DWORD deadline=GetTickCount()+240000;
+        bool sampled[20]={},moving[20]={};int first_eye[20][3]={};
+        unsigned first_visit=backdrop.credits_visits();bool looped=false,ok=true;
         while(static_cast<LONG>(GetTickCount()-deadline)<0) {
-            backdrop.tick(2);
-            int shot=backdrop.shot();
-            if(shot>=0)for(int edge=0;edge<2;++edge) {
-                if(!edge_captured[shot][edge] && backdrop.serial()>=static_cast<unsigned>(edge?165:25)) {
-                    char file[64];snprintf(file,sizeof file,"staff-roll-%02d-%s.bmp",shot,edge?"late":"early");
-                    ok=ntr::ppu_write_bmp_px(file,backdrop.image(),512,384) && ok;
-                    edge_captured[shot][edge]=true;
-                }
-            }
-            if(shot>=0 && backdrop.serial()>=45 && backdrop.cinematic_frames()>0 && !sampled[shot]) {
+            backdrop.tick(2);int shot=backdrop.shot();unsigned cursor=backdrop.credits_cursor();
+            if(shot>=0 && shot<20 && backdrop.cinematic_frames() && cursor>=30 && !sampled[shot]) {
                 sampled[shot]=true;memcpy(first_eye[shot],backdrop.camera_eye(),sizeof first_eye[shot]);
             }
-            if(shot>=0 && backdrop.serial()>=90 && sampled[shot] && !moving[shot]) {
+            if(shot>=0 && shot<20 && cursor>=100 && sampled[shot] && !moving[shot]) {
                 moving[shot]=memcmp(first_eye[shot],backdrop.camera_eye(),sizeof first_eye[shot])!=0;
                 char file[64];snprintf(file,sizeof file,"staff-roll-%02d.bmp",shot);
                 ok=ntr::ppu_write_bmp_px(file,backdrop.image(),512,384) && ok;
-                fprintf(stderr,"[coop-menu] staff shot %d level %d camera %s frames=%u\n",shot,
-                    coop_staff_roll::shots[shot].level,moving[shot]?"MOVING":"STILL",backdrop.cinematic_frames());
+                ok=ok && backdrop.credits_level()==coop_staff_roll::levels[shot];
+                fprintf(stderr,"[coop-menu] original DS credits shot %d level %d cursor=%u camera=%s\n",shot,
+                    backdrop.credits_level(),cursor,moving[shot]?"MOVING":"STILL");
             }
-            if(backdrop.scenes()-loop_start>=coop_staff_roll::SHOT_COUNT+1 && shot==0 && backdrop.serial()>=45)break;
+            if(backdrop.credits_visits()-first_visit>=21 && shot==0 && cursor>=100){looped=true;break;}
             Sleep(16);
         }
-        for(int i=0;i<coop_staff_roll::SHOT_COUNT;++i)ok=ok && sampled[i] && moving[i];
-        ok=ok && backdrop.scenes()-loop_start>=coop_staff_roll::SHOT_COUNT+1 && backdrop.shot()==0;
-        g_coop_backdrop=backdrop.image();coop_draw(menu_fb,0);
-        ok=ntr::ppu_write_bmp("staff-roll-menu.bmp",menu_fb) && ok;
-        g_coop_active=false;
-        fprintf(stderr,"[coop-menu] staff roll full loop %s scenes=%u\n",ok?"PASS":"FAIL",backdrop.scenes());
+        for(int shot=0;shot<20;++shot)ok=ok && sampled[shot] && moving[shot];
+        ok=ok && looped;g_coop_backdrop=backdrop.image();coop_draw(menu_fb,0);
+        ok=ntr::ppu_write_bmp("staff-roll-menu.bmp",menu_fb) && ok;g_coop_active=false;
+        fprintf(stderr,"[coop-menu] original DS staff roll full loop %s visits=%u\n",ok?"PASS":"FAIL",backdrop.credits_visits());
         return ok?0:-1;
     }
     // ROM-free startup check of the actual host and framebuffer. Run only in
@@ -198,11 +184,11 @@ static int coop_frontend_run()
             }
             ok = backdrop.serial() >= 90;
             if(g_coop_menu.background==2 && getenv("SM64DS_MENU_TOUR_TEST")) {
-                while((backdrop.scenes()<2 || backdrop.serial()<45) && static_cast<LONG>(GetTickCount()-deadline)<0) {
+                while((backdrop.credits_visits()<2 || backdrop.serial()<45) && static_cast<LONG>(GetTickCount()-deadline)<0) {
                     backdrop.tick(g_coop_menu.background);Sleep(16);
                 }
-                ok=ok && backdrop.scenes()>=2 && backdrop.serial()>=45;
-                fprintf(stderr,"[coop-menu] tour transition selftest %s scenes=%u\n",ok?"PASS":"FAIL",backdrop.scenes());
+                ok=ok && backdrop.credits_visits()>=2 && backdrop.serial()>=45;
+                fprintf(stderr,"[coop-menu] tour transition selftest %s credits=%u\n",ok?"PASS":"FAIL",backdrop.credits_visits());
             }
             g_coop_backdrop = backdrop.image();
             fprintf(stderr,"[coop-menu] live backdrop selftest %s serial=%u\n",ok?"PASS":"FAIL",backdrop.serial());
@@ -271,10 +257,10 @@ static int coop_frontend_run()
         }
         if (action == coop_frontend::SAVE_OPTIONS) {
             media.selection(g_coop_menu);
-            if (host_setting_save_frontend_custom(g_coop_menu.camera, g_coop_menu.movement,
+            if (host_setting_save_frontend_gameplay(g_coop_menu.camera, g_coop_menu.movement,
                     g_coop_menu.fps, g_coop_menu.smooth, g_coop_menu.names, g_coop_menu.volume,
                     g_coop_menu.mouse_capture, g_coop_menu.music, g_coop_menu.background, g_coop_menu.menu_sounds,
-                    g_coop_menu.music_file,g_coop_menu.background_file))
+                    g_coop_menu.music_file,g_coop_menu.background_file,g_coop_menu.movement_mod,g_coop_menu.object_distance))
                 g_coop_menu.open(g_coop_menu.after_save);
             else snprintf(g_coop_menu.message, sizeof g_coop_menu.message,
                           "Could not save settings. Check folder access.");

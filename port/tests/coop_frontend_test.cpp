@@ -97,8 +97,8 @@ int main(int argc, char** argv) {
     m.custom_background_count=1; std::strcpy(m.custom_backgrounds[0],"My picture");
     m.key(LEFT); assert(m.background==BACKGROUND_BUILTIN_COUNT);
     m.label(2,rate_label,sizeof rate_label); assert(std::strstr(rate_label,"My picture"));
-    m.row=3; assert(m.key(ACCEPT)==IMPORT_BACKGROUND);
-    m.row=4; assert(m.key(ACCEPT)==RELOAD_MEDIA);
+    m.row=4; assert(m.key(ACCEPT)==IMPORT_BACKGROUND);
+    m.row=5; assert(m.key(ACCEPT)==RELOAD_MEDIA);
     m.custom_background_count=0; m.background=0;
     m.open(MISC); m.key(ACCEPT); assert(m.mouse_capture);
     assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
@@ -109,6 +109,14 @@ int main(int argc, char** argv) {
         else assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
     }
     m.open(OPTIONS); m.row = 6; assert(m.key(ACCEPT) == SAVE_OPTIONS && m.after_save == HOME);
+    m.open(PLAYER);m.row=1;m.key(ACCEPT);assert(m.movement_mod==1);
+    m.key(LEFT);assert(m.movement_mod==0);
+    m.open(CAMERA);m.camera=2;m.key(RIGHT);assert(m.camera==3);
+    m.label(0,rate_label,sizeof rate_label);assert(std::strstr(rate_label,"SM64 CAM"));
+    m.key(RIGHT);assert(m.camera==0);m.key(LEFT);assert(m.camera==3);
+    m.open(DISPLAY);m.row=3;
+    for(int distance:{1,2,3,4,0}){m.key(RIGHT);assert(m.object_distance==distance);}
+    m.key(LEFT);assert(m.object_distance==4);
     m.open(HOME); m.key(BACK); assert(m.page == EXIT_CONFIRM);
     m.key(ACCEPT); assert(m.page == HOME);
     m.key(BACK); m.row = 1; char quit_label[20]; m.label(1, quit_label, sizeof quit_label);
