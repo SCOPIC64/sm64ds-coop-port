@@ -820,6 +820,7 @@ PipeRound g_pipe[kPipeDepth];
 bool g_rollback = false;
 enum : unsigned { kRbWindow = 8 };       // rounds predicted past the last confirmed
 enum : unsigned { kRbGraceMs = 1000 };   // stall this long, then drop
+unsigned g_rb_grace_ms = kRbGraceMs;
 bool     g_rb_replaying = false;
 unsigned g_rb_replay_end = 0;            // live round while replaying
 unsigned g_rb_scan_low = 0;              // oldest round not yet fully confirmed
@@ -2607,7 +2608,26 @@ void dispatch(const unsigned char *raw, int n, const sockaddr_in &from) {
     else if (n >= 4 && std::memcmp(raw, &kAuxVoiceLE, 4) == 0)
         aux_kind = kAuxKindVoice;
     if (aux_kind >= 0) {
-        const int sender = classify_aux_sender(from);
+        int sender = classify_aux_sender(from);
+        // A relay has one source address for every child. Owner snapshots
+        // carry their slot in their first entry (v4: 16-byte header + 40-byte
+        // entry). Keep one queue per owner and let the parent redistribute
+        // each child's snapshot. Returning it to the owner is discarded here,
+        // before the sync layer can touch that owner's local actor.
+        if (g_net_mode == kNetRelay && aux_kind == 0 &&
+            same_addr(from, g_relay_addr) && n == 56 && raw[4] == 4 &&
+            raw[5] == 0 && raw[6] == 0 && raw[7] == 0 && raw[12] == 1) {
+            sender = raw[16];
+            if (sender < 0 || sender >= kCommsMaxPlayers ||
+                (g_want_players > 0 && sender >= g_want_players) ||
+                (g_live & (1u << sender)) == 0 ||
+                (g_role == kRoleParent && sender == 0)) {
+                ++g_dropped;
+                return;
+            }
+            if (g_role == kRoleParent && g_relay_paired)
+                send_raw(raw, n, g_relay_addr);
+        }
         if (sender < 0 || sender >= kCommsMaxPlayers || sender == g_slot) {
             ++g_dropped;
             return;
@@ -3446,11 +3466,11 @@ int rb_exchange_body(const void *my_block) {
                 std::fprintf(stderr, "[comms:loopback] ROLLBACK: round %u is "
                              "%u past the last confirmed block of slot(s) 0x%x; "
                              "stalling (grace %u ms)\n", R, kRbWindow + 1,
-                             stalled, kRbGraceMs);
+                             stalled, g_rb_grace_ms);
             }
             ++g_rb_stalled;
             const unsigned held = now - g_rb_stall_start_ms;
-            if (g_role == kRoleParent && held >= kRbGraceMs) {
+            if (g_role == kRoleParent && held >= g_rb_grace_ms) {
                 for (int k = 0; k < kCommsMaxPlayers; ++k)
                     if (stalled & (1u << k)) rb_retire_slot(k, "grace");
                 g_rb_stall_start_ms = 0;
@@ -4160,6 +4180,10 @@ bool comms_loopback_install_from_env() {
         if (v > 2000) v = 2000;
         g_delay_ms = v;
     }
+    if (const char *timeout = std::getenv("SM64DS_COMMS_TIMEOUT_MS")) {
+        const int value = std::atoi(timeout);
+        if (value >= 1000 && value <= 60000) g_rb_grace_ms = value;
+    }
     if (const char *j = std::getenv("SM64DS_COMMS_JITTER_MS")) {
         int v = std::atoi(j);
         if (v < 0) v = 0;
@@ -4408,7 +4432,7 @@ bool comms_loopback_install_from_env() {
                          "predicted up to %u rounds ahead, a misprediction "
                          "rewinds and replays (hal/rollback.cpp); past the "
                          "window this stalls %u ms and then drops the slot\n",
-                         kRbWindow, kRbGraceMs);
+                         kRbWindow, g_rb_grace_ms);
         }
     }
     // ARMED ONLY WHERE IT CAN HELP AND ONLY WHERE IT IS ALLOWED TO DECIDE.

@@ -9,10 +9,11 @@
 
 namespace coop_frontend {
 enum Page { HOME, PLAY, HOST, JOIN, OPTIONS, PLAYER, CAMERA, CONTROLS,
-            DISPLAY, SOUND, MISC, EXIT_CONFIRM, MODS, TEXTURES, PAUSE };
+            DISPLAY, SOUND, MISC, EXIT_CONFIRM, MODS, TEXTURES, PAUSE, LOBBY };
 enum Action { NONE, START_SOLO, START_HOST, START_JOIN, SAVE_OPTIONS, NEXT_SONG,
               IMPORT_MUSIC, IMPORT_BACKGROUND, RELOAD_MEDIA, QUIT, TOGGLE_MOD, RELOAD_MODS,
-              TEXTURE_CAPTURE, TEXTURE_PACK, OPEN_TEXTURE_FOLDER, RESUME };
+              TEXTURE_CAPTURE, TEXTURE_PACK, OPEN_TEXTURE_FOLDER, RESUME,
+              CREATE_ROOM, JOIN_ROOM, START_ROOM, LEAVE_ROOM };
 enum { BACKGROUND_BUILTIN_COUNT = 8 };
 enum Key { UP, DOWN, LEFT, RIGHT, ACCEPT, BACK };
 
@@ -64,7 +65,10 @@ struct Menu {
     SavePreview saves[3];
     char now_playing[48] = "";
     bool smooth = true, names = true, mouse_capture = false, editing = false;
-    char address[16] = "192.168.1.2", port[6] = "51765";
+    char room_code[7] = "";
+    char room_members[7][48] = {};
+    int room_count = 0;
+    bool room_host = false, online_busy = false;
     char edit_backup[16] = "";
     char message[128] = "";
 
@@ -72,8 +76,9 @@ struct Menu {
         switch (page) {
         case HOME: return 5;
         case PLAY: return 3;
-        case HOST: return 8;
-        case JOIN: return 5;
+        case HOST: return 7;
+        case JOIN: return 4;
+        case LOBBY: return 10;
         case OPTIONS: return 7;
         case PLAYER: return 4;
         case DISPLAY: return 7;
@@ -93,6 +98,7 @@ struct Menu {
         case PLAY: return "SINGLE PLAYER";
         case HOST: return "HOST A GAME";
         case JOIN: return "JOIN A GAME";
+        case LOBBY: return "ONLINE LOBBY";
         case OPTIONS: return "OPTIONS";
         case PLAYER: return "PLAYER";
         case CAMERA: return "CAMERA";
@@ -109,18 +115,18 @@ struct Menu {
     }
     void open(Page target) { page = target; row = 0; editing = false; message[0] = 0; }
     char* field() {
-        if (page == JOIN && row == 0) return address;
-        if ((page == HOST && row == 3) || (page == JOIN && row == 1)) return port;
+        if (page == JOIN && row == 0) return room_code;
         return nullptr;
     }
     void type(char ch) {
         char* p = editing ? field() : nullptr;
         if (!p) return;
-        size_t size = p == address ? sizeof address : sizeof port;
+        size_t size = sizeof room_code;
         size_t n = std::strlen(p);
         if (ch == '\b') { if (n) p[n - 1] = 0; }
         else if (n + 1 < size && ((ch >= '0' && ch <= '9') ||
-                                  (p == address && ch == '.'))) {
+                                  (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z'))) {
+            if(ch >= 'a' && ch <= 'z') ch -= 'a'-'A';
             p[n] = ch; p[n + 1] = 0;
         }
     }
@@ -142,11 +148,14 @@ struct Menu {
             else std::snprintf(out, size, "FILE %c   NEW", 'A' + index);
         } else if (page == HOST || page == JOIN) {
             int offset = page == JOIN ? 1 : 3;
-            if (page == JOIN && index == 0) std::snprintf(out, size, "ADDRESS    %s%s", address, editing && row == index ? "_" : "");
-            else if (index == offset) std::snprintf(out, size, "PORT       %s%s", port, editing && row == index ? "_" : "");
-            else if (index == offset + 1) std::snprintf(out, size, "CHARACTER  < %s >", chars[character]);
-            else std::snprintf(out, size, "%s", index == offset + 2 ? (page == HOST ? "START HOSTING" : "CONNECT") :
-                page == HOST && index == 6 ? "SINGLE PLAYER" : "BACK");
+            if (page == JOIN && index == 0) std::snprintf(out, size, "ROOM CODE  %s%s", room_code, editing && row == index ? "_" : "");
+            else if (index == offset) std::snprintf(out, size, "CHARACTER  < %s >", chars[character]);
+            else std::snprintf(out, size, "%s", index == offset + 1 ? (online_busy?"CONNECTING...":page == HOST ? "CREATE LOBBY" : "JOIN LOBBY") :
+                page == HOST && index == 5 ? "SINGLE PLAYER" : "BACK");
+        } else if (page == LOBBY) {
+            if(index==0) std::snprintf(out,size,"ROOM %s    %d / 7 PLAYERS",room_code,room_count);
+            else if(index<=7) std::snprintf(out,size,"%d. %s",index,index<=room_count?room_members[index-1]:"OPEN SEAT");
+            else std::snprintf(out,size,"%s",index==9?"LEAVE LOBBY":online_busy?"PLEASE WAIT...":room_host?"START GAME":"WAITING FOR HOST");
         } else if (page == OPTIONS) {
             static const char* categories[] = { "PLAYER", "CAMERA", "CONTROLS", "DISPLAY", "SOUND", "MISC", "SAVE AND BACK" };
             std::snprintf(out, size, "%s", categories[index]);
@@ -208,6 +217,7 @@ struct Menu {
             return NONE;
         }
         if (key == BACK) {
+            if(page==LOBBY) return LEAVE_ROOM;
             if(page==PAUSE)return RESUME;
             if(page==MODS){open(in_game?PAUSE:HOME);return NONE;}
             if(page==TEXTURES){open(MODS);return NONE;}
@@ -263,14 +273,17 @@ struct Menu {
             if (field() && key == ACCEPT) {
                 std::strcpy(edit_backup, field()); editing = true; field()[0] = 0;
             }
-            else if (row == offset + 1) character = (character + 4 + delta) % 4;
-            else if (key == ACCEPT && row == offset + 2) {
+            else if (row == offset) character = (character + 4 + delta) % 4;
+            else if (key == ACCEPT && row == offset + 1) {
                 if (page == HOST && saves[slot].damaged) std::snprintf(message, sizeof message, "Save damaged. Choose another slot.");
-                else if (!valid_port(port)) std::snprintf(message, sizeof message, "Use a port from 1024 to 65534.");
-                else if (page == JOIN && !valid_address(address)) std::snprintf(message, sizeof message, "Enter the host's IPv4 address.");
-                else return page == HOST ? START_HOST : START_JOIN;
-            } else if (key == ACCEPT && page == HOST && row == 6) open(PLAY);
+                else if (online_busy) return NONE;
+                else if (page == JOIN && std::strlen(room_code)!=6) std::snprintf(message, sizeof message, "Enter the host's six-character room code.");
+                else return page == HOST ? CREATE_ROOM : JOIN_ROOM;
+            } else if (key == ACCEPT && page == HOST && row == 5) open(PLAY);
             else if (key == ACCEPT && row == rows() - 1) open(HOME);
+        } else if(page==LOBBY && key==ACCEPT) {
+            if(row==9) return LEAVE_ROOM;
+            if(row==8 && room_host && !online_busy) return START_ROOM;
         } else if (page == OPTIONS) {
             if (key == ACCEPT) {
                 static const Page categories[] = { PLAYER, CAMERA, CONTROLS, DISPLAY, SOUND, MISC };

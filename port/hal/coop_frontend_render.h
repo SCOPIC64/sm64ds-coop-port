@@ -46,6 +46,7 @@ inline int row_top(const Canvas& c, const Menu& m) { return c.height * (m.page =
 inline int row_height(const Canvas& c) { int h = c.height * 7 / 100; return h > 1 ? h : 2; }
 inline ButtonRect button_rect(const Canvas& c, const Menu& m, int row) {
     ButtonRect r = {button_left(c,m), row_top(c,m) + row * row_height(c), button_width(c,m), row_height(c) * 4 / 5};
+    if(m.page==LOBBY) { r.y=c.height*27/100+row*c.height*5/100; r.h=c.height*4/100; }
     if (m.page == HOST) {
         if (row < 3) {
             const int cell = button_width(c,m) / 3;

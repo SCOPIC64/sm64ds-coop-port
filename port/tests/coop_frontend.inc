@@ -3,6 +3,9 @@
 #include "coop_menu_media.inc"
 #include "coop_menu_audio.inc"
 #include "coop_menu_backdrop.inc"
+#include "hal/coop_online.h"
+static coop_online::Plan g_coop_online_plan;
+static coop_online::Client& coop_lobby() { static coop_online::Client client; return client; }
 static const uint32_t* g_coop_backdrop = 0;
 static void coop_draw(ntr::Framebuffer& fb, unsigned frame, const char* loading = 0)
 {
@@ -39,8 +42,7 @@ static void coop_wait_for_player(int event)
         }
         if (event == 2) {
             const char* error = "No other player connected within five minutes. "
-                "Check that WGS is running and both games use the same relay "
-                "address and code, then reopen the game and try again.";
+                "Reopen the game and create or join a new lobby.";
             port_startup_error_write(error);
             port_startup_error_show(error);
         }
@@ -80,7 +82,8 @@ static void coop_session_environment(coop_frontend::Action action)
         "SM64DS_COMMS_FANOUT", "SM64DS_COMMS_INJECT", "SM64DS_COMMS_REPORT",
         "SM64DS_PARTY", "SM64DS_LEVEL", "SM64DS_SCENE", "SM64DS_VS_MAP",
         "SM64DS_BOOT_CLASSIC", "SM64DS_CHARACTER", "SM64DS_SYNC",
-        "SM64DS_COMMS_WAIT_MS" };
+        "SM64DS_COMMS_WAIT_MS", "SM64DS_COMMS_RELAY", "SM64DS_COMMS_CODE",
+        "SM64DS_VS_PLAYERS", "SM64DS_VS_NAMES", "SM64DS_COMMS_TIMEOUT_MS" };
     for (const char* name : clear) _putenv_s(name, "");
     if (action == coop_frontend::START_SOLO) {
         char slot[] = { static_cast<char>('0' + g_coop_menu.slot), 0 };
@@ -94,12 +97,18 @@ static void coop_session_environment(coop_frontend::Action action)
         _putenv_s("SM64DS_SKIP_MENU", "1");
         g_coop_loading = host;
         _putenv_s("SM64DS_COMMS_ROLE", host ? "parent" : "child");
-        _putenv_s("SM64DS_COMMS_PORT", g_coop_menu.port);
+        _putenv_s("SM64DS_COMMS_PORT", "51765");
+        _putenv_s("SM64DS_COMMS_RELAY", g_coop_online_plan.relay.c_str());
+        _putenv_s("SM64DS_COMMS_CODE", g_coop_online_plan.code.c_str());
+        _putenv_s("SM64DS_VS_PLAYERS", std::to_string(g_coop_online_plan.players).c_str());
+        _putenv_s("SM64DS_VS_NAMES", g_coop_online_plan.names.c_str());
         _putenv_s("SM64DS_COMMS_FANOUT", "1");
-        _putenv_s("SM64DS_NETMODE", "rollback");
+        _putenv_s("SM64DS_NETMODE", g_coop_online_plan.players<=4?"rollback":"lockstep");
         _putenv_s("SM64DS_PARTY", "1");
         _putenv_s("SM64DS_SYNC", "1");
         _putenv_s("SM64DS_COMMS_WAIT_MS", "300000");
+        // Resource loading / character model changes can take over one second.
+        _putenv_s("SM64DS_COMMS_TIMEOUT_MS", "15000");
         port::comms_wait_hook = coop_wait_for_player;
         _putenv_s("SM64DS_LEVEL", host ? "" : "1");
         if (!host) _putenv_s("SM64DS_SAVE_PATH", "save/coop-join.sav");
@@ -107,10 +116,7 @@ static void coop_session_environment(coop_frontend::Action action)
         _putenv_s("SM64DS_CHARACTER", character);
         if (host) _putenv_s("SM64DS_COMMS_BIND_ANY", "1");
         else {
-            char address[32];
-            snprintf(address, sizeof address, "%s:%s", g_coop_menu.address, g_coop_menu.port);
-            _putenv_s("SM64DS_COMMS_HOST", address);
-            _putenv_s("SM64DS_COMMS_SLOT", "1");
+            _putenv_s("SM64DS_COMMS_SLOT", std::to_string(g_coop_online_plan.slot).c_str());
         }
     }
 }
@@ -318,7 +324,7 @@ static int coop_frontend_run()
             g_coop_backdrop = backdrop.image();
             fprintf(stderr,"[coop-menu] live backdrop selftest %s serial=%u\n",ok?"PASS":"FAIL",backdrop.serial());
         }
-        for (int page = coop_frontend::HOME; page <= coop_frontend::PAUSE; ++page) {
+        for (int page = coop_frontend::HOME; page <= coop_frontend::LOBBY; ++page) {
             g_coop_menu.open(static_cast<coop_frontend::Page>(page));
             coop_draw(menu_fb, 0); present();
             char name[48]; snprintf(name, sizeof name, "coop-menu-%02d.bmp", page);
@@ -367,6 +373,33 @@ static int coop_frontend_run()
         }
         coop_frontend::Action action = g_coop_action;
         g_coop_action = coop_frontend::NONE;
+        if(action==coop_frontend::CREATE_ROOM || action==coop_frontend::JOIN_ROOM) {
+            g_coop_active=false;
+            bool assets_ok=coop_setup_assets(menu_fb);
+            g_coop_active=true;
+            if(assets_ok) {
+                const char* names[]={"Mario","Luigi","Wario","Yoshi"};
+                coop_lobby().request(action==coop_frontend::CREATE_ROOM?1:2,
+                    std::string(g_coop_menu.room_code)+"|"+names[g_coop_menu.character]);
+            }
+        }
+        if(action==coop_frontend::START_ROOM) coop_lobby().request(3);
+        if(action==coop_frontend::LEAVE_ROOM) coop_lobby().request(4);
+        // Short HTTP polls run on a worker; drawing and input remain responsive.
+        const coop_online::Snapshot online=coop_lobby().snapshot();
+        g_coop_menu.online_busy=online.busy;
+        if(!online.room.empty()) {
+            if(g_coop_menu.page!=coop_frontend::LOBBY) g_coop_menu.open(coop_frontend::LOBBY);
+            snprintf(g_coop_menu.room_code,sizeof g_coop_menu.room_code,"%s",online.room.c_str());
+            g_coop_menu.room_host=online.host; g_coop_menu.room_count=static_cast<int>(online.names.size());
+            for(int i=0;i<g_coop_menu.room_count;++i) snprintf(g_coop_menu.room_members[i],sizeof g_coop_menu.room_members[i],"%s",online.names[i].c_str());
+        } else if(g_coop_menu.page==coop_frontend::LOBBY && !online.busy) g_coop_menu.open(coop_frontend::HOME);
+        if(!online.status.empty()&&(g_coop_menu.page==coop_frontend::HOST||g_coop_menu.page==coop_frontend::JOIN||g_coop_menu.page==coop_frontend::LOBBY)) snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.100s",online.status.c_str());
+        else if(g_coop_menu.page==coop_frontend::LOBBY) snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%s",online.host?"Share this room code. Start when everyone has joined.":"Choose your character before joining. Wait for the host.");
+        if(online.plan.valid) {
+            g_coop_online_plan=online.plan;
+            action=online.host?coop_frontend::START_HOST:coop_frontend::START_JOIN;
+        }
         coop_tools_action(action);
         if (action == coop_frontend::QUIT) { g_coop_active = false; return 0; }
         if (action == coop_frontend::NEXT_SONG) {

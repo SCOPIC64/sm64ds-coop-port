@@ -19,19 +19,24 @@ int main(int argc, char** argv) {
     Menu m;
     m.key(UP); assert(m.row == 4); m.key(DOWN); assert(m.row == 0);
     m.key(ACCEPT); assert(m.page == HOST);
-    m.row = 6; m.key(ACCEPT); assert(m.page == PLAY);
+    m.row = 5; m.key(ACCEPT); assert(m.page == PLAY);
     m.key(LEFT); assert(m.slot == 2);
     m.key(DOWN); assert(m.key(ACCEPT) == START_SOLO);
     m.key(BACK); assert(m.page == HOST);
-    m.row = 5; assert(m.key(ACCEPT) == START_HOST);
-    m.open(JOIN); m.row = 3; assert(m.key(ACCEPT) == START_JOIN);
+    m.row = 4; assert(m.key(ACCEPT) == CREATE_ROOM);
+    m.open(JOIN); m.row = 2; assert(m.key(ACCEPT) == NONE);
     m.row = 0; m.key(ACCEPT); m.type('5'); m.key(BACK);
-    assert(std::strcmp(m.address, "192.168.1.2") == 0);
+    assert(std::strcmp(m.room_code, "") == 0);
     m.row = 0; m.key(ACCEPT); m.type('2'); m.type('5'); m.type('6');
-    m.key(ACCEPT); m.row = 3; assert(m.key(ACCEPT) == NONE); assert(m.message[0]);
+    m.key(ACCEPT); m.row = 2; assert(m.key(ACCEPT) == NONE); assert(m.message[0]);
     m.row = 0; m.key(ACCEPT);
-    for (char ch : "127.0.0.1") m.type(ch);
-    m.type('x'); m.key(ACCEPT); m.row = 3; assert(m.key(ACCEPT) == START_JOIN);
+    for (char ch : "abc123") m.type(ch);
+    m.type('x'); m.key(ACCEPT); m.row = 2; assert(m.key(ACCEPT) == JOIN_ROOM);
+    assert(std::strcmp(m.room_code,"ABC123")==0);
+    m.online_busy=true;assert(m.key(ACCEPT)==NONE);m.online_busy=false;
+    m.open(LOBBY);m.room_host=false;m.row=8;assert(m.key(ACCEPT)==NONE);
+    m.room_host=true;assert(m.key(ACCEPT)==START_ROOM);
+    assert(m.key(BACK)==LEAVE_ROOM);
     m.open(OPTIONS); m.row = 3; m.key(ACCEPT); assert(m.page == DISPLAY);
     assert(m.fps == 0);
     char rate_label[80]; m.label(0, rate_label, sizeof rate_label);
@@ -90,7 +95,7 @@ int main(int argc, char** argv) {
     assert(preview_save(chip,sizeof chip-1,1).damaged);
     assert(!preview_save(chip,sizeof chip,3).exists);
     m.open(HOST); m.row = 2; m.key(ACCEPT); assert(m.slot == 2 && m.page == HOST);
-    m.saves[2].damaged = true; m.row = 5; assert(m.key(ACCEPT) == NONE && m.message[0]);
+    m.saves[2].damaged = true; m.row = 4; assert(m.key(ACCEPT) == NONE && m.message[0]);
     m.saves[2].damaged = false;
     m.open(DISPLAY); m.row = 2; m.key(LEFT); assert(m.background == BACKGROUND_BUILTIN_COUNT-1);
     m.key(RIGHT); assert(m.background == 0);
@@ -158,7 +163,7 @@ int main(int argc, char** argv) {
         int w = dims.first, h = dims.second, stride = w + 16;
         std::vector<uint32_t> pixels(stride * h + 64, 0xdeadbeef);
         Canvas c = { pixels.data() + 32, w, h, stride, OVL_FONT };
-        for (int page = HOME; page <= PAUSE; ++page) {
+        for (int page = HOME; page <= LOBBY; ++page) {
             m.open(static_cast<Page>(page)); draw(c, m, 100);
             for (int row = 0; row < m.rows(); ++row) {
                 ButtonRect r = button_rect(c,m,row);
