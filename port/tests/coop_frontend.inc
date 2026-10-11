@@ -23,6 +23,55 @@ static bool coop_frontend_wanted()
     return true;
 }
 
+// The ROM's session wait runs after the menu buffer has been released. Keep
+// that wait responsive using its own temporary buffer in the same window.
+static void coop_wait_for_player(int event)
+{
+    static ntr::Framebuffer* screen = 0;
+    static const ntr::Framebuffer* previous_screen = 0;
+    static DWORD last_draw = 0;
+    static unsigned frame = 0;
+    if (event != 0) {
+        if (screen) {
+            g_present_fb = previous_screen;
+            VirtualFree(screen, 0, MEM_RELEASE);
+            screen = 0;
+        }
+        if (event == 2) {
+            const char* error = "No other player connected within five minutes. "
+                "Check that WGS is running and both games use the same relay "
+                "address and code, then reopen the game and try again.";
+            port_startup_error_write(error);
+            port_startup_error_show(error);
+        }
+        return;
+    }
+    MSG message;
+    while (W.PeekMessageA_(&message, 0, 0, 0, PM_REMOVE)) {
+        if (message.message == WM_QUIT ||
+            (message.message == WM_KEYDOWN && message.wParam == VK_ESCAPE)) {
+            fprintf(stderr, "[coop-menu] multiplayer startup cancelled\n");
+            fflush(0);
+            ExitProcess(0);
+        }
+        W.TranslateMessage_(&message);
+        W.DispatchMessageA_(&message);
+    }
+    if (!screen) {
+        screen = static_cast<ntr::Framebuffer*>(VirtualAlloc(0,
+            sizeof(ntr::Framebuffer), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+        if (!screen) return;
+        previous_screen = g_present_fb;
+        last_draw = GetTickCount() - 33;
+    }
+    const DWORD now = GetTickCount();
+    if ((DWORD)(now - last_draw) < 33) return;
+    last_draw = now;
+    g_present_fb = screen;
+    coop_draw(*screen, frame++, "WAITING FOR PLAYER - ESC TO QUIT");
+    present();
+}
+
 static void coop_session_environment(coop_frontend::Action action)
 {
     // The CRT's cached getenv environment needs _putenv_s, not just Win32.
@@ -30,7 +79,8 @@ static void coop_session_environment(coop_frontend::Action action)
         "SM64DS_COMMS_PORT", "SM64DS_COMMS_SLOT", "SM64DS_COMMS_BIND_ANY",
         "SM64DS_COMMS_FANOUT", "SM64DS_COMMS_INJECT", "SM64DS_COMMS_REPORT",
         "SM64DS_PARTY", "SM64DS_LEVEL", "SM64DS_SCENE", "SM64DS_VS_MAP",
-        "SM64DS_BOOT_CLASSIC", "SM64DS_CHARACTER" };
+        "SM64DS_BOOT_CLASSIC", "SM64DS_CHARACTER", "SM64DS_SYNC",
+        "SM64DS_COMMS_WAIT_MS" };
     for (const char* name : clear) _putenv_s(name, "");
     if (action == coop_frontend::START_SOLO) {
         char slot[] = { static_cast<char>('0' + g_coop_menu.slot), 0 };
@@ -48,6 +98,9 @@ static void coop_session_environment(coop_frontend::Action action)
         _putenv_s("SM64DS_COMMS_FANOUT", "1");
         _putenv_s("SM64DS_NETMODE", "rollback");
         _putenv_s("SM64DS_PARTY", "1");
+        _putenv_s("SM64DS_SYNC", "1");
+        _putenv_s("SM64DS_COMMS_WAIT_MS", "300000");
+        port::comms_wait_hook = coop_wait_for_player;
         _putenv_s("SM64DS_LEVEL", host ? "" : "1");
         if (!host) _putenv_s("SM64DS_SAVE_PATH", "save/coop-join.sav");
         char character[] = { static_cast<char>('0' + g_coop_menu.character), 0 };

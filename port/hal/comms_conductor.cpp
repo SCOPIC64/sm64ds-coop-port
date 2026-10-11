@@ -1167,11 +1167,18 @@ bool session_is_whole(const CommsTransport *t, int want) {
 }
 }  // namespace
 
+void (*comms_wait_hook)(int event) = 0;
+
 bool comms_wait_for_session(int frames) {
     const CommsTransport *t = comms_transport();
     if (!t) return false;                  // solo: nothing to wait for
 
-    const int want = expected_players();
+    const char *wait_env = std::getenv("SM64DS_COMMS_WAIT_MS");
+    const long requested_ms = wait_env ? std::strtol(wait_env, 0, 10) : 0;
+    const unsigned wait_ms = requested_ms > 0
+        ? (unsigned)(requested_ms > 300000 ? 300000 : requested_ms) : 0;
+    int want = expected_players();
+    if (wait_ms && want < 2) want = 2;
     const int st0 = t->state();
     if ((st0 == kCommsParentConnected || st0 == kCommsChildConnected) &&
         session_is_whole(t, want))
@@ -1358,7 +1365,13 @@ bool comms_wait_for_session(int frames) {
     // exactly what the caller passed, so every existing measurement in this
     // tree still describes the run it was taken from.
     if (want > 2) frames *= 6;
-    for (int i = 0; i < frames; ++i) {
+    const DWORD wait_start = GetTickCount();
+    if (wait_ms)
+        std::fprintf(stderr, "[comms:conductor] required multiplayer startup: "
+                     "waiting up to %u ms for %d players\n", wait_ms, want);
+    for (int i = 0; wait_ms ? (DWORD)(GetTickCount() - wait_start) < wait_ms
+                           : i < frames; ++i) {
+        if (wait_ms && comms_wait_hook) comms_wait_hook(0);
         t->poll();                         // service the carrier
         // AND GIVE THE HOST ARM7 A TURN (run link100, lane WM3, rung W4). This
         // is where the ROM's own WM bring-up actually happens: func_02040820
@@ -1448,9 +1461,19 @@ bool comms_wait_for_session(int frames) {
                          "the world can boot now\n",
                          i, st, t->slot(), t->player_count(),
                          (int)data_020a0f10[0]);
+            if (wait_ms && comms_wait_hook) comms_wait_hook(1);
             return true;
         }
         ::Sleep(4);
+    }
+    if (wait_ms) {
+        std::fprintf(stderr, "[comms:conductor] multiplayer startup timed out "
+                     "after %u ms (%d/%d players); no solo world was seated\n",
+                     wait_ms, t->player_count(), want);
+        if (comms_wait_hook) comms_wait_hook(2);
+        // The legacy level-seat caller ignores a false return. Exit here so a
+        // failed explicit HOST/JOIN cannot become a broken one-player world.
+        std::exit(2);
     }
     // AND SAY WHICH KIND OF EXPIRY IT WAS. "Nobody came" and "three of the four
     // came" are different failures with the same old sentence, and the second

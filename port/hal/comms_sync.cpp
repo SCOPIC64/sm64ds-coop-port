@@ -90,6 +90,12 @@ extern "C" {
 // exactly the declaration defect the first commit of this lane fixed three of.
 void _ZN6Player7SetAnimEji5Fix12IiEj(void *, unsigned int, int, int, unsigned int);
 void _ZN6Player11ChangeStateERNS_5StateE(char *, void *);
+void port_player_set_character(void *, unsigned);
+
+// The character swap also writes the local save choice and queued swap. A
+// remote body changing character must preserve those console-local values.
+extern unsigned char data_0209cad2[];
+extern signed char data_02092114;
 
 // The per-slot Player pointers, the count, and which slot this console is.
 extern void *data_0209f394[];
@@ -310,8 +316,11 @@ bool sync_forced_v1() { parse_cfg(); return g_cfg.force_v1; }
 //
 // SIZE, as of v4: a 16-byte header plus one 40-byte entry -- under owner
 // authority each console sends only its own body, so a snapshot is 56 bytes
-// regardless of player count (the level id added two). Far under any MTU; the
-// contract's one-datagram rule is satisfied with room to spare.
+// regardless of player count (the level id added two). The reserved header
+// bytes optionally carry 'C', 'H', and the owner's character for count == 1.
+// Older v4 readers ignore those bytes; older writers leave them zero, so the
+// extension changes neither the message size nor the required v4 payload.
+// Far under any MTU; the one-datagram contract is satisfied with room to spare.
 // ===========================================================================
 #pragma pack(push, 1)
 struct SyncPlayerV1 {
@@ -370,7 +379,7 @@ struct SyncMsgV1 {
     // is carried so the wire format has the slot when someone does.
     unsigned       seq;
     unsigned char  count;
-    unsigned char  pad[3];
+    unsigned char  pad[3];    // optional count==1 extension: 'C', 'H', character
     // SyncPlayerV1 follows, `count` of them
 };
 #pragma pack(pop)
@@ -865,7 +874,9 @@ void sync_send_own() {
     m->version = kSyncVersion;
     m->seq = g_frame;
     m->count = 1;
-    m->pad[0] = m->pad[1] = m->pad[2] = 0;
+    m->pad[0] = 'C';
+    m->pad[1] = 'H';
+    m->pad[2] = player::character(a);
 
     SyncPlayerV1 *e = (SyncPlayerV1 *)(buf + sizeof(SyncMsgV1));
     e->slot  = (unsigned char)me;
@@ -983,6 +994,27 @@ void apply_snapshot(const unsigned char *buf, int n) {
         }
         void *a = data_0209f394[slot];
         if (!a) continue;
+
+        // Apply identity before pose so animation files belong to the incoming
+        // character. The existing swap preserves position/state/health and
+        // carries a playable animation across the model change. This is below
+        // the local-slot skip; legacy v4 snapshots without the tag do nothing.
+        if (m->count == 1 && m->pad[0] == 'C' && m->pad[1] == 'H' &&
+            m->pad[2] <= 3 && player::character(a) != m->pad[2]) {
+            const unsigned char old_character = player::character(a);
+            const unsigned char saved_choice = data_0209cad2[0x41 - 0x32];
+            const signed char queued_swap = data_02092114;
+            port_player_set_character(a, m->pad[2]);
+            data_0209cad2[0x41 - 0x32] = saved_choice;
+            data_02092114 = queued_swap;
+            if (g_cfg.report)
+                std::fprintf(stderr,
+                             "[sync] char-apply slot=%d from=%u to=%u actual=%u "
+                             "t=%u\n",
+                             slot, (unsigned)old_character,
+                             (unsigned)m->pad[2], (unsigned)player::character(a),
+                             GetTickCount());
+        }
 
         if (g_cfg.report) {
             if (g_arr_seen[slot] && e->anim_id != g_arr_anim[slot])
