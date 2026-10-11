@@ -3,7 +3,7 @@
 #include "coop_menu_media.inc"
 #include "coop_menu_audio.inc"
 #include "coop_menu_backdrop.inc"
-#include "hal/coop_online.h"
+#include "hal/coop_session.h"
 static coop_online::Plan g_coop_online_plan;
 static coop_online::Client& coop_lobby() { static coop_online::Client client; return client; }
 static const uint32_t* g_coop_backdrop = 0;
@@ -83,7 +83,8 @@ static void coop_session_environment(coop_frontend::Action action)
         "SM64DS_PARTY", "SM64DS_LEVEL", "SM64DS_SCENE", "SM64DS_VS_MAP",
         "SM64DS_BOOT_CLASSIC", "SM64DS_CHARACTER", "SM64DS_SYNC",
         "SM64DS_COMMS_WAIT_MS", "SM64DS_COMMS_RELAY", "SM64DS_COMMS_CODE",
-        "SM64DS_VS_PLAYERS", "SM64DS_VS_NAMES", "SM64DS_COMMS_TIMEOUT_MS" };
+        "SM64DS_VS_PLAYERS", "SM64DS_VS_NAMES", "SM64DS_COMMS_TIMEOUT_MS",
+        "SM64DS_SHARED_SAVE", "SM64DS_SHARED_SAVE_SLOT" };
     for (const char* name : clear) _putenv_s(name, "");
     if (action == coop_frontend::START_SOLO) {
         char slot[] = { static_cast<char>('0' + g_coop_menu.slot), 0 };
@@ -91,33 +92,29 @@ static void coop_session_environment(coop_frontend::Action action)
         _putenv_s("SM64DS_SKIP_MENU", "1");
         g_coop_loading = true;
     } else {
-        const bool host = action == coop_frontend::START_HOST;
-        char slot[] = { static_cast<char>('0' + g_coop_menu.slot), 0 };
-        _putenv_s("SM64DS_BOOT_FILE", host ? slot : "");
-        _putenv_s("SM64DS_SKIP_MENU", "1");
-        g_coop_loading = host;
-        _putenv_s("SM64DS_COMMS_ROLE", host ? "parent" : "child");
-        _putenv_s("SM64DS_COMMS_PORT", "51765");
-        _putenv_s("SM64DS_COMMS_RELAY", g_coop_online_plan.relay.c_str());
-        _putenv_s("SM64DS_COMMS_CODE", g_coop_online_plan.code.c_str());
-        _putenv_s("SM64DS_VS_PLAYERS", std::to_string(g_coop_online_plan.players).c_str());
-        _putenv_s("SM64DS_VS_NAMES", g_coop_online_plan.names.c_str());
-        _putenv_s("SM64DS_COMMS_FANOUT", "1");
-        _putenv_s("SM64DS_NETMODE", g_coop_online_plan.players<=4?"rollback":"lockstep");
-        _putenv_s("SM64DS_PARTY", "1");
-        _putenv_s("SM64DS_SYNC", "1");
-        _putenv_s("SM64DS_COMMS_WAIT_MS", "300000");
-        // Resource loading / character model changes can take over one second.
-        _putenv_s("SM64DS_COMMS_TIMEOUT_MS", "15000");
+        // Both peers enter the same world, from the same host save. A title
+        // animation on only the parent races the child's rollback ring.
+        for(const auto& entry:coop_online::room_environment(g_coop_online_plan,
+                g_coop_menu.slot,g_coop_menu.character,GetCurrentProcessId()))
+            _putenv_s(entry.first.c_str(),entry.second.c_str());
+        g_coop_loading = false;
         port::comms_wait_hook = coop_wait_for_player;
-        _putenv_s("SM64DS_LEVEL", host ? "" : "1");
-        if (!host) _putenv_s("SM64DS_SAVE_PATH", "save/coop-join.sav");
-        char character[] = { static_cast<char>('0' + g_coop_menu.character), 0 };
-        _putenv_s("SM64DS_CHARACTER", character);
-        if (host) _putenv_s("SM64DS_COMMS_BIND_ANY", "1");
-        else {
-            _putenv_s("SM64DS_COMMS_SLOT", std::to_string(g_coop_online_plan.slot).c_str());
-        }
+    }
+}
+
+static bool coop_apply_shared_save()
+{
+    const char* hex=getenv("SM64DS_SHARED_SAVE");
+    if(!hex) return true;
+    try {
+        const auto data=coop_online::decode_save(hex);
+        std::memcpy(data_0209caa0,data.data(),data.size());
+        const char* slot=getenv("SM64DS_SHARED_SAVE_SLOT");
+        ((unsigned char*)data_0209caa0)[0x328]=slot?static_cast<unsigned char>(atoi(slot)):0;
+        fprintf(stderr,"[coop-start] shared host save restored before world boot; direct castle entry, lockstep\n");
+        return true;
+    } catch(const std::exception& error) {
+        port_startup_error_write(error.what()); port_startup_error_show(error.what()); return false;
     }
 }
 
@@ -379,8 +376,15 @@ static int coop_frontend_run()
             g_coop_active=true;
             if(assets_ok) {
                 const char* names[]={"Mario","Luigi","Wario","Yoshi"};
-                coop_lobby().request(action==coop_frontend::CREATE_ROOM?1:2,
-                    std::string(g_coop_menu.room_code)+"|"+names[g_coop_menu.character]);
+                try {
+                    const char* path=getenv("SM64DS_SAVE_PATH");
+                    std::string save=action==coop_frontend::CREATE_ROOM?
+                        coop_online::room_save(path?path:"save/sm64ds.sav",g_coop_menu.slot):"";
+                    coop_lobby().request(action==coop_frontend::CREATE_ROOM?1:2,
+                        std::string(g_coop_menu.room_code)+"|"+names[g_coop_menu.character],save);
+                } catch(const std::exception& error) {
+                    snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.100s",error.what());
+                }
             }
         }
         if(action==coop_frontend::START_ROOM) coop_lobby().request(3);

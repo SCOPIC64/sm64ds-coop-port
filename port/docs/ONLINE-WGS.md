@@ -21,6 +21,18 @@ the shared plan. Explicit online startup waits for peers and reports a timeout
 instead of silently entering a solo session. Room heartbeats continue in-game.
 Restarting the server loses existing rooms, so create a new one afterward.
 
+Online rooms enter the castle directly on every peer and carry the selected
+host save's 68-byte adventure record in the authenticated launch plan. They
+use lockstep for all room sizes: the title and opening sequence previously
+ran only on the host, which could exhaust a joining player's rollback ring
+and silently leave both players in separate solo worlds. The opening sequence
+still runs in solo play. Each joining game has a separate temporary save path;
+the host continues to save to the selected file. When testing two windows on
+one PC, keyboard and controller input belongs to the focused window.
+After each entrance load, the camera target is restored to the local player's
+actor as well as the local slot index. The original camera caches that actor
+pointer; restoring only the index left joining players watching the host.
+
 ## Profile and server setup
 
 Follow the [free WGS tunnel guide](https://github.com/SCOPIC64/sm64ds-coop-server/blob/main/deploy/NO-CARD-WGS.md)

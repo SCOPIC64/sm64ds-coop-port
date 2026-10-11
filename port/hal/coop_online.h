@@ -250,7 +250,7 @@ struct Http {
     }
 };
 struct Plan {
-    std::string role, code, relay, names;
+    std::string role, code, relay, names, save_data;
     int players=0,slot=0;
     bool valid=false;
     static Plan from(const Json& j,const Profile& profile) {
@@ -258,13 +258,17 @@ struct Plan {
         if((p.role!="parent"&&p.role!="child")||p.players<2||p.players>MAX_PLAYERS||p.slot<0||p.slot>=p.players||(p.role=="parent")!=(p.slot==0)||p.relay!=profile.relay||p.code.size()!=8||j.at("session_type").str()!="party") throw std::runtime_error("Lobby sent an incompatible session");
         for(char c:p.code) if(!((c>='A'&&c<='Z')||(c>='0'&&c<='9'))) throw std::runtime_error("Lobby sent an invalid room key");
         if(p.names.size()>1024) throw std::runtime_error("Lobby sent invalid player names");
+        p.save_data=j.at("adventure_save").str();
+        if(p.save_data.size()!=136||p.save_data.substr(0,8)!="38303030") throw std::runtime_error("Server needs the shared-save update");
+        for(char c:p.save_data) if(!((c>='0'&&c<='9')||(c>='a'&&c<='f'))) throw std::runtime_error("Lobby sent an invalid shared save");
+        if(p.save_data[130]!='0'||p.save_data[131]>'3'||p.save_data[132]!='0'||p.save_data[133]>'2') throw std::runtime_error("Lobby sent an invalid shared save");
         p.valid=true; return p;
     }
 };
 struct Snapshot { std::string room,status,state; std::vector<std::string> names; bool host=false,busy=false; Plan plan; };
 class Client {
     std::mutex mutex; std::condition_variable wake;
-    bool stopping=false; int command=0; std::string input; Snapshot published;
+    bool stopping=false; int command=0; std::string input, pending_save; Snapshot published;
     Profile profile; std::string room,token,match; bool host=false; int cursor=0;
     std::thread worker; // Start only after all shared state has initialized.
     void publish(Snapshot s) { std::lock_guard<std::mutex> lock(mutex); published=s; }
@@ -282,8 +286,8 @@ class Client {
     void loop() {
         Http http; bool loaded=false;
         for(;;) {
-            int job; std::string value;
-            { std::unique_lock<std::mutex> lock(mutex); wake.wait_for(lock,std::chrono::milliseconds(800),[this]{return stopping||command;}); if(stopping) break; job=command; value=input; command=0; }
+            int job; std::string value, save;
+            { std::unique_lock<std::mutex> lock(mutex); wake.wait_for(lock,std::chrono::milliseconds(800),[this]{return stopping||command;}); if(stopping) break; job=command; value=input; save=pending_save; command=0; }
             if(!job && room.empty()) continue;
             try {
                 if(!loaded) { profile.load(); loaded=true; }
@@ -294,6 +298,7 @@ class Client {
                     host=job==1;
                     std::string body="{\"v\":4,\"nick\":"+quote(value.substr(value.find('|')+1))+",\"pre_ok\":true";
                     body+=host?",\"session_type\":\"party\"":",\"room\":"+quote(value.substr(0,value.find('|')));
+                    if(host&&!save.empty()) body+=",\"adventure_save\":"+quote(save);
                     result=http.post(profile,host?"create":"join",body+"}");
                     room=result.at("room").str();token=result.at("token").str();
                     if(room.size()!=6||token.size()!=32) throw std::runtime_error("Lobby sent an invalid room");
@@ -318,7 +323,7 @@ class Client {
 public:
     Client() { worker=std::thread([this]{loop();}); }
     ~Client() { {std::lock_guard<std::mutex> lock(mutex);stopping=true;} wake.notify_all();if(worker.joinable()) worker.join(); }
-    bool request(int job,const std::string& value="") { std::lock_guard<std::mutex> lock(mutex); if(command||published.busy) return false;command=job;input=value;published.busy=true;published.status="Connecting to lobby...";wake.notify_all();return true; }
+    bool request(int job,const std::string& value="",const std::string& save="") { std::lock_guard<std::mutex> lock(mutex); if(command||published.busy) return false;command=job;input=value;pending_save=save;published.busy=true;published.status="Connecting to lobby...";wake.notify_all();return true; }
     Snapshot snapshot() { std::lock_guard<std::mutex> lock(mutex);return published; }
 };
 } // namespace coop_online

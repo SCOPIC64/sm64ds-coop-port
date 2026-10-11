@@ -11160,6 +11160,8 @@ int main(void)
        the fade word pair and the fatal-vector pair that ends the function. */
     port_boot_rom_game_init_tail();
 
+    if(!coop_apply_shared_save()) return 2;
+
     /* Game mode 0 (adventure) -- LoadClsnAndObjects branches its minimap
        and HUD spawns on this, and Stage::CheckInput reads it later. */
     data_0209f2d8 = coop_staff_roll_child() ? 2 : 0;
