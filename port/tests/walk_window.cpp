@@ -413,6 +413,10 @@ static bool winapi_load(void)
 #include "fault_probe.h"
 #include "overlay_font.h"
 #include "hal/coop_frontend_render.h"
+#include "hal/coop_preferences.h"
+static bool g_coop_chat_open=false;
+static int g_coop_binding_capture=0;
+static bool coop_social_message(UINT message,WPARAM key,LPARAM flags);
 static coop_frontend::Menu g_coop_menu;
 static coop_frontend::Action g_coop_action = coop_frontend::NONE;
 static bool g_coop_active, g_coop_loading, g_coop_pause, g_coop_start_swallow;
@@ -4083,6 +4087,11 @@ static void bindings_load(void)
     g_bindings_loaded = 1;
     for (int i = 0; i < HOST_KEY_COUNT; ++i) g_key[i] = host_setting_key(i);
     for (int i = 0; i < HOST_PAD_COUNT; ++i) g_pad[i] = host_setting_pad(i);
+    auto& prefs=coop_prefs::get();
+    if(!prefs.custom_controls) {
+        for(int a=0;a<4;++a){prefs.bindings[a][0]=g_key[a];prefs.bindings[a][1]=g_key[a+4];}
+        for(int a=4;a<=10;++a){prefs.bindings[a][0]=g_key[a+4];prefs.bindings[a][2]=-g_pad[a-4];}
+    }
 }
 
 /* THE REBIND CAPTURE, armed from the menu's rebind row and read by the window
@@ -4218,6 +4227,7 @@ static int host_key_script(int vk)
 
 static int key_live(int vk)
 {
+    if (g_coop_chat_open || g_coop_binding_capture) return 0;
     if (host_key_script(vk)) return 1;
     if (g_selftest) return 0;
     if (g_rebind_capture) return 0;
@@ -4239,6 +4249,13 @@ static int key_live(int vk)
 static int key_act(int action)
 {
     bindings_load();
+    static const int map[]={0,1,2,3,-1,-1,-1,-1,4,5,6,7,8,9,10};
+    auto& prefs=coop_prefs::get();
+    if(prefs.custom_controls&&action>=0&&action<HOST_KEY_COUNT) {
+        int a=map[action];if(a<0)return 0;
+        for(int code:prefs.bindings[a])if(code>0&&key_live(code))return 1;
+        return 0;
+    }
     const int vk = g_key[action];
     return vk && key_live(vk);
 }
@@ -4268,7 +4285,27 @@ static unsigned pad_word_with_triggers(const XPad *pad)
 static int pad_act(const XPad *pad, int action)
 {
     bindings_load();
+    if(g_coop_chat_open||g_coop_binding_capture)return 0;
+    auto& prefs=coop_prefs::get();
+    if(prefs.custom_controls) {
+        static const int map[]={4,5,6,7,8,9,10};
+        if(action<0||action>=HOST_PAD_COUNT)return 0;
+        for(int code:prefs.bindings[map[action]])if(code<0&&pad_mask_down(pad,-code))return 1;
+        return 0;
+    }
     return pad_mask_down(pad, g_pad[action]);
+}
+
+static int coop_key_action(int action) {
+    bindings_load();
+    for(int code:coop_prefs::get().bindings[action])if(code>0&&key_live(code))return 1;
+    return 0;
+}
+static int coop_pad_action(const XPad* pad,int action) {
+    if(g_coop_chat_open||g_coop_binding_capture)return 0;
+    bindings_load();
+    for(int code:coop_prefs::get().bindings[action])if(code<0&&pad_mask_down(pad,-code))return 1;
+    return 0;
 }
 
 /* THE PAD'S HALF OF THE SAME GATE, and it was missing for as long as the
@@ -4307,7 +4344,7 @@ static void pad_focus_gate(int *pad_live, XPad *pad)
 {
     static unsigned stale = 0;
     static int said_gated = 0;      /* one line per transition, not per frame */
-    if (!hal_window_focused()) {
+    if (!hal_window_focused() || g_coop_chat_open || g_coop_binding_capture) {
         stale = ~0u;
         if (*pad_live) {
             memset(pad, 0, sizeof *pad);
@@ -5876,10 +5913,10 @@ static void menu_input(int pad_live, const XPad *pad)
     if (key_live(VK_RIGHT) || key_act(HOST_KEY_RIGHT)) held |= 1u << 4;
     if (key_live(VK_RETURN)) held |= 1u << 5;
     if (pad_live) {
-        if (pad->buttons & 0x0001) held |= 1u << 1;   /* d-pad up    */
-        if (pad->buttons & 0x0002) held |= 1u << 2;   /* d-pad down  */
-        if (pad->buttons & 0x0004) held |= 1u << 3;   /* d-pad left  */
-        if (pad->buttons & 0x0008) held |= 1u << 4;   /* d-pad right */
+        if (coop_pad_action(pad,coop_prefs::UP)) held |= 1u << 1;   /* d-pad up    */
+        if (coop_pad_action(pad,coop_prefs::DOWN)) held |= 1u << 2;   /* d-pad down  */
+        if (coop_pad_action(pad,coop_prefs::LEFT)) held |= 1u << 3;   /* d-pad left  */
+        if (coop_pad_action(pad,coop_prefs::RIGHT)) held |= 1u << 4;   /* d-pad right */
         if (pad->buttons & 0x0020) held |= 1u << 0;   /* BACK        */
         /* A acts and B closes, and BOTH ARE RECORDED WHETHER THE MENU
            IS OPEN OR NOT. That is the fix for a real bug and not
@@ -6950,7 +6987,7 @@ static unsigned short host_ds_buttons(int pad_live, const XPad *pad)
     /* THE RUN BUTTON, from wherever the player put it. Shift by default, so an
        untouched settings.json is the line that was here before; zero means
        they unbound the keyboard half. */
-    if (g_run_key && key_live(g_run_key)) btn |= 0x800;
+    if (coop_prefs::get().custom_controls?key_act(HOST_KEY_RUN):(g_run_key && key_live(g_run_key))) btn |= 0x800;
     if (key_act(HOST_KEY_CROUCH)) btn |= 0x400;
     if (key_act(HOST_KEY_ATTACK)) btn |= 1;
     /* DS X, settings.json KeyLook: Z by default, beside the attack key */
@@ -6958,7 +6995,7 @@ static unsigned short host_ds_buttons(int pad_live, const XPad *pad)
     if (pad_live) {
         if (pad_act(pad, HOST_PAD_JUMP)) btn |= 2;       /* A by default  */
         /* X by default; the rebind row moves it (0 = unbound) */
-        if (pad_mask_down(pad, g_run_pad))
+        if (coop_prefs::get().custom_controls?pad_act(pad,HOST_PAD_RUN):pad_mask_down(pad, g_run_pad))
             btn |= 0x800;
         if (pad_act(pad, HOST_PAD_ATTACK)) btn |= 1;     /* B by default  */
         /* RT is the crouch default (PadCrouch 0x20000); a file that says
@@ -8135,6 +8172,8 @@ static void present_bench(const ntr::Framebuffer &fb)
 static int g_fullscreen;
 static WINDOWPLACEMENT g_fs_placement;
 static LONG g_fs_style;
+static double g_fs_previous_aspect=4.0/3.0;
+static int g_fs_previous_scale=0;
 
 static void fullscreen_toggle(HWND h)
 {
@@ -8150,6 +8189,10 @@ static void fullscreen_toggle(HWND h)
         mi.cbSize = sizeof mi;
         HMONITOR mon = W.MonitorFromWindow_(h, MONITOR_DEFAULTTONEAREST);
         if (!mon || !W.GetMonitorInfoA_(mon, &mi)) return;
+        g_fs_previous_aspect=host_setting_aspect();
+        g_fs_previous_scale=ntr::render_scale();
+        ntr::configure_aspect((double)(mi.rcMonitor.right-mi.rcMonitor.left)/(mi.rcMonitor.bottom-mi.rcMonitor.top),2);
+        ntr::gx_invalidate_textures();
         W.SetWindowLongA_(h, GWL_STYLE,
                           (g_fs_style & ~(LONG)WS_OVERLAPPEDWINDOW) |
                               (LONG)WS_POPUP);
@@ -8159,6 +8202,8 @@ static void fullscreen_toggle(HWND h)
                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
         g_fullscreen = 1;
     } else {
+        ntr::configure_aspect(g_fs_previous_aspect,g_fs_previous_scale);
+        ntr::gx_invalidate_textures();
         W.SetWindowLongA_(h, GWL_STYLE, g_fs_style);
         W.SetWindowPlacement_(h, &g_fs_placement);
         W.SetWindowPos_(h, 0, 0, 0, 0, 0,
@@ -8443,6 +8488,7 @@ static int g_user_sized;
 
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
+    if(coop_social_message(m,w,l))return 0;
     if (g_coop_active && m == WM_CHAR) {
         g_coop_menu.type(static_cast<char>(w));
         return 0;
@@ -9651,7 +9697,13 @@ static int port_scene_want_window(void)
 static HWND g_entry_hwnd;
 static HDC  g_entry_hdc;
 
+static bool coop_preferences_action(coop_frontend::Action action);
+static bool coop_preferences_tick(const XPad* pad);
+static bool coop_preferences_save();
+static bool coop_social_selftest(ntr::Framebuffer&);
+static void coop_chat_draw(const OvlSurface& surface);
 #include "coop_frontend.inc"
+#include "coop_social.inc"
 #include "coop_pause.inc"
 
 /* ---- ONE COPY OF THE SCENE PATH'S PER-FRAME HOST DUTIES ------------------
@@ -9769,10 +9821,10 @@ static int scene_host_input_frame(HWND hwnd, int frame, XPad *pad,
             if (key_act(HOST_KEY_START))  btn |= 0x08;   /* enter     */
             if (key_act(HOST_KEY_SELECT)) btn |= 0x04;   /* backspace */
             if (pad_live) {
-                if (pad->buttons & 0x0008) btn |= 0x10;   /* d-pad right */
-                if (pad->buttons & 0x0004) btn |= 0x20;   /* d-pad left  */
-                if (pad->buttons & 0x0001) btn |= 0x40;   /* d-pad up    */
-                if (pad->buttons & 0x0002) btn |= 0x80;   /* d-pad down  */
+                if (coop_pad_action(pad,coop_prefs::RIGHT)) btn |= 0x10;   /* d-pad right */
+                if (coop_pad_action(pad,coop_prefs::LEFT)) btn |= 0x20;   /* d-pad left  */
+                if (coop_pad_action(pad,coop_prefs::UP)) btn |= 0x40;   /* d-pad up    */
+                if (coop_pad_action(pad,coop_prefs::DOWN)) btn |= 0x80;   /* d-pad down  */
                 if (pad_act(pad, HOST_PAD_START))  btn |= 0x08; /* START */
                 if (pad_act(pad, HOST_PAD_SELECT)) btn |= 0x04; /* none
                                                  by default; see header */
@@ -12888,8 +12940,8 @@ int main(void)
         }
         if (cam_mode == CAM_SM64 && !rb_replaying() && !g_coop_active && !menu_on) {
             unsigned buttons=0;
-            if(key_live('Q') || stick_rx<-10000 || (pad_live && (pad.buttons&0x0100)))buttons|=coop_sm64::Lakitu::LEFT;
-            if(key_live('E') || stick_rx>10000 || (pad_live && (pad.buttons&0x0200)))buttons|=coop_sm64::Lakitu::RIGHT;
+            if(coop_key_action(coop_prefs::CAMERA_LEFT) || stick_rx<-10000 || (pad_live && coop_pad_action(&pad,coop_prefs::CAMERA_LEFT)))buttons|=coop_sm64::Lakitu::LEFT;
+            if(coop_key_action(coop_prefs::CAMERA_RIGHT) || stick_rx>10000 || (pad_live && coop_pad_action(&pad,coop_prefs::CAMERA_RIGHT)))buttons|=coop_sm64::Lakitu::RIGHT;
             if(key_live('R') || stick_ry>10000 || mouse_wheel>0)buttons|=coop_sm64::Lakitu::UP;
             if(key_live('F') || stick_ry<-10000 || mouse_wheel<0)buttons|=coop_sm64::Lakitu::DOWN;
             if(key_live('C'))buttons|=coop_sm64::Lakitu::BEHIND;
@@ -12936,13 +12988,13 @@ int main(void)
                 /* Q pushes left, E pushes right, off the same sign as the
                    stick so the keyboard and the pad cannot disagree */
                 const int qe = (CAM_STEP / 2) * cam_turn;
-                if (key_live('Q')) { fc_yaw = (short)(fc_yaw - qe); rig_touched = 1; }
-                if (key_live('E')) { fc_yaw = (short)(fc_yaw + qe); rig_touched = 1; }
+                if (coop_key_action(coop_prefs::CAMERA_LEFT)) { fc_yaw = (short)(fc_yaw - qe); rig_touched = 1; }
+                if (coop_key_action(coop_prefs::CAMERA_RIGHT)) { fc_yaw = (short)(fc_yaw + qe); rig_touched = 1; }
             }
             {
                 int zoom = 0;
-                if (pad_live && (pad.buttons & 0x0100)) zoom -= 1;   /* LB */
-                if (pad_live && (pad.buttons & 0x0200)) zoom += 1;   /* RB */
+                if (pad_live && coop_pad_action(&pad,coop_prefs::CAMERA_LEFT)) zoom -= 1;   /* LB */
+                if (pad_live && coop_pad_action(&pad,coop_prefs::CAMERA_RIGHT)) zoom += 1;   /* RB */
                 zoom -= mouse_wheel;   /* wheel forward pulls the eye in */
                 if (zoom) {
                     /* the player has taken the distance off the game; the
@@ -12983,10 +13035,10 @@ int main(void)
             }
         }
         if (pad_live) {
-            if (pad.ly > 12000 || (pad.buttons & 1)) dz += 1;
-            if (pad.ly < -12000 || (pad.buttons & 2)) dz -= 1;
-            if (pad.lx < -12000 || (pad.buttons & 4)) dx -= 1;
-            if (pad.lx > 12000 || (pad.buttons & 8)) dx += 1;
+            if (pad.ly > 12000 || coop_pad_action(&pad,coop_prefs::UP)) dz += 1;
+            if (pad.ly < -12000 || coop_pad_action(&pad,coop_prefs::DOWN)) dz -= 1;
+            if (pad.lx < -12000 || coop_pad_action(&pad,coop_prefs::LEFT)) dx -= 1;
+            if (pad.lx > 12000 || coop_pad_action(&pad,coop_prefs::RIGHT)) dx += 1;
             if (pad.rx < -10000 || pad.rx > 10000) {
                 cam_yaw += cam_turn * 0.045f * (pad.rx / 32768.0f);
                 orbiting = 1;
@@ -12997,8 +13049,8 @@ int main(void)
         /* the pre-Camera-actor dev rig (SM64DS_OLD_CAMERA). It never reaches a
            player, but it takes cam_turn too so nobody debugging in it has to
            remember that this one camera turns the other way. */
-        if (key_live('Q')) { cam_yaw -= cam_turn * 0.045f; orbiting = 1; }
-        if (key_live('E')) { cam_yaw += cam_turn * 0.045f; orbiting = 1; }
+        if (coop_key_action(coop_prefs::CAMERA_LEFT)) { cam_yaw -= cam_turn * 0.045f; orbiting = 1; }
+        if (coop_key_action(coop_prefs::CAMERA_RIGHT)) { cam_yaw += cam_turn * 0.045f; orbiting = 1; }
         if (key_live('R') && cam_pitch < 0.85f)
             cam_pitch += 0.02f;
         if (key_live('F') && cam_pitch > -0.15f)
@@ -13345,14 +13397,14 @@ int main(void)
                    Stage::CheckCameraInput merges the cartridge's own arrows. */
                 const unsigned cam_bit_right = (cam_turn > 0) ? 0x100u : 0x200u;
                 const unsigned cam_bit_left  = (cam_turn > 0) ? 0x200u : 0x100u;
-                if (key_live('Q')) cam_rot |= cam_bit_left;
-                if (key_live('E')) cam_rot |= cam_bit_right;
+                if (coop_key_action(coop_prefs::CAMERA_LEFT)) cam_rot |= cam_bit_left;
+                if (coop_key_action(coop_prefs::CAMERA_RIGHT)) cam_rot |= cam_bit_right;
                 if (key_live('C')) btn |= 0x4000;
                 if (stick_rx < -10000) cam_rot |= cam_bit_left;
                 if (stick_rx > 10000) cam_rot |= cam_bit_right;
                 if (pad_live) {
-                    if (pad.buttons & 0x0100) cam_rot |= cam_bit_left;   /* LB */
-                    if (pad.buttons & 0x0200) cam_rot |= cam_bit_right;  /* RB */
+                    if (coop_pad_action(&pad,coop_prefs::CAMERA_LEFT)) cam_rot |= cam_bit_left;
+                    if (coop_pad_action(&pad,coop_prefs::CAMERA_RIGHT)) cam_rot |= cam_bit_right;
                 }
                 /* orbit probe: hold one of func_02009e70's own rotate bits
                    from frame 20 -- the camera's heading and the angle it
@@ -17470,6 +17522,7 @@ int main(void)
            which is why no adventure selftest BMP moves. */
         if (!rb_skip_render()) {
         nt_draw(surf);
+        coop_chat_draw(surf);
         if(g_coop_pause)coop_pause_draw(surf);else if (menu_on) menu_draw(surf);
         }
         /* THE WINNER, once a VS match is over. Centred, over everything, for

@@ -21,6 +21,39 @@ the shared plan. Explicit online startup waits for peers and reports a timeout
 instead of silently entering a solo session. Room heartbeats continue in-game.
 Restarting the server loses existing rooms, so create a new one afterward.
 
+## Names, chat and controls
+
+Options -> Player -> Username edits your saved display name. Player Names
+shows room names above characters; enable it in the same menu. Choose a name
+before creating or joining a room. Player -> Character Colors edits each
+character's hat, outfit, pants, gloves, shoes, skin, hair and emblem where the
+DS texture supports that part. Yoshi has body, spikes, saddle, shoes and belly.
+Select a part and enter six RGB hex digits, or change its red/green/blue rows.
+Original Color restores one part; Reset Character restores that character.
+Colors are saved per character and shared when joining the next lobby.
+
+Options -> Controls has three binding slots for every action. Select an action,
+select slot 1, 2 or 3, then Bind Keyboard or Bind Controller. Press a key, or
+release the controller buttons and press the desired button. Any slot can hold
+either input type, so DS A can use Y, U and controller A simultaneously. Esc
+cancels capture; Clear Slot removes a binding. Profiles are saved in
+`%APPDATA%\SM64DS-Coop\player.json` separately from the encrypted server TXT.
+
+T opens chat in a lobby or game, Enter sends and Esc cancels. Chat input pauses
+local keyboard/controller movement while typing. The chat action can also be
+rebound. `/help` lists commands and `/players` shows seat numbers and roles.
+Hosts can use `/mod NAME_OR_SEAT` and `/unmod NAME_OR_SEAT`. Hosts and appointed
+moderators can use `/kick`, `/ban` and `/unban` with a player name or seat (unban
+uses the banned name). Bans last until the room closes and use a saved install
+identity; this is not an account-backed permanent ban system. Moderators cannot
+remove the host or another moderator. Kicking during match startup is refused.
+
+F11 switches to borderless fullscreen. The renderer uses the monitor's aspect
+ratio to show more of the world horizontally, preserving character proportions.
+F11 again restores the window. On the server PC, signed local relay discovery
+avoids the public tunnel trip. Friends still connect through the public proxy;
+the input buffer adapts to the slowest connected player.
+
 Online rooms enter the castle directly on every peer and carry the selected
 host save's 68-byte adventure record in the authenticated launch plan. They
 use lockstep for all room sizes: the title and opening sequence previously
@@ -51,6 +84,15 @@ profile. The server's private signing key is non-exportable in its Windows
 account's key store. A changed relay tunnel or changed signing identity needs
 an updated deployment profile. Static profiles use `lobby_url` and `relay_addr`
 for conventional HTTPS hosts. Plans must match the configured relay endpoint.
+
+When that same WGS relay runs on the player's PC at UDP port 41234, discovery
+first checks loopback with a fresh challenge and the profile's public key.
+Only a valid signed reply enables a local UDP route. The public relay in the
+profile and launch plan stays pinned, so local players and internet friends
+still share one room. Other computers automatically use the public tunnel.
+The host sizes the shared input buffer from every joining player's measured
+round trip; a verified local route lowers the minimum to one frame without
+forcing internet friends to use an insufficient buffer.
 
 The encryption key is managed by Windows, outside source and the executable.
 Neither encrypted settings nor a custom cipher can make a network destination

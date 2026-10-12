@@ -50,6 +50,14 @@ int main(int argc,char**argv) {
         assert(host.at("SM64DS_SHARED_SAVE_SLOT")=="2"&&child.at("SM64DS_SHARED_SAVE_SLOT")=="0");
         assert(host.at("SM64DS_CHARACTER")=="1"&&child.at("SM64DS_CHARACTER")=="2");
         assert(child.at("SM64DS_SAVE_PATH")!=room_environment(plan,0,2,125).at("SM64DS_SAVE_PATH"));
+        // A local route never changes what relay the authenticated plan must name.
+        Profile local_profile=p;local_profile.transport_relay="127.0.0.1:41234";
+        Plan local_plan=Plan::from(j,local_profile);
+        assert(local_plan.relay==p.relay);
+        auto local_env=room_environment(local_plan,0,1,123);
+        assert(local_env.at("SM64DS_COMMS_RELAY")=="127.0.0.1:41234");
+        assert(local_env.at("SM64DS_COMMS_DELAY_FLOOR")=="1");
+        assert(!local_env.count("SM64DS_COMMS_INPUT_DELAY")); // Internet peers still size the buffer.
     }
     j.object["adventure_save"].text=std::string(136,'f');rejected=false;try{Plan::from(j,p);}catch(...){rejected=true;}assert(rejected);
     j.object["adventure_save"].text=shared;
@@ -69,8 +77,30 @@ int main(int argc,char**argv) {
     rejected=false;try{room_save(save_test.c_str(),1);}catch(...){rejected=true;}assert(rejected);std::remove(save_test.c_str());
     j.object["players"].number=8;rejected=false;try{Plan::from(j,p);}catch(...){rejected=true;}assert(rejected);
     j.object["players"].number=7;j.object["relay"].text="other.example.com:41234";rejected=false;try{Plan::from(j,p);}catch(...){rejected=true;}assert(rejected);
+    Profile local_profile=p;local_profile.transport_relay="127.0.0.1:41234";
+    j.object["relay"].text=local_profile.transport_relay;rejected=false;try{Plan::from(j,local_profile);}catch(...){rejected=true;}assert(rejected);
+    local_profile.parse(plain);assert(local_profile.transport_relay.empty());
     for(const char* bad:{"{\"a\":1,\"a\":2}","[1,]","{\"x\":1}junk","[99999999999999999]"}) { rejected=false;try{Parser(bad).parse();}catch(...){rejected=true;}assert(rejected); }
-    if(argc==4||argc==5) { // Cross-language signatures and authenticated UDP discovery.
+    const bool export_live=argc==5&&std::string(argv[1])=="--export-live-startup";
+    if(export_live) {
+        Profile live;live.parse(read_file(argv[2]));Discovery network;network.resolve(live);
+        assert(live.transport_relay=="127.0.0.1:41234");
+        const bool mixed=std::string(argv[4])=="mixed";
+        if(mixed) {Profile remote=live;Discovery public_network;public_network.resolve(remote,false);assert(remote.transport_relay.empty()&&remote.lobby==live.lobby);}
+        j.object["relay"].text=live.relay;j.object["players"].number=2;
+        Plan plan=Plan::from(j,live);std::ofstream envs(argv[3]);envs<<"{";
+        for(int slot=0;slot<2;++slot) {
+            plan.role=slot?"child":"parent";plan.slot=slot;
+            if(slot&&mixed)plan.transport_relay.clear();
+            if(slot)envs<<",";envs<<quote(plan.role)<<":{";bool first=true;
+            for(const auto& field:room_environment(plan,0,slot?2:1,123+slot)) {
+                if(!first)envs<<",";first=false;envs<<quote(field.first)<<":"<<quote(field.second);
+            }
+            envs<<"}";
+        }
+        envs<<"}";assert(envs.good());
+    }
+    if(!export_live&&(argc==4||argc==5)) { // Cross-language signatures and authenticated UDP discovery.
         Profile discovery;discovery.parse(read_file(argv[1]));
         if(argc==5) {Profile installed;installed.load();assert(installed.relay==discovery.relay&&installed.discovery_key==discovery.discovery_key);discovery=installed;}
         std::string packet=read_file(argv[2]);assert(packet.size()>276);
@@ -93,14 +123,19 @@ int main(int argc,char**argv) {
             do { s=c.snapshot(); if(plan?s.plan.valid:room?!s.room.empty():!s.busy&&s.room.empty()) return s; Sleep(50); }while(GetTickCount()-start<30000);
             fprintf(stderr,"Client timeout: %s\n",s.status.c_str());assert(false);return s;
         };
-        clients.emplace_back(new Client);clients[0]->request(1,"|Luigi",shared);Snapshot s=wait(*clients[0],true,false);
+        auto presence=[](int n){char id[33];snprintf(id,sizeof id,"%032x",n+1);return ",\"player_id\":"+quote(id)+",\"palette\":\"00ff00:::::::\",\"character\":"+std::to_string(n%4);};
+        clients.emplace_back(new Client);clients[0]->request(1,"|Luigi",shared,presence(0));Snapshot s=wait(*clients[0],true,false);
         std::string room=s.room;
-        for(int n=1;n<7;++n) {clients.emplace_back(new Client);clients.back()->request(2,room+"|Player"+std::to_string(n));wait(*clients.back(),true,false);}
+        for(int n=1;n<7;++n) {clients.emplace_back(new Client);clients.back()->request(2,room+"|Player"+std::to_string(n),"",presence(n));wait(*clients.back(),true,false);}
         Client extra;extra.request(2,room+"|Extra");
         DWORD start=GetTickCount();do {s=extra.snapshot();if(!s.busy&&!s.status.empty())break;Sleep(50);}while(GetTickCount()-start<15000);
         assert(s.room.empty()&&s.status.find("full")!=std::string::npos);
+        auto chat_wait=[](Client& c,const std::string& text){DWORD start=GetTickCount();do {for(const auto& line:c.snapshot().chat)if(line.text.find(text)!=std::string::npos)return;Sleep(50);}while(GetTickCount()-start<15000);fprintf(stderr,"Chat timeout: %s\n",text.c_str());assert(false);};
+        assert(clients[0]->request(5,"hello seven"));for(auto& c:clients)chat_wait(*c,"hello seven");
+        assert(clients[0]->request(5,"/mod Player1"));chat_wait(*clients[0],"is now a moderator");
+        assert(clients[0]->request(5,"/players"));chat_wait(*clients[1],"Player1 [MOD]");
         clients[0]->request(3);std::string code;
-        for(int n=0;n<7;++n) {s=wait(*clients[n],true,true);assert(s.plan.players==7&&s.plan.slot==n);if(!n)code=s.plan.code;assert(s.plan.code==code&&s.plan.save_data==shared);}
+        for(int n=0;n<7;++n) {s=wait(*clients[n],true,true);assert(s.plan.players==7&&s.plan.slot==n);if(!n)code=s.plan.code;assert(s.plan.code==code&&s.plan.save_data==shared);assert(s.plan.characters=="0,1,2,3,0,1,2"&&!s.plan.palettes.empty());}
         clients.clear();
     }
     puts("PASS: native online client checks");

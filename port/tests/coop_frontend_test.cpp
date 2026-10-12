@@ -4,6 +4,7 @@
 #include "overlay_font.h"
 #include <cassert>
 #include <vector>
+#include <string>
 #include <cstdio>
 
 using namespace coop_frontend;
@@ -110,11 +111,15 @@ int main(int argc, char** argv) {
     const Page categories[] = { PLAYER, CAMERA, CONTROLS, DISPLAY, SOUND, MISC };
     for (int i = 0; i < 6; ++i) {
         m.open(OPTIONS); m.row = i; m.key(ACCEPT); assert(m.page == categories[i]);
-        if (m.page == CONTROLS) { m.key(BACK); assert(m.page == OPTIONS); }
-        else assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
+        assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
     }
     m.open(OPTIONS); m.row = 6; assert(m.key(ACCEPT) == SAVE_OPTIONS && m.after_save == HOME);
     m.open(PLAYER);m.row=1;m.key(ACCEPT);assert(m.page==MODS);
+    m.open(PLAYER);m.row=3;m.key(ACCEPT);for(char ch:std::string("Scopic_64"))m.type(ch);m.key(ACCEPT);assert(!m.editing&&!strcmp(m.username,"Scopic_64"));
+    m.row=4;m.key(ACCEPT);assert(m.page==COLORS);m.row=2;m.key(ACCEPT);m.type('f');assert(m.key(ACCEPT)==NONE&&m.editing);
+    for(char ch:std::string("f6600"))m.type(ch);m.key(ACCEPT);assert(!m.editing&&!strcmp(m.color_hex,"ff6600"));
+    m.open(CONTROLS);m.key(LEFT);assert(m.binding_action==13);m.row=1;m.key(LEFT);assert(m.binding_slot==2);
+    m.row=2;assert(m.key(ACCEPT)==BIND_KEY);m.row=3;assert(m.key(ACCEPT)==BIND_PAD);m.row=4;assert(m.key(ACCEPT)==CLEAR_BIND);
     m.mod_count=6;m.open(MODS);m.row=0;assert(m.key(ACCEPT)==TOGGLE_MOD);
     m.row=4;m.key(RIGHT);assert(m.mod_page==1 && m.shown_mods()==2 && m.row==2);
     m.row=3;assert(m.key(ACCEPT)==RELOAD_MODS);
@@ -163,7 +168,7 @@ int main(int argc, char** argv) {
         int w = dims.first, h = dims.second, stride = w + 16;
         std::vector<uint32_t> pixels(stride * h + 64, 0xdeadbeef);
         Canvas c = { pixels.data() + 32, w, h, stride, OVL_FONT };
-        for (int page = HOME; page <= LOBBY; ++page) {
+        for (int page = HOME; page <= COLORS; ++page) {
             m.open(static_cast<Page>(page)); draw(c, m, 100);
             for (int row = 0; row < m.rows(); ++row) {
                 ButtonRect r = button_rect(c,m,row);

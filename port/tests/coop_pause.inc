@@ -10,6 +10,7 @@ static void coop_pause_close() {
 static bool coop_pause_input(int pad_live,const XPad* pad) {
     if(g_selftest && !getenv("SM64DS_PAUSE_SELFTEST"))return false;
     if(rb_replaying())return g_coop_pause;
+    if(coop_preferences_tick(pad))return true;
     static bool previous_start=false;
     const bool start=key_act(HOST_KEY_START) || key_live(VK_ESCAPE) ||
         (pad_live && pad_act(pad,HOST_PAD_START));
@@ -64,6 +65,7 @@ static bool coop_pause_input(int pad_live,const XPad* pad) {
     if(action==coop_frontend::RESUME){coop_pause_close();return true;}
     if(action==coop_frontend::QUIT){W.PostQuitMessage_(0);return true;}
     if(action==coop_frontend::SAVE_OPTIONS) {
+        if(!coop_preferences_save())return true;
         if(host_setting_save_frontend_gameplay(g_coop_menu.camera,g_coop_menu.movement,
             g_coop_menu.fps,g_coop_menu.smooth,g_coop_menu.names,g_coop_menu.volume,
             g_coop_menu.mouse_capture,g_coop_menu.music,g_coop_menu.background,g_coop_menu.menu_sounds,

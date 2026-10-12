@@ -55,7 +55,7 @@ inline std::map<std::string,std::string> room_environment(const Plan& plan,int s
     std::map<std::string,std::string> env={
         {"SM64DS_BOOT_FILE",""},{"SM64DS_SKIP_MENU","1"},
         {"SM64DS_LEVEL","1"},{"SM64DS_COMMS_ROLE",plan.role},
-        {"SM64DS_COMMS_PORT","51765"},{"SM64DS_COMMS_RELAY",plan.relay},
+        {"SM64DS_COMMS_PORT","51765"},{"SM64DS_COMMS_RELAY",plan.transport_relay.empty()?plan.relay:plan.transport_relay},
         {"SM64DS_COMMS_CODE",plan.code},{"SM64DS_VS_PLAYERS",std::to_string(plan.players)},
         {"SM64DS_VS_NAMES",plan.names},{"SM64DS_COMMS_FANOUT","1"},
         {"SM64DS_NETMODE","lockstep"},{"SM64DS_PARTY","1"},{"SM64DS_SYNC","1"},
@@ -64,6 +64,13 @@ inline std::map<std::string,std::string> room_environment(const Plan& plan,int s
         {"SM64DS_SHARED_SAVE",plan.save_data},
         {"SM64DS_SHARED_SAVE_SLOT",std::to_string(host?save_slot:0)}
     };
+    if(plan.transport_relay=="127.0.0.1:41234") {
+        // Keep adaptive sizing enabled: an internet friend still needs enough
+        // shared delay for their measured path. Local-only rooms need no 5-frame floor.
+        env["SM64DS_COMMS_DELAY_FLOOR"]="1";
+    }
+    env["SM64DS_PLAYER_PALETTES"]=plan.palettes;
+    env["SM64DS_PLAYER_CHARACTERS"]=plan.characters;
     if(host) env["SM64DS_COMMS_BIND_ANY"]="1";
     else {
         env["SM64DS_COMMS_SLOT"]=std::to_string(plan.slot);

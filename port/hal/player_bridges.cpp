@@ -23,6 +23,7 @@
 #include "TextureSequence.h"
 #include "Heap.h"
 #include "ModelAnim.h"
+#include "ntr/player_colors.h"
 
 #include "dsstate_seg.h"
 /* SYNC4: see the case for 0x020e0d28 inside player_states.inc. */
@@ -1606,6 +1607,14 @@ extern "C" int port_player_render_hidden(const void *player)
     return 0;
 }
 
+static void player_color_begin(char* player,Model* model) {
+    BMD_File* file=model?model->data.modelFile:nullptr;
+    ntr::PlayerColorTexture textures[64];size_t count=0;
+    if(file&&file->numTextures<=64&&file->textures)for(unsigned i=0;i<file->numTextures;++i) {
+        const auto& t=file->textures[i];if(t.name)textures[count++]={(t.flags&0xffffu)<<3,t.name};
+    }
+    ntr::gx_player_colors_begin(*(const unsigned char*)(player+0x6d8),*(int*)(player+8)&0xff,textures,count);
+}
 void hal_render_player_world(void *player)
 {
     char *c = (char *)player;
@@ -1822,15 +1831,19 @@ void hal_render_player_world(void *player)
         ModelAnim *m3 = (ModelAnim *)(c + 0xf0);    /* mModelAnim3 */
         _ZN9ModelBase12ApplyOpacityEj(m3, *(const unsigned char *)(c + 0x6f5));
         if (ghost) ghost_opacity(m3);
-        m3->Render((const Vector3 *)(c + 0x80));    /* virtual, as the ROM's */
+        player_color_begin(c,m3);
+        m3->Render((const Vector3 *)(c + 0x80));
+        ntr::gx_player_colors_end();
     } else {
         if (hsink_on()) ntr::gx_polygons(hsink_t0);
+        player_color_begin(c,ma);
         ma->Model::Render((const Vector3 *)(c + 0x80));
         hsink_t1 = hsink_t0;
         if (hsink_on()) ntr::gx_polygons(hsink_t1);
         hal_player_texseq_body(c);
         /* the mirror, src/_ZN6Player6RenderEv.cpp:81 (see the head's call) */
         func_ov002_020e3e00(ma, c + 0x80, *(const unsigned char *)(c + 0x6f5));
+        ntr::gx_player_colors_end();
     }
 
     unsigned hid = func_ov002_020becf4(c, *(unsigned char *)(c + 0x6db), 1);
@@ -1844,6 +1857,7 @@ void hal_render_player_world(void *player)
                         hid, (int)(hsink_t1 - hsink_t0));
             hal_player_vs_palette(c, head);
             if (ghost) ghost_opacity(head);
+            player_color_begin(c,(Model*)head);
             hal_render_head_group(c, head, hid, ma, scene);
             hal_player_texseq_head(c, hid);
             /* THE MIRROR, once for the body (above) and once here for the
@@ -1860,6 +1874,7 @@ void hal_render_player_world(void *player)
                and this copy never called it, so the player had no
                reflection in either mirror. */
             func_ov002_020e3e00(head, c + 0x80, *(const unsigned char *)(c + 0x6f5));
+            ntr::gx_player_colors_end();
             /* THE LAST STATEMENT OF THE ROM'S HEAD BLOCK,
                src/_ZN6Player6RenderEv.cpp:129-131:
 

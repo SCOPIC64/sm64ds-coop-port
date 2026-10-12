@@ -42,11 +42,12 @@ inline int panel_width(const Canvas& c, const Menu& m) { return m.page == HOME ?
 inline int panel_left(const Canvas& c, const Menu& m) { return m.page == HOME ? c.width / 30 : (c.width - panel_width(c,m)) / 2; }
 inline int button_left(const Canvas& c, const Menu& m) { return panel_left(c,m) + c.width / 30; }
 inline int button_width(const Canvas& c, const Menu& m) { return panel_width(c,m) - c.width / 15; }
-inline int row_top(const Canvas& c, const Menu& m) { return c.height * (m.page == HOME ? 40 : m.page == CONTROLS ? 77 : 27) / 100; }
+inline int row_top(const Canvas& c, const Menu& m) { return c.height * (m.page == HOME ? 40 : m.page==COLORS?25:27) / 100; }
 inline int row_height(const Canvas& c) { int h = c.height * 7 / 100; return h > 1 ? h : 2; }
 inline ButtonRect button_rect(const Canvas& c, const Menu& m, int row) {
     ButtonRect r = {button_left(c,m), row_top(c,m) + row * row_height(c), button_width(c,m), row_height(c) * 4 / 5};
     if(m.page==LOBBY) { r.y=c.height*27/100+row*c.height*5/100; r.h=c.height*4/100; }
+    if(m.page==COLORS) { r.y=c.height*25/100+row*c.height*5/100; r.h=c.height*4/100; }
     if (m.page == HOST) {
         if (row < 3) {
             const int cell = button_width(c,m) / 3;
@@ -101,12 +102,6 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
         panel_text(c,menu,c.height*45/100,loading,0xffffffffu,s);
         panel_text(c,menu,c.height*57/100,"PLEASE WAIT...",0xffeeeeeeu,s);
     } else {
-        if (menu.page==CONTROLS) {
-            const char* lines[]={"WASD / ARROWS: MOVE   SPACE: JUMP","X: ATTACK   CTRL: CROUCH   SHIFT: RUN",
-                "SM64: R C-UP   F OUT   V MARIO/LAKITU","RIGHT MOUSE: LOOK   WHEEL: ZOOM","LEFT STICK: MOVE   RIGHT STICK: CAMERA",
-                "A: JUMP   B: ATTACK   RT: CROUCH","ENTER / START: PAUSE   F12: FULLSCREEN"};
-            for (int i=0;i<7;++i) panel_text(c,menu,c.height*(29+i*6)/100,lines[i],0xffffffffu,s);
-        }
         for (int i=0;i<menu.rows();++i) {
             ButtonRect r=button_rect(c,menu,i); bool selected=i==menu.row;
             if (menu.page==HOST && i<3) {
@@ -134,6 +129,14 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
     const char* detail=nullptr;
     if(menu.page==MODS && menu.row<menu.shown_mods())detail=menu.mod_descriptions[menu.selected_mod()];
     if(menu.page==TEXTURES)detail="CAPTURE WHILE PLAYING, THEN EDIT THE PNGS";
+    if(menu.page==CONTROLS)detail="3 SLOTS PER ACTION - KEYBOARD OR CONTROLLER";
+    if(menu.page==COLORS) {
+        detail="LEFT/RIGHT: ADJUST RGB - ENTER: TYPE HEX";
+        unsigned rgb=menu.color_hex[0]?static_cast<unsigned>(std::strtoul(menu.color_hex,nullptr,16)):0xffffff;
+        int sw=c.width/16,sh=c.height/20;
+        c.box(c.width/2-sw/2-s,c.height*73/100-s,sw+2*s,sh+2*s,0xffffffffu);
+        c.box(c.width/2-sw/2,c.height*73/100,sw,sh,0xff000000u|rgb);
+    }
     if(menu.page==CAMERA && menu.camera==3)detail="Q/E: TURN  R: C-UP  F: OUT  V: MARIO/LAKITU";
     if(menu.page==DISPLAY && menu.row==3)detail="NEAR: FEWER OBJECTS   FAR: MORE OBJECTS";
     if(detail) {

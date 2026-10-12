@@ -17,6 +17,7 @@
 #include <climits>
 #include <cstring>
 #include <chrono>
+#include <cstdio>
 
 namespace coop_online {
 enum { MAX_PLAYERS = 7 };
@@ -122,6 +123,8 @@ struct Dpapi {
 };
 struct Profile {
     std::string lobby, relay, path, discovery_key;
+    // Runtime only: never replace the pinned public relay in saved profiles.
+    std::string transport_relay;
     static bool endpoint(const std::string& text) {
         size_t colon=text.find(':'); if(colon==std::string::npos||colon==0||colon>253||text.find(':',colon+1)!=std::string::npos) return false;
         for(size_t i=0;i<colon;++i) { char c=text[i]; if(!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='.'||c=='-')) return false; }
@@ -129,6 +132,7 @@ struct Profile {
         unsigned port=0; for(size_t i=colon+1;i<text.size();++i) { if(text[i]<'0'||text[i]>'9') return false; port=port*10+text[i]-'0'; if(port>65535) return false; } return port>0;
     }
     void parse(const std::string& text) {
+        transport_relay.clear();
         Json j=Parser(text).parse(); lobby=j.at("lobby_url").str(); relay=j.at("relay_addr").str(); discovery_key=j.at("discovery_key").str();
         if(!endpoint(relay)) throw std::runtime_error("Install a valid relay profile");
         if(!discovery_key.empty()) {
@@ -191,27 +195,48 @@ struct Discovery {
     COOP_SOCKET(getaddrinfo); COOP_SOCKET(freeaddrinfo); COOP_SOCKET(connect); COOP_SOCKET(setsockopt); COOP_SOCKET(send); COOP_SOCKET(recv);
 #undef COOP_SOCKET
     ~Discovery() { if(sock!=INVALID_SOCKET) closesocket_(sock); if(started) WSACleanup_(); if(dll) FreeLibrary(dll); }
-    void resolve(Profile& profile) {
-        if(profile.discovery_key.empty()) return;
+    bool query(Profile& profile,const std::string& endpoint,DWORD timeout,int attempts) {
         if(!WSAStartup_||!WSACleanup_||!socket_||!closesocket_||!getaddrinfo_||!freeaddrinfo_||!connect_||!setsockopt_||!send_||!recv_) throw std::runtime_error("Windows relay discovery unavailable");
-        WSADATA info={}; if(WSAStartup_(MAKEWORD(2,2),&info)) throw std::runtime_error("Windows relay discovery unavailable"); started=true;
-        size_t colon=profile.relay.find(':'); std::string host=profile.relay.substr(0,colon),port=profile.relay.substr(colon+1);
+        if(!started) { WSADATA info={}; if(WSAStartup_(MAKEWORD(2,2),&info)) throw std::runtime_error("Windows relay discovery unavailable"); started=true; }
+        if(sock!=INVALID_SOCKET) { closesocket_(sock);sock=INVALID_SOCKET; }
+        size_t colon=endpoint.find(':'); std::string host=endpoint.substr(0,colon),port=endpoint.substr(colon+1);
         addrinfo hints={},*address=nullptr; hints.ai_family=AF_INET;hints.ai_socktype=SOCK_DGRAM;hints.ai_protocol=IPPROTO_UDP;
         if(getaddrinfo_(host.c_str(),port.c_str(),&hints,&address)||!address) throw std::runtime_error("Could not find the public game relay");
         sock=socket_(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
         bool connected=sock!=INVALID_SOCKET&&!connect_(sock,address->ai_addr,static_cast<int>(address->ai_addrlen));freeaddrinfo_(address);
         if(!connected) throw std::runtime_error("Could not reach the public game relay");
-        DWORD timeout=1500; if(setsockopt_(sock,SOL_SOCKET,SO_RCVTIMEO,reinterpret_cast<char*>(&timeout),sizeof timeout)) throw std::runtime_error("Could not configure relay discovery");
+        if(setsockopt_(sock,SOL_SOCKET,SO_RCVTIMEO,reinterpret_cast<char*>(&timeout),sizeof timeout)) throw std::runtime_error("Could not configure relay discovery");
         Identity identity; BYTE request[20]={'S','M','D','C'};identity.random(request+4,16);
-        for(int attempt=0;attempt<3;++attempt) {
+        for(int attempt=0;attempt<attempts;++attempt) {
             if(send_(sock,reinterpret_cast<char*>(request),sizeof request,0)!=sizeof request) continue;
             BYTE response[1024]; int n=recv_(sock,reinterpret_cast<char*>(response),sizeof response,0);
             if(n<=276||n>788||std::memcmp(response,"SMDS",4)||std::memcmp(response+4,request+4,16)) continue;
             DWORD body=static_cast<DWORD>(n-256);if(!identity.verify(profile.discovery_key,response,body,response+body)) continue;
-            Json json=Parser(std::string(reinterpret_cast<char*>(response+20),body-20)).parse();
-            Profile verified;verified.parse("{\"lobby_url\":"+quote(json.at("lobby_url").str())+",\"relay_addr\":"+quote(profile.relay)+"}");
-            profile.lobby=verified.lobby;return;
+            try {
+                Json json=Parser(std::string(reinterpret_cast<char*>(response+20),body-20)).parse();
+                Profile verified;verified.parse("{\"lobby_url\":"+quote(json.at("lobby_url").str())+",\"relay_addr\":"+quote(profile.relay)+"}");
+                profile.lobby=verified.lobby;return true;
+            } catch(const std::exception&) { /* Ignore malformed signed replies. */ }
         }
+        return false;
+    }
+    void resolve(Profile& profile,bool prefer_local=true) {
+        profile.transport_relay.clear();
+        if(profile.discovery_key.empty()) return;
+        // The standard WGS relay on this machine must prove possession of the
+        // profile's server key using the same fresh challenge as public discovery.
+        // This works with remote friends: only this process's UDP route changes;
+        // the room key and pinned public relay remain identical on every peer.
+        if(prefer_local) {
+            try {
+                if(query(profile,"127.0.0.1:41234",150,2)) {
+                    profile.transport_relay="127.0.0.1:41234";
+                    std::fprintf(stderr,"[online] verified local WGS relay; public room unchanged\n");
+                    return;
+                }
+            } catch(const std::exception&) { /* A different/offline local server cannot claim this profile. */ }
+        }
+        if(query(profile,profile.relay,1500,3)) return;
         throw std::runtime_error("Server offline - check WGS and both tunnels");
     }
 };
@@ -250,7 +275,7 @@ struct Http {
     }
 };
 struct Plan {
-    std::string role, code, relay, names, save_data;
+    std::string role, code, relay, names, save_data, transport_relay, palettes, characters;
     int players=0,slot=0;
     bool valid=false;
     static Plan from(const Json& j,const Profile& profile) {
@@ -262,23 +287,51 @@ struct Plan {
         if(p.save_data.size()!=136||p.save_data.substr(0,8)!="38303030") throw std::runtime_error("Server needs the shared-save update");
         for(char c:p.save_data) if(!((c>='0'&&c<='9')||(c>='a'&&c<='f'))) throw std::runtime_error("Lobby sent an invalid shared save");
         if(p.save_data[130]!='0'||p.save_data[131]>'3'||p.save_data[132]!='0'||p.save_data[133]>'2') throw std::runtime_error("Lobby sent an invalid shared save");
+        p.transport_relay=profile.transport_relay;
+        p.palettes=j.at("player_palettes").str();p.characters=j.at("player_characters").str();
+        if(p.palettes.size()>512||p.characters.size()>32)throw std::runtime_error("Invalid player appearance plan");
+        if(!p.palettes.empty()||!p.characters.empty()) {
+            if(p.characters.size()!=static_cast<size_t>(p.players*2-1))throw std::runtime_error("Invalid player character count");
+            for(size_t i=0;i<p.characters.size();++i)if(i%2?p.characters[i]!=',':p.characters[i]<'0'||p.characters[i]>'3')throw std::runtime_error("Invalid player character");
+            size_t start=0;
+            for(int seat=0;seat<p.players;++seat) {
+                size_t end=p.palettes.find(',',start);
+                if((seat<p.players-1&&end==std::string::npos)||(seat==p.players-1&&end!=std::string::npos))throw std::runtime_error("Invalid player palette count");
+                std::string palette=p.palettes.substr(start,end==std::string::npos?end:end-start);size_t at=0;
+                for(int part=0;part<8;++part){size_t stop=palette.find(':',at);
+                    if((part<7&&stop==std::string::npos)||(part==7&&stop!=std::string::npos))throw std::runtime_error("Invalid player palette parts");
+                    std::string rgb=palette.substr(at,stop==std::string::npos?stop:stop-at);
+                    if(!rgb.empty()){if(rgb.size()!=6)throw std::runtime_error("Invalid player color");for(char c:rgb)if(!((c>='0'&&c<='9')||(c>='a'&&c<='f')))throw std::runtime_error("Invalid player color");}
+                    at=stop+1;
+                }start=end+1;
+            }
+        }
         p.valid=true; return p;
     }
 };
-struct Snapshot { std::string room,status,state; std::vector<std::string> names; bool host=false,busy=false; Plan plan; };
+struct ChatLine { int seq=0,seat=0;std::string name,text; };
+struct Snapshot { std::string room,status,state; std::vector<std::string> names; std::vector<ChatLine> chat; bool host=false,busy=false,removed=false; Plan plan; };
 class Client {
     std::mutex mutex; std::condition_variable wake;
-    bool stopping=false; int command=0; std::string input, pending_save; Snapshot published;
+    bool stopping=false; int command=0; std::string input, pending_save,pending_presence; Snapshot published;
+    std::vector<ChatLine> chat;
     Profile profile; std::string room,token,match; bool host=false; int cursor=0;
     std::thread worker; // Start only after all shared state has initialized.
     void publish(Snapshot s) { std::lock_guard<std::mutex> lock(mutex); published=s; }
-    std::string auth() const { return "\"v\":4,\"room\":"+quote(room)+",\"token\":"+quote(token); }
+    std::string auth() const { return "\"v\":5,\"room\":"+quote(room)+",\"token\":"+quote(token); }
     Snapshot view(const Json& data) {
         Snapshot s; s.room=room; s.host=host; const Json& v=data.at("view"); s.state=v.at("state").str();
         cursor=data.at("cursor").integer(cursor); match=v.at("match").str();
         for(const Json& m:v.at("members").array) s.names.push_back(m.at("display").str());
         if(s.names.size()>MAX_PLAYERS) throw std::runtime_error("This server exceeds the seven-player limit");
-        if(s.state=="closed") { room.clear();token.clear(); s.room.clear(); s.status="The host closed the room"; }
+        for(const Json& event:data.at("events").array)if(event.at("kind").str()=="chat") {
+            ChatLine line;line.seq=event.at("seq").integer();line.seat=event.at("seat").integer();line.name=event.at("display").str();line.text=event.at("text").str();
+            if(line.name.size()>48||line.text.size()>200)continue;
+            bool duplicate=false;for(const auto& old:chat)if(old.seq==line.seq)duplicate=true;
+            if(!duplicate)chat.push_back(line);
+        }
+        if(chat.size()>40)chat.erase(chat.begin(),chat.end()-40);s.chat=chat;
+        if(s.state=="closed") { room.clear();token.clear(); s.room.clear(); s.removed=true;s.status="The host closed the room"; }
         if(data.at("plan").kind==Json::OBJECT) s.plan=Plan::from(data.at("plan"),profile);
         if(s.state=="arming") s.status="Preparing the shared game...";
         return s;
@@ -286,8 +339,8 @@ class Client {
     void loop() {
         Http http; bool loaded=false;
         for(;;) {
-            int job; std::string value, save;
-            { std::unique_lock<std::mutex> lock(mutex); wake.wait_for(lock,std::chrono::milliseconds(800),[this]{return stopping||command;}); if(stopping) break; job=command; value=input; save=pending_save; command=0; }
+            int job; std::string value, save,presence;
+            { std::unique_lock<std::mutex> lock(mutex); wake.wait_for(lock,std::chrono::milliseconds(400),[this]{return stopping||command;}); if(stopping) break; job=command; value=input; save=pending_save;presence=pending_presence; command=0; }
             if(!job && room.empty()) continue;
             try {
                 if(!loaded) { profile.load(); loaded=true; }
@@ -296,7 +349,7 @@ class Client {
                     if(!room.empty()) throw std::runtime_error("Leave the current room first");
                     Discovery discovery;discovery.resolve(profile);
                     host=job==1;
-                    std::string body="{\"v\":4,\"nick\":"+quote(value.substr(value.find('|')+1))+",\"pre_ok\":true";
+                    std::string body="{\"v\":5,\"nick\":"+quote(value.substr(value.find('|')+1))+",\"pre_ok\":true"+presence;
                     body+=host?",\"session_type\":\"party\"":",\"room\":"+quote(value.substr(0,value.find('|')));
                     if(host&&!save.empty()) body+=",\"adventure_save\":"+quote(save);
                     result=http.post(profile,host?"create":"join",body+"}");
@@ -304,6 +357,7 @@ class Client {
                     if(room.size()!=6||token.size()!=32) throw std::runtime_error("Lobby sent an invalid room");
                     if(host) http.post(profile,"params","{"+auth()+",\"map\":1,\"win_mode\":\"time\",\"match_players\":7}");
                 } else if(job==3) http.post(profile,"start","{"+auth()+"}");
+                else if(job==5&&!room.empty())http.post(profile,"chat","{"+auth()+",\"text\":"+quote(value)+"}");
                 else if(job==4) { if(!room.empty()) {try{http.post(profile,"leave","{"+auth()+"}");}catch(...) {}} room.clear();token.clear();publish(Snapshot{});continue; }
                 if(!room.empty()) {
                     result=http.post(profile,"poll","{"+auth()+",\"cursor\":"+std::to_string(cursor)+",\"wait\":0}");
@@ -315,6 +369,9 @@ class Client {
                 Snapshot s; {std::lock_guard<std::mutex> lock(mutex);s=published;}
                 s.room=room;s.host=host;
                 s.busy=false;s.status=error.what();publish(s);
+                if(s.status=="kicked"||s.status=="banned"||s.status=="not_a_member") {
+                    room.clear();token.clear();s.room.clear();s.removed=true;s.status="You were removed from the room.";publish(s);continue;
+                }
                 if(!room.empty()&&!profile.discovery_key.empty()) {try{Discovery discovery;discovery.resolve(profile);}catch(...) {}}
             }
         }
@@ -323,7 +380,7 @@ class Client {
 public:
     Client() { worker=std::thread([this]{loop();}); }
     ~Client() { {std::lock_guard<std::mutex> lock(mutex);stopping=true;} wake.notify_all();if(worker.joinable()) worker.join(); }
-    bool request(int job,const std::string& value="",const std::string& save="") { std::lock_guard<std::mutex> lock(mutex); if(command||published.busy) return false;command=job;input=value;pending_save=save;published.busy=true;published.status="Connecting to lobby...";wake.notify_all();return true; }
+    bool request(int job,const std::string& value="",const std::string& save="",const std::string& presence="") { std::lock_guard<std::mutex> lock(mutex); if(command||published.busy) return false;command=job;input=value;pending_save=save;pending_presence=presence;published.busy=true;published.status=job==5?"Sending...":"Connecting to lobby...";wake.notify_all();return true; }
     Snapshot snapshot() { std::lock_guard<std::mutex> lock(mutex);return published; }
 };
 } // namespace coop_online
