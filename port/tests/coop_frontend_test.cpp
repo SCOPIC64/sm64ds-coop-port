@@ -9,6 +9,9 @@
 
 using namespace coop_frontend;
 int main(int argc, char** argv) {
+    assert(composite_logo(0x00ffffffu,0xff123456u)==0xff123456u);
+    assert(composite_logo(0x80ffffffu,0xff000000u)==0xff808080u);
+    assert(composite_logo(0xff123456u,0xff000000u)==0xff123456u);
     assert(valid_address("192.168.1.2"));
     assert(valid_address("127.0.0.1"));
     const char* bad[] = { "", "1.2.3", "1.2.3.", "256.0.0.1", "1.2.3.4.5",

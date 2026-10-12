@@ -5,6 +5,14 @@
 #include <algorithm>
 
 namespace coop_frontend {
+inline uint32_t composite_logo(uint32_t source, uint32_t destination) {
+    const unsigned alpha=source>>24, inverse=255-alpha;
+    if(!alpha)return destination;
+    return 0xff000000u|
+        (((((source>>16)&255)*alpha+((destination>>16)&255)*inverse+127)/255)<<16)|
+        (((((source>>8)&255)*alpha+((destination>>8)&255)*inverse+127)/255)<<8)|
+        (((source&255)*alpha+(destination&255)*inverse+127)/255);
+}
 struct Canvas {
     uint32_t* pixels;
     int width, height, stride;
@@ -114,8 +122,10 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
         int h=c.height*27/100,w=h*c.logo_width/c.logo_height;
         if(w>pw*90/100){w=pw*90/100;h=w*c.logo_height/c.logo_width;}
         int left=px+(pw-w)/2,top=c.height*9/100;
-        for(int y=0;y<h;++y)for(int x=0;x<w;++x)
-            c.pixels[(top+y)*c.stride+left+x]=c.logo[(y*c.logo_height/h)*c.logo_width+x*c.logo_width/w];
+        for(int y=0;y<h;++y)for(int x=0;x<w;++x) {
+            uint32_t& destination=c.pixels[(top+y)*c.stride+left+x];
+            destination=composite_logo(c.logo[(y*c.logo_height/h)*c.logo_width+x*c.logo_width/w],destination);
+        }
       } else {
         const char* title="SUPER MARIO"; const int size=s*2;
         const uint32_t colors[]={0xfff34b46u,0xff62caffu,0xffffdc47u,0xff70df6bu};

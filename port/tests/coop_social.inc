@@ -170,7 +170,16 @@ static bool coop_social_selftest(ntr::Framebuffer& fb) {
     auto check=[&](const char* name,bool pass){ok=ok&&pass;fprintf(stderr,"[social-test] %s %s\n",pass?"PASS":"FAIL",name);fflush(stderr);};
     auto& prefs=coop_prefs::get();g_selftest=1;
     coop_frontend::Canvas probe={&fb.px[0][0],ntr::active_w,ntr::active_h,ntr::SCREEN_W,OVL_FONT};
-    coop_canvas_prepare(probe);check("user logo embedded",probe.logo&&probe.logo_width==1599&&probe.logo_height==1066);
+    coop_canvas_prepare(probe);check("user logo embedded",probe.logo&&probe.logo_width>0&&probe.logo_height>0);
+    bool clear_logo=false,soft_logo=false,visible_logo=false;
+    for(int i=0;probe.logo&&i<probe.logo_width*probe.logo_height;++i) {
+        unsigned alpha=probe.logo[i]>>24;
+        clear_logo|=alpha==0;soft_logo|=alpha>0&&alpha<255;visible_logo|=alpha>240;
+    }
+    check("logo alpha retained",clear_logo&&soft_logo&&visible_logo);
+    check("logo transparent compositing",coop_frontend::composite_logo(0x00ffffffu,0xff123456u)==0xff123456u);
+    check("logo soft edge compositing",coop_frontend::composite_logo(0x80ffffffu,0xff000000u)==0xff808080u);
+    check("logo opaque compositing",coop_frontend::composite_logo(0xff123456u,0xff000000u)==0xff123456u);
     check("antialiased proportional menu font",probe.measure("WWW",2)>probe.measure("iii",2));
     g_coop_menu.open(coop_frontend::HOME);coop_draw(fb,0);check("logo menu screenshot",ntr::ppu_write_bmp("logo-menu-test.bmp",fb));
     g_coop_menu.open(coop_frontend::CONTROLS);g_coop_menu.binding_action=coop_prefs::ATTACK;

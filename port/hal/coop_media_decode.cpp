@@ -70,7 +70,7 @@ bool image_memory(const unsigned char* bytes, int count, std::vector<uint32_t>& 
     unsigned char* data=stbi_load_from_memory(bytes,count,&w,&h,&channels,4);
     if(!data)return false;
     pixels.resize(static_cast<size_t>(w)*h);
-    for(size_t n=0;n<pixels.size();++n)pixels[n]=0xff000000u|
+    for(size_t n=0;n<pixels.size();++n)pixels[n]=(static_cast<unsigned>(data[n*4+3])<<24)|
         (static_cast<unsigned>(data[n*4])<<16)|(static_cast<unsigned>(data[n*4+1])<<8)|data[n*4+2];
     stbi_image_free(data);width=w;height=h;return true;
 }
