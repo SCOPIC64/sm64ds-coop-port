@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'port/hal/coop_*'
+      - 'port/hal/comms_native_socket.h'
+      - 'port/hal/comms_loopback.cpp'
       - 'port/tests/coop_*'
       - 'port/tests/overlay_font.h'
       - 'port/frontend/**'

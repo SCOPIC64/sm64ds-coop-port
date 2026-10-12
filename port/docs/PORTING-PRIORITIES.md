@@ -31,3 +31,22 @@ performance testing. macOS needs separate confirmation of the Intel and Apple
 Silicon ABI paths, app packaging and native input/audio behavior. Android and
 iOS then build on the desktop adapters, adding lifecycle, storage and physical
 touchscreen-device testing.
+
+## Native desktop work in progress after preview.3
+
+The game UDP carrier now has a POSIX socket-table adapter, shared by Linux/SteamOS
+and macOS. Native CI compiles the actual carrier and exercises seven independent
+UDP endpoints, exact game-block bytes, nonblocking empty reads and oversized
+packet rejection. The latter explicitly uses recvmsg/MSG_TRUNC to retain
+Winsock's rejection behavior rather than accepting a silently truncated packet.
+Windows retains its existing delayed Winsock loading after DS memory reservation.
+
+This is the first native transport step, not a playable native game package.
+Next: prove the engine's 32-bit object/vtable/member-call ABI on Linux, replace
+window/input/audio and lobby/profile APIs, then tackle macOS's 64-bit layouts.
+Clang's Microsoft ABI cannot simply be selected for a Linux target, and modern
+macOS cannot run the current 32-bit engine. Keep those compiler and pointer-width
+constraints explicit; component CI success must not be reported as a game port.
+
+References: https://clang.llvm.org/docs/MSVCCompatibility.html and
+https://support.apple.com/en-us/103076 .

@@ -126,3 +126,16 @@ else()
     target_compile_options(coop_texture_tools_test PRIVATE -UNDEBUG)
 endif()
 add_test(NAME editable_texture_pack COMMAND coop_texture_tools_test)
+
+# Production UDP carrier adapter for native Linux/SteamOS and macOS.
+# This is a transport check, not a playable native game build.
+if(UNIX)
+    add_executable(coop_native_socket_test ../tests/coop_native_socket_test.cpp)
+    target_include_directories(coop_native_socket_test PRIVATE ..)
+    target_compile_features(coop_native_socket_test PRIVATE cxx_std_11)
+    target_compile_options(coop_native_socket_test PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+    add_test(NAME native_udp_seven_endpoints COMMAND coop_native_socket_test)
+    add_library(coop_native_carrier_compile OBJECT ../hal/comms_loopback.cpp)
+    target_include_directories(coop_native_carrier_compile PRIVATE .. ../hal)
+    target_compile_features(coop_native_carrier_compile PRIVATE cxx_std_17)
+endif()
