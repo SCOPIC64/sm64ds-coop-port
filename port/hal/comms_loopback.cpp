@@ -91,6 +91,7 @@
 #include "comms_seam.h"
 #include "host_settings.h"   // kRollbackMaxPlayers, beside the NetMode parse it guards
 
+#ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>    // SIO_UDP_CONNRESET; see the ioctl in lb_open()
@@ -101,6 +102,10 @@
 // rather than letting a header version decide whether the ioctl happens.
 #ifndef SIO_UDP_CONNRESET
 #define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
+#endif
+
+#else
+#include "comms_native_socket.h"
 #endif
 
 #include <cstdio>
@@ -213,6 +218,7 @@ int g_ws_loaded = 0;        // 0 not tried, 1 loaded, -1 refused
 
 bool ws_load() {
     if (g_ws_loaded) return g_ws_loaded > 0;
+#ifdef _WIN32
     HMODULE m = ::LoadLibraryA("ws2_32.dll");
     if (!m) {
         g_ws_loaded = -1;
@@ -238,6 +244,9 @@ bool ws_load() {
                      "point; staying idle\n");
         return false;
     }
+#else
+    native_socket::fill(WS);
+#endif
     g_ws_loaded = 1;
     return true;
 }

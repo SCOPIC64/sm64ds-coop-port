@@ -96,3 +96,14 @@ target_compile_options(native_heap_test PRIVATE -UNDEBUG $<$<PLATFORM_ID:Linux>:
     -fms-extensions -include "${NATIVE_TYPES}")
 target_link_options(native_heap_test PRIVATE $<$<PLATFORM_ID:Linux>:-no-pie>)
 add_test(NAME native_game_allocator_5000_operations COMMAND native_heap_test)
+
+# Compile the actual game carrier in the same 32-bit native toolchain as the DS core.
+add_library(native_game_carrier_compile OBJECT ${PORT_ROOT}/hal/comms_loopback.cpp)
+target_compile_features(native_game_carrier_compile PRIVATE cxx_std_17)
+target_include_directories(native_game_carrier_compile PRIVATE ${PORT_ROOT} ${PORT_ROOT}/hal)
+add_executable(native_game_socket_test ${PORT_ROOT}/tests/coop_native_socket_test.cpp)
+target_compile_features(native_game_socket_test PRIVATE cxx_std_11)
+target_include_directories(native_game_socket_test PRIVATE ${PORT_ROOT})
+target_compile_options(native_game_socket_test PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(native_game_socket_test PRIVATE Threads::Threads)
+add_test(NAME native_game_udp_seven_endpoints COMMAND native_game_socket_test)
