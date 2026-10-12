@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <sys/uio.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -76,3 +77,4 @@ template<class Table> void fill(Table& api) {
     api.closesocket=close;api.WSAGetLastError=error;api.inet_addr=address;api.gethostbyname=resolve;
 }
 } }
+
