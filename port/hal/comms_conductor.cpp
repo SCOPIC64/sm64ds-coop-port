@@ -394,6 +394,28 @@ inline unsigned char *data_0209f498_bytes() {
 }  // namespace
 }  // namespace port
 
+// Adventure input runs the ROM's solo pad reader. The UDP session stays live
+// independently for owner snapshots, chat and combat; its clock cannot pace
+// this console's input. Save both role bytes so the solo reader never closes
+// the already-open radio as part of its multiplayer-to-solo transition.
+namespace { unsigned char owner_saved_role, owner_saved_last_role; }
+extern "C" int port_owner_input_begin(void) {
+    if (!port::owner_sync_mode()) return 0;
+    owner_saved_role = data_020a0f04[0];
+    owner_saved_last_role = data_020a0f98[0];
+    data_020a0f04[0] = 0; data_020a0f98[0] = 0;
+    return 1;
+}
+extern "C" void port_owner_input_end(void) {
+    data_020a0f04[0] = owner_saved_role;
+    data_020a0f98[0] = owner_saved_last_role;
+    if (const port::CommsTransport *t = port::comms_transport()) {
+        unsigned char block[port::kCommsBlockBytes] = {};
+        uint16_t status = 0;
+        t->exchange(block, &status);
+    }
+}
+
 namespace port {
 namespace {
 inline unsigned char data_0209f21c_byte() { return data_0209f21c; }
@@ -635,6 +657,7 @@ bool comms_inject_touch(int *down, int *x, int *y) {
 // the fan-out.
 // ===========================================================================
 bool comms_fanout_active() {
+    if (owner_sync_mode()) return false;
     // The override is parsed once; the transport half is asked every time.
     //
     // NOT because anything installs a transport mid-run. An earlier version of

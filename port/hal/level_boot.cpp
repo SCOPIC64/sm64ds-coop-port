@@ -71,6 +71,7 @@
 #include "port_d16.h"
 
 #include <cstdio>
+#include "host_settings.h"
 #include "vs_width.h"   /* run vs16: the port's player width */
 #include <cstdlib>
 #include <cstring>
@@ -2323,6 +2324,9 @@ static void port_load1(void *t, int a, unsigned b)
            cartridge's protocol and the port's mod, and it is enforced here in
            one line so no other code has to remember where it runs. */
         if (fit > kPortNarrowPlayers) fit = kPortNarrowPlayers;
+        // Adventure records after p3 are other doors/star-return scripts.
+        // Seat only the requested entrance, then clone it for the other slots.
+        if (port::owner_sync_mode()) fit = 1;
         if (want_players > fit)
             data_0209f21c = (unsigned char)fit;
     }

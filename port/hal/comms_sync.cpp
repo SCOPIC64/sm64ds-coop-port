@@ -471,7 +471,11 @@ void apply_owner_combat(void *a, const SyncPlayerV1 *e) {
         body[0x709] = e->no_control;
         body[0x6e3] = e->step; body[0x6e5] = e->work; body[0x70c] = e->arg;
         *(int *)(body + 0x674) = e->hurt_damage;
-        _ZN6Player11ChangeStateERNS_5StateE(body, state);
+        // An adventure replica must not run Init/Cleanup: door, star and
+        // death states can change the local world's save/result/warp globals.
+        // Its owner already ran them; the snapshot supplies its state and pose.
+        if (owner_sync_mode()) *(void **)(body + 0x370) = state;
+        else _ZN6Player11ChangeStateERNS_5StateE(body, state);
     }
     data_02092144[slot] = e->health;
     *(unsigned short *)(body + 0x6a0) = e->invincible;

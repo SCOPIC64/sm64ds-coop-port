@@ -47,6 +47,7 @@ int main(int argc,char**argv) {
         for(const char* key:{"SM64DS_BOOT_FILE","SM64DS_LEVEL","SM64DS_NETMODE","SM64DS_SHARED_SAVE"}) assert(host.at(key)==child.at(key));
         assert(host.at("SM64DS_LEVEL")=="1"&&host.at("SM64DS_BOOT_FILE").empty());
         assert(host.at("SM64DS_NETMODE")=="lockstep");
+        assert(host.at("SM64DS_OWNER_SYNC")=="1"&&child.at("SM64DS_OWNER_SYNC")=="1");
         assert(host.at("SM64DS_SHARED_SAVE_SLOT")=="2"&&child.at("SM64DS_SHARED_SAVE_SLOT")=="0");
         assert(host.at("SM64DS_CHARACTER")=="1"&&child.at("SM64DS_CHARACTER")=="2");
         assert(child.at("SM64DS_SAVE_PATH")!=room_environment(plan,0,2,125).at("SM64DS_SAVE_PATH"));

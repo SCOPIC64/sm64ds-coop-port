@@ -83,7 +83,7 @@ static void coop_session_environment(coop_frontend::Action action)
     const char* clear[] = { "SM64DS_COMMS_ROLE", "SM64DS_COMMS_HOST",
         "SM64DS_COMMS_PORT", "SM64DS_COMMS_SLOT", "SM64DS_COMMS_BIND_ANY",
         "SM64DS_COMMS_FANOUT", "SM64DS_COMMS_INJECT", "SM64DS_COMMS_REPORT",
-        "SM64DS_PARTY", "SM64DS_LEVEL", "SM64DS_SCENE", "SM64DS_VS_MAP",
+        "SM64DS_PARTY", "SM64DS_OWNER_SYNC", "SM64DS_LEVEL", "SM64DS_SCENE", "SM64DS_VS_MAP",
         "SM64DS_BOOT_CLASSIC", "SM64DS_CHARACTER", "SM64DS_SYNC",
         "SM64DS_COMMS_WAIT_MS", "SM64DS_COMMS_RELAY", "SM64DS_COMMS_CODE",
         "SM64DS_VS_PLAYERS", "SM64DS_VS_NAMES", "SM64DS_COMMS_TIMEOUT_MS",
@@ -117,7 +117,7 @@ static bool coop_apply_shared_save()
         std::memcpy(data_0209caa0,data.data(),data.size());
         const char* slot=getenv("SM64DS_SHARED_SAVE_SLOT");
         ((unsigned char*)data_0209caa0)[0x328]=slot?static_cast<unsigned char>(atoi(slot)):0;
-        fprintf(stderr,"[coop-start] shared host save restored before world boot; direct castle entry, lockstep\n");
+        fprintf(stderr,"[coop-start] shared host save restored before world boot; direct castle entry, owner sync\n");
         return true;
     } catch(const std::exception& error) {
         port_startup_error_write(error.what()); port_startup_error_show(error.what()); return false;

@@ -667,6 +667,8 @@ unsigned char g_stage[kCommsMaxPlayers][kCommsBlockBytes];
 unsigned      g_stage_mask   = 0;
 unsigned char g_latched[kCommsMaxPlayers][kCommsBlockBytes];
 unsigned      g_latched_mask = 0;
+unsigned g_owner_round[kCommsMaxPlayers] = {};
+bool g_owner_seen[kCommsMaxPlayers] = {};
 bool          g_round_done   = false;   // child: the parent's packet landed
 
 // Parent only: the last kCacheDepth broadcasts, so a child whose copy of a
@@ -2160,6 +2162,15 @@ void on_parent_packet(const Packet &p, const sockaddr_in &from, int k) {
         break;
     }
     case kTypeBlocks:
+        if (owner_sync_mode()) {
+            if ((p.have & (1u << k)) && (!g_owner_seen[k] ||
+                (int)(p.round - g_owner_round[k]) > 0)) {
+                std::memcpy(g_latched[k], p.blocks[k], kCommsBlockBytes);
+                g_owner_round[k] = p.round; g_owner_seen[k] = true;
+                g_latched_mask |= 1u << k;
+            }
+            break;
+        }
         if (pipelined()) {
             // PIPELINED. Rounds are in flight rather than one at a time, so a
             // child's block is filed by ITS OWN round number and the "is this
@@ -2255,6 +2266,7 @@ void child_send_report() {
 // the game a round", which is the property the first-accept bound was standing
 // in for. See rule 2 in the banner over g_adaptive_delay.
 void child_adopt_delay(int parent_delay, bool at_accept) {
+    if (owner_sync_mode()) { g_input_delay = 0; return; }
     // THE CEILING AN OLD BUILD APPLIES, reproduced exactly: a value past it is
     // not clamped DOWN, it is dropped, and the peer keeps whatever it had.
     // That silence is the whole blocker.
@@ -2459,6 +2471,17 @@ void on_child_packet(const Packet &p, const sockaddr_in &from, int k) {
     }
     case kTypeBlocks:
         if (g_state != kCommsChildConnected) break;
+        if (owner_sync_mode()) {
+            if (!g_owner_seen[0] || (int)(p.round - g_owner_round[0]) > 0) {
+                g_live = p.live_wide;
+                for (int i = 0; i < kCommsMaxPlayers; ++i)
+                    if (i != g_slot && (p.have & (1u << i)))
+                        std::memcpy(g_latched[i], p.blocks[i], kCommsBlockBytes);
+                g_latched_mask = p.have & g_live;
+                g_owner_round[0] = p.round; g_owner_seen[0] = true;
+            }
+            break;
+        }
         if (g_rollback) {
             // ROLLBACK. The aggregate names ITS round's live mask (the
             // parent's per-round declaration), so it is filed per round and
@@ -3146,6 +3169,9 @@ void lb_open(unsigned mode) {
     g_stage_mask = 0;
     g_latched_mask = 0;
     g_round_done = false;
+    std::memset(g_owner_seen, 0, sizeof g_owner_seen);
+    std::memset(g_owner_round, 0, sizeof g_owner_round);
+    std::memset(g_latched, 0, sizeof g_latched);
     std::memset(g_cache_valid, 0, sizeof g_cache_valid);
     g_dring_head = g_dring_count = 0;
     std::memset(g_pipe, 0, sizeof g_pipe);
@@ -3541,6 +3567,21 @@ int lb_exchange(const void *my_block, uint16_t *status) {
     if (g_state != kCommsParentConnected && g_state != kCommsChildConnected)
         return 0;
     if (!my_block) return 0;
+
+    // Adventure uses independent owner snapshots, so its local controller
+    // must never wait for an internet peer's frame or consume delayed self input.
+    if (owner_sync_mode()) {
+        std::memcpy(g_latched[g_slot], my_block, kCommsBlockBytes);
+        g_latched_mask = (g_latched_mask & g_live) | (1u << g_slot);
+        Packet b; fill_header(b, kTypeBlocks); b.round = g_round++;
+        b.have = g_role == kRoleParent ? g_latched_mask : (1u << g_slot);
+        for (int i = 0; i < kCommsMaxPlayers; ++i)
+            if (b.have & (1u << i)) std::memcpy(b.blocks[i], g_latched[i], kCommsBlockBytes);
+        if (g_role == kRoleParent) send_to_children(b); else send_to_slot(b, 0);
+        g_last_publish_ms = now_ms();
+        g_frames_produced = true;
+        return 1;
+    }
 
     // WAIT FOR THE MEASUREMENTS BEFORE FREEZING, BRIEFLY AND ONCE. The order
     // here is otherwise fatal to the whole point: the parent becomes connected
@@ -4454,6 +4495,11 @@ bool comms_loopback_install_from_env() {
     //     mode default of 0 on loopback is the rig contract, so the sizing
     //     leaves it alone and is measured over a RELAY instead, which is the
     //     mode that actually has the problem.
+    if (owner_sync_mode()) {
+        g_input_delay = 0;
+        g_rollback = false;
+        std::fprintf(stderr, "[comms:loopback] owner sync: immediate local input; remote frames never stall gameplay\n");
+    }
     g_adaptive_delay = (g_role == kRoleParent) && !g_delay_from_env &&
                        g_net_mode != kNetLoopback && g_input_delay > 0;
     if (const char *v = std::getenv("SM64DS_COMMS_ADAPTIVE_DELAY"))

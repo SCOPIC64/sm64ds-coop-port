@@ -833,6 +833,8 @@ void func_0203e0ac(void);
    port/slice_mp3.txt. It owns the switch that used to be hosted at the call
    site below, and the only call site of the seam's close() face. */
 void func_0203df40(void);
+int port_owner_input_begin(void);
+void port_owner_input_end(void);
 /* run linkfull lane B5INPUT: the game loop's own pad read, phase 0x15
    (src/func_0201ffcc.c, which calls func_0203df40 above), called from the
    level loop's input phase point (see THE GAME LOOP'S OWN INPUT STEPS there).
@@ -13531,7 +13533,9 @@ int main(void)
                 }
                 const double t_rb = rb_replaying() ? ovl_now_ms() : 0;
                 data_0209d50c = 0x15;
+                const int owner_input = port_owner_input_begin();
                 func_0201ffcc();
+                if (owner_input) port_owner_input_end();
                 if (rb_replaying()) rb_replay_phase(6, ovl_now_ms() - t_rb);
             }
             /* ---- PHASE 2, THE FRAME'S RESET (run linkfull, lane RESET2) -----
@@ -13658,6 +13662,7 @@ int main(void)
                    hal/message_pump.cpp's own publish is unchanged and still
                    runs later in the frame. */
                 *(unsigned short *)((char *)data_020a0e5a + lo) = edge;
+                if (port::owner_sync_mode()) hal_lc_menu_pad();
             }
             /* func_020197b8.c:43-46: the local player's held word into the
                32-deep ring. The ring has no reader in src/ but the loop itself;
@@ -14322,14 +14327,16 @@ int main(void)
                     const char *p = seq;
                     while (*p) {
                         int lv = atoi(p);
+                        const char *slash = strchr(p, '/');
                         const char *at = strchr(p, 64 /* '@' */);
+                        int entrance = slash && at && slash < at ? atoi(slash + 1) : 0;
                         int fr = at ? atoi(at + 1) : -1;
                         if (fr == frame) {
                             printf("[warpseq] frame %d: warp to level %d "
                                    "(heap free %u, actors %d)\n", frame, lv,
                                    port_level_heap_free_bytes(),
                                    port_actor_live_count());
-                            LoadLevelNoReturn(lv, 0, 1, 1);
+                            LoadLevelNoReturn(lv, entrance, 1, 1);
                         }
                         const char *comma = strchr(p, 44 /* ',' */);
                         if (!comma) break;

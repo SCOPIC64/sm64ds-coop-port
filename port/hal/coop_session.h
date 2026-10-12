@@ -59,6 +59,7 @@ inline std::map<std::string,std::string> room_environment(const Plan& plan,int s
         {"SM64DS_COMMS_CODE",plan.code},{"SM64DS_VS_PLAYERS",std::to_string(plan.players)},
         {"SM64DS_VS_NAMES",plan.names},{"SM64DS_COMMS_FANOUT","1"},
         {"SM64DS_NETMODE","lockstep"},{"SM64DS_PARTY","1"},{"SM64DS_SYNC","1"},
+        {"SM64DS_OWNER_SYNC","1"},
         {"SM64DS_COMMS_WAIT_MS","300000"},{"SM64DS_COMMS_TIMEOUT_MS","15000"},
         {"SM64DS_CHARACTER",std::to_string(character)},
         {"SM64DS_SHARED_SAVE",plan.save_data},

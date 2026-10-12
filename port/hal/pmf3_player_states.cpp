@@ -29,8 +29,11 @@
  */
 #include <cstdio>
 #include <cstdlib>
+#include "host_settings.h"
 
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr);
+extern "C" void Player_AdvanceAnims(void *self);
+extern "C" unsigned char data_0209f250;
 
 namespace {
 
@@ -38,6 +41,17 @@ template <unsigned DS>
 int __fastcall pl_state_face(void *self, void *dead_edx)
 {
     (void)dead_edx;
+    // Owners run gameplay; replicas only advance their displayed animation.
+    // Running a remote entry/star/death Main can open this console's result
+    // screen or request a warp. Init/Cleanup are handled at the snapshot seam.
+    const char *body = (const char *)self;
+    const void *state = *(void *const *)(body + 0x370);
+    if (port::owner_sync_mode() && (unsigned char)body[0x6d8] != data_0209f250 &&
+        state && *(const unsigned *)((const char *)state + 8) ==
+        (unsigned)(size_t)pl_state_face<DS>) {
+        Player_AdvanceAnims(self);
+        return 1;
+    }
     return hal_call_state_fn(self, DS);
 }
 
