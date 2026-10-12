@@ -1,9 +1,9 @@
 {
-  "tag": "v0.5.7-menu-preview.2",
-  "exe_sha256": "fde40a3626377fb321aa355bb0b070ca37f20d87b940b0f97a44de39c5459374",
-  "artifact_sha256": "c5ab642f1c7e313c8d601e91d5c08572e1e3091efd985065afbc58eff3d90dee",
-  "artifact_bytes": 5797901,
-  "exe_bytes": 12390912,
+  "tag": "v0.5.7-menu-preview.3",
+  "exe_sha256": "9620ae8d4277bdcf2507a8ee517bc32625aecda75e42ed0eea7a59614cf1de87",
+  "artifact_sha256": "eea331c6e8a1b7ddd574f93f8f5725e88cb4cb9f315571283dfcda829e78dedd",
+  "artifact_bytes": 5806226,
+  "exe_bytes": 12401152,
   "archive_files": [
     "sm64ds coop.exe",
     "README.txt",
@@ -12,8 +12,8 @@
     "JOIN-STEPS.txt",
     "server-profile.json"
   ],
-  "source_commit": "a79983922b0c7f22e7f47151ac4968e98b9a780f",
-  "artifact_blob": "068965977556043b3bc08c382e3441982fa3817f",
+  "source_commit": "4e581efb39660b664b3c01893e9e4838567882a1",
+  "artifact_blob": "9ec00497f2082846f91e62311e52f393a4057503",
   "platforms": [
     "windows-x86"
   ],
@@ -21,15 +21,11 @@
   "local_validation": {
     "passed": true,
     "tests": [
-      "Native game build and DS-state, forwarding-cycle and ARM9 globals guards",
-      "Two clients with 180 ms one-way induced delay, 60 ms jitter and 2% packet loss: 30 game ticks/sec, zero input buffering, zero network starvation",
-      "Repeated castle entry through the requested door: no false results menu on host or joiner",
-      "Owner-authoritative damage, death, respawn, state and animations with delay and jitter",
-      "27 native UI, logo transparency, input bindings, chat and fullscreen checks",
-      "Native online startup checks for two- and seven-player plans",
-      "Portable frontend CI succeeded at the released source commit",
-      "Public archive privacy and SHA256 validation"
+      "12 native portable component tests",
+      "Native menu, 42 binding-cell hit targets, mixed input capture, distinct S/5, chat, palette and fullscreen checks",
+      "Actual game Speed & Coordinates HUD launch and exact 20.12 coordinate fixture",
+      "Two clients with HUD enabled, 180 ms one-way delay, 60 ms jitter, 2% packet loss; host online through joined-client timing window; 29.93/30.08 ticks/sec, zero buffered input and castle re-entry passed"
     ]
   },
-  "notes": "This Windows preview repairs severe internet input delay and the repeating Castle Secret Stars save screen.\n\nAdventure co-op reads your controls locally, independently of other players' packet timing. Remote player states and animations come from their owners, and remote entry/star/death scripts cannot run their Main against your world. Joining players spawn from the door actually requested instead of the next entrance record, which may describe a star return.\n\nHow to update:\n1. Everyone quits the game.\n2. Extract this ZIP into the existing game folder and replace the EXE, server profile and joining instructions. Keep ROMs, saves, settings, mods and extracted assets.\n3. Reopen sm64ds coop.exe. The host creates a fresh lobby and shares its code; friends join that code. All players need preview.2.\n4. The server operator keeps WGS and the tunnel running. This client update does not require a server restart.\n\nA fresh installation requires your own supported .nds beside the EXE. The ZIP includes no ROM, extracted game assets, saves, home IP or private tunnel credentials.\n\nTested with two clients under simulated 180 ms one-way delay, 60 ms jitter and 2% loss: both held 30 game ticks per second with no buffered local frames or network starvation, and repeated castle re-entry opened no false results menu. Combat damage/death/respawn and animations also passed with simulated delay and jitter. Native UI and startup tests passed. Real internet latency still affects the arrival of remote movements; this is not a seven-PC internet performance certification.\n\nLinux/SteamOS and macOS remain the next port priorities; Android and iOS follow later. Portable CI checks components, not complete game builds."
+  "notes": "Sharper antialiased menu/chat/player-name text, high-resolution title menus with gameplay resolution restored, all 14 controls with three mixed binding boxes, and optional Speed & Coordinates HUD for solo and online. Original cartridge artwork retains its DS style. Enable the HUD from Mods before entering a room. Existing immediate-input and castle-entry fixes retained. Separate peer-departure tests showed intermittent pacing pauses under investigation; this is not a seven-PC internet certification. Native Linux/SteamOS and macOS work follows this release; no native game packages are claimed."
 }
