@@ -1153,7 +1153,11 @@ void _ZN4CP1516WaitForInterruptEv(void) {
     //   is the one line that keeps the duty running once per frame afterwards.
     //   Counted separately from pump_turns so the two pumps can never be
     //   confused for one another in a report.
-    if (g_host_frame_pump) {
+    // A wireless IRQ wait is not a display frame. Pacing it here spends an
+    // extra 16/33 ms every time a packet is late, slowing an online game even
+    // when rendering takes only a few milliseconds. The radio pump already
+    // polls and yields; the frame pump belongs only to the ROM's frame wait.
+    if (g_host_frame_pump && data_0209d4f0[0] != 0) {
         ++g_stat.frame_pump_turns;
         g_host_frame_pump(g_starve);
     }

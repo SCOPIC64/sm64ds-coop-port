@@ -18,4 +18,6 @@ public:
     bool ended() const;
 };
 bool image(const char* utf8_path, std::vector<uint32_t>& pixels, int width, int height);
+bool image_memory(const unsigned char* data, int bytes, std::vector<uint32_t>& pixels,
+                  int& width, int& height);
 }

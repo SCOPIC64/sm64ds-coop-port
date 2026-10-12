@@ -17,7 +17,8 @@ def api(path):
 def validate_archive(data, manifest, movement_script=None):
     required = {'sm64ds coop.exe', 'README.txt', 'LICENSE', 'THIRD-PARTY-NOTICES.txt'}
     allowed = required | {'mods/README.txt', 'mods/sm64-movement/main.lua',
-                          'mods/resource-packs/README.txt', 'texture-work/capture/README.txt'}
+                          'mods/resource-packs/README.txt', 'texture-work/capture/README.txt',
+                          'JOIN-STEPS.txt', 'server-profile.json'}
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         members = archive.namelist()
         assert len(members) == len(set(members)), 'Duplicate archive entry'
@@ -27,6 +28,20 @@ def validate_archive(data, manifest, movement_script=None):
         exe = archive.read('sm64ds coop.exe')
         assert exe[:2] == b'MZ'
         assert hashlib.sha256(exe).hexdigest() == manifest['exe_sha256']
+        if 'server-profile.json' in members:
+            profile = json.loads(archive.read('server-profile.json'))
+            assert set(profile) <= {'lobby_url', 'relay_addr', 'discovery_key'}, 'Private profile field'
+            assert profile.get('relay_addr') == 'cairo-pot.tun.ply.gg:41702', 'Unexpected public relay'
+            if 'lobby_url' in profile:
+                assert profile['lobby_url'].startswith('https://'), 'Invalid public lobby URL'
+            key = profile.get('discovery_key')
+            assert isinstance(key, str) and len(key) == 368, 'Missing public discovery key'
+            key = base64.b64decode(key, validate=True)
+            # CryptoAPI PUBLICKEYBLOB: RSA1, 2048 bits. PRIVATEKEYBLOB uses
+            # a different type/magic and is never a distribution profile.
+            assert len(key) == 276 and key[:4] == b'\x06\x02\x00\x00', 'Private signing material'
+            assert key[8:12] == b'RSA1' and int.from_bytes(key[12:16], 'little') == 2048, 'Invalid public key'
+            assert 'JOIN-STEPS.txt' in members, 'Online archive needs joining instructions'
         if 'mods/sm64-movement/main.lua' in members:
             script = archive.read('mods/sm64-movement/main.lua')
             assert script == movement_script, 'Bundled movement differs from source'
@@ -94,4 +109,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

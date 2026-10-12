@@ -98,6 +98,8 @@
 #include <cstdlib>
 #include <cstring>
 
+extern "C" unsigned char data_0209d4f0[];
+
 // ===========================================================================
 // 2. THE DS GLOBALS.
 //
@@ -1676,6 +1678,11 @@ bool conductor_pump(unsigned spin) {
     // still climbing. Cheap and idempotent: with an empty queue it is one test.
     comms_arm7_turn();
     if (g_prev_pump) return g_prev_pump(spin);
+
+    // The frame pacer owns display waits. Poll once here without spending
+    // another VBlank before that pacer: two independent clocks otherwise add
+    // a silent radio wait to every online game tick.
+    if (data_0209d4f0[0] != 0) return false;
 
     const int st = t ? t->state() : kCommsIdle;
     if (st == kCommsParentConnected || st == kCommsChildConnected) {

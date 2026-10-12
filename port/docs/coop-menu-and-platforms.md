@@ -7,11 +7,35 @@ decomp sources, manifests, or runtime tables with the 0.5.4 release.
 ## Windows integration
 
 Ordinary launches open the menu inside the existing game process and window.
-Retro shadowed text, a hand cursor and translucent panels follow the requested
-SM64Plus presentation; Host, Join, Options and Quit retain the CoopDX arrangement.
+The main menu embeds the supplied game logo. Rounded translucent panels,
+antialiased Segoe UI text and an eased selection accent retain the Host, Join,
+Options and Quit arrangement.
 Options groups supported settings under Player, Camera, Controls, Display,
 Sound and Misc. Keyboard, mouse and gamepad share the same navigation model.
 F5 retains the development menu during gameplay.
+
+Player -> Character Colors has draggable RGB sliders and a hex editor. The
+Overalls / Pants part controls the same region. Color Presets offers built-in
+palettes, named saved presets and import/export of CoopDX `[PALETTE]` INI files.
+Imported files require the eight standard parts and their 24 RGB channels;
+unsupported DS texture regions retain the existing model's behavior. Presets
+are saved in `%APPDATA%\SM64DS-Coop\palettes` and applied to the selected character.
+The import dialog initially opens `%APPDATA%\sm64coopdx\palettes`; importing
+copies the colors without changing the original preset.
+
+Online state snapshots use protocol version 5. Health, hurt/death state,
+interaction flags, animation loop flags and speed come from each character's
+owner. Player contacts travel as repeated, acknowledged requests; the victim
+resolves a request once through the native hit handler and publishes its
+result. Registry indices resolve to validated local state objects. Stale
+snapshots and out-of-range contacts are rejected. All players must update to
+the same game build. The server carries these snapshots without modification.
+
+Radio waits no longer spend the display pacer's budget, and display waits poll
+the radio without adding a second VBlank delay. Verified local relay sessions
+use no extra jitter margin; the shared input buffer still adapts to peer RTT.
+The native game simulation runs at 30 ticks/s in 3D scenes. Presentation FPS
+can be higher and must not be mistaken for the game tick rate.
 
 Host displays three real save cards with star counts, new-game status and
 damaged-save warnings. Both primary and mirrored EEPROM records are checked;

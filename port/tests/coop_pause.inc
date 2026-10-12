@@ -83,5 +83,6 @@ static bool coop_pause_input(int pad_live,const XPad* pad) {
 static void coop_pause_draw(const OvlSurface& surf) {
     coop_refresh_mods();
     coop_frontend::Canvas canvas={surf.px,ntr::active_w,ntr::active_h,surf.stride,OVL_FONT};
+    coop_canvas_prepare(canvas);
     coop_frontend::draw(canvas,g_coop_menu,0,nullptr,surf.px,ntr::active_w,ntr::active_h,surf.stride);
 }

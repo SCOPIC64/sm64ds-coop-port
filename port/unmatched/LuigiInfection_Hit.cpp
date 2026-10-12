@@ -55,6 +55,7 @@ extern void _ZN5Sound13PlayCharVoiceEjjRK7Vector3(u32 a, u32 b, const Vector3 *p
 extern int  port_luigi_enabled(void);
 extern int  port_luigi_is_infected_player(const void *p);
 extern void port_luigi_tag_player(const void *victim);
+extern int port_sync_route_player_hit(void *, void *, unsigned);
 }
 
 extern "C" int func_ov002_020d869c(char *c)
@@ -77,6 +78,9 @@ extern "C" int func_ov002_020d869c(char *c)
         return 0;
     t = (int)(*(u16 *)(r6 + 0xc) == 0xbf);
     if (t == 0)
+        return 0;
+
+    if (port_sync_route_player_hit(c, r6, *(u32 *)(c + 0x2f4)))
         return 0;
 
     /* ---- LUIGI INFECTION team branch (inert unless the mode is armed) -------

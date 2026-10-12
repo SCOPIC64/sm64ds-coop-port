@@ -118,6 +118,10 @@ int main(int argc, char** argv) {
     m.open(PLAYER);m.row=3;m.key(ACCEPT);for(char ch:std::string("Scopic_64"))m.type(ch);m.key(ACCEPT);assert(!m.editing&&!strcmp(m.username,"Scopic_64"));
     m.row=4;m.key(ACCEPT);assert(m.page==COLORS);m.row=2;m.key(ACCEPT);m.type('f');assert(m.key(ACCEPT)==NONE&&m.editing);
     for(char ch:std::string("f6600"))m.type(ch);m.key(ACCEPT);assert(!m.editing&&!strcmp(m.color_hex,"ff6600"));
+    m.open(PALETTES);m.row=2;
+    std::strcpy(m.palette_name,"12345678901234567890123456789012");
+    m.key(ACCEPT);m.type('x');m.key(BACK);
+    assert(!m.editing&&!strcmp(m.palette_name,"12345678901234567890123456789012"));
     m.open(CONTROLS);m.key(LEFT);assert(m.binding_action==13);m.row=1;m.key(LEFT);assert(m.binding_slot==2);
     m.row=2;assert(m.key(ACCEPT)==BIND_KEY);m.row=3;assert(m.key(ACCEPT)==BIND_PAD);m.row=4;assert(m.key(ACCEPT)==CLEAR_BIND);
     m.mod_count=6;m.open(MODS);m.row=0;assert(m.key(ACCEPT)==TOGGLE_MOD);
@@ -168,7 +172,7 @@ int main(int argc, char** argv) {
         int w = dims.first, h = dims.second, stride = w + 16;
         std::vector<uint32_t> pixels(stride * h + 64, 0xdeadbeef);
         Canvas c = { pixels.data() + 32, w, h, stride, OVL_FONT };
-        for (int page = HOME; page <= COLORS; ++page) {
+        for (int page = HOME; page <= PALETTES; ++page) {
             m.open(static_cast<Page>(page)); draw(c, m, 100);
             for (int row = 0; row < m.rows(); ++row) {
                 ButtonRect r = button_rect(c,m,row);

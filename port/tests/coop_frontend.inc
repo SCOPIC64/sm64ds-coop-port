@@ -1,6 +1,7 @@
 // Included after the window/presentation helpers in walk_window.cpp.
 // Runs in the game process and reuses its HWND for the adventure.
 #include "coop_menu_media.inc"
+#include "coop_menu_font.inc"
 #include "coop_menu_audio.inc"
 #include "coop_menu_backdrop.inc"
 #include "hal/coop_session.h"
@@ -11,6 +12,7 @@ static void coop_draw(ntr::Framebuffer& fb, unsigned frame, const char* loading 
 {
     coop_frontend::Canvas canvas = { &fb.px[0][0], ntr::active_w,
         ntr::active_h, ntr::SCREEN_W, OVL_FONT };
+    coop_canvas_prepare(canvas);
     coop_frontend::draw(canvas, g_coop_menu, frame, loading, g_coop_backdrop);
     if(g_coop_menu.page==coop_frontend::LOBBY)coop_chat_draw(ovl_surface(fb));
 }
@@ -85,7 +87,7 @@ static void coop_session_environment(coop_frontend::Action action)
         "SM64DS_BOOT_CLASSIC", "SM64DS_CHARACTER", "SM64DS_SYNC",
         "SM64DS_COMMS_WAIT_MS", "SM64DS_COMMS_RELAY", "SM64DS_COMMS_CODE",
         "SM64DS_VS_PLAYERS", "SM64DS_VS_NAMES", "SM64DS_COMMS_TIMEOUT_MS",
-        "SM64DS_SHARED_SAVE", "SM64DS_SHARED_SAVE_SLOT", "SM64DS_COMMS_DELAY_FLOOR",
+        "SM64DS_SHARED_SAVE", "SM64DS_SHARED_SAVE_SLOT", "SM64DS_COMMS_DELAY_FLOOR", "SM64DS_COMMS_DELAY_MARGIN",
         "SM64DS_PLAYER_PALETTES", "SM64DS_PLAYER_CHARACTERS" };
     for (const char* name : clear) _putenv_s(name, "");
     std::string local_palettes;for(int c=0;c<4;++c){if(c)local_palettes+=',';local_palettes+=coop_prefs::get().palette(c);}

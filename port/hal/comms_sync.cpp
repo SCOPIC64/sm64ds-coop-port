@@ -107,6 +107,11 @@ extern unsigned char data_0209f250;
 // it shares this console's level; the presence gate compares a received level
 // against it. signed char in the ROM (levels 0..51); read as int here.
 extern signed char data_0209f2f8;
+extern short data_02092144[];
+extern int data_0208ee44;
+unsigned port_player_state_index(const void *);
+void *port_player_state_from_index(unsigned);
+int func_ov002_020d869c(char *);
 }
 
 namespace port {
@@ -323,6 +328,10 @@ bool sync_forced_v1() { parse_cfg(); return g_cfg.force_v1; }
 // Far under any MTU; the one-datagram contract is satisfied with room to spare.
 // ===========================================================================
 #pragma pack(push, 1)
+struct SyncHit {
+    unsigned seq, flags;
+    int x, y, z;
+};
 struct SyncPlayerV1 {
     unsigned char  slot;      // 0..3
     unsigned char  flags;     // bit0 live, bit2 teleport (see kFlag*)
@@ -333,10 +342,8 @@ struct SyncPlayerV1 {
     // Offsets and semantics from runs/mg16/status/POSEFIELDS.md, which is the
     // authority and supersedes MP4-DESIGN.md's sketch where they disagree.
     unsigned short anim_id;    // player_fields::anim_id, already unscaled
-    // The state's Main-function address: an OBSERVATION id, carried for
-    // diagnosis and NOT applied. See player_fields.h's banner -- the port does
-    // not preserve the ROM's contiguous state table, so there is no safe
-    // decode back to a State *. u32 because it is an address, not an index.
+    // v5 uses the ROM-ordered index in the port's explicit state registry.
+    // The receiver resolves this to a known local object, never a wire pointer.
     unsigned       state_id;
     // THE CURSOR IS 20.12 FIXED POINT AND s32, NOT the design's s16. A
     // 100-frame animation reaches 409600 in 20.12, which overflows a short by
@@ -366,6 +373,16 @@ struct SyncPlayerV1 {
     // it -- a versus match is one shared level -- but carries it so one wire
     // format serves both modes. u16 for room; ids are 0..51 today.
     unsigned short level_id;
+    // v5: owner health and state, plus repeated, acknowledged combat requests.
+    // Seven online seats keep the complete snapshot below the 256-byte carrier.
+    short health;
+    unsigned short invincible, state_timer, hurt_damage;
+    unsigned anim_flags;
+    int anim_speed;
+    unsigned char step, work, arg, no_control, taking_damage, body_collision;
+    unsigned char phase, reserved;
+    unsigned hit_ack[7];
+    SyncHit hits[7];
 };
 struct SyncMsgV1 {
     unsigned       magic;     // kSyncMagic -- framing, never changes
@@ -404,9 +421,107 @@ enum : unsigned { kSyncMagic = 0x314e5953u };
 // already when a tag bump unframed the whole channel (247 sent, 0 received).
 // Both sides ship together; a mismatched peer is recognised, counted, dropped
 // loudly.
-enum : unsigned { kSyncVersion = 4u };
+enum : unsigned { kSyncVersion = 5u };
 enum : unsigned char { kFlagLive = 1, kFlagGrounded = 2, kFlagTeleport = 4 };
 enum : int { kSyncBufBytes = 256 };
+static_assert(sizeof(SyncMsgV1) + sizeof(SyncPlayerV1) <= kSyncBufBytes,
+              "The complete owner snapshot must fit the aux carrier");
+SyncHit g_pending_hits[7] = {};
+unsigned g_hit_ack[7] = {}, g_snapshot_seq[kCommsMaxPlayers] = {};
+bool g_snapshot_seen[kCommsMaxPlayers] = {}, g_resolving_hit = false;
+unsigned g_hit_serial = 0;
+bool g_probe_contact = false;
+
+bool route_player_hit(void *victim, void *attacker, unsigned flags) {
+    if (!g_enabled || adventure_ghost_mode()) return false;
+    const int me = data_0209f250;
+    const int v = player::player_no(victim), a = player::player_no(attacker);
+    if (me >= 7 || v >= 7 || a >= 7 || v == a || g_resolving_hit) return false;
+    if (std::getenv("SM64DS_SYNC_COMBAT_PROBE") && !g_probe_contact) return true;
+    // Only the attacker's console reports contacts. The victim's console
+    // resolves the request once through the real ROM hit handler. No peer
+    // subtracts health from its independently simulated copy of a victim.
+    if (a == me && v != me &&
+        !*(unsigned short *)((char *)victim + 0x6a0) &&
+        !*(unsigned char *)((char *)victim + 0x708) &&
+        !*(unsigned char *)((char *)victim + 0x709) &&
+        !g_pending_hits[v].seq) {
+        SyncHit &hit = g_pending_hits[v];
+        hit.seq = ++g_hit_serial;
+        if (!hit.seq) hit.seq = ++g_hit_serial;
+        hit.flags = flags & 0x27fe0u;
+        hit.x = *player::pos_x(attacker);
+        hit.y = *player::pos_y(attacker);
+        hit.z = *player::pos_z(attacker);
+    }
+    return true;
+}
+
+void apply_owner_combat(void *a, const SyncPlayerV1 *e) {
+    const int slot = e->slot, me = data_0209f250;
+    void *state = port_player_state_from_index(e->state_id);
+    if (!state || e->health < 0 || e->health > 0x880 || e->hurt_damage > 32 ||
+        e->no_control > 1 || e->taking_damage > 1 || e->body_collision > 1) return;
+    char *body = (char *)a;
+    // Init/Cleanup use validated local registry objects. Carry the fields the
+    // hurt/death/no-control handlers actually branch on, then restore their
+    // owner values after Init (which may otherwise reset them).
+    data_02092144[slot] = e->health;
+    if (player::state_ptr(a) != state) {
+        body[0x709] = e->no_control;
+        body[0x6e3] = e->step; body[0x6e5] = e->work; body[0x70c] = e->arg;
+        *(int *)(body + 0x674) = e->hurt_damage;
+        _ZN6Player11ChangeStateERNS_5StateE(body, state);
+    }
+    data_02092144[slot] = e->health;
+    *(unsigned short *)(body + 0x6a0) = e->invincible;
+    *(unsigned short *)(body + 0x6a4) = e->state_timer;
+    *(int *)(body + 0x674) = e->hurt_damage;
+    body[0x6e3] = e->step; body[0x6e5] = e->work; body[0x70c] = e->arg;
+    body[0x6e6] = e->phase;
+    body[0x709] = e->no_control; body[0x708] = e->taking_damage;
+    body[0x713] = e->body_collision;
+    unsigned &collision = *(unsigned *)(body + 0x2ec);
+    collision = e->no_control ? collision | 4u : collision & ~4u;
+}
+
+// Combat is deliberately outside the position-correction witness. A validated
+// hit may change the local player's facing/velocity through the ROM's Hurt;
+// a position snapshot may never move the local player.
+void apply_hit_requests(const SyncPlayerV1 *e) {
+    const int slot=e->slot,me=data_0209f250;
+    if (me >= 7 || slot >= 7) return;
+    char *body=(char *)data_0209f394[slot];if(!body)return;
+    if (g_pending_hits[slot].seq && e->hit_ack[me] == g_pending_hits[slot].seq)
+        g_pending_hits[slot] = {};
+    const SyncHit &hit = e->hits[me];
+    if (!hit.seq || (int)(hit.seq - g_hit_ack[slot]) <= 0) return;
+    g_hit_ack[slot] = hit.seq; // Rejected contacts are also acknowledged.
+    char *victim = (char *)data_0209f394[me];
+    if (!victim || e->level_id != (unsigned short)(int)data_0209f2f8 ||
+        (hit.flags & ~0x27fe0u)) return;
+    const long long dx = (long long)hit.x - *player::pos_x(victim);
+    const long long dy = (long long)hit.y - *player::pos_y(victim);
+    const long long dz = (long long)hit.z - *player::pos_z(victim);
+    const long long reach = 220LL * 4096; // contact + bounded transit movement
+    if (dx < -reach || dx > reach || dy < -reach || dy > reach ||
+        dz < -reach || dz > reach) return;
+    if (dx*dx + dy*dy + dz*dz > reach*reach) return;
+    unsigned &flags = *(unsigned *)(victim + 0x2f4);
+    unsigned &other = *(unsigned *)(victim + 0x2f8);
+    const unsigned old_flags = flags, old_other = other;
+    const short before = data_02092144[me];
+    const int old_x=*player::pos_x(body),old_y=*player::pos_y(body),old_z=*player::pos_z(body);
+    *player::pos_x(body)=hit.x;*player::pos_y(body)=hit.y;*player::pos_z(body)=hit.z;
+    flags = hit.flags; other = *(unsigned *)(body + 4); // Actor unique ID
+    g_resolving_hit = true;
+    const int result = func_ov002_020d869c(victim);
+    g_resolving_hit = false;
+    *player::pos_x(body)=old_x;*player::pos_y(body)=old_y;*player::pos_z(body)=old_z;
+    flags = old_flags; other = old_other;
+    std::fprintf(stderr, "[combat] owner=%d attacker=%d seq=%u result=%d health=%d->%d\n",
+                 me, slot, hit.seq, result, before, data_02092144[me]);
+}
 
 // ===========================================================================
 // THE TUNING RIG (mp-sync-coopdx item 6): latency induction + a measured RTT.
@@ -657,7 +772,7 @@ void apply_pose(void *a, const SyncPlayerV1 *e) {
     // hold's flag must not suppress it. In adventure mode every apply target is
     // a remote puppet (the slot==me skip in apply_snapshot stands), so the
     // bypass is exactly the ghost bodies and never the local one.
-    if (!adventure_ghost_mode() &&
+    if (!adventure_ghost_mode() && e->state_id == 0xffffu &&
         *(const unsigned char *)((const char *)a + player::kIsNoControl)) {
         ++g_stats.pose_held;
         return;
@@ -689,7 +804,8 @@ void apply_pose(void *a, const SyncPlayerV1 *e) {
         // startFrame. The received cursor is 20.12, so its integer frame is
         // >> 12.
         const unsigned start = (unsigned)(e->anim_frame >> 12);
-        _ZN6Player7SetAnimEji5Fix12IiEj(a, e->anim_id, 0, 0x1000, start);
+        _ZN6Player7SetAnimEji5Fix12IiEj(a, e->anim_id, e->anim_flags & 0xc0000000u,
+                                     e->anim_speed, start);
         // Declared void above, so there is no return value to discard and no
         // way for a later edit here to start reading an unwritten slot.
         if (g_cfg.report)
@@ -757,7 +873,7 @@ void apply_pose(void *a, const SyncPlayerV1 *e) {
        artifact never leaves the band. */
     if (d > (g_cfg.phase_frames << 12) + age_2012) {
         /* Reseed at the age-corrected frame, through the ROM's own face. */
-        _ZN6Player7SetAnimEji5Fix12IiEj(a, e->anim_id, 0, 0x1000,
+        _ZN6Player7SetAnimEji5Fix12IiEj(a, e->anim_id, e->anim_flags & 0xc0000000u, e->anim_speed,
                                         (unsigned)(est >> 12));
         ++g_stats.reseeds;
         if (g_cfg.report)
@@ -865,6 +981,10 @@ void sync_send_own() {
     g_ev_anim = anim_now;
     g_ev_ground = ground_now;
 
+    // The game runs at 30 ticks/s in a 3D level. A 30 Hz snapshot setting
+    // means every tick there, rather than every other tick of an assumed 60 Hz.
+    const int divider=data_0208ee44>0&&data_0208ee44<=4?data_0208ee44:1;
+    g_send_every=(60/divider)/g_cfg.hz;if(g_send_every<1)g_send_every=1;
     const bool cadence = (g_frame % (unsigned)g_send_every) == 0;
     if (!cadence && !event) return;
 
@@ -888,7 +1008,7 @@ void sync_send_own() {
     e->y     = cy;
     e->z     = cz;
     e->anim_id    = player::anim_id(a);
-    e->state_id   = player::state_id(a);
+    e->state_id   = port_player_state_index(player::state_ptr(a));
     e->anim_frame = player::anim_frame(a);
     e->vx = g_vel[0];
     e->vy = g_vel[1];
@@ -897,6 +1017,19 @@ void sync_send_own() {
        own level. data_0209f2f8 is signed (levels 0..51); widen through int so a
        hypothetical negative id does not sign-extend into the u16. */
     e->level_id = (unsigned short)(int)data_0209f2f8;
+    const char *body = (const char *)a;
+    e->health = data_02092144[me];
+    e->invincible = *(const unsigned short *)(body + 0x6a0);
+    e->state_timer = *(const unsigned short *)(body + 0x6a4);
+    e->hurt_damage = (unsigned short)*(const int *)(body + 0x674);
+    const void *model = player::body_model_anim(a);
+    e->anim_flags = model ? *(const unsigned *)((const char *)model + 0x54) & 0xc0000000u : 0;
+    e->anim_speed = model ? *(const int *)((const char *)model + 0x5c) : 0x1000;
+    e->step = body[0x6e3]; e->work = body[0x6e5]; e->arg = body[0x70c];
+    e->no_control = body[0x709]; e->taking_damage = body[0x708]; e->body_collision = body[0x713];
+    e->phase = body[0x6e6]; e->reserved = 0;
+    std::memcpy(e->hit_ack, g_hit_ack, sizeof e->hit_ack);
+    std::memcpy(e->hits, g_pending_hits, sizeof e->hits);
 
     const int len = (int)sizeof(SyncMsgV1) + (int)sizeof(SyncPlayerV1);
     if (t->send_aux(buf, len) == len) {
@@ -954,6 +1087,7 @@ void apply_snapshot(const unsigned char *buf, int n) {
         ++g_stats.dropped;
         return;
     }
+    if (m->count != 1) { ++g_stats.dropped; return; }
     const int want = (int)sizeof(SyncMsgV1) + m->count * (int)sizeof(SyncPlayerV1);
     if (n < want) { ++g_stats.dropped; return; }
     ++g_stats.recvd;
@@ -994,6 +1128,8 @@ void apply_snapshot(const unsigned char *buf, int n) {
         }
         void *a = data_0209f394[slot];
         if (!a) continue;
+        if (g_snapshot_seen[slot] && (int)(m->seq - g_snapshot_seq[slot]) <= 0) continue;
+        g_snapshot_seen[slot] = true; g_snapshot_seq[slot] = m->seq;
 
         // Apply identity before pose so animation files belong to the incoming
         // character. The existing swap preserves position/state/health and
@@ -1016,6 +1152,7 @@ void apply_snapshot(const unsigned char *buf, int n) {
                              GetTickCount());
         }
 
+        if (!adventure_ghost_mode()) apply_owner_combat(a, e);
         if (g_cfg.report) {
             if (g_arr_seen[slot] && e->anim_id != g_arr_anim[slot])
                 std::fprintf(stderr,
@@ -1148,6 +1285,9 @@ void apply_snapshot(const unsigned char *buf, int n) {
                          "said once.\n", me);
         }
     }
+    const SyncPlayerV1 *hit_entry=(const SyncPlayerV1 *)(buf+sizeof(SyncMsgV1));
+    if(!adventure_ghost_mode() && hit_entry->slot!=me && hit_entry->slot<7)
+        apply_hit_requests(hit_entry);
 }
 
 // ---------------------------------------------------------------------------
@@ -1199,11 +1339,12 @@ extern "C" void port_adventure_probe_apply_lvl(int slot, int x, int y, int z,
                                                short yaw, int level) {
     if (slot < 0 || slot >= kCommsMaxPlayers) return;
     void *a = data_0209f394[slot];
-    unsigned char buf[kSyncBufBytes];
+    unsigned char buf[kSyncBufBytes] = {};
     SyncMsgV1 *m = (SyncMsgV1 *)buf;
     m->magic = kSyncMagic;
     m->version = kSyncVersion;
-    m->seq = 0;
+    static unsigned probe_seq=0;
+    m->seq = ++probe_seq;
     m->count = 1;
     m->pad[0] = m->pad[1] = m->pad[2] = 0;
     SyncPlayerV1 *e = (SyncPlayerV1 *)(buf + sizeof(SyncMsgV1));
@@ -1214,7 +1355,8 @@ extern "C" void port_adventure_probe_apply_lvl(int slot, int x, int y, int z,
     e->y = y;
     e->z = z;
     e->anim_id = a ? player::anim_id(a) : 0;
-    e->state_id = 0;
+    e->state_id = 0xffffu;
+    e->anim_speed = 0x1000;
     e->anim_frame = a ? player::anim_frame(a) : 0;
     e->vx = e->vy = e->vz = 0;
     /* v4: the injected peer's level. The M2 presence proof passes a level that
@@ -1844,6 +1986,34 @@ void sync_tick() {
                      (unsigned long long)g_stats.gated);
     }
     sync_recv_pump();      // take what has arrived (and is due) first
+    if(std::getenv("SM64DS_SYNC_PERF_PROBE") && g_frame%30==0)
+        std::fprintf(stderr,"[sync-perf] frame=%u t=%u\n",g_frame,GetTickCount());
+    if(std::getenv("SM64DS_SYNC_COMBAT_PROBE")) {
+        const int me=data_0209f250,target=me==0?1:0;
+        if(me<2 && data_0209f394[me] && data_0209f394[target] &&
+           g_frame>=80u && g_frame%30u==static_cast<unsigned>(me*15) &&
+           data_02092144[target]>0 && !g_pending_hits[target].seq &&
+           !*(unsigned char *)((char *)data_0209f394[target]+0x708) &&
+           !*(unsigned char *)((char *)data_0209f394[target]+0x709) &&
+           !*(unsigned short *)((char *)data_0209f394[target]+0x6a0)) {
+            char *attacker=(char *)data_0209f394[me],*victim=(char *)data_0209f394[target];
+            // Stage a genuine player hit at the other body's position. This
+            // fixture enters the same collision resolver as live combat.
+            *player::pos_x(attacker)=*player::pos_x(victim)+15*4096;
+            *player::pos_y(attacker)=*player::pos_y(victim);
+            *player::pos_z(attacker)=*player::pos_z(victim);
+            unsigned &flags=*(unsigned *)(victim+0x2f4),&other=*(unsigned *)(victim+0x2f8);
+            const unsigned old_flags=flags,old_other=other;
+            flags=0x80;other=*(unsigned *)(attacker+4);
+            g_probe_contact=true;func_ov002_020d869c(victim);g_probe_contact=false;flags=old_flags;other=old_other;
+            std::fprintf(stderr,"[combat-test] contact f=%u attacker=%d victim=%d pending=%u\n",g_frame,me,target,g_pending_hits[target].seq);
+        }
+        if(g_frame%5==0)for(int slot=0;slot<2;++slot)if(void *a=data_0209f394[slot])
+            std::fprintf(stderr,"[combat-test] f=%u me=%d slot=%d health=%d state=%u anim=%u damage=%u noctl=%u inv=%u t=%u phase=%u air=%u step=%u work=%u\n",
+                g_frame,me,slot,data_02092144[slot],port_player_state_index(player::state_ptr(a)),player::anim_id(a),
+                *(unsigned char *)((char *)a+0x708),*(unsigned char *)((char *)a+0x709),*(unsigned short *)((char *)a+0x6a0),GetTickCount(),
+                *(unsigned char *)((char *)a+0x6e6),*(unsigned char *)((char *)a+0x6de),*(unsigned char *)((char *)a+0x6e3),*(unsigned char *)((char *)a+0x6e5));
+    }
     sync_send_own();       // then publish OUR body, after the input record
     sync_send_ping();      // and the rig's probe last, behind the state
 }
@@ -1887,3 +2057,8 @@ void sync_report(const char *tag) {
 }
 
 }  // namespace port
+
+extern "C" int port_sync_route_player_hit(void *victim, void *attacker, unsigned flags)
+{
+    return port::route_player_hit(victim, attacker, flags) ? 1 : 0;
+}

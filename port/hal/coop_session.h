@@ -68,6 +68,7 @@ inline std::map<std::string,std::string> room_environment(const Plan& plan,int s
         // Keep adaptive sizing enabled: an internet friend still needs enough
         // shared delay for their measured path. Local-only rooms need no 5-frame floor.
         env["SM64DS_COMMS_DELAY_FLOOR"]="1";
+        env["SM64DS_COMMS_DELAY_MARGIN"]="0";
     }
     env["SM64DS_PLAYER_PALETTES"]=plan.palettes;
     env["SM64DS_PLAYER_CHARACTERS"]=plan.characters;

@@ -374,6 +374,19 @@ static const unsigned g_player_state_rom[78][3] = {
 
 enum { PORT_PLAYER_STATE_FACES = 175, PORT_PLAYER_STATE_CELLS = 185 };
 
+// Stable wire IDs refer to this explicit ROM-ordered registry, never to an
+// address supplied by a peer. The objects themselves need not be contiguous.
+extern "C" unsigned port_player_state_index(const void *state)
+{
+    for (unsigned i = 0; i < 78; ++i)
+        if (g_player_states[i] == state) return i;
+    return 0xffffu;
+}
+extern "C" void *port_player_state_from_index(unsigned index)
+{
+    return index < 78 ? g_player_states[index] : 0;
+}
+
 static int (__fastcall *port_player_state_face_for(unsigned rom))(void *, void *)
 {
     int lo = 0, hi = PORT_PLAYER_STATE_FACES - 1;

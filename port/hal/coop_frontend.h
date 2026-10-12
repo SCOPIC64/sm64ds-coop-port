@@ -9,12 +9,13 @@
 
 namespace coop_frontend {
 enum Page { HOME, PLAY, HOST, JOIN, OPTIONS, PLAYER, CAMERA, CONTROLS,
-            DISPLAY, SOUND, MISC, EXIT_CONFIRM, MODS, TEXTURES, PAUSE, LOBBY, COLORS };
+            DISPLAY, SOUND, MISC, EXIT_CONFIRM, MODS, TEXTURES, PAUSE, LOBBY, COLORS, PALETTES };
 enum Action { NONE, START_SOLO, START_HOST, START_JOIN, SAVE_OPTIONS, NEXT_SONG,
               IMPORT_MUSIC, IMPORT_BACKGROUND, RELOAD_MEDIA, QUIT, TOGGLE_MOD, RELOAD_MODS,
               TEXTURE_CAPTURE, TEXTURE_PACK, OPEN_TEXTURE_FOLDER, RESUME,
               CREATE_ROOM, JOIN_ROOM, START_ROOM, LEAVE_ROOM, BIND_KEY, BIND_PAD,
-              CLEAR_BIND, RESET_BINDS, DEFAULT_COLOR, RESET_COLORS };
+              CLEAR_BIND, RESET_BINDS, DEFAULT_COLOR, RESET_COLORS,
+              IMPORT_PALETTE, SAVE_PALETTE, APPLY_PALETTE, EXPORT_PALETTE };
 enum { BACKGROUND_BUILTIN_COUNT = 8 };
 enum Key { UP, DOWN, LEFT, RIGHT, ACCEPT, BACK };
 
@@ -73,7 +74,9 @@ struct Menu {
     char username[17] = "Player", color_hex[7] = "";
     int binding_action=0,binding_slot=0,color_character=0,color_part=0;
     char binding_name[32]="MOVE UP", binding_labels[3][32]={};
-    char edit_backup[32] = "";
+    int palette_index=0, palette_count=0;
+    char palette_name[33]="My palette", palette_selected[64]="Original";
+    char edit_backup[64] = "";
     char message[128] = "";
 
     int rows() const {
@@ -89,7 +92,8 @@ struct Menu {
         case SOUND: return 7;
         case CAMERA: case MISC: return 2;
         case CONTROLS: return 7;
-        case COLORS: return 9;
+        case COLORS: return 10;
+        case PALETTES: return 6;
         case EXIT_CONFIRM: return 2;
         case MODS: return shown_mods()+4;
         case TEXTURES: return 4;
@@ -112,6 +116,7 @@ struct Menu {
         case MISC: return "MISC";
         case CONTROLS: return "CONTROLS";
         case COLORS: return "CHARACTER COLORS";
+        case PALETTES: return "COLOR PRESETS";
         case EXIT_CONFIRM: return "QUIT THE GAME?";
         case MODS: return "MODS";
         case TEXTURES: return "TEXTURE PACKS";
@@ -124,15 +129,16 @@ struct Menu {
         if (page == JOIN && row == 0) return room_code;
         if (page == PLAYER && row == 3) return username;
         if (page == COLORS && row == 2) return color_hex;
+        if (page == PALETTES && row == 2) return palette_name;
         return nullptr;
     }
     void type(char ch) {
         char* p = editing ? field() : nullptr;
         if (!p) return;
-        size_t size = page==PLAYER?sizeof username:sizeof room_code;
+        size_t size = page==PALETTES?sizeof palette_name:page==PLAYER?sizeof username:sizeof room_code;
         size_t n = std::strlen(p);
         if (ch == '\b') { if (n) p[n - 1] = 0; }
-        else if (n + 1 < size && (page==PLAYER?(ch>=32&&ch<=126&&ch!=','&&ch!='|'):
+        else if (n + 1 < size && (page==PALETTES?(ch>=32&&ch<=126):page==PLAYER?(ch>=32&&ch<=126&&ch!=','&&ch!='|'):
             page==COLORS?((ch>='0'&&ch<='9')||(ch>='a'&&ch<='f')||(ch>='A'&&ch<='F')):
             ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')))) {
             if(page==JOIN&&ch >= 'a' && ch <= 'z') ch -= 'a'-'A';
@@ -195,14 +201,18 @@ struct Menu {
             else if(index==1)std::snprintf(out,size,"SLOT < %d / 3 >  %s",binding_slot+1,binding_labels[binding_slot]);
             else {const char* labels[]={"BIND KEYBOARD KEY","BIND CONTROLLER BUTTON","CLEAR THIS SLOT","RESET ALL CONTROLS"};std::snprintf(out,size,"%s",labels[index-2]);}
         } else if(page==COLORS) {
-            const char* parts[]={"HAT","SHIRT / BODY","PANTS","GLOVES","SHOES","SKIN","HAIR","EMBLEM"};
+            const char* parts[]={"CAP","SHIRT","OVERALLS / PANTS","GLOVES","SHOES","SKIN","HAIR","EMBLEM"};
             const char* yoshi_parts[]={"SPIKES","BODY","SADDLE","","SHOES","BELLY / SNOUT","",""};
             if(index==0)std::snprintf(out,size,"CHARACTER  < %s >",chars[color_character]);
             else if(index==1)std::snprintf(out,size,"PART  < %s >",color_character==3?yoshi_parts[color_part]:parts[color_part]);
             else if(index==2)std::snprintf(out,size,"RGB HEX  %s%s",color_hex[0]?color_hex:"DEFAULT",editing?"_":"");
             else if(index<=5) {const char* channel[]={"RED","GREEN","BLUE"};unsigned rgb=color_hex[0]?static_cast<unsigned>(std::strtoul(color_hex,nullptr,16)):0xffffff;
                 std::snprintf(out,size,"%s < %3u >",channel[index-3],(rgb>>(8*(5-index)))&255);}
-            else std::snprintf(out,size,"%s",index==6?"USE ORIGINAL COLOR":"RESET CHARACTER PALETTE");
+            else std::snprintf(out,size,"%s",index==6?"USE ORIGINAL COLOR":index==7?"RESET CHARACTER PALETTE":index==8?"COLOR PRESETS":"BACK");
+        } else if(page==PALETTES) {
+            if(index==0)std::snprintf(out,size,"PRESET  < %.45s >",palette_selected);
+            else if(index==2)std::snprintf(out,size,"NAME: %s%s",palette_name,editing?"_":"");
+            else {const char* labels[]={"","APPLY PRESET","","SAVE CURRENT COLORS","IMPORT COOPDX .INI","EXPORT CURRENT COLORS"};std::snprintf(out,size,"%s",labels[index]);}
         } else if (page == DISPLAY) {
             if (index == 0) {
                 if (fps == 0) std::snprintf(out, size, "FRAME RATE     < NATIVE >");
@@ -244,6 +254,7 @@ struct Menu {
             return NONE;
         }
         if (key == BACK) {
+            if(page==PALETTES){open(COLORS);return NONE;}
             if(page==LOBBY) return LEAVE_ROOM;
             if(page==PAUSE)return RESUME;
             if(page==MODS){open(in_game?PAUSE:HOME);return NONE;}
@@ -328,7 +339,11 @@ struct Menu {
             else if(row>=3&&row<=5){unsigned rgb=color_hex[0]?static_cast<unsigned>(std::strtoul(color_hex,nullptr,16)):0xffffff;unsigned shift=8*(5-row);
                 int channel=static_cast<int>((rgb>>shift)&255)+delta*4;if(channel<0)channel=0;if(channel>255)channel=255;
                 rgb=(rgb&~(255u<<shift))|(static_cast<unsigned>(channel)<<shift);std::snprintf(color_hex,sizeof color_hex,"%06x",rgb);}
-            else if(key==ACCEPT){if(row==8){after_save=PLAYER;return SAVE_OPTIONS;}return row==6?DEFAULT_COLOR:RESET_COLORS;}
+            else if(key==ACCEPT){if(row==9){after_save=PLAYER;return SAVE_OPTIONS;}if(row==8){open(PALETTES);return NONE;}return row==6?DEFAULT_COLOR:RESET_COLORS;}
+        } else if(page==PALETTES) {
+            if(row==0){if(palette_count)palette_index=(palette_index+palette_count+delta)%palette_count;}
+            else if(row==2&&key==ACCEPT){std::strcpy(edit_backup,palette_name);editing=true;}
+            else if(key==ACCEPT)return row==1?APPLY_PALETTE:row==3?SAVE_PALETTE:row==4?IMPORT_PALETTE:EXPORT_PALETTE;
         } else if (page == PLAYER || page == CAMERA || page == DISPLAY || page == SOUND || page == MISC) {
             if (row == rows() - 1) {
                 if (key == ACCEPT) { after_save = OPTIONS; return SAVE_OPTIONS; }

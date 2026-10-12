@@ -2,12 +2,17 @@
 #include "coop_frontend.h"
 #include <cstdint>
 #include <cmath>
+#include <algorithm>
 
 namespace coop_frontend {
 struct Canvas {
     uint32_t* pixels;
     int width, height, stride;
     const unsigned char (*font)[8];
+    void (*smooth_text)(uint32_t*,int,int,int,int,int,const char*,uint32_t,int)=nullptr;
+    int (*text_width)(const char*,int)=nullptr;
+    const uint32_t* logo=nullptr;
+    int logo_width=0,logo_height=0;
     bool valid() const { return pixels && font && width > 0 && height > 0 && stride >= width; }
     int scale() const { int s = height / 256; if (s > width / 384) s = width / 384; return s < 1 ? 1 : s; }
     void box(int x, int y, int w, int h, uint32_t color) const {
@@ -23,6 +28,7 @@ struct Canvas {
             }
     }
     void text(int x, int y, const char* str, uint32_t color, int size) const {
+        if(smooth_text){smooth_text(pixels,width,height,stride,x,y,str,color,size);return;}
         for (; *str; ++str, x += 6 * size) {
             unsigned char ch = static_cast<unsigned char>(*str);
             if (ch < 32 || ch > 126) continue;
@@ -34,7 +40,18 @@ struct Canvas {
         text(x + size, y + size, str, 0xff101020u, size); text(x, y, str, color, size);
     }
     void centered(int y, const char* str, uint32_t color, int size) const {
-        shadow((width - static_cast<int>(std::strlen(str)) * 6 * size) / 2, y, str, color, size);
+        shadow((width - measure(str,size)) / 2, y, str, color, size);
+    }
+    int measure(const char* str,int size) const {return text_width?text_width(str,size):static_cast<int>(std::strlen(str))*6*size;}
+    void rounded(int x,int y,int w,int h,int radius,uint32_t color,unsigned opacity=255) const {
+        if(radius>h/2)radius=h/2;if(radius>w/2)radius=w/2;
+        for(int py=(std::max)(0,y);py<(std::min)(height,y+h);++py)for(int px=(std::max)(0,x);px<(std::min)(width,x+w);++px) {
+            int dx=px<x+radius?x+radius-px:px>=x+w-radius?px-(x+w-radius-1):0;
+            int dy=py<y+radius?y+radius-py:py>=y+h-radius?py-(y+h-radius-1):0;
+            if(dx*dx+dy*dy>radius*radius)continue;uint32_t old=pixels[py*stride+px];unsigned a=opacity;
+            pixels[py*stride+px]=0xff000000u|((((old>>16&255)*(255-a)+(color>>16&255)*a)/255)<<16)|
+                ((((old>>8&255)*(255-a)+(color>>8&255)*a)/255)<<8)|(((old&255)*(255-a)+(color&255)*a)/255);
+        }
     }
 };
 struct ButtonRect { int x, y, w, h; };
@@ -42,12 +59,12 @@ inline int panel_width(const Canvas& c, const Menu& m) { return m.page == HOME ?
 inline int panel_left(const Canvas& c, const Menu& m) { return m.page == HOME ? c.width / 30 : (c.width - panel_width(c,m)) / 2; }
 inline int button_left(const Canvas& c, const Menu& m) { return panel_left(c,m) + c.width / 30; }
 inline int button_width(const Canvas& c, const Menu& m) { return panel_width(c,m) - c.width / 15; }
-inline int row_top(const Canvas& c, const Menu& m) { return c.height * (m.page == HOME ? 40 : m.page==COLORS?25:27) / 100; }
+inline int row_top(const Canvas& c, const Menu& m) { return c.height * (m.page == HOME ? 40 : m.page==COLORS?24:27) / 100; }
 inline int row_height(const Canvas& c) { int h = c.height * 7 / 100; return h > 1 ? h : 2; }
 inline ButtonRect button_rect(const Canvas& c, const Menu& m, int row) {
     ButtonRect r = {button_left(c,m), row_top(c,m) + row * row_height(c), button_width(c,m), row_height(c) * 4 / 5};
     if(m.page==LOBBY) { r.y=c.height*27/100+row*c.height*5/100; r.h=c.height*4/100; }
-    if(m.page==COLORS) { r.y=c.height*25/100+row*c.height*5/100; r.h=c.height*4/100; }
+    if(m.page==COLORS) { r.y=c.height*24/100+row*c.height*5/100; r.h=c.height*4/100; }
     if (m.page == HOST) {
         if (row < 3) {
             const int cell = button_width(c,m) / 3;
@@ -65,7 +82,7 @@ inline int hit_row(const Canvas& c, const Menu& m, int x, int y) {
     return -1;
 }
 inline void panel_text(const Canvas& c, const Menu& m, int y, const char* str, uint32_t color, int size) {
-    c.shadow(panel_left(c,m)+(panel_width(c,m)-static_cast<int>(std::strlen(str))*6*size)/2,y,str,color,size);
+    c.shadow(panel_left(c,m)+(panel_width(c,m)-c.measure(str,size))/2,y,str,color,size);
 }
 inline void hand(const Canvas& c, int x, int y, int s) {
     static const unsigned char rows[] = { 0x30,0x38,0xfc,0xfe,0xff,0xfe,0x7c,0x38 };
@@ -89,19 +106,31 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
         c.pixels[y*c.stride+x]=v;
     }
     const int px=panel_left(c,menu), pw=panel_width(c,menu);
-    c.shade(px,c.height/12,pw,c.height*79/100,165);
+    c.rounded(px,c.height/12,pw,c.height*79/100,12*s,0xff101724u,205);
     if (menu.page==HOME) {
+      if(c.logo && c.logo_width>0 && c.logo_height>0) {
+        int h=c.height*27/100,w=h*c.logo_width/c.logo_height;
+        if(w>pw*90/100){w=pw*90/100;h=w*c.logo_height/c.logo_width;}
+        int left=px+(pw-w)/2,top=c.height*9/100;
+        for(int y=0;y<h;++y)for(int x=0;x<w;++x)
+            c.pixels[(top+y)*c.stride+left+x]=c.logo[(y*c.logo_height/h)*c.logo_width+x*c.logo_width/w];
+      } else {
         const char* title="SUPER MARIO"; const int size=s*2;
         const uint32_t colors[]={0xfff34b46u,0xff62caffu,0xffffdc47u,0xff70df6bu};
         int x=px+(pw-static_cast<int>(std::strlen(title))*6*size)/2;
         for (int i=0; title[i]; ++i) { char one[]={title[i],0}; c.shadow(x,c.height*16/100,one,colors[i%4],size); x+=6*size; }
         panel_text(c,menu,c.height*24/100,"64 DS CO-OP",0xffffffffu,size);
         panel_text(c,menu,c.height*32/100,"MAIN MENU",0xffffdf60u,s);
+      }
     } else panel_text(c,menu,c.height*16/100,menu.title(),0xffffdf60u,s*2);
     if (loading) {
         panel_text(c,menu,c.height*45/100,loading,0xffffffffu,s);
         panel_text(c,menu,c.height*57/100,"PLEASE WAIT...",0xffeeeeeeu,s);
     } else {
+        static Page last_page=HOME;static int last_height=0;static double focus_y=0;
+        ButtonRect focus=button_rect(c,menu,menu.row);
+        if(last_page!=menu.page||last_height!=c.height){focus_y=focus.y;last_page=menu.page;last_height=c.height;}
+        else focus_y+=(focus.y-focus_y)*0.28;
         for (int i=0;i<menu.rows();++i) {
             ButtonRect r=button_rect(c,menu,i); bool selected=i==menu.row;
             if (menu.page==HOST && i<3) {
@@ -119,11 +148,23 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
                 if(i==menu.slot) c.shadow(r.x+8*s,r.y+r.h-12*s,"SELECTED",0xffffdf60u,s);
                 continue;
             }
-            if(selected) { c.shade(r.x,r.y,r.w,r.h,50); hand(c,r.x+2*s,r.y+(r.h-8*s)/2,s); }
+            c.rounded(r.x,r.y,r.w,r.h,5*s,selected?0xff345171u:0xff1b273bu,selected?235:160);
+            if(selected)c.rounded(r.x,static_cast<int>(focus_y),3*s,r.h,s,0xff5ae1c1u);
             char label[80]; menu.label(i,label,sizeof label);
-            int size=s*2; while(size>1 && static_cast<int>(std::strlen(label))*6*size>r.w-22*s) --size;
-            const int x=menu.page==HOME?r.x+20*s:r.x+(r.w-static_cast<int>(std::strlen(label))*6*size)/2;
-            c.shadow(x,r.y+(r.h-8*size)/2,label,selected?0xffffdf60u:0xffffffffu,size);
+            if(menu.page==COLORS&&i>=3&&i<=5) {
+                const char* channels[]={"Red","Green","Blue"};unsigned rgb=static_cast<unsigned>(std::strtoul(menu.color_hex,nullptr,16));
+                int value=(rgb>>(8*(5-i)))&255,bx=r.x+r.w*27/100,bw=r.w*55/100,by=r.y+r.h/2;
+                c.text(r.x+8*s,r.y+(r.h-10*s)/2,channels[i-3],0xffe7ecf4u,s);
+                c.rounded(bx,by-2*s,bw,4*s,2*s,0xff51627au);
+                const uint32_t colors[]={0xffff6f7du,0xff58dba5u,0xff65b9ffu};
+                c.rounded(bx,by-2*s,bw*value/255,4*s,2*s,colors[i-3]);
+                c.rounded(bx+bw*value/255-3*s,by-5*s,6*s,10*s,3*s,0xfff6f9ffu);
+                char number[8];std::snprintf(number,sizeof number,"%d",value);c.text(r.x+r.w*86/100,r.y+(r.h-10*s)/2,number,0xffffffffu,s);
+                continue;
+            }
+            int size=(menu.page==COLORS||menu.page==LOBBY)?s:s*2; while(size>1 && (c.measure(label,size)>r.w-22*s||10*size>r.h)) --size;
+            const int x=menu.page==HOME?r.x+12*s:r.x+(r.w-c.measure(label,size))/2;
+            c.text(x,r.y+(r.h-10*size)/2,label,selected?0xffffffffu:0xffced9eau,size);
         }
     }
     const char* detail=nullptr;
@@ -131,11 +172,11 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
     if(menu.page==TEXTURES)detail="CAPTURE WHILE PLAYING, THEN EDIT THE PNGS";
     if(menu.page==CONTROLS)detail="3 SLOTS PER ACTION - KEYBOARD OR CONTROLLER";
     if(menu.page==COLORS) {
-        detail="LEFT/RIGHT: ADJUST RGB - ENTER: TYPE HEX";
+        detail="DRAG RGB SLIDERS - LEFT/RIGHT: ADJUST - ENTER: HEX";
         unsigned rgb=menu.color_hex[0]?static_cast<unsigned>(std::strtoul(menu.color_hex,nullptr,16)):0xffffff;
-        int sw=c.width/16,sh=c.height/20;
-        c.box(c.width/2-sw/2-s,c.height*73/100-s,sw+2*s,sh+2*s,0xffffffffu);
-        c.box(c.width/2-sw/2,c.height*73/100,sw,sh,0xff000000u|rgb);
+        int sw=c.width/20,sh=c.height/22;
+        c.rounded(c.width*85/100-s,c.height*16/100-s,sw+2*s,sh+2*s,3*s,0xffffffffu);
+        c.rounded(c.width*85/100,c.height*16/100,sw,sh,2*s,0xff000000u|rgb);
     }
     if(menu.page==CAMERA && menu.camera==3)detail="Q/E: TURN  R: C-UP  F: OUT  V: MARIO/LAKITU";
     if(menu.page==DISPLAY && menu.row==3)detail="NEAR: FEWER OBJECTS   FAR: MORE OBJECTS";

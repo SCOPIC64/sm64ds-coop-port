@@ -62,6 +62,19 @@ unsigned MusicDecoder::read(short* stereo, unsigned frames) {
 }
 bool MusicDecoder::ended() const { return !impl_ || impl_->end; }
 
+bool image_memory(const unsigned char* bytes, int count, std::vector<uint32_t>& pixels,
+                  int& width, int& height) {
+    int w=0,h=0,channels=0;
+    if(!bytes||count<1||!stbi_info_from_memory(bytes,count,&w,&h,&channels)||
+       w<1||h<1||w>4096||h>4096)return false;
+    unsigned char* data=stbi_load_from_memory(bytes,count,&w,&h,&channels,4);
+    if(!data)return false;
+    pixels.resize(static_cast<size_t>(w)*h);
+    for(size_t n=0;n<pixels.size();++n)pixels[n]=0xff000000u|
+        (static_cast<unsigned>(data[n*4])<<16)|(static_cast<unsigned>(data[n*4+1])<<8)|data[n*4+2];
+    stbi_image_free(data);width=w;height=h;return true;
+}
+
 bool image(const char* path, std::vector<uint32_t>& pixels, int width, int height) {
     int w = 0, h = 0, channels = 0;
     if (!path || width < 1 || height < 1 || width > 4096 || height > 4096 ||

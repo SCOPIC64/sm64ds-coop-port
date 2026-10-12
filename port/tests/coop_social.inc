@@ -1,10 +1,13 @@
 // Host UI only: preferences, text chat and moderation never write DS state.
+#include "coop_palette_library.inc"
 static std::string g_coop_chat_input,g_coop_chat_notice;
 static DWORD g_coop_chat_seen=0;
 static bool g_coop_chat_skip_char=false;
 static int g_coop_chat_sequence=0;
 static bool g_coop_color_editing=false;
 static int g_coop_color_character=-1,g_coop_color_part=-1;
+static std::string g_coop_color_loaded;
+static int g_coop_slider_drag=-1;
 static unsigned g_coop_bind_previous=~0u;
 
 static void coop_binding_label(int code,char* out,size_t size) {
@@ -41,6 +44,9 @@ static void coop_binding_store(int code) {
 }
 static bool coop_preferences_action(coop_frontend::Action action) {
     bindings_load();auto& p=coop_prefs::get();
+    if(g_coop_palettes.action(action,g_coop_menu,p)) {
+        g_coop_color_part=-1;coop_preferences_save();return true;
+    }
     if(action==coop_frontend::BIND_KEY||action==coop_frontend::BIND_PAD) {
         g_coop_binding_capture=action==coop_frontend::BIND_KEY?1:2;g_coop_bind_previous=~0u;
         snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%s - ESC cancels",g_coop_binding_capture==1?"Press a keyboard key":"Release, then press a controller button");return true;
@@ -56,19 +62,38 @@ static bool coop_preferences_action(coop_frontend::Action action) {
 }
 static bool coop_preferences_tick(const XPad* pad) {
     bindings_load();auto& p=coop_prefs::get();
+    if(g_coop_menu.page==coop_frontend::PALETTES)g_coop_palettes.tick(g_coop_menu);
     if(g_coop_menu.page==coop_frontend::CONTROLS) {
         snprintf(g_coop_menu.binding_name,sizeof g_coop_menu.binding_name,"%s",coop_prefs::action_name(g_coop_menu.binding_action));
         for(int s=0;s<3;++s)coop_binding_label(p.bindings[g_coop_menu.binding_action][s],g_coop_menu.binding_labels[s],32);
     }
     if(g_coop_menu.page==coop_frontend::COLORS) {
+        uint32_t scratch=0;coop_frontend::Canvas c={&scratch,ntr::active_w,ntr::active_h,ntr::SCREEN_W,OVL_FONT};
+        if(!g_mouse_left_down)g_coop_slider_drag=-1;
+        if(g_mouse_click_new&&!g_coop_menu.editing) {
+            int row=coop_frontend::hit_row(c,g_coop_menu,g_mouse_click_x,g_mouse_click_y);
+            if(row>=3&&row<=5){g_coop_slider_drag=row;g_coop_menu.row=row;g_mouse_click_new=0;}
+        }
+        if(g_coop_slider_drag>=3&&g_mouse_left_down&&!g_coop_menu.editing) {
+            auto rect=coop_frontend::button_rect(c,g_coop_menu,g_coop_slider_drag);
+            int left=rect.x+rect.w*27/100,width=rect.w*55/100;
+            int value=(std::max)(0,(std::min)(255,(g_mouse_click_x-left)*255/(std::max)(1,width)));
+            unsigned rgb=static_cast<unsigned>(std::strtoul(g_coop_menu.color_hex,nullptr,16)),shift=8*(5-g_coop_slider_drag);
+            rgb=(rgb&~(255u<<shift))|(static_cast<unsigned>(value)<<shift);
+            snprintf(g_coop_menu.color_hex,sizeof g_coop_menu.color_hex,"%06x",rgb);
+        }
         if(!g_coop_menu.editing&&g_coop_color_character==g_coop_menu.color_character&&g_coop_color_part==g_coop_menu.color_part&&
-                p.colors[g_coop_color_character][g_coop_color_part]!=g_coop_menu.color_hex) {
+                g_coop_color_loaded!=g_coop_menu.color_hex) {
             p.colors[g_coop_color_character][g_coop_color_part]=g_coop_menu.color_hex;
+            g_coop_color_loaded=g_coop_menu.color_hex;
             coop_preferences_save();
         }
         if(g_coop_color_character!=g_coop_menu.color_character||g_coop_color_part!=g_coop_menu.color_part) {
             g_coop_color_character=g_coop_menu.color_character;g_coop_color_part=g_coop_menu.color_part;
-            snprintf(g_coop_menu.color_hex,sizeof g_coop_menu.color_hex,"%s",p.colors[g_coop_color_character][g_coop_color_part].c_str());
+            const std::string& custom=p.colors[g_coop_color_character][g_coop_color_part];
+            auto stock=coop_palettes::stock(g_coop_color_character);
+            snprintf(g_coop_menu.color_hex,sizeof g_coop_menu.color_hex,"%s",(custom.empty()?stock[g_coop_color_part]:custom).c_str());
+            g_coop_color_loaded=g_coop_menu.color_hex;
         }
         g_coop_color_editing=g_coop_menu.editing;
     }else g_coop_color_editing=false;
@@ -121,6 +146,7 @@ static void coop_chat_draw(const OvlSurface& surface) {
     if(!online.chat.empty()&&online.chat.back().seq!=g_coop_chat_sequence){g_coop_chat_sequence=online.chat.back().seq;g_coop_chat_seen=GetTickCount();}
     if(!g_coop_chat_open&&GetTickCount()-g_coop_chat_seen>9000)return;
     coop_frontend::Canvas c={surface.px,ntr::active_w,ntr::active_h,surface.stride,OVL_FONT};
+    coop_canvas_prepare(c);
     int scale=c.scale(),width=(std::min)(c.width-16,72*6*scale),x=8,y=c.height-8;
     int columns=(std::max)(20,width/(6*scale));
     std::vector<std::string> lines;
@@ -143,6 +169,10 @@ static bool coop_social_selftest(ntr::Framebuffer& fb) {
     bool ok=true;
     auto check=[&](const char* name,bool pass){ok=ok&&pass;fprintf(stderr,"[social-test] %s %s\n",pass?"PASS":"FAIL",name);fflush(stderr);};
     auto& prefs=coop_prefs::get();g_selftest=1;
+    coop_frontend::Canvas probe={&fb.px[0][0],ntr::active_w,ntr::active_h,ntr::SCREEN_W,OVL_FONT};
+    coop_canvas_prepare(probe);check("user logo embedded",probe.logo&&probe.logo_width==1599&&probe.logo_height==1066);
+    check("antialiased proportional menu font",probe.measure("WWW",2)>probe.measure("iii",2));
+    g_coop_menu.open(coop_frontend::HOME);coop_draw(fb,0);check("logo menu screenshot",ntr::ppu_write_bmp("logo-menu-test.bmp",fb));
     g_coop_menu.open(coop_frontend::CONTROLS);g_coop_menu.binding_action=coop_prefs::ATTACK;
     g_coop_menu.binding_slot=0;coop_preferences_action(coop_frontend::BIND_KEY);coop_social_message(WM_KEYDOWN,'Y',0);
     g_coop_menu.binding_slot=1;coop_preferences_action(coop_frontend::BIND_KEY);coop_social_message(WM_KEYDOWN,'U',0);
@@ -158,7 +188,18 @@ static bool coop_social_selftest(ntr::Framebuffer& fb) {
     for(char c:std::string("ff7700"))g_coop_menu.type(c);
     g_coop_menu.key(coop_frontend::ACCEPT);coop_preferences_tick(nullptr);
     check("color edit saved",prefs.colors[0][0]=="ff7700");
+    auto slider=coop_frontend::button_rect(probe,g_coop_menu,3);
+    g_mouse_click_x=slider.x+slider.w*27/100+slider.w*55/100/2;g_mouse_click_y=slider.y+slider.h/2;
+    g_mouse_click_new=1;g_mouse_left_down=1;coop_preferences_tick(nullptr);
+    unsigned slider_rgb=static_cast<unsigned>(strtoul(prefs.colors[0][0].c_str(),nullptr,16));
+    check("mouse slider changes only red",(slider_rgb&0xffff)==0x7700&&(slider_rgb>>16)>=126&&(slider_rgb>>16)<=128);
+    g_mouse_click_x=slider.x+slider.w*90/100;coop_preferences_tick(nullptr);g_mouse_left_down=0;coop_preferences_tick(nullptr);
+    check("drag reaches red endpoint",prefs.colors[0][0]=="ff7700");
     coop_draw(fb,0);check("colors screenshot",ntr::ppu_write_bmp("colors-test.bmp",fb));
+    g_coop_menu.open(coop_frontend::PALETTES);snprintf(g_coop_menu.palette_name,sizeof g_coop_menu.palette_name,"UI palette");
+    coop_preferences_action(coop_frontend::SAVE_PALETTE);prefs.colors[0][0]="000000";
+    coop_preferences_action(coop_frontend::APPLY_PALETTE);check("saved preset reapplies cap color",prefs.colors[0][0]=="ff7700");
+    coop_preferences_tick(nullptr);coop_draw(fb,0);check("preset menu screenshot",ntr::ppu_write_bmp("presets-test.bmp",fb));
     std::string presence=",\"player_id\":"+coop_online::quote(prefs.id)+",\"palette\":"+coop_online::quote(prefs.palette(0))+",\"character\":0";
     check("create request",coop_lobby().request(1,"|UI-Test",coop_online::encode_save(coop_online::fresh_save()),presence));
     DWORD deadline=GetTickCount()+15000;

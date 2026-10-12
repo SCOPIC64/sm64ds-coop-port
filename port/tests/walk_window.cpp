@@ -8562,6 +8562,11 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         mo_release();
         return 0;
     case WM_MOUSEMOVE:
+        if(g_mouse_left_down && g_coop_active) {
+            int cx=0,cy=0;
+            const int mx=(short)LOWORD(l),my=(short)HIWORD(l);
+            if(hal_present_client_to_fb(mx,my,&cx,&cy)) {g_mouse_click_x=cx;g_mouse_click_y=cy;}
+        }
         if ((mo_look || mo_captured) && W.GetCursorPos_) {
             POINT p;
             if (W.GetCursorPos_(&p)) {
