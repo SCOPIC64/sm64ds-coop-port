@@ -3420,9 +3420,12 @@ static void ovl_shade(const OvlSurface &fb, int x0, int y0, int w, int h)
     }
 }
 
+static int coop_overlay_text(const OvlSurface&,int,int,const char*,uint32_t,int);
+static void coop_canvas_prepare(coop_frontend::Canvas&);
 static int ovl_text(const OvlSurface &fb, int x0, int y0, const char *s,
                     uint32_t rgb)
 {
+    return coop_overlay_text(fb,x0,y0,s,rgb,OVL_SCALE);
     int x = x0;
     for (; *s; ++s) {
         const unsigned char ch = (unsigned char)*s;
@@ -8193,7 +8196,7 @@ static void fullscreen_toggle(HWND h)
         if (!mon || !W.GetMonitorInfoA_(mon, &mi)) return;
         g_fs_previous_aspect=host_setting_aspect();
         g_fs_previous_scale=ntr::render_scale();
-        ntr::configure_aspect((double)(mi.rcMonitor.right-mi.rcMonitor.left)/(mi.rcMonitor.bottom-mi.rcMonitor.top),2);
+        ntr::configure_aspect((double)(mi.rcMonitor.right-mi.rcMonitor.left)/(mi.rcMonitor.bottom-mi.rcMonitor.top),g_coop_active&&!g_coop_pause?4:2);
         ntr::gx_invalidate_textures();
         W.SetWindowLongA_(h, GWL_STYLE,
                           (g_fs_style & ~(LONG)WS_OVERLAPPEDWINDOW) |
@@ -17534,6 +17537,7 @@ int main(void)
            which is why no adventure selftest BMP moves. */
         if (!rb_skip_render()) {
         nt_draw(surf);
+        coop_mod_hud_draw(surf,c);
         coop_chat_draw(surf);
         if(g_coop_pause)coop_pause_draw(surf);else if (menu_on) menu_draw(surf);
         }

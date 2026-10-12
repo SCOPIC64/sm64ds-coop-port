@@ -268,3 +268,15 @@ Those compile jobs produce no APK/IPA and establish no on-device gameplay claim.
 References: [Linux mmap](https://man7.org/linux/man-pages/man2/mmap.2.html),
 [Android page sizes](https://source.android.com/docs/core/architecture/16kb-page-size/16kb),
 [Apple VM allocation flags](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/mach/vm_statistics.h).
+
+### Clear text and binding table
+
+Title menus now render at the existing 768-row UI tier, then restore the selected
+gameplay resolution on entry. Menus, chat and online player names use a cached
+antialiased semibold system font. Original cartridge artwork retains its DS style.
+
+Open Options > Controls. All 14 DS actions and their three independent bindings
+are visible together. Select a box with the mouse, or use Up/Down for the action
+and Left/Right for its slot. Enter starts capture; press a key or release and
+press a controller button. Escape cancels capture. Delete clears the selected
+box. Reset Binds restores controls; Back saves and returns to Options.

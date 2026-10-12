@@ -2,10 +2,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace sm64ds::mods {
-enum class Event { before_update, after_update, walk, state };
+enum class Event { before_update, after_update, walk, state, hud };
 struct PlayerState {
+    int x_fixed = 0, y_fixed = 0, z_fixed = 0; // Read-only exact 20.12 coordinates.
     int character = 0, action = 0, jump_stage = 0;
     int facing_yaw = 0, desired_yaw = 0, previous_yaw = 0;
     float horizontal_speed = 0, vertical_speed = 0, gravity = 0;
@@ -27,4 +29,6 @@ bool set_enabled(std::size_t index, bool enabled, std::string& error);
 bool enabled(const char* id);
 bool dispatch(Event event, PlayerState& player);
 const char* event_name(Event event);
+// HUD callbacks receive a copy; writes never reach gameplay.
+std::vector<std::string> hud_lines(const PlayerState& player);
 }

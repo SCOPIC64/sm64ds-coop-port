@@ -126,8 +126,9 @@ int main(int argc, char** argv) {
     std::strcpy(m.palette_name,"12345678901234567890123456789012");
     m.key(ACCEPT);m.type('x');m.key(BACK);
     assert(!m.editing&&!strcmp(m.palette_name,"12345678901234567890123456789012"));
-    m.open(CONTROLS);m.key(LEFT);assert(m.binding_action==13);m.row=1;m.key(LEFT);assert(m.binding_slot==2);
-    m.row=2;assert(m.key(ACCEPT)==BIND_KEY);m.row=3;assert(m.key(ACCEPT)==BIND_PAD);m.row=4;assert(m.key(ACCEPT)==CLEAR_BIND);
+    m.open(CONTROLS);m.key(LEFT);assert(m.binding_slot==2);m.key(DOWN);assert(m.binding_action==1);
+    m.row=13;assert(m.key(ACCEPT)==BIND_KEY);assert(m.binding_action==13);
+    m.row=14;assert(m.key(ACCEPT)==RESET_BINDS);m.row=15;assert(m.key(ACCEPT)==SAVE_OPTIONS);
     m.mod_count=6;m.open(MODS);m.row=0;assert(m.key(ACCEPT)==TOGGLE_MOD);
     m.row=4;m.key(RIGHT);assert(m.mod_page==1 && m.shown_mods()==2 && m.row==2);
     m.row=3;assert(m.key(ACCEPT)==RELOAD_MODS);

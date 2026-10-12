@@ -210,6 +210,14 @@ static int coop_frontend_run()
             fprintf(stderr,"[mods] %s\n",error.c_str());
     }
     if (!coop_frontend_wanted()) return 1;
+    // The menu uses the existing maximum framebuffer tier for crisp type.
+    // Restore gameplay's selected resolution when the menu hands off, keeping
+    // this quality change out of the software 3D renderer's frame budget.
+    struct MenuResolution {
+        int previous=ntr::render_scale();
+        MenuResolution(){ntr::configure_aspect(double(ntr::active_w)/ntr::active_h,4);}
+        ~MenuResolution(){ntr::configure_aspect(double(ntr::active_w)/ntr::active_h,previous);}
+    } menu_resolution;
     coop_read_options();coop_refresh_mods();
     CoopMediaLibrary media;
     media.refresh(g_coop_menu);

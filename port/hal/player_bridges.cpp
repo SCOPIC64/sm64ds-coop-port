@@ -53,6 +53,10 @@ static sm64ds::mods::PlayerState mod_player(const Player* p) {
     s.launch_speed=s.horizontal_speed;
     return s;
 }
+extern "C" void port_player_hud_snapshot(const void* player,sm64ds::mods::PlayerState* out) {
+    const Player* p=static_cast<const Player*>(player);*out=mod_player(p);
+    out->x_fixed=p->mPosX;out->y_fixed=p->mPosY;out->z_fixed=p->mPosZ;
+}
 static void mod_apply(Player* p,const sm64ds::mods::PlayerState& s) {
     p->mHorzSpeed=(int)(s.horizontal_speed*4096); p->mVertSpeed=(int)(s.vertical_speed*4096);
     p->mVertAccel=(int)(s.gravity*4096); p->mTerminalVelocity=(int)(s.terminal_velocity*4096);

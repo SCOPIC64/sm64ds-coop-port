@@ -36,7 +36,17 @@ int main() {
     const fs::path unicode = fs::u8path(u8"caf\u00e9");
     write(root/unicode/"main.lua", "sm64ds.hook('player_update',function(p) p.vertical_speed=9 end)");
     std::string error; assert(load(root.u8string(),true,error));
-    assert(count()==12 && enabled("sm64-movement"));
+    assert(count()==13 && enabled("sm64-movement"));
+    assert(set_enabled(index("speed-coordinates"),true,error));
+    PlayerState hud; hud.x_fixed=1;hud.y_fixed=-1;hud.z_fixed=123456789;
+    hud.horizontal_speed=32;hud.vertical_speed=-4;
+    auto lines=hud_lines(hud);
+    assert(lines.size()==4 && lines[0]=="Speed: 32.0000   Vertical: -4.0000");
+    assert(lines[1]=="X: 0.000244140625" && lines[2]=="Y: -0.000244140625");
+    assert(lines[3]=="Z: 30140.817626953125");
+    assert(hud.x_fixed==1 && hud.horizontal_speed==32);
+    assert(set_enabled(index("speed-coordinates"),false,error));
+    assert(hud_lines(hud).empty());
     PlayerState p; p.stick=1; p.launch_speed=32; p.gravity=-4;
     assert(dispatch(Event::walk,p) && p.horizontal_speed>1 && p.horizontal_speed<2);
     p.action=0x020e127c; p.airborne=true;

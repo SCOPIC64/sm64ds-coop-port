@@ -69,10 +69,27 @@ inline int panel_width(const Canvas& c, const Menu& m) { return m.page == HOME ?
 inline int panel_left(const Canvas& c, const Menu& m) { return m.page == HOME ? c.width / 30 : (c.width - panel_width(c,m)) / 2; }
 inline int button_left(const Canvas& c, const Menu& m) { return panel_left(c,m) + c.width / 30; }
 inline int button_width(const Canvas& c, const Menu& m) { return panel_width(c,m) - c.width / 15; }
-inline int row_top(const Canvas& c, const Menu& m) { return c.height * (m.page == HOME ? 40 : m.page==COLORS?24:27) / 100; }
+inline int row_top(const Canvas& c, const Menu& m) { return c.height * (m.page == HOME ? 40 : m.page==COLORS?24:m.page==CONTROLS?25:27) / 100; }
 inline int row_height(const Canvas& c) { int h = c.height * 7 / 100; return h > 1 ? h : 2; }
+inline const char* control_name(int row) {
+    static const char* names[]={"Up","Down","Left","Right","Jump (DS B)","Attack (DS A)","Crouch","Run (DS Y)","Start / Pause","Select","Look (DS X)","Camera Left","Camera Right","Chat"};
+    return row>=0&&row<14?names[row]:"";
+}
+inline ButtonRect control_cell(const Canvas& c,const Menu& m,int action,int slot) {
+    int left=button_left(c,m),width=button_width(c,m),rh=c.height*4/100;
+    if(rh<9)rh=9;
+    int label=width*31/100,cell=(width-label)/3;
+    return {left+label+slot*cell,c.height*25/100+action*rh,cell-2,rh-2};
+}
+inline int hit_control_slot(const Canvas& c,const Menu& m,int row,int x,int y) {
+    for(int s=0;s<3;++s){auto a=control_cell(c,m,row,s);if(x>=a.x&&x<a.x+a.w&&y>=a.y&&y<a.y+a.h)return s;}return -1;
+}
 inline ButtonRect button_rect(const Canvas& c, const Menu& m, int row) {
     ButtonRect r = {button_left(c,m), row_top(c,m) + row * row_height(c), button_width(c,m), row_height(c) * 4 / 5};
+    if(m.page==CONTROLS) {
+        int rh=(std::max)(9,c.height*4/100);
+        r.y=c.height*25/100+row*rh;r.h=rh-2;
+    }
     if(m.page==LOBBY) { r.y=c.height*27/100+row*c.height*5/100; r.h=c.height*4/100; }
     if(m.page==COLORS) { r.y=c.height*24/100+row*c.height*5/100; r.h=c.height*4/100; }
     if (m.page == HOST) {
@@ -145,6 +162,25 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
         else focus_y+=(focus.y-focus_y)*0.28;
         for (int i=0;i<menu.rows();++i) {
             ButtonRect r=button_rect(c,menu,i); bool selected=i==menu.row;
+            if(menu.page==CONTROLS&&i<14) {
+                int size=(std::max)(1,(r.h-2)/11);
+                c.text(r.x+4,r.y,control_name(i),0xffe7ecf4u,size);
+                for(int slot=0;slot<3;++slot) {
+                    auto cell=control_cell(c,menu,i,slot);
+                    bool cell_focus=selected&&slot==menu.binding_slot;
+                    c.rounded(cell.x,cell.y,cell.w,cell.h,2,cell_focus?0xff426f96u:0xff293449u);
+                    if(cell_focus)c.box(cell.x,cell.y,cell.w,1,0xff5ae1c1u);
+                    const char* name=menu.control_labels[i][slot];
+                    int text_size=size;while(text_size>1&&c.measure(name,text_size)>cell.w-6)--text_size;
+                    c.text(cell.x+(cell.w-c.measure(name,text_size))/2,cell.y,name,cell_focus?0xffffffffu:0xffced9eau,text_size);
+                }
+                continue;
+            }
+            if(menu.page==CONTROLS) {
+                c.rounded(r.x,r.y,r.w,r.h,2,selected?0xff426f96u:0xff293449u);
+                const char* text=i==14?"Reset Binds":"Back";
+                c.text(r.x+(r.w-c.measure(text,s))/2,r.y,text,0xffffffffu,s);continue;
+            }
             if (menu.page==HOST && i<3) {
                 c.shade(r.x,r.y,r.w,r.h,selected?95:60);
                 uint32_t border=i==menu.slot?0xffffd84du:0xffbbbbc9u;
@@ -182,7 +218,7 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
     const char* detail=nullptr;
     if(menu.page==MODS && menu.row<menu.shown_mods())detail=menu.mod_descriptions[menu.selected_mod()];
     if(menu.page==TEXTURES)detail="CAPTURE WHILE PLAYING, THEN EDIT THE PNGS";
-    if(menu.page==CONTROLS)detail="3 SLOTS PER ACTION - KEYBOARD OR CONTROLLER";
+    if(menu.page==CONTROLS)detail="ENTER / CLICK: BIND   DELETE: CLEAR   LEFT / RIGHT: SLOT";
     if(menu.page==COLORS) {
         detail="DRAG RGB SLIDERS - LEFT/RIGHT: ADJUST - ENTER: HEX";
         unsigned rgb=menu.color_hex[0]?static_cast<unsigned>(std::strtoul(menu.color_hex,nullptr,16)):0xffffff;
@@ -194,7 +230,7 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
     if(menu.page==DISPLAY && menu.row==3)detail="NEAR: FEWER OBJECTS   FAR: MORE OBJECTS";
     if(detail) {
         char line[76];std::snprintf(line,sizeof line,"%.75s",detail);
-        panel_text(c,menu,c.height*(menu.page==MODS?22:80)/100,line,0xffddddddU,s);
+        panel_text(c,menu,c.height*(menu.page==MODS?22:menu.page==CONTROLS?21:80)/100,line,0xffddddddU,s);
     }
     if(menu.now_playing[0]) {
         char now[64]; std::snprintf(now,sizeof now,"MUSIC: %s",menu.now_playing);

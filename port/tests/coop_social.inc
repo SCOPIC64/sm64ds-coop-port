@@ -48,8 +48,8 @@ static bool coop_preferences_action(coop_frontend::Action action) {
         g_coop_color_part=-1;coop_preferences_save();return true;
     }
     if(action==coop_frontend::BIND_KEY||action==coop_frontend::BIND_PAD) {
-        g_coop_binding_capture=action==coop_frontend::BIND_KEY?1:2;g_coop_bind_previous=~0u;
-        snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%s - ESC cancels",g_coop_binding_capture==1?"Press a keyboard key":"Release, then press a controller button");return true;
+        g_coop_binding_capture=g_coop_menu.page==coop_frontend::CONTROLS?3:action==coop_frontend::BIND_KEY?1:2;g_coop_bind_previous=~0u;
+        snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%s - ESC cancels",g_coop_binding_capture==3?"Press a key or controller button":g_coop_binding_capture==1?"Press a keyboard key":"Release, then press a controller button");return true;
     }
     if(action==coop_frontend::CLEAR_BIND){coop_binding_store(0);return true;}
     if(action==coop_frontend::RESET_BINDS){p.defaults();p.custom_controls=true;coop_preferences_save();return true;}
@@ -66,6 +66,16 @@ static bool coop_preferences_tick(const XPad* pad) {
     if(g_coop_menu.page==coop_frontend::CONTROLS) {
         snprintf(g_coop_menu.binding_name,sizeof g_coop_menu.binding_name,"%s",coop_prefs::action_name(g_coop_menu.binding_action));
         for(int s=0;s<3;++s)coop_binding_label(p.bindings[g_coop_menu.binding_action][s],g_coop_menu.binding_labels[s],32);
+        for(int a=0;a<14;++a)for(int s=0;s<3;++s)coop_binding_label(p.bindings[a][s],g_coop_menu.control_labels[a][s],32);
+        if(g_mouse_click_new&&!g_coop_binding_capture) {
+            uint32_t scratch=0;coop_frontend::Canvas c={&scratch,ntr::active_w,ntr::active_h,ntr::SCREEN_W,OVL_FONT};
+            int row=coop_frontend::hit_row(c,g_coop_menu,g_mouse_click_x,g_mouse_click_y);
+            if(row>=0&&row<14) {
+                int slot=coop_frontend::hit_control_slot(c,g_coop_menu,row,g_mouse_click_x,g_mouse_click_y);
+                if(slot>=0){g_coop_menu.row=row;g_coop_menu.binding_action=row;g_coop_menu.binding_slot=slot;
+                    g_mouse_click_new=0;coop_preferences_action(coop_frontend::BIND_KEY);}
+            }
+        }
     }
     if(g_coop_menu.page==coop_frontend::COLORS) {
         uint32_t scratch=0;coop_frontend::Canvas c={&scratch,ntr::active_w,ntr::active_h,ntr::SCREEN_W,OVL_FONT};
@@ -97,7 +107,7 @@ static bool coop_preferences_tick(const XPad* pad) {
         }
         g_coop_color_editing=g_coop_menu.editing;
     }else g_coop_color_editing=false;
-    if(g_coop_binding_capture==2&&pad) {
+    if((g_coop_binding_capture==2||g_coop_binding_capture==3)&&pad) {
         unsigned buttons=pad_word_with_triggers(pad),pressed=buttons&~g_coop_bind_previous;
         g_coop_bind_previous=buttons;
         if(pressed){unsigned bit=pressed&(~pressed+1u);coop_binding_store(-static_cast<int>(bit));return true;}
@@ -111,10 +121,13 @@ static bool coop_preferences_tick(const XPad* pad) {
 }
 static bool coop_social_message(UINT message,WPARAM key,LPARAM flags) {
     if(message!=WM_KEYDOWN&&message!=WM_SYSKEYDOWN&&message!=WM_CHAR)return false;
+    if(g_coop_active&&g_coop_menu.page==coop_frontend::CONTROLS&&!g_coop_binding_capture&&message==WM_KEYDOWN&&key==VK_DELETE&&g_coop_menu.row<14) {
+        g_coop_menu.binding_action=g_coop_menu.row;coop_binding_store(0);return true;
+    }
     if(g_coop_binding_capture) {
         if(message!=WM_CHAR&&!(flags&(1<<30))) {
             if(key==VK_ESCAPE){g_coop_binding_capture=0;g_coop_menu.message[0]=0;}
-            else if(g_coop_binding_capture==1)coop_binding_store(static_cast<int>(key));
+            else if(g_coop_binding_capture==1||g_coop_binding_capture==3)coop_binding_store(static_cast<int>(key));
         }
         return true;
     }
@@ -163,6 +176,18 @@ static void coop_chat_draw(const OvlSurface& surface) {
     for(size_t i=0;i<lines.size();++i)c.shadow(x+4,y-height+4+static_cast<int>(i)*10*scale,lines[i].c_str(),0xffffffffu,scale);
 }
 
+extern "C" void port_player_hud_snapshot(const void*,sm64ds::mods::PlayerState*);
+static void coop_mod_hud_draw(const OvlSurface& surface,const void* player) {
+    if(!player||g_coop_pause||menu_on)return;
+    sm64ds::mods::PlayerState snapshot;port_player_hud_snapshot(player,&snapshot);
+    auto lines=sm64ds::mods::hud_lines(snapshot);if(lines.empty())return;
+    coop_frontend::Canvas c={surface.px,ntr::active_w,ntr::active_h,surface.stride,OVL_FONT};coop_canvas_prepare(c);
+    int size=c.scale(),width=0;
+    for(const auto& line:lines)width=(std::max)(width,c.measure(line.c_str(),size));
+    int x=(std::max)(4,c.width-width-16),y=c.height*20/100;
+    c.rounded(x-5,y-4,width+10,static_cast<int>(lines.size())*12*size+8,4,0xff101724u,185);
+    for(const auto& line:lines){c.shadow(x,y,line.c_str(),0xffffffffu,size);y+=12*size;}
+}
 // Opt-in check of the real menu handlers and asynchronous lobby client. Use
 // an isolated APPDATA and working folder; this writes screenshots/preferences.
 static bool coop_social_selftest(ntr::Framebuffer& fb) {
@@ -181,8 +206,22 @@ static bool coop_social_selftest(ntr::Framebuffer& fb) {
     check("logo soft edge compositing",coop_frontend::composite_logo(0x80ffffffu,0xff000000u)==0xff808080u);
     check("logo opaque compositing",coop_frontend::composite_logo(0xff123456u,0xff000000u)==0xff123456u);
     check("antialiased proportional menu font",probe.measure("WWW",2)>probe.measure("iii",2));
+    std::vector<uint32_t> letter(64*64,0xff000000u),digit=letter;
+    CoopMenuFont::draw(letter.data(),64,64,64,0,0,"S",0xffffffffu,3);
+    CoopMenuFont::draw(digit.data(),64,64,64,0,0,"5",0xffffffffu,3);
+    check("S and 5 have distinct smooth glyphs",letter!=digit);
+    check("S and 5 have distinct fallback glyphs",memcmp(OVL_FONT['S'-32],OVL_FONT['5'-32],8)!=0);
     g_coop_menu.open(coop_frontend::HOME);coop_draw(fb,0);check("logo menu screenshot",ntr::ppu_write_bmp("logo-menu-test.bmp",fb));
     g_coop_menu.open(coop_frontend::CONTROLS);g_coop_menu.binding_action=coop_prefs::ATTACK;
+    g_coop_menu.row=coop_prefs::ATTACK;
+    bool table_ok=true;
+    for(int a=0;a<14;++a)for(int s=0;s<3;++s) {
+        auto cell=coop_frontend::control_cell(probe,g_coop_menu,a,s);
+        table_ok=table_ok&&cell.y+cell.h<probe.height*90/100&&
+            coop_frontend::hit_row(probe,g_coop_menu,cell.x+1,cell.y+1)==a&&
+            coop_frontend::hit_control_slot(probe,g_coop_menu,a,cell.x+1,cell.y+1)==s;
+    }
+    check("all 42 binding cells visible and clickable",table_ok);
     g_coop_menu.binding_slot=0;coop_preferences_action(coop_frontend::BIND_KEY);coop_social_message(WM_KEYDOWN,'Y',0);
     g_coop_menu.binding_slot=1;coop_preferences_action(coop_frontend::BIND_KEY);coop_social_message(WM_KEYDOWN,'U',0);
     g_coop_menu.binding_slot=2;coop_preferences_action(coop_frontend::BIND_PAD);

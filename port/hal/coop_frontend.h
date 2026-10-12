@@ -74,6 +74,7 @@ struct Menu {
     char username[17] = "Player", color_hex[7] = "";
     int binding_action=0,binding_slot=0,color_character=0,color_part=0;
     char binding_name[32]="MOVE UP", binding_labels[3][32]={};
+    char control_labels[14][3][32]={};
     int palette_index=0, palette_count=0;
     char palette_name[33]="My palette", palette_selected[64]="Original";
     char edit_backup[64] = "";
@@ -91,7 +92,7 @@ struct Menu {
         case DISPLAY: return 7;
         case SOUND: return 7;
         case CAMERA: case MISC: return 2;
-        case CONTROLS: return 7;
+        case CONTROLS: return 16;
         case COLORS: return 10;
         case PALETTES: return 6;
         case EXIT_CONFIRM: return 2;
@@ -197,9 +198,8 @@ struct Menu {
             else if(index==3)std::snprintf(out,size,"USERNAME  %s%s",username,editing?"_":"");
             else std::snprintf(out,size,"CHARACTER COLORS");
         } else if(page==CONTROLS) {
-            if(index==0)std::snprintf(out,size,"ACTION  < %s >",binding_name);
-            else if(index==1)std::snprintf(out,size,"SLOT < %d / 3 >  %s",binding_slot+1,binding_labels[binding_slot]);
-            else {const char* labels[]={"BIND KEYBOARD KEY","BIND CONTROLLER BUTTON","CLEAR THIS SLOT","RESET ALL CONTROLS"};std::snprintf(out,size,"%s",labels[index-2]);}
+            static const char* actions[]={"Up","Down","Left","Right","Jump (DS B)","Attack (DS A)","Crouch","Run (DS Y)","Start / Pause","Select","Look (DS X)","Camera Left","Camera Right","Chat"};
+            std::snprintf(out,size,"%s",index<14?actions[index]:index==14?"Reset Binds":"Back");
         } else if(page==COLORS) {
             const char* parts[]={"CAP","SHIRT","OVERALLS / PANTS","GLOVES","SHOES","SKIN","HAIR","EMBLEM"};
             const char* yoshi_parts[]={"SPIKES","BODY","SADDLE","","SHOES","BELLY / SNOUT","",""};
@@ -269,7 +269,9 @@ struct Menu {
             return NONE;
         }
         if (key == UP || key == DOWN) {
-            row = (row + rows() + (key == UP ? -1 : 1)) % rows(); return NONE;
+            row = (row + rows() + (key == UP ? -1 : 1)) % rows();
+            if(page==CONTROLS&&row<14)binding_action=row;
+            return NONE;
         }
         const int delta = key == LEFT ? -1 : 1;
         const bool change = key == LEFT || key == RIGHT || key == ACCEPT;
@@ -329,9 +331,14 @@ struct Menu {
                 open(categories[row]);
             }
         } else if(page==CONTROLS) {
-            if(row==0)binding_action=(binding_action+14+delta)%14;
-            else if(row==1)binding_slot=(binding_slot+3+delta)%3;
-            else if(key==ACCEPT){if(row==6){after_save=OPTIONS;return SAVE_OPTIONS;}const Action actions[]={BIND_KEY,BIND_PAD,CLEAR_BIND,RESET_BINDS};return actions[row-2];}
+            if(row<14) {
+                binding_action=row;
+                if(key==LEFT||key==RIGHT)binding_slot=(binding_slot+3+delta)%3;
+                else return BIND_KEY; // Native host captures keyboard or controller.
+            } else if(key==ACCEPT) {
+                if(row==14)return RESET_BINDS;
+                after_save=OPTIONS;return SAVE_OPTIONS;
+            }
         } else if(page==COLORS) {
             if(row==0){color_character=(color_character+4+delta)%4;if(color_character==3&&(color_part==3||color_part>5))color_part=1;}
             else if(row==1){do {color_part=(color_part+8+delta)%8;}while(color_character==3&&(color_part==3||color_part>5));}

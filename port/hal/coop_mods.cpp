@@ -33,11 +33,13 @@ struct Mod {
     lua_State* lua = nullptr;
     std::size_t memory = 0;
     bool loading = false;
-    std::vector<int> hooks[4];
+    std::vector<int> hooks[5];
     ~Mod() { if (lua) lua_close(lua); }
 };
 std::vector<std::unique_ptr<Mod>> registry;
 fs::path mod_root;
+std::vector<std::string> hud_output;
+bool drawing_hud=false;
 
 void* allocate(void* user, void* ptr, size_t old_size, size_t new_size) {
     Mod* mod = static_cast<Mod*>(user);
@@ -67,7 +69,7 @@ int api_hook(lua_State* L) {
     const char* name = luaL_checkstring(L, 1);
     luaL_checktype(L, 2, LUA_TFUNCTION);
     int event = -1;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 5; ++i)
         if (!std::strcmp(name, event_name(static_cast<Event>(i)))) event = i;
     if (event < 0) return luaL_error(L, "unknown player event: %s", name);
     Mod* mod = owner(L);
@@ -76,6 +78,14 @@ int api_hook(lua_State* L) {
     lua_pushvalue(L, 2);
     mod->hooks[event].push_back(luaL_ref(L, LUA_REGISTRYINDEX));
     return 0;
+}
+int api_hud_text(lua_State* L) {
+    if(!drawing_hud)return luaL_error(L,"hud_text is only available inside a hud hook");
+    size_t length=0;const char* text=luaL_checklstring(L,1,&length);
+    if(length>100||hud_output.size()>=12)return luaL_error(L,"HUD limit: 12 lines, 100 characters each");
+    for(size_t i=0;i<length;++i)if(static_cast<unsigned char>(text[i])<32||static_cast<unsigned char>(text[i])>126)
+        return luaL_error(L,"HUD text must be printable ASCII");
+    hud_output.emplace_back(text,length);return 0;
 }
 int api_log(lua_State* L) {
     const char* message = luaL_checkstring(L, 1);
@@ -99,6 +109,7 @@ void sandbox(lua_State* L, Mod* mod) {
     lua_setfield(L, -2, "hook");
     lua_pushlightuserdata(L, mod); lua_pushcclosure(L, api_log, 1);
     lua_setfield(L, -2, "log");
+    lua_pushcfunction(L, api_hud_text); lua_setfield(L,-2,"hud_text");
     lua_newtable(L);
     lua_pushinteger(L, 0x020e22c0); lua_setfield(L, -2, "JUMP_INIT");
     lua_pushinteger(L, 0x020e127c); lua_setfield(L, -2, "LONG_JUMP_INIT");
@@ -207,6 +218,8 @@ void boolean(lua_State* L, const char* key, bool value) {
 void push_player(lua_State* L, const PlayerState& p) {
     lua_createtable(L, 0, 24);
 #define NUMBER(field) number(L, #field, p.field)
+    NUMBER(x_fixed); NUMBER(y_fixed); NUMBER(z_fixed);
+    number(L,"x",p.x_fixed/4096.0);number(L,"y",p.y_fixed/4096.0);number(L,"z",p.z_fixed/4096.0);
     NUMBER(character); NUMBER(action); NUMBER(jump_stage); NUMBER(facing_yaw);
     NUMBER(desired_yaw); NUMBER(previous_yaw); NUMBER(horizontal_speed);
     NUMBER(vertical_speed); NUMBER(gravity); NUMBER(terminal_velocity);
@@ -246,7 +259,7 @@ int invoke(lua_State* L) {
 }
 }
 const char* event_name(Event e) {
-    static const char* names[] = { "before_player_update", "player_update", "walk", "state" };
+    static const char* names[] = { "before_player_update", "player_update", "walk", "state", "hud" };
     return names[static_cast<int>(e)];
 }
 void clear() { registry.clear(); mod_root.clear(); }
@@ -271,6 +284,13 @@ bool load(const std::string& root, bool migrate, std::string& error) try {
         output << builtin_movement;
         output.close();
         if (!output) { error = "Cannot create SM64 movement mod"; return false; }
+    }
+    const fs::path hud_script=mod_root/"speed-coordinates"/"main.lua";
+    if(!fs::exists(hud_script,ec)) {
+        fs::create_directories(hud_script.parent_path(),ec);
+        if(ec){error=ec.message();return false;}
+        std::ofstream output(hud_script,std::ios::binary);output<<builtin_speed_coordinates;output.close();
+        if(!output){error="Cannot create speed and coordinates mod";return false;}
     }
     std::vector<std::string> selected;
     const bool selection_exists = fs::exists(mod_root / "enabled.txt", ec);
@@ -323,6 +343,10 @@ bool set_enabled(std::size_t i, bool value, std::string& error) {
     if (!save_selection(error)) { mod.info.enabled = previous; return false; }
     if (!value && mod.lua) { lua_close(mod.lua); mod.lua = nullptr; }
     return true;
+}
+std::vector<std::string> hud_lines(const PlayerState& player) {
+    hud_output.clear();drawing_hud=true;PlayerState copy=player;
+    dispatch(Event::hud,copy);drawing_hud=false;return hud_output;
 }
 bool dispatch(Event e, PlayerState& player) {
     const PlayerState before = player;

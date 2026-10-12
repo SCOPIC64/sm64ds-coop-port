@@ -81,16 +81,6 @@ dialogue these buttons confirm the text instead. Resume with
 Resume/Escape/Start. Title and level-clear dialogs retain their native Start input.
 Solo pauses simulation; network sessions continue with neutral local controls.
 
-The Windows dialogue regression can be run with a built EXE and local game data:
-
-```sh
-python port/tools/check_dialogue_controls.py --exe <game.exe> --assets <game-folder> --work <new-test-folder>
-```
-
-It checks the locked-door text with the native door camera, keyboard and
-controller Start input, a no-input control, and normal pause/resume afterward.
-Saves, mods and captures stay in the new test folder.
-
 ## Texture pack creation
 
 **Mods > Texture Pack Tools > Start Texture Capture**, then resume/play the
@@ -105,3 +95,17 @@ replacement images, not unedited captures or cartridge data.
 
 This release is a tested Windows preview. Portable menu/Lua/texture tests run on
 Linux and macOS; Android/iOS component compilation is not a playable mobile port.
+
+## Speed & Coordinates HUD
+
+The executable also creates `mods/speed-coordinates/main.lua`. Enable **Speed &
+Coordinates** in the title screen's Mods menu before starting your session.
+It shows your own player in solo and online adventure. Speeds are game units
+per simulation tick (30 ticks/sec); coordinates show 12 decimal places, retaining
+every bit of the game's 20.12 position. The display sits below the top-right HUD.
+
+The `hud` event runs before presentation with a copied local-player snapshot.
+Call `sm64ds.hud_text(text)` inside its callback to add up to 12 printable ASCII
+lines of 100 characters each. HUD callbacks cannot change gameplay. Read-only
+`x`, `y`, `z` are world coordinates; `x_fixed`, `y_fixed`, `z_fixed` are the
+exact integer 20.12 values. These fields are populated for HUD events.

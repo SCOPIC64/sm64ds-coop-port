@@ -21,7 +21,7 @@ class CoopMenuFont {
 #undef COOP_GDI
         }
         if(!make_dc||!make_font||!make_dib||!select||!remove||!remove_dc||!text_color||!back_color||!text_out||!extent)return f;
-        HDC dc=make_dc(nullptr);HFONT font=make_font(f.height,0,0,0,FW_MEDIUM,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,
+        HDC dc=make_dc(nullptr);HFONT font=make_font(f.height,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,
             CLIP_DEFAULT_PRECIS,ANTIALIASED_QUALITY,DEFAULT_PITCH|FF_DONTCARE,L"Segoe UI");
         BITMAPINFO info={};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=f.cell*95;
         info.bmiHeader.biHeight=-f.height;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;
@@ -52,6 +52,13 @@ public:
         }
     }
 };
+static int coop_overlay_text(const OvlSurface& surface,int x,int y,const char* text,uint32_t color,int size) {
+    // Keep the diagnostic overlay's established fixed-column layout.
+    for(const char* p=text;*p;++p,x+=OVL_ADVANCE*size) {
+        char glyph[]={*p,0};CoopMenuFont::draw(surface.px,ntr::active_w,ntr::active_h,surface.stride,x,y,glyph,color,size);
+    }
+    return static_cast<int>(strlen(text))*OVL_ADVANCE*size;
+}
 static void coop_canvas_prepare(coop_frontend::Canvas& canvas) {
     canvas.smooth_text=CoopMenuFont::draw;canvas.text_width=CoopMenuFont::measure;
     static std::vector<uint32_t> logo;static int width=0,height=0;static bool loaded=false;

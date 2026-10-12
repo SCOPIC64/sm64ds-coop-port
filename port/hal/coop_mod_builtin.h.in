@@ -1,4 +1,5 @@
 #pragma once
 namespace sm64ds::mods {
+constexpr const char* builtin_speed_coordinates = R"SM64DS_MOD(@SPEED_COORDINATES_LUA@)SM64DS_MOD";
 constexpr const char* builtin_movement = R"SM64DS_MOD(@MOVEMENT_LUA@)SM64DS_MOD";
 }

@@ -438,7 +438,8 @@ static void nt_draw(const OvlSurface &fb)
             const char* name=port_vs_slot_name(i);
             if(!name||!*name)continue;
             coop_frontend::Canvas canvas={fb.px,ntr::active_w,ntr::active_h,fb.stride,OVL_FONT};
-            const int scale=canvas.scale(),width=static_cast<int>(strlen(name))*6*scale;
+            coop_canvas_prepare(canvas);
+            const int scale=canvas.scale(),width=canvas.measure(name,scale);
             int x=static_cast<int>(sx)-width/2,y=static_cast<int>(sy)-12*scale;
             canvas.shade(x-3,y-2,width+6,12*scale,135);
             canvas.shadow(x,y,name,0xffffffffu,scale);
