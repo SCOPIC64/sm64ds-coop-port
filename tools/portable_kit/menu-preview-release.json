@@ -1,9 +1,9 @@
 {
-  "tag": "v0.5.7-menu-preview.1",
-  "exe_sha256": "770523b6d4fa6f86224e4f06dfa370c30463f8c3931cee698614d7eb1fec0ab4",
-  "artifact_sha256": "a5beaf14ce3059cc18e2d34ec5ba7a394ce8da48d264e52d9069388e8581868b",
-  "artifact_bytes": 5795613,
-  "exe_bytes": 12378624,
+  "tag": "v0.5.7-menu-preview.2",
+  "exe_sha256": "fde40a3626377fb321aa355bb0b070ca37f20d87b940b0f97a44de39c5459374",
+  "artifact_sha256": "c5ab642f1c7e313c8d601e91d5c08572e1e3091efd985065afbc58eff3d90dee",
+  "artifact_bytes": 5797901,
+  "exe_bytes": 12390912,
   "archive_files": [
     "sm64ds coop.exe",
     "README.txt",
@@ -12,23 +12,24 @@
     "JOIN-STEPS.txt",
     "server-profile.json"
   ],
-  "source_commit": "ccb7ab6748591a188eacccedcb1e55326f6f0ce1",
-  "artifact_blob": "0d5a703d964a185cb964812402698098f326edc0",
+  "source_commit": "a79983922b0c7f22e7f47151ac4968e98b9a780f",
+  "artifact_blob": "068965977556043b3bc08c382e3441982fa3817f",
   "platforms": [
     "windows-x86"
   ],
-  "title": "SM64DS Co-op 0.5.7 preview: seven-player rooms, synchronized combat and color presets",
+  "title": "SM64DS Co-op preview.2: internet input and castle softlock repair",
   "local_validation": {
     "passed": true,
     "tests": [
-      "Two local clients: damage, death, respawn and animation synchronization",
-      "Online game timing at approximately 30 game ticks per second",
-      "Embedded transparent logo and straight-alpha menu compositing",
-      "Native UI, chat, three input bindings and fullscreen checks",
-      "ROM extraction with Restricted inherited PowerShell policy and a folder containing spaces",
-      "Portable frontend checks on Windows, Linux and macOS; Windows 32-bit host integration",
-      "Public archive privacy and hash validation"
+      "Native game build and DS-state, forwarding-cycle and ARM9 globals guards",
+      "Two clients with 180 ms one-way induced delay, 60 ms jitter and 2% packet loss: 30 game ticks/sec, zero input buffering, zero network starvation",
+      "Repeated castle entry through the requested door: no false results menu on host or joiner",
+      "Owner-authoritative damage, death, respawn, state and animations with delay and jitter",
+      "27 native UI, logo transparency, input bindings, chat and fullscreen checks",
+      "Native online startup checks for two- and seven-player plans",
+      "Portable frontend CI succeeded at the released source commit",
+      "Public archive privacy and SHA256 validation"
     ]
   },
-  "notes": "Seven-player Windows preview with separate lobbies, automatic server discovery, usernames, head labels, chat, host/moderator commands, three keyboard/controller bindings per action and widescreen fullscreen.\n\nThis update synchronizes player-owned damage, health, death, respawn and animations; avoids a redundant online frame wait; adds RGB sliders, grouped overalls/pants, saved presets and CoopDX .ini import/export; improves menu text and embeds the supplied logo with transparency. The bundled ROM extractor now sets PowerShell policy only for its own process.\n\n**How to play**\n1. Extract the Windows ZIP. Existing users replace the EXE and server profile after quitting, keeping their ROM, saves, settings and extracted assets.\n2. Put your own supported .nds beside the EXE if assets have not been extracted. Open sm64ds coop.exe.\n3. Choose HOST ONLINE to create a room and share its room code. Friends choose JOIN ONLINE and enter that code. No IP or port entry is required. Every player needs this version (protocol 5).\n4. OPTIONS -> PLAYER -> CHARACTER COLORS opens the sliders. COLOR PRESETS includes Save, Apply, Import CoopDX .INI and Export.\n\nThe server operator must keep WGS and the outbound tunnel running. The client profile contains the public Playit address and a public discovery key; it contains no home IP or private agent credential. The ZIP includes no ROM or extracted game assets.\n\nCombat and timing were retested with two local clients; this is not a seven-PC internet performance certification. Linux/SteamOS and macOS playable ports are the next priorities. Android and iOS follow later. Current cross-platform CI checks components, not complete native game builds.\n"
+  "notes": "This Windows preview repairs severe internet input delay and the repeating Castle Secret Stars save screen.\n\nAdventure co-op reads your controls locally, independently of other players' packet timing. Remote player states and animations come from their owners, and remote entry/star/death scripts cannot run their Main against your world. Joining players spawn from the door actually requested instead of the next entrance record, which may describe a star return.\n\nHow to update:\n1. Everyone quits the game.\n2. Extract this ZIP into the existing game folder and replace the EXE, server profile and joining instructions. Keep ROMs, saves, settings, mods and extracted assets.\n3. Reopen sm64ds coop.exe. The host creates a fresh lobby and shares its code; friends join that code. All players need preview.2.\n4. The server operator keeps WGS and the tunnel running. This client update does not require a server restart.\n\nA fresh installation requires your own supported .nds beside the EXE. The ZIP includes no ROM, extracted game assets, saves, home IP or private tunnel credentials.\n\nTested with two clients under simulated 180 ms one-way delay, 60 ms jitter and 2% loss: both held 30 game ticks per second with no buffered local frames or network starvation, and repeated castle re-entry opened no false results menu. Combat damage/death/respawn and animations also passed with simulated delay and jitter. Native UI and startup tests passed. Real internet latency still affects the arrival of remote movements; this is not a seven-PC internet performance certification.\n\nLinux/SteamOS and macOS remain the next port priorities; Android and iOS follow later. Portable CI checks components, not complete game builds."
 }
