@@ -44,11 +44,13 @@ struct Canvas {
     }
     int measure(const char* str,int size) const {return text_width?text_width(str,size):static_cast<int>(std::strlen(str))*6*size;}
     void rounded(int x,int y,int w,int h,int radius,uint32_t color,unsigned opacity=255) const {
-        if(radius>h/2)radius=h/2;if(radius>w/2)radius=w/2;
+        if(radius>h/2)radius=h/2;
+        if(radius>w/2)radius=w/2;
         for(int py=(std::max)(0,y);py<(std::min)(height,y+h);++py)for(int px=(std::max)(0,x);px<(std::min)(width,x+w);++px) {
             int dx=px<x+radius?x+radius-px:px>=x+w-radius?px-(x+w-radius-1):0;
             int dy=py<y+radius?y+radius-py:py>=y+h-radius?py-(y+h-radius-1):0;
-            if(dx*dx+dy*dy>radius*radius)continue;uint32_t old=pixels[py*stride+px];unsigned a=opacity;
+            if(dx*dx+dy*dy>radius*radius)continue;
+            uint32_t old=pixels[py*stride+px];unsigned a=opacity;
             pixels[py*stride+px]=0xff000000u|((((old>>16&255)*(255-a)+(color>>16&255)*a)/255)<<16)|
                 ((((old>>8&255)*(255-a)+(color>>8&255)*a)/255)<<8)|(((old&255)*(255-a)+(color&255)*a)/255);
         }
@@ -153,12 +155,12 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
             char label[80]; menu.label(i,label,sizeof label);
             if(menu.page==COLORS&&i>=3&&i<=5) {
                 const char* channels[]={"Red","Green","Blue"};unsigned rgb=static_cast<unsigned>(std::strtoul(menu.color_hex,nullptr,16));
-                int value=(rgb>>(8*(5-i)))&255,bx=r.x+r.w*27/100,bw=r.w*55/100,by=r.y+r.h/2;
+                int value=(rgb>>(8*(5-i)))&255,bx=r.x+r.w*27/100,bar_width=r.w*55/100,by=r.y+r.h/2;
                 c.text(r.x+8*s,r.y+(r.h-10*s)/2,channels[i-3],0xffe7ecf4u,s);
-                c.rounded(bx,by-2*s,bw,4*s,2*s,0xff51627au);
+                c.rounded(bx,by-2*s,bar_width,4*s,2*s,0xff51627au);
                 const uint32_t colors[]={0xffff6f7du,0xff58dba5u,0xff65b9ffu};
-                c.rounded(bx,by-2*s,bw*value/255,4*s,2*s,colors[i-3]);
-                c.rounded(bx+bw*value/255-3*s,by-5*s,6*s,10*s,3*s,0xfff6f9ffu);
+                c.rounded(bx,by-2*s,bar_width*value/255,4*s,2*s,colors[i-3]);
+                c.rounded(bx+bar_width*value/255-3*s,by-5*s,6*s,10*s,3*s,0xfff6f9ffu);
                 char number[8];std::snprintf(number,sizeof number,"%d",value);c.text(r.x+r.w*86/100,r.y+(r.h-10*s)/2,number,0xffffffffu,s);
                 continue;
             }

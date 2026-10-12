@@ -117,7 +117,8 @@ int main(int argc, char** argv) {
     m.open(PLAYER);m.row=1;m.key(ACCEPT);assert(m.page==MODS);
     m.open(PLAYER);m.row=3;m.key(ACCEPT);for(char ch:std::string("Scopic_64"))m.type(ch);m.key(ACCEPT);assert(!m.editing&&!strcmp(m.username,"Scopic_64"));
     m.row=4;m.key(ACCEPT);assert(m.page==COLORS);m.row=2;m.key(ACCEPT);m.type('f');assert(m.key(ACCEPT)==NONE&&m.editing);
-    for(char ch:std::string("f6600"))m.type(ch);m.key(ACCEPT);assert(!m.editing&&!strcmp(m.color_hex,"ff6600"));
+    for(char ch:std::string("f6600"))m.type(ch);
+    m.key(ACCEPT);assert(!m.editing&&!strcmp(m.color_hex,"ff6600"));
     m.open(PALETTES);m.row=2;
     std::strcpy(m.palette_name,"12345678901234567890123456789012");
     m.key(ACCEPT);m.type('x');m.key(BACK);
