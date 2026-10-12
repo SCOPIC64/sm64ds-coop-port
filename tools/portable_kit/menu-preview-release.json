@@ -1,70 +1,34 @@
 {
-  "tag": "v0.5.6-menu-preview.2",
-  "title": "SM64DS Co-op 0.5.6 preview 2 — dialogue controls and multi-file mods",
-  "source_commit": "dd14d6bef1040b82c4d2ea74e65c532630f50343",
-  "platforms": [
-    "windows-x86"
-  ],
-  "exe_sha256": "2bce69432942566dba50df198edd28c3012ed71287a724bbf491e529cd2867b4",
-  "exe_bytes": 9984512,
-  "artifact_sha256": "d750372916f14095f00e67e7e962503f3507bad43bac55d6ea68d05a3fb5f65a",
-  "artifact_bytes": 3479711,
-  "bundled_mod_sha256": "3e53002541a7e5a627d5a73f79aae10b33c7a9b99bea2d5a36ac7402f95fc504",
+  "tag": "v0.5.7-menu-preview.1",
+  "exe_sha256": "770523b6d4fa6f86224e4f06dfa370c30463f8c3931cee698614d7eb1fec0ab4",
+  "artifact_sha256": "a5beaf14ce3059cc18e2d34ec5ba7a394ce8da48d264e52d9069388e8581868b",
+  "artifact_bytes": 5795613,
+  "exe_bytes": 12378624,
   "archive_files": [
     "sm64ds coop.exe",
     "README.txt",
     "LICENSE",
     "THIRD-PARTY-NOTICES.txt",
-    "mods/README.txt",
-    "mods/resource-packs/README.txt",
-    "texture-work/capture/README.txt",
-    "mods/sm64-movement/main.lua"
+    "JOIN-STEPS.txt",
+    "server-profile.json"
   ],
+  "source_commit": "ccb7ab6748591a188eacccedcb1e55326f6f0ce1",
+  "artifact_blob": "0d5a703d964a185cb964812402698098f326edc0",
+  "platforms": [
+    "windows-x86"
+  ],
+  "title": "SM64DS Co-op 0.5.7 preview: seven-player rooms, synchronized combat and color presets",
   "local_validation": {
     "passed": true,
     "tests": [
-      {
-        "test": "no-input",
-        "exit": 0
-      },
-      {
-        "test": "enter",
-        "exit": 0
-      },
-      {
-        "test": "escape",
-        "exit": 0
-      },
-      {
-        "test": "jump",
-        "exit": 0
-      },
-      {
-        "test": "attack",
-        "exit": 0
-      },
-      {
-        "test": "controller-start",
-        "exit": 0
-      },
-      {
-        "test": "pause-resume",
-        "exit": 0
-      }
-    ],
-    "additional_checks": [
-      "actual-game multi-file Lua hooks",
-      "native and custom File A displays",
-      "installed EXE default asset path"
-    ],
-    "portable_checks": 11,
-    "lua_limits_and_unicode_passed": true,
-    "guards": [
-      "dsstate",
-      "facecycle",
-      "arm9_globals"
+      "Two local clients: damage, death, respawn and animation synchronization",
+      "Online game timing at approximately 30 game ticks per second",
+      "Embedded transparent logo and straight-alpha menu compositing",
+      "Native UI, chat, three input bindings and fullscreen checks",
+      "ROM extraction with Restricted inherited PowerShell policy and a folder containing spaces",
+      "Portable frontend checks on Windows, Linux and macOS; Windows 32-bit host integration",
+      "Public archive privacy and hash validation"
     ]
   },
-  "notes": "Fixes **Enter/Start opening Pause over native dialogue**, including locked-door text. The game now lets its text and save prompts own confirmation input; Enter, Escape and controller Start advance dialogue. The normal adventure pause menu remains available after text closes.\n\n**Multi-file DS Lua mods:** put `main.lua` and other `.lua` files in one mod folder. The main file runs first, then the others alphabetically, sharing a sandbox and globals. Up to 32 scripts totalling 1 MiB; one script failing disables the whole mod. Single Lua files, enable/disable selections, SM64 Movement and texture pack tools remain available. Extract mod ZIP downloads manually. Gameplay Lua currently runs only in solo adventure; CoopDX scripts need adapting to the [DS API](https://github.com/SCOPIC64/sm64ds-coop-port/blob/dd14d6bef1040b82c4d2ea74e65c532630f50343/port/docs/ds-lua-api.md).\n\nOpen `sm64ds coop.exe` directly. Retain your own game data, saves, settings and edited mods when updating. This ZIP contains the EXE, documents, the editable movement mod and portable mod/texture folders. It contains no cartridge assets, original music, textures or player saves.\n\nValidation on source `dd14d6bef1040b82c4d2ea74e65c532630f50343`: a full Windows build with DS-state, face-cycle and ARM9-global guards; seven native dialogue/controller-input/pause regressions; an actual-game multi-file Lua hook test; save-file displays and the installed EXE's default data path. Eleven portable component checks passed, with additional Lua file-count/combined-size/Unicode/error-isolation checks. The scripted controller path was tested, not a physical controller device. A reproducible [dialogue check](https://github.com/SCOPIC64/sm64ds-coop-port/blob/dd14d6bef1040b82c4d2ea74e65c532630f50343/port/tools/check_dialogue_controls.py) requires your own local assets.\n\nThis is a **Windows x86 preview**. Playable Linux/SteamOS, macOS, Android and iOS apps and public lobby browsing remain unfinished. See [native port work](https://github.com/SCOPIC64/sm64ds-coop-port/pull/8) and [website work](https://github.com/SCOPIC64/sm64ds-coop-port/pull/9). The earlier preview contains the camera, music/background and texture-creation changes; this update focuses on dialogue and Lua loading.\n\nEXE SHA-256: `2bce69432942566dba50df198edd28c3012ed71287a724bbf491e529cd2867b4`\nZIP SHA-256: `d750372916f14095f00e67e7e962503f3507bad43bac55d6ea68d05a3fb5f65a`\nSource contribution: https://github.com/SCOPIC64/sm64ds-coop-port/pull/5\n",
-  "artifact_blob": "f44c1139dffbcd90a164811bb8d374e2ac145520"
+  "notes": "Seven-player Windows preview with separate lobbies, automatic server discovery, usernames, head labels, chat, host/moderator commands, three keyboard/controller bindings per action and widescreen fullscreen.\n\nThis update synchronizes player-owned damage, health, death, respawn and animations; avoids a redundant online frame wait; adds RGB sliders, grouped overalls/pants, saved presets and CoopDX .ini import/export; improves menu text and embeds the supplied logo with transparency. The bundled ROM extractor now sets PowerShell policy only for its own process.\n\n**How to play**\n1. Extract the Windows ZIP. Existing users replace the EXE and server profile after quitting, keeping their ROM, saves, settings and extracted assets.\n2. Put your own supported .nds beside the EXE if assets have not been extracted. Open sm64ds coop.exe.\n3. Choose HOST ONLINE to create a room and share its room code. Friends choose JOIN ONLINE and enter that code. No IP or port entry is required. Every player needs this version (protocol 5).\n4. OPTIONS -> PLAYER -> CHARACTER COLORS opens the sliders. COLOR PRESETS includes Save, Apply, Import CoopDX .INI and Export.\n\nThe server operator must keep WGS and the outbound tunnel running. The client profile contains the public Playit address and a public discovery key; it contains no home IP or private agent credential. The ZIP includes no ROM or extracted game assets.\n\nCombat and timing were retested with two local clients; this is not a seven-PC internet performance certification. Linux/SteamOS and macOS playable ports are the next priorities. Android and iOS follow later. Current cross-platform CI checks components, not complete native game builds.\n"
 }
