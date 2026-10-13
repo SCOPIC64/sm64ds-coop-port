@@ -21,6 +21,7 @@ static void coop_draw(ntr::Framebuffer& fb, unsigned frame, const char* loading 
 
 static bool coop_frontend_wanted()
 {
+    if (getenv("SM64DS_MENU_TRANSITION_SELFTEST") && !getenv("SM64DS_MENU_BACKDROP_CHILD")) return true;
     const char* bypass[] = { "SM64DS_CLASSIC_MENU", "SM64DS_SCENE",
         "SM64DS_MENU_BACKDROP_CHILD",
         "SM64DS_LEVEL", "SM64DS_VS_MAP", "SM64DS_WINDOW_SELFTEST",
@@ -253,6 +254,22 @@ static int coop_frontend_run()
     CoopMenuAudio music(media);
     CoopBackdrop backdrop(media);
     struct ClearBackdrop { ~ClearBackdrop() { g_coop_backdrop = 0; } } clear_backdrop;
+    // Exercise the real menu teardown before the already supplied isolated
+    // game startup plan. Background children must never inherit this override.
+    if (getenv("SM64DS_MENU_TRANSITION_SELFTEST")) {
+        g_coop_menu.volume=0; // Keep diagnostic menu audio initialization silent.
+        for (unsigned frame=0;frame<90;++frame) {
+            MSG message;
+            while (W.PeekMessageA_(&message,0,0,0,PM_REMOVE)) {
+                W.TranslateMessage_(&message);W.DispatchMessageA_(&message);
+            }
+            backdrop.tick(g_coop_menu.background);g_coop_backdrop=backdrop.image();
+            music.tick(g_coop_menu,-1);coop_draw(menu_fb,frame);present();Sleep(16);
+        }
+        g_coop_active=false;
+        fprintf(stderr,"[coop-menu] isolated menu-to-online-game transition\n");
+        return 1;
+    }
     if (getenv("SM64DS_MENU_AUDIO_SELFTEST")) {
         bool ok = music.test();
         g_coop_active = false;
