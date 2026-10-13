@@ -364,6 +364,15 @@ static int coop_frontend_run()
         coop_preferences_action(coop_frontend::BIND_PAD);pad.buttons=0x2000;live=1;pad_focus_gate(&live,&pad,false);coop_preferences_tick(&pad);
         check("background capture ignores controller",!live&&!pad.buttons&&g_coop_binding_capture==3);
         coop_social_message(WM_KEYDOWN,VK_ESCAPE,0);check("capture cancellation",!g_coop_binding_capture);
+        g_coop_pause=true;pad={};live=1;coop_pause_input(live,&pad);
+        coop_preferences_action(coop_frontend::BIND_PAD);coop_pause_input(live,&pad);
+        pad.buttons=0x1000;coop_pause_input(live,&pad);coop_pause_input(live,&pad);
+        check("held A does not reopen capture",!g_coop_binding_capture&&g_coop_pause);
+        pad={};coop_pause_input(live,&pad);coop_preferences_action(coop_frontend::BIND_PAD);coop_pause_input(live,&pad);
+        pad.buttons=0x10;coop_pause_input(live,&pad);coop_pause_input(live,&pad);
+        check("captured Start does not close pause",!g_coop_binding_capture&&g_coop_pause);
+        coop_preferences_action(coop_frontend::BIND_PAD);pad={};coop_preferences_tick(&pad);
+        pad.buttons=0x1000;coop_preferences_tick(&pad);g_coop_pause=false;
         coop_draw(menu_fb,0);ok=ntr::ppu_write_bmp("bindings-fixed.bmp",menu_fb)&&ok;
         fprintf(stderr,"[bind-test] RESULT %s\n",ok?"PASS":"FAIL");g_coop_active=false;return ok?0:-1;
     }
@@ -437,7 +446,7 @@ static int coop_frontend_run()
             if (pad.lx < -16000) buttons |= 4;
             if (pad.lx > 16000) buttons |= 8;
         } else pad={}; // Background windows must not capture controller binds.
-        if(coop_preferences_tick(&pad)){coop_draw(menu_fb,frame++);present();Sleep(10);continue;}
+        if(coop_preferences_tick(&pad)){previous=buttons;coop_draw(menu_fb,frame++);present();Sleep(10);continue;}
         unsigned pressed = buttons & ~previous;
         previous = buttons;
         const unsigned masks[] = { 1, 2, 4, 8, 0x1000, 0x2000 };

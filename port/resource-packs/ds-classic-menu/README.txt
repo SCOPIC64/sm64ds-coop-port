@@ -16,9 +16,15 @@ INSTALL
    Gameplay, character textures, saves and online protocol are unchanged.
 
 DISABLE / RETURN TO STOCK
+Preview.6 or later: open Mods > Texture Pack Tools > Enable / Disable Packs.
+Select ds-classic-menu and switch it OFF, then quit and restart the game.
+Use the same menu to switch it back ON. This leaves all pack files intact.
+
+For older builds:
 1. Quit the game.
 2. Rename ds-classic-menu to off_ds-classic-menu, or move it outside resource-packs.
 3. Restart. To enable again, restore the original folder name and restart.
+If you disabled it from the new menu, manually remove its .disabled marker too.
 Only one menu theme should be enabled at once; conflicting packs are rejected.
 
 EDIT

@@ -1,5 +1,13 @@
 # Optional native menu texture packs
 
+To enable or disable an installed pack, open **Mods â†’ Texture Pack Tools â†’
+Enable / Disable Packs**, select its row and switch **ON/OFF**. Quit and reopen
+the game to apply the saved choice. Pack files and saved progress stay intact.
+Changes must be made on the title screen, before starting an adventure.
+The choice is stored as a `.disabled` marker inside the pack folder; the legacy
+`off_` folder prefix is still supported. Remove that marker when manually
+re-enabling a pack previously disabled from this menu.
+
 `sm64ds.menu_theme` extends the existing sandboxed resource-pack registry. It
 does not replace the built-in theme or patch cartridge assets. Every enabled
 `mods/resource-packs/<name>/pack.lua` may register one menu theme:

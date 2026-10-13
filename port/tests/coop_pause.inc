@@ -10,8 +10,14 @@ static void coop_pause_close() {
 static bool coop_pause_input(int pad_live,const XPad* pad) {
     if(g_selftest && !getenv("SM64DS_PAUSE_SELFTEST"))return false;
     if(rb_replaying())return g_coop_pause;
-    if(coop_preferences_tick(pad))return true;
     static bool previous_start=false;
+    static unsigned previous_buttons=~0u;
+    if(coop_preferences_tick(pad)) {
+        previous_buttons=pad_live&&pad?pad->buttons:0;
+        previous_start=key_act(HOST_KEY_START)||key_live(VK_ESCAPE)||
+            (pad_live&&pad&&pad_act(pad,HOST_PAD_START));
+        return true;
+    }
     const bool start=key_act(HOST_KEY_START) || key_live(VK_ESCAPE) ||
         (pad_live && pad_act(pad,HOST_PAD_START));
     const bool edge=start&&!previous_start;previous_start=start;
@@ -28,7 +34,6 @@ static bool coop_pause_input(int pad_live,const XPad* pad) {
     const int keys[]={VK_UP,VK_DOWN,VK_LEFT,VK_RIGHT,VK_RETURN,VK_ESCAPE};
     const unsigned masks[]={1,2,4,8,0x1000,0x2000};
     for(int i=0;i<6;++i)if(host_key_script(keys[i]))buttons|=masks[i];
-    static unsigned previous_buttons=~0u;
     const unsigned pressed=buttons&~previous_buttons;previous_buttons=buttons;
     if(!g_coop_pause) {
         // Dialogue, save prompts and cutscenes own Start until they finish.
