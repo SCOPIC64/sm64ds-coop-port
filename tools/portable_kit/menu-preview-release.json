@@ -1,9 +1,10 @@
 {
-  "tag": "v0.5.7-menu-preview.3",
-  "exe_sha256": "9620ae8d4277bdcf2507a8ee517bc32625aecda75e42ed0eea7a59614cf1de87",
-  "artifact_sha256": "eea331c6e8a1b7ddd574f93f8f5725e88cb4cb9f315571283dfcda829e78dedd",
-  "artifact_bytes": 5806226,
-  "exe_bytes": 12401152,
+  "tag": "v0.5.7-menu-preview.4",
+  "source_commit": "9c62036915be778497d8c466824e20bd0ad2d30f",
+  "exe_sha256": "3e3689825ad3b005a7f1f518ef623756672f9a3351fc6f2e02e67e48a55e6573",
+  "artifact_sha256": "d8021a178268a40fd615e3d5c29e16c51d58534853190dbcc80ffbaf93674c92",
+  "artifact_bytes": 5802271,
+  "exe_bytes": 12402688,
   "archive_files": [
     "sm64ds coop.exe",
     "README.txt",
@@ -12,20 +13,19 @@
     "JOIN-STEPS.txt",
     "server-profile.json"
   ],
-  "source_commit": "4e581efb39660b664b3c01893e9e4838567882a1",
-  "artifact_blob": "9ec00497f2082846f91e62311e52f393a4057503",
+  "artifact_blob": "9203c5a77cfdd6cd86a4993eefb054da7de194f1",
   "platforms": [
     "windows-x86"
   ],
-  "title": "SM64DS Co-op preview.2: internet input and castle softlock repair",
+  "title": "SM64DS Co-op preview.4: online-start crash repair",
   "local_validation": {
     "passed": true,
     "tests": [
-      "12 native portable component tests",
-      "Native menu, 42 binding-cell hit targets, mixed input capture, distinct S/5, chat, palette and fullscreen checks",
-      "Actual game Speed & Coordinates HUD launch and exact 20.12 coordinate fixture",
-      "Two clients with HUD enabled, 180 ms one-way delay, 60 ms jitter, 2% packet loss; host online through joined-client timing window; 29.93/30.08 ticks/sec, zero buffered input and castle re-entry passed"
-    ]
+      "Controlled foreign-memory reservation: preview.3 overwrites constructor marker; preview.4 preserves it and takes safe fallback, 120 frames, exit 0",
+      "Seven Windows clients through animated menu and online game handoff: 240 frames each, zero buffered input, no faults",
+      "Portable front-end CI: all nine jobs passed, including actual Windows DS memory backend and constructor compilation"
+    ],
+    "github_run": "https://github.com/SCOPIC64/sm64ds-coop-port/actions/runs/38352535991"
   },
-  "notes": "Sharper antialiased menu/chat/player-name text, high-resolution title menus with gameplay resolution restored, all 14 controls with three mixed binding boxes, and optional Speed & Coordinates HUD for solo and online. Original cartridge artwork retains its DS style. Enable the HUD from Mods before entering a room. Existing immediate-input and castle-entry fixes retained. Separate peer-departure tests showed intermittent pacing pauses under investigation; this is not a seven-PC internet certification. Native Linux/SteamOS and macOS work follows this release; no native game packages are claimed."
+  "notes": "Fixes a verified startup memory-corruption bug: when Windows already owns part of the DS address range, constructor callbacks now use the safe host table instead of writing into another allocation. The controlled regression reproduces the unsafe write in preview.3 and proves the exact preview.4 executable preserves foreign memory. Seven local Windows clients passed the complete animated-menu-to-online transition; this is not seven-PC internet certification.\n\nAll players should update to preview.4, quit the old game, replace only the executable in their existing extracted game folder, and start a fresh room. Keep ROM assets, saves, settings and mods. The host should keep the existing WGS server and Playit tunnel running; no server update is required for this hotfix.\n\nRetains readable fonts, three bindings per action, chat/moderation, character palettes, fullscreen and optional Speed & Coordinates HUD. The separate optional menu texture pack and native Linux/SteamOS/macOS games are still under development. Intermittent peer-departure pacing pauses remain under investigation; this release does not claim to fix every cause of lag or crashes."
 }
