@@ -359,6 +359,7 @@ static int coop_frontend_run()
         }
         for (int page = coop_frontend::HOME; page <= coop_frontend::COLORS; ++page) {
             g_coop_menu.open(static_cast<coop_frontend::Page>(page));
+            if(page==coop_frontend::CONTROLS){XPad pad={};coop_preferences_tick(&pad);}
             coop_draw(menu_fb, 0); present();
             char name[48]; snprintf(name, sizeof name, "coop-menu-%02d.bmp", page);
             if (!ntr::ppu_write_bmp(name, menu_fb)) ok = false;

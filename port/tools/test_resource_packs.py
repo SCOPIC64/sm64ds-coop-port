@@ -86,6 +86,11 @@ class ResourcePacks(unittest.TestCase):
         self.pack.rename(self.root/'off_probe');self.pack=self.root/'off_probe'
         self.run_pack('error("disabled packs must not execute")',0)
 
+    def test_menu_conflict_between_packs(self):
+        second=self.root/'second';second.mkdir();(second/'skin.png').touch()
+        (second/'pack.lua').write_text(self.menu())
+        self.run_pack(self.menu(),1,'another enabled pack')
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -43,7 +43,8 @@ struct Canvas {
             const int gh=10*size,gw=gh;
             for(;*str;++str) {
                 unsigned ch=static_cast<unsigned char>(*str);if(ch>='a'&&ch<='z')ch-=32;
-                if(ch<32||ch>126)ch='?';int cell=static_cast<int>(ch-32);
+                if(ch<32||ch>126)ch='?';
+                int cell=static_cast<int>(ch-32);
                 for(int yy=0;yy<gh;++yy)for(int xx=0;xx<gw;++xx) {
                     if(x+xx<0||x+xx>=width||y+yy<0||y+yy>=height)continue;
                     uint32_t src=atlas.pixels[(cell/16*18+yy*18/gh)*atlas.width+cell%16*18+xx*18/gw];

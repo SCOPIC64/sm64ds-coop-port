@@ -55,7 +55,7 @@ def extract(source, output):
                 for x in range(crop.width):
                     r,g,b,_=crop.getpixel((x,y))
                     if (r,g,b)==(255,255,255):continue
-                    glyph.putpixel((x+1,y+1),(0,0,0,255) if max(r,g,b)<100 else (255,0,255,255))
+                    glyph.putpixel((x+1,y+1),(0,0,0,255) if max(r,g,b)<150 else (255,0,255,255))
             if glyph.width>18 or glyph.height>18:raise ValueError((char,glyph.size))
             glyphs[char]=glyph
     # Complete the missing symbols with the same chunky outlined pixel style.
