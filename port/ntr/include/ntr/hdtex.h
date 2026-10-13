@@ -43,6 +43,7 @@
 #define NTR_HDTEX_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include <vector>
 

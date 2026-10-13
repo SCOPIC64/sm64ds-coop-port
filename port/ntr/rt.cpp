@@ -2,6 +2,9 @@
 
 #include "ntr/mmio.h"
 #include "hal/dsstate_seg.h"
+#if !defined(_WIN32)
+#include "ntr/frame_context.h"
+#endif
 
 #include <cstdio>
 #include <cstdlib>
@@ -54,6 +57,11 @@ void CALLBACK game_trampoline(void *) {
     g.game_done = true;
     // The game returned. Hand control back for good.
     for (;;) SwitchToFiber(g.host_fiber);
+}
+#else
+void game_trampoline(void *) {
+    g.entry();
+    g.game_done = true;
 }
 #endif
 
@@ -212,10 +220,15 @@ void run_scanlines() {
 }  // namespace
 
 void rt_vblank_wait() {
-#if defined(_WIN32)
     if (!g.game_fiber) return;   // not running under rt_run; nothing to yield to
     reg32(REG_IF) |= IRQ_VBLANK;
+#if defined(_WIN32)
     SwitchToFiber(g.host_fiber);
+#else
+    if (!frame_context_yield(static_cast<FrameContext *>(g.game_fiber))) {
+        std::fprintf(stderr, "rt_vblank_wait: invalid game context\n");
+        std::abort();
+    }
 #endif
 }
 
@@ -478,11 +491,7 @@ void rt_irq_boot_state() {
 }
 
 uint64_t rt_run(void (*game)(), FrameHook hook, uint64_t max_frames) {
-#if !defined(_WIN32)
-    (void)game; (void)hook; (void)max_frames;
-    std::fprintf(stderr, "rt_run: fiber backend is Windows-only so far\n");
-    return 0;
-#else
+    if (!game || g.game_fiber) return 0;  // no nested ownership of the singleton
     if (!io_init()) {
         std::fprintf(stderr, "rt_run: io_init failed\n");
         return 0;
@@ -493,6 +502,7 @@ uint64_t rt_run(void (*game)(), FrameHook hook, uint64_t max_frames) {
     g.hook = hook;
     g.max_frames = max_frames;
 
+#if defined(_WIN32)
     g.host_fiber = ConvertThreadToFiber(nullptr);
     if (!g.host_fiber) {
         std::fprintf(stderr, "rt_run: ConvertThreadToFiber failed\n");
@@ -501,8 +511,17 @@ uint64_t rt_run(void (*game)(), FrameHook hook, uint64_t max_frames) {
     g.game_fiber = CreateFiber(256 * 1024, game_trampoline, nullptr);
     if (!g.game_fiber) {
         std::fprintf(stderr, "rt_run: CreateFiber failed\n");
+        ConvertFiberToThread();
+        g.host_fiber = nullptr;
         return 0;
     }
+#else
+    g.game_fiber = frame_context_create(game_trampoline, nullptr);
+    if (!g.game_fiber) {
+        std::fprintf(stderr, "rt_run: game context allocation failed\n");
+        return 0;
+    }
+#endif
 
     // The DS comes up with interrupts enabled and IME set. This line used to
     // say "by the CRT0", which was folklore; the sourced version is in
@@ -510,7 +529,17 @@ uint64_t rt_run(void (*game)(), FrameHook hook, uint64_t max_frames) {
     rt_irq_boot_state();
 
     while (!g.game_done && !g.stop) {
+#if defined(_WIN32)
         SwitchToFiber(g.game_fiber);          // run until the game blocks
+#else
+        const FrameStep step = frame_context_resume(static_cast<FrameContext *>(g.game_fiber));
+        if (step == FrameStep::failed) {
+            std::fprintf(stderr, "rt_run: game context resume failed\n");
+            g.stop = true;
+            break;
+        }
+        if (step == FrameStep::completed) g.game_done = true;
+#endif
         if (g.game_done) break;
 
         run_scanlines();
@@ -522,11 +551,15 @@ uint64_t rt_run(void (*game)(), FrameHook hook, uint64_t max_frames) {
         reg32(REG_IF) &= ~IRQ_VBLANK;
     }
 
+#if defined(_WIN32)
     DeleteFiber(g.game_fiber);
-    g.game_fiber = nullptr;
     ConvertFiberToThread();
-    return g.frame;
+#else
+    frame_context_destroy(static_cast<FrameContext *>(g.game_fiber));
 #endif
+    g.game_fiber = nullptr;
+    g.host_fiber = nullptr;
+    return g.frame;
 }
 
 }  // namespace ntr

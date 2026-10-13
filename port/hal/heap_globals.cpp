@@ -37,6 +37,7 @@ void MultiStore_Int(int val, int *dst, int len)
 }
 }
 
+#if defined(_MSC_VER)
 // DATA aliases: point every historical name at the one storage above. Safe
 // for data (no calling convention); the decorated spellings come verbatim
 // from link errors -- the linker is the authority on decoration.
@@ -69,3 +70,12 @@ int _ZN18NestedHeapIterator4NextEP13HeapAllocator(void *self, HeapAllocator *a)
 // too, or both callers go unresolved.
 extern "C" void _ZN18NestedHeapIterator4InitEP13HeapAllocator(char *self, char *a)
 { ((NestedHeapIterator *)self)->Init((HeapAllocator *)a); }
+
+#else
+// Native Itanium method symbols already match the historical flat names.
+// Retaining the MSVC forwarders here would define each method twice.
+extern "C" char data_020a4d38[0x20]
+    __attribute__((alias("_ZN6Memory16rootHeapIteratorE")));
+extern "C" int data_020a4d34
+    __attribute__((alias("_ZN6Memory25isRootHeapIterInitializedE")));
+#endif
