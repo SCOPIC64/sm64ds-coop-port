@@ -191,6 +191,29 @@ int main(int argc, char** argv) {
             for (int x = w; x < stride; ++x) assert(pixels[32 + y * stride + x] == 0xdeadbeef);
         for (size_t i = 32 + stride * h; i < pixels.size(); ++i) assert(pixels[i] == 0xdeadbeef);
     }
+    // External nine-slice textures and outlined font obey the same bounds and
+    // click geometry as the stock menu, including clipped/portrait layouts.
+    MenuTextures theme;
+    theme.border=3;
+    for(auto* im:{&theme.panel,&theme.button,&theme.selected}) {
+        im->width=im->height=12;im->pixels.assign(144,0xffd9c989u);
+        im->pixels[0]=0; // transparent corner must preserve the framebuffer
+    }
+    theme.font.width=288;theme.font.height=108;
+    theme.font.pixels.assign(288*108,0);
+    for(int cell=0;cell<95;++cell)
+        theme.font.pixels[(cell/16*18+3)*288+cell%16*18+3]=0xffff00ffu;
+    theme.prepare_font();
+    assert(theme.advance('a',2)==theme.advance('A',2));
+    for(auto dims:{std::pair<int,int>{64,48},{1280,800},{800,1280}}) {
+        int w=dims.first,h=dims.second,stride=w+9;
+        std::vector<uint32_t> pixels(stride*h+2,0xdeadbeef);
+        Canvas c={pixels.data()+1,w,h,stride,OVL_FONT};c.theme=&theme;
+        for(int page=HOME;page<=PALETTES;++page){m.open(static_cast<Page>(page));draw(c,m,0);}
+        c.texture(theme.panel,-8,-7,40,35);c.text(-5,-3,"S5 lower",0xff123456u,2);
+        assert(pixels.front()==0xdeadbeef&&pixels.back()==0xdeadbeef);
+        for(int y=0;y<h;++y)for(int x=w;x<stride;++x)assert(pixels[1+y*stride+x]==0xdeadbeef);
+    }
     if (argc == 2) {
         const int w = 1024, h = 576;
         std::vector<uint32_t> image(w * h);

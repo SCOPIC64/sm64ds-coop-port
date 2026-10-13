@@ -127,6 +127,12 @@ else()
 endif()
 add_test(NAME editable_texture_pack COMMAND coop_texture_tools_test)
 
+add_executable(resource_pack_probe ../tests/resource_pack_probe.cpp ../hal/resource_pack.cpp)
+target_include_directories(resource_pack_probe PRIVATE ../hal)
+target_link_libraries(resource_pack_probe PRIVATE coop_lua)
+target_compile_features(resource_pack_probe PRIVATE cxx_std_17)
+target_compile_definitions(resource_pack_probe PRIVATE _CRT_SECURE_NO_WARNINGS)
+
 # Production UDP carrier adapter for native Linux/SteamOS and macOS.
 # This is a transport check, not a playable native game build.
 if(UNIX)

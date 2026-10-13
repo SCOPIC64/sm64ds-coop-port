@@ -59,8 +59,10 @@ static int coop_overlay_text(const OvlSurface& surface,int x,int y,const char* t
     }
     return static_cast<int>(strlen(text))*OVL_ADVANCE*size;
 }
+#include "coop_menu_theme.inc"
 static void coop_canvas_prepare(coop_frontend::Canvas& canvas) {
     canvas.smooth_text=CoopMenuFont::draw;canvas.text_width=CoopMenuFont::measure;
+    canvas.theme=coop_menu_textures();
     static std::vector<uint32_t> logo;static int width=0,height=0;static bool loaded=false;
     if(!loaded){loaded=true;HRSRC resource=FindResourceW(nullptr,MAKEINTRESOURCEW(210),MAKEINTRESOURCEW(10));
         if(resource){HGLOBAL memory=LoadResource(nullptr,resource);auto bytes=static_cast<const unsigned char*>(LockResource(memory));

@@ -1,5 +1,6 @@
 #pragma once
 #include "coop_frontend.h"
+#include "coop_menu_theme.h"
 #include <cstdint>
 #include <cmath>
 #include <algorithm>
@@ -21,6 +22,7 @@ struct Canvas {
     int (*text_width)(const char*,int)=nullptr;
     const uint32_t* logo=nullptr;
     int logo_width=0,logo_height=0;
+    const MenuTextures* theme=nullptr;
     bool valid() const { return pixels && font && width > 0 && height > 0 && stride >= width; }
     int scale() const { int s = height / 256; if (s > width / 384) s = width / 384; return s < 1 ? 1 : s; }
     void box(int x, int y, int w, int h, uint32_t color) const {
@@ -36,6 +38,23 @@ struct Canvas {
             }
     }
     void text(int x, int y, const char* str, uint32_t color, int size) const {
+        if(theme) {
+            const auto& atlas=theme->font;
+            const int gh=10*size,gw=gh;
+            for(;*str;++str) {
+                unsigned ch=static_cast<unsigned char>(*str);if(ch>='a'&&ch<='z')ch-=32;
+                if(ch<32||ch>126)ch='?';int cell=static_cast<int>(ch-32);
+                for(int yy=0;yy<gh;++yy)for(int xx=0;xx<gw;++xx) {
+                    if(x+xx<0||x+xx>=width||y+yy<0||y+yy>=height)continue;
+                    uint32_t src=atlas.pixels[(cell/16*18+yy*18/gh)*atlas.width+cell%16*18+xx*18/gw];
+                    // Magenta marks the glyph fill; original black/white outlines remain.
+                    if((src&0x00ffffffu)==0x00ff00ffu)src=(src&0xff000000u)|(color&0x00ffffffu);
+                    auto& dst=pixels[(y+yy)*stride+x+xx];dst=composite_logo(src,dst);
+                }
+                x+=theme->advance(ch,size);
+            }
+            return;
+        }
         if(smooth_text){smooth_text(pixels,width,height,stride,x,y,str,color,size);return;}
         for (; *str; ++str, x += 6 * size) {
             unsigned char ch = static_cast<unsigned char>(*str);
@@ -45,12 +64,34 @@ struct Canvas {
         }
     }
     void shadow(int x, int y, const char* str, uint32_t color, int size) const {
+        if(theme){text(x,y,str,color,size);return;}
         text(x + size, y + size, str, 0xff101020u, size); text(x, y, str, color, size);
     }
     void centered(int y, const char* str, uint32_t color, int size) const {
         shadow((width - measure(str,size)) / 2, y, str, color, size);
     }
-    int measure(const char* str,int size) const {return text_width?text_width(str,size):static_cast<int>(std::strlen(str))*6*size;}
+    int measure(const char* str,int size) const {
+        if(theme){int result=0;for(;*str;++str)result+=theme->advance(static_cast<unsigned char>(*str),size);return result;}
+        return text_width?text_width(str,size):static_cast<int>(std::strlen(str))*6*size;
+    }
+    void texture(const MenuImage& image,int x,int y,int w,int h) const {
+        int border=theme?theme->border:3;
+        int edge=(std::min)(border*scale(),(std::min)(w,h)/2);
+        auto sample=[&](int n,int total,int source) {
+            if(n<edge)return n*border/(std::max)(1,edge);
+            if(n>=total-edge)return source-border+(n-(total-edge))*border/(std::max)(1,edge);
+            return border+(n-edge)*(source-2*border)/(std::max)(1,total-2*edge);
+        };
+        for(int py=(std::max)(0,y);py<(std::min)(height,y+h);++py)
+            for(int px=(std::max)(0,x);px<(std::min)(width,x+w);++px) {
+                auto& dst=pixels[py*stride+px];
+                dst=composite_logo(image.pixels[sample(py-y,h,image.height)*image.width+sample(px-x,w,image.width)],dst);
+            }
+    }
+    void menu_button(int x,int y,int w,int h,bool selected,int radius) const {
+        if(theme)texture(selected?theme->selected:theme->button,x,y,w,h);
+        else rounded(x,y,w,h,radius,selected?0xff345171u:0xff1b273bu,selected?235:160);
+    }
     void rounded(int x,int y,int w,int h,int radius,uint32_t color,unsigned opacity=255) const {
         if(radius>h/2)radius=h/2;
         if(radius>w/2)radius=w/2;
@@ -133,7 +174,8 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
         c.pixels[y*c.stride+x]=v;
     }
     const int px=panel_left(c,menu), pw=panel_width(c,menu);
-    c.rounded(px,c.height/12,pw,c.height*79/100,12*s,0xff101724u,205);
+    if(c.theme)c.texture(c.theme->panel,px,c.height/12,pw,c.height*79/100);
+    else c.rounded(px,c.height/12,pw,c.height*79/100,12*s,0xff101724u,205);
     if (menu.page==HOME) {
       if(c.logo && c.logo_width>0 && c.logo_height>0) {
         int h=c.height*27/100,w=h*c.logo_width/c.logo_height;
@@ -168,7 +210,7 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
                 for(int slot=0;slot<3;++slot) {
                     auto cell=control_cell(c,menu,i,slot);
                     bool cell_focus=selected&&slot==menu.binding_slot;
-                    c.rounded(cell.x,cell.y,cell.w,cell.h,2,cell_focus?0xff426f96u:0xff293449u);
+                    c.menu_button(cell.x,cell.y,cell.w,cell.h,cell_focus,2);
                     if(cell_focus)c.box(cell.x,cell.y,cell.w,1,0xff5ae1c1u);
                     const char* name=menu.control_labels[i][slot];
                     int text_size=size;while(text_size>1&&c.measure(name,text_size)>cell.w-6)--text_size;
@@ -177,12 +219,13 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
                 continue;
             }
             if(menu.page==CONTROLS) {
-                c.rounded(r.x,r.y,r.w,r.h,2,selected?0xff426f96u:0xff293449u);
+                c.menu_button(r.x,r.y,r.w,r.h,selected,2);
                 const char* text=i==14?"Reset Binds":"Back";
                 c.text(r.x+(r.w-c.measure(text,s))/2,r.y,text,0xffffffffu,s);continue;
             }
             if (menu.page==HOST && i<3) {
-                c.shade(r.x,r.y,r.w,r.h,selected?95:60);
+                if(c.theme)c.texture(selected?c.theme->selected:c.theme->button,r.x,r.y,r.w,r.h);
+                else c.shade(r.x,r.y,r.w,r.h,selected?95:60);
                 uint32_t border=i==menu.slot?0xffffd84du:0xffbbbbc9u;
                 c.box(r.x,r.y,r.w,s,border); c.box(r.x,r.y+r.h-s,r.w,s,border);
                 c.box(r.x,r.y,s,r.h,border); c.box(r.x+r.w-s,r.y,s,r.h,border);
@@ -196,7 +239,7 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
                 if(i==menu.slot) c.shadow(r.x+8*s,r.y+r.h-12*s,"SELECTED",0xffffdf60u,s);
                 continue;
             }
-            c.rounded(r.x,r.y,r.w,r.h,5*s,selected?0xff345171u:0xff1b273bu,selected?235:160);
+            c.menu_button(r.x,r.y,r.w,r.h,selected,5*s);
             if(selected)c.rounded(r.x,static_cast<int>(focus_y),3*s,r.h,s,0xff5ae1c1u);
             char label[80]; menu.label(i,label,sizeof label);
             if(menu.page==COLORS&&i>=3&&i<=5) {

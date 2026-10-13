@@ -66,6 +66,26 @@ class ResourcePacks(unittest.TestCase):
     def test_empty_root(self):
         self.run_pack('', 0)
 
+    def menu(self, extra=''):
+        return 'sm64ds.menu_theme{panel="skin.png",button="skin.png",selected="skin.png",font="skin.png"'+extra+'}'
+
+    def test_menu_theme(self):
+        self.run_pack(self.menu(',border=4'), 0)
+
+    def test_menu_border_range(self):
+        self.run_pack(self.menu(',border=0'), 1, '1..16')
+
+    def test_menu_duplicate(self):
+        self.run_pack(self.menu()+'\n'+self.menu(), 1, 'only one menu theme')
+
+    def test_menu_path_escape(self):
+        (self.root/'outside.png').touch()
+        self.run_pack(self.menu().replace('font="skin.png"','font="../outside.png"'),1,'escapes its pack')
+
+    def test_disabled_menu(self):
+        self.pack.rename(self.root/'off_probe');self.pack=self.root/'off_probe'
+        self.run_pack('error("disabled packs must not execute")',0)
+
 
 if __name__ == "__main__":
     unittest.main()
