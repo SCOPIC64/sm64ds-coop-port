@@ -25,8 +25,15 @@ audio latency. Audio remains optional and does not block input or rendering.
 
 ## Build and check the adapter
 
-Install SDL2 development headers (for example `libsdl2-dev` on Ubuntu, or `sdl2`
-through Homebrew on macOS), then:
+The default build fetches and verifies SDL2 Classic 2.32.10 from the official
+source archive and links it statically. This keeps SDL's implementation the
+same across desktop targets. The initial Homebrew SDL2 compatibility layer
+crashed inside its SDL3 text-event conversion during the macOS test; the host
+must not silently depend on that unverified shim. The archive SHA256 is pinned
+in CMake, and SDL's license must accompany eventual native game packages.
+
+Install CMake, a C/C++ compiler and native graphics/audio development headers,
+then:
 
 ```sh
 cmake -S port/desktop -B build/native-desktop -DCMAKE_BUILD_TYPE=Debug
@@ -45,7 +52,7 @@ Linux32 can also link this host to the actual DS runtime/renderer:
 
 ```sh
 cmake -S port/native -B build/native-desktop32 \
-  -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-m32 \
+  -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-m32 -DCMAKE_C_FLAGS=-m32 \
   -DNATIVE_DESKTOP_HOST_CHECKS=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/native-desktop32 --parallel 2
 ctest --test-dir build/native-desktop32 --output-on-failure
@@ -58,6 +65,10 @@ ROM and is not a playable native game. Complete native boot, ABI/virtual-call
 bridges, menu/lobby/import/storage integration and gameplay/multiplayer tests
 are still required. Modern macOS's game object/pointer representation remains
 a separate blocker; compiling this pointer-independent host does not solve it.
+
+Developers may choose `-DDESKTOP_BUNDLED_SDL2=OFF` to exercise a system SDL2
+implementation separately. Passing that configuration's tests is required
+before distributing it; the default native packages will use the pinned SDK.
 
 Primary API references: [SDL window](https://wiki.libsdl.org/SDL2/SDL_CreateWindow),
 [streaming textures](https://wiki.libsdl.org/SDL2/SDL_CreateTexture), and
