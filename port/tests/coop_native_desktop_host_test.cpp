@@ -22,7 +22,9 @@ int main() {
     // host's injected focus events rather than SDL's physical desktop window.
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS,"1");
     Host host;Config config;config.width=256;config.height=192;config.hidden=true;
+    std::cerr<<"desktop-test: opening window\n";
     std::string error;assert(host.open(config,error));assert(error.empty());
+    std::cerr<<"desktop-test: window opened\n";
     Input input;assert(host.poll(input));assert(!input.quit);
     focus(host,true);key(host.window_id(),SDLK_w,true);key(host.window_id()+1,SDLK_a,true);
     assert(host.poll(input)&&input.focused&&input.keys['W']&&!input.keys['A']);
@@ -37,10 +39,13 @@ int main() {
     key(host.window_id(),SDLK_w,false);key(host.window_id(),SDLK_w,true);assert(host.poll(input)&&input.keys['W']);
 
     // Actual SDL controller mapping/axis state, using an isolated virtual device.
+    std::cerr<<"desktop-test: keyboard/focus passed; attaching virtual controller\n";
     int device=SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER,SDL_CONTROLLER_AXIS_MAX,SDL_CONTROLLER_BUTTON_MAX,0);
     assert(device>=0);char guid[33];SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(device),guid,sizeof guid);
     std::string mapping=std::string(guid)+",SM64DS isolated test,a:b0,b:b1,x:b2,y:b3,back:b4,start:b6,leftstick:b7,rightstick:b8,leftshoulder:b9,rightshoulder:b10,dpup:b11,dpdown:b12,dpleft:b13,dpright:b14,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:a4,righttrigger:a5,";
     assert(SDL_GameControllerAddMapping(mapping.c_str())>=0);
+    assert(host.poll(input)); // Finish hotplug/open before changing device state.
+    std::cerr<<"desktop-test: controller mapped/opened\n";
     SDL_Joystick* stick=SDL_JoystickOpen(device);assert(stick);
     assert(SDL_JoystickSetVirtualButton(stick,SDL_CONTROLLER_BUTTON_A,1)==0);
     assert(SDL_JoystickSetVirtualAxis(stick,SDL_CONTROLLER_AXIS_LEFTX,12345)==0);
@@ -48,9 +53,11 @@ int main() {
     assert(SDL_JoystickSetVirtualAxis(stick,SDL_CONTROLLER_AXIS_TRIGGERLEFT,-32768)==0);
     assert(SDL_JoystickSetVirtualAxis(stick,SDL_CONTROLLER_AXIS_TRIGGERRIGHT,32767)==0);
     SDL_JoystickUpdate();assert(host.poll(input));
+    std::cerr<<"desktop-test: pad focus="<<input.focused<<" buttons="<<input.pad.buttons<<" lx="<<input.pad.lx<<" ly="<<input.pad.ly<<" lt="<<input.pad.lt<<" rt="<<input.pad.rt<<"\n";
     assert((input.pad.buttons&0x1000)&&input.pad.lx==12345&&input.pad.ly==8192&&input.pad.lt==0&&input.pad.rt==255);
     focus(host,false);assert(host.poll(input)&&input.pad.buttons==0&&input.pad.lx==0);
     assert(SDL_JoystickDetachVirtual(device)==0);SDL_JoystickClose(stick);assert(host.poll(input)&&input.pad.buttons==0);
+    std::cerr<<"desktop-test: controller lifecycle passed\n";
 
     const int stride=265;std::vector<uint32_t> frame(stride*192,0xff112233u);
     for(int y=0;y<192;++y)for(int x=0;x<256;++x)frame[y*stride+x]=y<96?0xffff0000u:0xff0000ffu;

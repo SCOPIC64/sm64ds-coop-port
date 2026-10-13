@@ -26,7 +26,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install sdl2 ninja
       - name: Compile the real native window, input and audio adapter
-        run: cmake -S port/desktop -B build/native-desktop -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build/native-desktop --parallel 2
+        run: cmake -S port/desktop -B build/native-desktop -G Ninja -DCMAKE_BUILD_TYPE=Debug -DDESKTOP_HOST_SANITIZERS=ON && cmake --build build/native-desktop --parallel 2
       - name: Exercise SDL pixels, resize/focus/input/controller and audio lifecycle
         run: ctest --test-dir build/native-desktop --output-on-failure
   linux32-desktop-runtime:
