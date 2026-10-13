@@ -1,0 +1,39 @@
+{
+  "tag": "v0.5.7-menu-preview.6",
+  "source_commit": "98912e5ff4c54b4375465a0989abb63b3ef27832",
+  "exe_sha256": "f1e752478326e9aad7a41fd9e554425ba02a1fccdbb44e66ea10e482953d9dcc",
+  "exe_bytes": 12429312,
+  "artifact_sha256": "a22785df9bef3a33ccb0cc6453ac358239364d8e8fc404a4e4fcc39bb84544cb",
+  "artifact_bytes": 5815579,
+  "archive_files": [
+    "sm64ds coop.exe",
+    "README.txt",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.txt",
+    "JOIN-STEPS.txt",
+    "server-profile.json"
+  ],
+  "optional_texture_pack": {
+    "name": "DS-Classic-Menu-Texture-Pack.zip",
+    "sha256": "3798d9034213bbe1595ce805ffd8638b12a27d5a0c35f773c0a333c17cc3a3a2",
+    "bytes": 18200,
+    "blob": "a9cf9aaac8ae34c9390e887411da535f1daa76f8"
+  },
+  "artifact_blob": "96fb4576834c06247977b3da2045f9de07b1a952",
+  "platforms": [
+    "windows-x86"
+  ],
+  "title": "SM64DS Co-op preview.6: pack switches and controller binding repair",
+  "local_validation": {
+    "passed": true,
+    "tests": [
+      "12 Windows component tests, including pack selection persistence and resource loading",
+      "Actual final executable: three mixed input slots, pause capture raw controller versus neutral gameplay, focus rejection and capture cancellation",
+      "Actual pause handlers: held A does not reopen capture; captured Start does not close pause",
+      "Actual pack menu ON/OFF roundtrip; fresh disabled-marker launch restores stock menu",
+      "Final source portable front-end CI: all nine jobs passed"
+    ],
+    "github_run": "https://github.com/SCOPIC64/sm64ds-coop-port/actions/runs/38396195063"
+  },
+  "notes": "Adds saved **ON/OFF switches for installed resource packs** and repairs **Xbox/controller binding capture from pause-menu controls**. The game now lets the focused binding editor read controller buttons while gameplay input remains blocked; held A/Start presses are consumed after capture.\n\n**Disable a texture pack:** on the title screen, open **Mods → Texture Pack Tools → Enable / Disable Packs**, select the pack and switch it **OFF**, then quit and reopen the game. Use the same menu to enable it again. Pack files and saves stay intact. Changes must be made before starting an adventure.\n\n**Map controls:** open **Options → Controls**, choose the action row and one of its three cells with Left/Right or the mouse, press Enter/A to edit, release the buttons, then press the desired keyboard key or controller button. Escape cancels; Delete clears the selected binding. Choices save automatically.\n\n**Update:** quit the game, replace the EXE in your existing extracted game folder, and keep assets, saves, settings and mods. Friends should update before starting a fresh room. The WGS server and public tunnel need no update. The optional DS Classic Menu pack remains a separate ZIP; extract its ds-classic-menu folder into mods/resource-packs and restart.\n\nThe actual executable passed capture/focus/held-button and pack-toggle/fallback checks, 12 local component tests and all nine portable CI jobs. Includes the existing constructor-memory crash repair and seven-player features. This release does not claim to resolve all internet lag or peer-departure pacing. Native Linux/SteamOS/macOS game ports remain in progress; compiler/component tests are not playable releases.\n\nNo ROM, cartridge assets, saves, private tunnel credentials or home IP address are bundled."
+}

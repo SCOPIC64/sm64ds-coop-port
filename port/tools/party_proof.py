@@ -81,10 +81,14 @@ def mk(role, netmode, slot):
             e["SM64DS_COMMS_HOST"] = "127.0.0.1:" + str(PORTN)
     return d, e
 
-def samples(t):
+def samples(t, slot=None):
     xs = []
-    for m in re.finditer(r"\[partydiag\][^\n]*slot(\d+)\(LOCAL\)[^\n]*pos=\((-?\d+),(-?\d+),(-?\d+)\) anim=(-?\d+)", t):
-        xs.append((int(m.group(2)), int(m.group(4)), int(m.group(5))))
+    for m in re.finditer(r"\[partydiag\][^\n]*slot(\d+)(\(LOCAL\))?[^\n]*pos=\((-?\d+),(-?\d+),(-?\d+)\) anim=(-?\d+)", t):
+        if slot is None:
+            if not m.group(2): continue
+        elif int(m.group(1)) != slot:
+            continue
+        xs.append((int(m.group(3)), int(m.group(5)), int(m.group(6))))
     return xs
 
 def live_loopback():
@@ -135,9 +139,15 @@ def live_loopback():
                (max(z for _, z, _ in xs) - min(z for _, z, _ in xs))
     for tag, xs in (("parent", sp), ("child", sc)):
         ck("%s: party body TICKS BEHAVIOR (anim advances, live not frozen)" % tag, anim_ticked(xs))
-    ck("the shipped sim MOVES a party body through the world (real traversal)",
-       max(pos_delta(sp), pos_delta(sc)) > 4096,
-       "deltas parent=%d child=%d" % (pos_delta(sp), pos_delta(sc)))
+    # Local motion alone does not prove the peer exists or receives movement.
+    # Check both actors in both worlds so a one-way link cannot pass this rung.
+    for tag, t in (("parent", tp), ("child", tc)):
+        for slot in (0, 1):
+            xs = samples(t, slot)
+            delta = pos_delta(xs)
+            ck("%s: slot %d MOVES through the world (real traversal)" % (tag, slot),
+               len(xs) >= 2 and delta > 4096,
+               "samples=%d delta=%d" % (len(xs), delta))
     for tag, t in (("parent", tp), ("child", tc)):
         u = last(t, r"unrecoverable=(\d+)")
         ck("%s: every rewind honoured (unrecoverable=0)" % tag, u == "0", "unrecoverable=%s" % u)

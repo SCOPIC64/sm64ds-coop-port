@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <fstream>
 
 extern "C" {
 #include <lauxlib.h>
@@ -21,12 +22,14 @@ namespace fs = std::filesystem;
 namespace {
 std::vector<Character> g_characters;
 std::vector<TextureReplacement> g_textures;
+std::unique_ptr<MenuTheme> g_menu;
 
 struct LoadContext {
     fs::path directory;
     std::string id;
     std::vector<Character> characters;
     std::vector<TextureReplacement> textures;
+    std::unique_ptr<MenuTheme> menu;
 };
 
 struct LuaMemory {
@@ -203,6 +206,29 @@ int api_log(lua_State *L)
     return 0;
 }
 
+int api_menu_theme(lua_State *L)
+{
+    luaL_checktype(L, 1, LUA_TTABLE);
+    LoadContext *ctx = context(L);
+    if (ctx->menu) return fail(L, "only one menu theme per pack is allowed");
+    auto item = std::make_unique<MenuTheme>();
+    item->pack_id = ctx->id;
+    item->border = optional_int(L, 1, "border", 3);
+    if (item->border < 1 || item->border > 16)
+        return fail(L, "menu border must be 1..16");
+    for (auto field : {"panel", "button", "selected", "font"}) {
+        std::string path = asset_path(L, ctx, required_string(L, 1, field), field, ".png");
+        if (fs::file_size(path) > 8 * 1024 * 1024)
+            return fail(L, "menu asset exceeds 8 MiB");
+        if (std::string(field) == "panel") item->panel = path;
+        else if (std::string(field) == "button") item->button = path;
+        else if (std::string(field) == "selected") item->selected = path;
+        else item->font = path;
+    }
+    ctx->menu = std::move(item);
+    return 0;
+}
+
 void instruction_limit(lua_State *L, lua_Debug *)
 {
     luaL_error(L, "pack.lua exceeded its instruction budget");
@@ -227,6 +253,8 @@ void register_api(lua_State *L, LoadContext *ctx)
     lua_setfield(L, -2, "character");
     lua_pushlightuserdata(L, ctx); lua_pushcclosure(L, api_texture, 1);
     lua_setfield(L, -2, "texture");
+    lua_pushlightuserdata(L, ctx); lua_pushcclosure(L, api_menu_theme, 1);
+    lua_setfield(L, -2, "menu_theme");
     lua_pushlightuserdata(L, ctx); lua_pushcclosure(L, api_log, 1);
     lua_setfield(L, -2, "log");
     lua_pushinteger(L, 1); lua_setfield(L, -2, "api_version");
@@ -257,6 +285,10 @@ bool load_pack(const fs::path &directory, std::string &error)
         return false;
     }
     state.reset();
+    if (ctx.menu && g_menu) {
+        error = ctx.id + ": another enabled pack already owns the menu theme";
+        return false;
+    }
     for (const Character &candidate : ctx.characters) {
         if (character(candidate.id)) {
             error = ctx.id + ": character id " + std::to_string(candidate.id) +
@@ -277,13 +309,56 @@ bool load_pack(const fs::path &directory, std::string &error)
     }
     g_characters.insert(g_characters.end(), ctx.characters.begin(), ctx.characters.end());
     g_textures.insert(g_textures.end(), ctx.textures.begin(), ctx.textures.end());
+    if (ctx.menu) g_menu = std::move(ctx.menu);
     std::fprintf(stderr, "[resource-pack] loaded %s (%zu characters, %zu textures)\n",
                  ctx.id.c_str(), ctx.characters.size(), ctx.textures.size());
     return true;
 }
 }  // namespace
 
-void clear() { g_characters.clear(); g_textures.clear(); }
+void clear() { g_characters.clear(); g_textures.clear(); g_menu.reset(); }
+
+std::vector<Selection> selections(const std::string& root,std::string& error) try {
+    error.clear();std::vector<Selection> result;
+    if(!fs::exists(root))return result;
+    for(const auto& entry:fs::directory_iterator(root)) {
+        if(!fs::is_directory(entry.symlink_status()))continue;
+        const std::string folder=entry.path().filename().string();
+        if(folder.empty()||folder[0]=='.'||!fs::is_regular_file(entry.path()/"pack.lua"))continue;
+        const bool legacy_off=folder.rfind("off_",0)==0;
+        const bool enabled=!legacy_off&&!fs::exists(entry.path()/".disabled");
+        result.push_back({folder,legacy_off?folder.substr(4):folder,enabled});
+    }
+    std::sort(result.begin(),result.end(),[](const Selection& a,const Selection& b){return a.directory<b.directory;});
+    return result;
+} catch(const std::exception& ex) {error=ex.what();return {};}
+
+bool set_enabled(const std::string& root,const std::string& directory,bool enabled,std::string& error) try {
+    error.clear();
+    if(directory.empty()||directory[0]=='.'||directory.find_first_of("/\\:")!=std::string::npos) {
+        error="Invalid resource pack directory";return false;
+    }
+    auto choices=selections(root,error);if(!error.empty())return false;
+    auto entry=std::find_if(choices.begin(),choices.end(),[&](const Selection& item){return item.directory==directory;});
+    if(entry==choices.end()){error="Resource pack no longer exists";return false;}
+    if(entry->enabled==enabled)return true;
+    if(entry->name.empty()||entry->name[0]=='.'){error="Invalid resource pack name";return false;}
+    const fs::path marker=fs::path(root)/entry->directory/".disabled";
+    if(!enabled) {
+        if(fs::is_symlink(fs::symlink_status(marker))){error="Pack selection marker must not be a link";return false;}
+        std::ofstream out(marker,std::ios::binary|std::ios::trunc);out<<"Disabled by the pack menu\n";out.close();
+        if(!out){error="Could not save resource pack selection";return false;}
+        return true;
+    }
+    // Keep every active asset path intact when disabling. Legacy off_ folders
+    // may be restored when enabling, since they were never active this run.
+    if(directory.rfind("off_",0)!=0){fs::remove(marker);return true;}
+    fs::path destination=fs::path(root)/(enabled?entry->name:"off_"+entry->name);
+    if(fs::exists(destination)){error="A resource pack already uses that name";return false;}
+    fs::remove(marker);
+    fs::rename(fs::path(root)/entry->directory,destination);
+    return true;
+} catch(const std::exception& ex) {error=ex.what();return false;}
 
 bool load_all(const std::string &root, std::string &error) try
 {
@@ -301,7 +376,7 @@ bool load_all(const std::string &root, std::string &error) try
     std::sort(directories.begin(), directories.end());
     for (const fs::path &directory : directories) {
         const std::string name = directory.filename().string();
-        if (name.empty() || name[0] == '.' || name.rfind("off_", 0) == 0) continue;
+        if (name.empty() || name[0] == '.' || name.rfind("off_", 0) == 0 || fs::exists(directory/".disabled")) continue;
         std::string one;
         try {
             if (!load_pack(directory, one)) { ok = false; errors << one << '\n'; }
@@ -328,5 +403,6 @@ const Character *character(int id)
 }
 const std::vector<Character> &characters() { return g_characters; }
 const std::vector<TextureReplacement> &textures() { return g_textures; }
+const MenuTheme *menu_theme() { return g_menu.get(); }
 
 }  // namespace sm64ds::packs

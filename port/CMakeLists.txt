@@ -1,5 +1,9 @@
 ﻿cmake_minimum_required(VERSION 3.16)
 project(sm64ds-port C CXX)
+option(HANDHELD "Controller-first front end with fullscreen startup" OFF)
+if(HANDHELD)
+    add_compile_definitions(SM64DS_HANDHELD=1)
+endif()
 # Link the static CRT so shipped exes never depend on the VC++ redist (CMP0091).
 # Release 0.1.6 shipped dynamically linked because nothing pinned this and CMake
 # defaults to the DLL runtime, so a player without the redist could not start the
@@ -17820,6 +17824,7 @@ target_include_directories(walk_window PRIVATE
 # (NTR_HIRES2, the fixed 512x384 tier); the wide-max buffer with a 4:3 default
 # active size is byte-for-byte that build when the key is off.
 target_link_libraries(walk_window PRIVATE ntr_wide_rt lua_resource_pack)
+target_sources(walk_window PRIVATE hal/coop_media_decode.cpp)
 target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
     ${PORT_REPO_ROOT_DEF}
     # GATE STARSEL (run link100, lane STARSELENTRY): this target carries
@@ -17866,6 +17871,17 @@ if(PORT_ROM_CLEAN)
         "${CMAKE_BINARY_DIR}/assets/romblob_verified.stamp"
         "${ROMDATA_RECIPE}")
     add_dependencies(walk_window romblob_ready_ww)
+    if(WIN32)
+        # Only extraction code and offsets/hashes enter the executable. Never
+        # embed romdata.bin, cartridge files, extracted assets, or player saves.
+        enable_language(RC)
+        file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/coop_setup.rc" CONTENT
+            "310 RCDATA \"${PORT_REPO_ROOT_ABS}/tools/portable_kit/extract_assets.ps1\"\n311 RCDATA \"${ROMDATA_RECIPE}\"\n312 RCDATA \"${ROMDATA_MANIFEST}\"\n")
+        target_sources(walk_window PRIVATE "${CMAKE_BINARY_DIR}/coop_setup.rc")
+        if(MSVC)
+            target_link_options(walk_window PRIVATE /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)
+        endif()
+    endif()
 endif()
 if(MSVC)
     target_compile_options(walk_window PRIVATE /wd4311 /wd4312 /wd4068 /wd4576)
@@ -24227,3 +24243,11 @@ foreach(_xrel1_map IN LISTS OV_DATA_MAPS)
     math(EXPR _xrel1_mounts "${_xrel1_mounts} + 1")
 endforeach()
 message(STATUS "XREL1: ${_xrel1_mounts} ovdata mount(s) rebuild when their overlay's config changes")
+
+# Port-only gameplay scripts; retail source and DS structure layouts stay intact.
+include(hal/coop_mods.cmake)
+coop_add_mods(walk_window lua_resource_pack)
+coop_add_mods(walk_window_hires lua_resource_pack)
+
+target_sources(walk_window PRIVATE hal/coop_texture_tools.cpp)
+target_sources(walk_window_hires PRIVATE hal/coop_texture_tools.cpp)

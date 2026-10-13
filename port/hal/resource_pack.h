@@ -33,14 +33,27 @@ struct TextureReplacement {
     std::string source;
 };
 
+// Optional native-menu assets. Paths stay inside the declaring resource pack.
+struct MenuTheme {
+    std::string pack_id, panel, button, selected, font;
+    int border = 3;
+};
+
 // Loads every enabled <root>/<pack>/pack.lua. A broken pack is rejected without
 // preventing the remaining packs from loading. Returns false when any pack was
 // rejected and places a complete diagnostic in `error`.
 bool load_all(const std::string &root, std::string &error);
 void clear();
 
+struct Selection { std::string directory, name; bool enabled=false; };
+std::vector<Selection> selections(const std::string& root, std::string& error);
+// Persist for the next launch. Running character/texture assets stay valid.
+bool set_enabled(const std::string& root,const std::string& directory,
+                 bool enabled,std::string& error);
+
 const Character *character(int id);
 const std::vector<Character> &characters();
 const std::vector<TextureReplacement> &textures();
+const MenuTheme *menu_theme();
 
 }  // namespace sm64ds::packs

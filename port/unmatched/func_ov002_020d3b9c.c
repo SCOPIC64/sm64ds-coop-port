@@ -31,6 +31,7 @@ extern char data_0209f49c[];
 extern char data_0209f4ac[];
 extern char data_0209f4ae[];
 extern int data_ov002_02110184[];
+extern int port_sm64_walk_update(void* self,int magnitude,short old_yaw);
 int func_ov002_020d3b9c(char *c)
 {
   char *self;
@@ -40,6 +41,7 @@ int func_ov002_020d3b9c(char *c)
   s16 stick;
   s16 targ;
   int diff;
+  short old_yaw=*((short*)(c+0x94));
   acc = 0;
   idx = data_020a0e40 * 0x18;
   stick = *((s16 *) (((char *) data_0209f4a0) + idx));
@@ -256,7 +258,10 @@ int func_ov002_020d3b9c(char *c)
       *((u16 *) (self + 0x6a4)) = 0x3c;
     }
   }
-  func_ov002_020d4d88(self, spd, acc);
+  if(port_sm64_walk_update(self,stick,old_yaw))
+      func_ov002_020d4d88(self,*((int*)(self+0x98)),0);
+  else
+      func_ov002_020d4d88(self, spd, acc);
   func_ov002_020c18b0(self, 1);
   *((u16 *) (self + 0x90)) = 0;
   return 0;

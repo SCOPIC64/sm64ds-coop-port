@@ -16,11 +16,14 @@
 #include "Player.h"
 #include "player_fields.h"   /* run mg16 lane MP4: the one place field offsets live */
 #include "host_settings.h"   /* port::adventure_ghost_mode() for the ghost pass */
+#include "coop_mods.h"
+#include "comms_loopback.h"
 #include "comms_seam.h"      /* port::sync_stats(): the local-write witness */
 #include "ShadowModel.h"
 #include "TextureSequence.h"
 #include "Heap.h"
 #include "ModelAnim.h"
+#include "ntr/player_colors.h"
 
 #include "dsstate_seg.h"
 /* SYNC4: see the case for 0x020e0d28 inside player_states.inc. */
@@ -35,6 +38,36 @@ namespace ntr { struct GxTriangle; const GxTriangle *gx_polygons(std::size_t &n)
 /* how many times hal_call_state_fn fell off the end of its switch this run --
    read by the F3 overlay in port/tests/walk_window.cpp */
 extern "C" unsigned g_port_unhosted_hits = 0;
+extern "C" unsigned char data_0209f2d8;
+extern "C" int data_0209fc48;
+static sm64ds::mods::PlayerState mod_player(const Player* p) {
+    sm64ds::mods::PlayerState s;
+    s.character=p->mCharacter; s.jump_stage=p->mJumpComboStage;
+    s.facing_yaw=p->mAngleY; s.desired_yaw=p->mDesiredAngleY; s.previous_yaw=p->mPrevAngleY;
+    s.horizontal_speed=p->mHorzSpeed/4096.0f; s.vertical_speed=p->mVertSpeed/4096.0f;
+    s.gravity=p->mVertAccel/4096.0f; s.terminal_velocity=p->mTerminalVelocity/4096.0f;
+    s.floor_normal=p->mFloorNormalY/4096.0f; s.sink_depth=p->mSinkDepth/4096.0f;
+    s.airborne=p->mIsAirborne; s.mega=p->mIsMega; s.wings=p->mHasWings;
+    s.no_control=p->mIsNoControl; s.multiplayer=data_0209f2d8!=0;
+    s.cutscene=data_0209fc48!=0; s.jump_flag=(p->mStateFlags&0x200)!=0;
+    s.launch_speed=s.horizontal_speed;
+    return s;
+}
+extern "C" void port_player_hud_snapshot(const void* player,sm64ds::mods::PlayerState* out) {
+    const Player* p=static_cast<const Player*>(player);*out=mod_player(p);
+    out->x_fixed=p->mPosX;out->y_fixed=p->mPosY;out->z_fixed=p->mPosZ;
+}
+static void mod_apply(Player* p,const sm64ds::mods::PlayerState& s) {
+    p->mHorzSpeed=(int)(s.horizontal_speed*4096); p->mVertSpeed=(int)(s.vertical_speed*4096);
+    p->mVertAccel=(int)(s.gravity*4096); p->mTerminalVelocity=(int)(s.terminal_velocity*4096);
+    p->mPrevAngleY=(short)s.previous_yaw;
+}
+static void mod_dispatch(Player* p,sm64ds::mods::Event event) {
+    if(port::comms_loopback_stats().installed)return;
+    auto s=mod_player(p); if(sm64ds::mods::dispatch(event,s))mod_apply(p,s);
+}
+// The window host supplies this only for its isolated, non-credits preview.
+extern "C" void (*port_menu_player_preview_hook)(void*, bool) = nullptr;
 
 extern "C" unsigned int _ZNK6Player14GetBodyModelIDEjb(char *, unsigned int, char);
 extern "C" unsigned func_ov002_020becf4(char *self, unsigned j, int b);
@@ -75,7 +108,27 @@ int hal_player_st_walk_init(void *p)
 int hal_player_st_walk_main(void *p)
 { return ((Player *)p)->Player::St_Walk_Main(); }
 int hal_player_behavior(void *p)
-{ return ((Player *)p)->Player::Behavior(); }
+{
+    Player* player=(Player*)p;
+    if(port_menu_player_preview_hook) {
+        port_menu_player_preview_hook(p,true);
+        player->Player::Heal(0x880); // Keep menu Mario healthy as in CoopDX.
+    }
+    mod_dispatch(player,sm64ds::mods::Event::before_update);
+    const int result=player->Player::Behavior();
+    mod_dispatch(player,sm64ds::mods::Event::after_update);
+    if(port_menu_player_preview_hook)port_menu_player_preview_hook(p,false);
+    static const bool credits=std::getenv("SM64DS_MENU_BACKDROP_CHILD") && std::getenv("SM64DS_MENU_NATIVE_STAFF_ROLL");
+    if(credits) {
+        // Behavior registers the shadow independently of the body render.
+        // Collapse only this player's shadow in the private menu renderer;
+        // scenery/enemy shadows and the native list/freeze protocol stay live.
+        player->mShadowModel.scale.x=0;
+        player->mShadowModel.scale.y=0;
+        player->mShadowModel.scale.z=0;
+    }
+    return result;
+}
 /* the walk demo renders the Player's current body ModelAnim in place:
    identity model matrix, bones posed from the anim Behavior advanced */
 /* level model render for the window: identity world matrix (stage models
@@ -374,6 +427,25 @@ extern unsigned char data_0209fc5c[]; /* per-slot "this slot is live"; BYTE
                                          stride, the ROM's own width */
 extern void *data_0209f394[];         /* per-slot Player* */
 extern unsigned char data_0209f250;   /* local player index */
+extern int data_0209fc48;
+}
+extern "C" int port_sm64_walk_update(void* self,int magnitude,short old_yaw) {
+    Player* player=(Player*)self;
+    if(port::comms_loopback_stats().installed)return 0;
+    auto state=mod_player(player); state.stick=magnitude/4096.0f;
+    state.previous_yaw=old_yaw;
+    if(!sm64ds::mods::dispatch(sm64ds::mods::Event::walk,state))return 0;
+    mod_apply(player,state);
+    if(std::getenv("SM64DS_GAMEPLAY_PROBE")) {
+        static unsigned calls=0;
+        if(calls++%30==0)std::fprintf(stderr,"[sm64-mod] walk speed=%d stick=%d\n",player->mHorzSpeed,magnitude);
+    }
+    return 1;
+}
+extern "C" int port_sm64_can_inspect(const void* self) {
+    const Player* p=(const Player*)self;
+    return p && !p->mIsAirborne && !p->mIsNoControl && !p->mIsMega &&
+        std::abs(p->mHorzSpeed)<4096;
 }
 
 /* ---- THE GHOST ALPHA -------------------------------------------------------
@@ -1516,6 +1588,10 @@ static void vscol_probe(char *c, int frame, std::size_t tris_before)
    gates 1-3 and rode the eater visibly until mFlags&0x10 got honoured here. */
 extern "C" int port_player_render_hidden(const void *player)
 {
+    // Cutscene-spawned players also use this gate. Hiding only the harness's
+    // local-player draw leaves the rest of the cast visible in menu previews.
+    static const bool backdrop=getenv("SM64DS_MENU_BACKDROP_CHILD")!=nullptr;
+    if(backdrop)return getenv("SM64DS_MENU_NATIVE_STAFF_ROLL")?1:0;
     const char *c = (const char *)player;
     const unsigned char no = *(const unsigned char *)(c + 0x6d8);
     /* :44-48  VS liveness (0.3.2: kPortMaxPlayers is sixteen) */
@@ -1535,6 +1611,14 @@ extern "C" int port_player_render_hidden(const void *player)
     return 0;
 }
 
+static void player_color_begin(char* player,Model* model) {
+    BMD_File* file=model?model->data.modelFile:nullptr;
+    ntr::PlayerColorTexture textures[64];size_t count=0;
+    if(file&&file->numTextures<=64&&file->textures)for(unsigned i=0;i<file->numTextures;++i) {
+        const auto& t=file->textures[i];if(t.name)textures[count++]={(t.flags&0xffffu)<<3,t.name};
+    }
+    ntr::gx_player_colors_begin(*(const unsigned char*)(player+0x6d8),*(int*)(player+8)&0xff,textures,count);
+}
 void hal_render_player_world(void *player)
 {
     char *c = (char *)player;
@@ -1751,15 +1835,19 @@ void hal_render_player_world(void *player)
         ModelAnim *m3 = (ModelAnim *)(c + 0xf0);    /* mModelAnim3 */
         _ZN9ModelBase12ApplyOpacityEj(m3, *(const unsigned char *)(c + 0x6f5));
         if (ghost) ghost_opacity(m3);
-        m3->Render((const Vector3 *)(c + 0x80));    /* virtual, as the ROM's */
+        player_color_begin(c,m3);
+        m3->Render((const Vector3 *)(c + 0x80));
+        ntr::gx_player_colors_end();
     } else {
         if (hsink_on()) ntr::gx_polygons(hsink_t0);
+        player_color_begin(c,ma);
         ma->Model::Render((const Vector3 *)(c + 0x80));
         hsink_t1 = hsink_t0;
         if (hsink_on()) ntr::gx_polygons(hsink_t1);
         hal_player_texseq_body(c);
         /* the mirror, src/_ZN6Player6RenderEv.cpp:81 (see the head's call) */
         func_ov002_020e3e00(ma, c + 0x80, *(const unsigned char *)(c + 0x6f5));
+        ntr::gx_player_colors_end();
     }
 
     unsigned hid = func_ov002_020becf4(c, *(unsigned char *)(c + 0x6db), 1);
@@ -1773,6 +1861,7 @@ void hal_render_player_world(void *player)
                         hid, (int)(hsink_t1 - hsink_t0));
             hal_player_vs_palette(c, head);
             if (ghost) ghost_opacity(head);
+            player_color_begin(c,(Model*)head);
             hal_render_head_group(c, head, hid, ma, scene);
             hal_player_texseq_head(c, hid);
             /* THE MIRROR, once for the body (above) and once here for the
@@ -1789,6 +1878,7 @@ void hal_render_player_world(void *player)
                and this copy never called it, so the player had no
                reflection in either mirror. */
             func_ov002_020e3e00(head, c + 0x80, *(const unsigned char *)(c + 0x6f5));
+            ntr::gx_player_colors_end();
             /* THE LAST STATEMENT OF THE ROM'S HEAD BLOCK,
                src/_ZN6Player6RenderEv.cpp:129-131:
 
@@ -2040,7 +2130,7 @@ extern "C" int port_player_st_swingplayer_main(void *self);
    (the sinit's PMF table pairs it with the EndingFly state; see the case). */
 extern "C" int _ZN6Player17St_EndingFly_MainEv(char *self);
 
-extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
+static int hal_call_state_base(void *self, unsigned ds_addr)
 {
     {
         static int on = -1;
@@ -2145,6 +2235,21 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
     std::fprintf(stderr, "  [state] unhosted state fn 0x%08x (no-op)\n",
                  ds_addr);
     return 1;
+}
+
+extern "C" int hal_call_state_fn(void *self,unsigned ds_addr) {
+    Player* player=(Player*)self;
+    const float launch=player->mHorzSpeed/4096.0f;
+    int result=hal_call_state_base(self,ds_addr);
+    if(port::comms_loopback_stats().installed)return result;
+    auto state=mod_player(player); state.action=ds_addr; state.launch_speed=launch;
+    if(sm64ds::mods::dispatch(sm64ds::mods::Event::state,state)) {
+        mod_apply(player,state);
+        if(std::getenv("SM64DS_GAMEPLAY_PROBE") && (ds_addr==0x020e22c0 || ds_addr==0x020e127c))
+            std::fprintf(stderr,"[sm64-mod] launch action=%08x vertical=%d horizontal=%d stage=%d\n",ds_addr,
+                player->mVertSpeed,player->mHorzSpeed,player->mJumpComboStage);
+    }
+    return result;
 }
 
 /* ---- LIVE CHARACTER SWAP (port mod) ------------------------------------

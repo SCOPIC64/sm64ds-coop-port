@@ -4,6 +4,7 @@
 // Register semantics here are from GBATEK. No SDK source is reproduced.
 
 #include "ntr/mmio.h"
+#include "ntr/owned_memory.h"
 
 #include "ntr/gx.h"
 #include "ntr/ipc.h"
@@ -17,7 +18,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
-#include <sys/mman.h>
+#include "ntr/host_memory.h"
 #endif
 
 namespace ntr {
@@ -360,6 +361,9 @@ int g_stage_first;                 // 1 = TLS callback, 2 = io_init (late)
 int g_stage_won;                   // stage in which the last range came up
 size_t g_main_held;                // bytes of main RAM held, hole fill included
 bool g_partial_main;               // main RAM came up in pieces
+struct MainPiece { uintptr_t base; size_t size; };
+MainPiece g_main_pieces[64]; // At most 64 allocation-granularity chunks in 4 MB.
+unsigned g_main_piece_count;
 
 // One occupied block found inside a range we could not get. Raw facts only:
 // names are resolved later, off the loader lock (see io_reserve_report).
@@ -389,9 +393,7 @@ void *map_fixed(uintptr_t base, size_t size) {
                                (watch_writes(base) ? MEM_WRITE_WATCH : 0),
                            PAGE_READWRITE);
 #else
-    void *p = mmap(reinterpret_cast<void *>(base), size, PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
-    if (p == MAP_FAILED) p = nullptr;
+    void *p = host_memory::map_at(base,size);
 #endif
     if (p) std::memset(p, 0, size);
     return p;
@@ -463,7 +465,14 @@ size_t fill_holes(uintptr_t base, size_t size) {
                     void *p = VirtualAlloc(reinterpret_cast<void *>(s), n,
                                            MEM_RESERVE | MEM_COMMIT,
                                            PAGE_READWRITE);
-                    if (p) got += n;
+                    if (p) {
+                        if (g_main_piece_count < sizeof g_main_pieces / sizeof g_main_pieces[0]) {
+                            g_main_pieces[g_main_piece_count++] = {s, n};
+                            got += n;
+                        } else {
+                            VirtualFree(p, 0, MEM_RELEASE);
+                        }
+                    }
                 }
             }
         }
@@ -547,6 +556,29 @@ void io_reserve(int stage) {
         }
     }
 #endif
+}
+
+bool io_owns_range(uintptr_t address, size_t size) {
+    if (!size || size > ~uintptr_t(0) - address) return false;
+    const uintptr_t end = address + size;
+    uintptr_t cursor = address;
+    while (cursor < end) {
+        uintptr_t covered = cursor;
+        for (unsigned i = 0; i < kRegionCount; ++i) {
+            const uintptr_t begin = kRegions[i].base;
+            const uintptr_t stop = begin + kRegions[i].size;
+            if (g_held[i] && cursor >= begin && cursor < stop && stop > covered)
+                covered = stop;
+        }
+        for (unsigned i = 0; i < g_main_piece_count; ++i) {
+            const uintptr_t stop = g_main_pieces[i].base + g_main_pieces[i].size;
+            if (cursor >= g_main_pieces[i].base && cursor < stop && stop > covered)
+                covered = stop;
+        }
+        if (covered == cursor) return false;
+        cursor = covered < end ? covered : end;
+    }
+    return true;
 }
 
 bool io_init() {

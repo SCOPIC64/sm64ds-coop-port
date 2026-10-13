@@ -81,6 +81,7 @@ uint64_t hdtex_name(uint32_t teximage, uint32_t plttbase);
 // file per unique name, never overwritten, nothing at all when no dump
 // directory is set). `argb` is width*height texels, 0xAARRGGBB.
 void hdtex_dump(uint64_t name, int width, int height, const uint32_t *argb);
+void hdtex_capture(const char* directory, bool enabled);
 
 // Look a name up in the pack. A miss costs one hash-set lookup and NO file
 // I/O. A hit fills `out` with (width*S)*(height*S) texels in 0xAARRGGBB and

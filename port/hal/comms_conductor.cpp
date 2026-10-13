@@ -98,6 +98,8 @@
 #include <cstdlib>
 #include <cstring>
 
+extern "C" unsigned char data_0209d4f0[];
+
 // ===========================================================================
 // 2. THE DS GLOBALS.
 //
@@ -392,6 +394,28 @@ inline unsigned char *data_0209f498_bytes() {
 }  // namespace
 }  // namespace port
 
+// Adventure input runs the ROM's solo pad reader. The UDP session stays live
+// independently for owner snapshots, chat and combat; its clock cannot pace
+// this console's input. Save both role bytes so the solo reader never closes
+// the already-open radio as part of its multiplayer-to-solo transition.
+namespace { unsigned char owner_saved_role, owner_saved_last_role; }
+extern "C" int port_owner_input_begin(void) {
+    if (!port::owner_sync_mode()) return 0;
+    owner_saved_role = data_020a0f04[0];
+    owner_saved_last_role = data_020a0f98[0];
+    data_020a0f04[0] = 0; data_020a0f98[0] = 0;
+    return 1;
+}
+extern "C" void port_owner_input_end(void) {
+    data_020a0f04[0] = owner_saved_role;
+    data_020a0f98[0] = owner_saved_last_role;
+    if (const port::CommsTransport *t = port::comms_transport()) {
+        unsigned char block[port::kCommsBlockBytes] = {};
+        uint16_t status = 0;
+        t->exchange(block, &status);
+    }
+}
+
 namespace port {
 namespace {
 inline unsigned char data_0209f21c_byte() { return data_0209f21c; }
@@ -633,6 +657,7 @@ bool comms_inject_touch(int *down, int *x, int *y) {
 // the fan-out.
 // ===========================================================================
 bool comms_fanout_active() {
+    if (owner_sync_mode()) return false;
     // The override is parsed once; the transport half is asked every time.
     //
     // NOT because anything installs a transport mid-run. An earlier version of
@@ -1167,11 +1192,18 @@ bool session_is_whole(const CommsTransport *t, int want) {
 }
 }  // namespace
 
+void (*comms_wait_hook)(int event) = 0;
+
 bool comms_wait_for_session(int frames) {
     const CommsTransport *t = comms_transport();
     if (!t) return false;                  // solo: nothing to wait for
 
-    const int want = expected_players();
+    const char *wait_env = std::getenv("SM64DS_COMMS_WAIT_MS");
+    const long requested_ms = wait_env ? std::strtol(wait_env, 0, 10) : 0;
+    const unsigned wait_ms = requested_ms > 0
+        ? (unsigned)(requested_ms > 300000 ? 300000 : requested_ms) : 0;
+    int want = expected_players();
+    if (wait_ms && want < 2) want = 2;
     const int st0 = t->state();
     if ((st0 == kCommsParentConnected || st0 == kCommsChildConnected) &&
         session_is_whole(t, want))
@@ -1358,7 +1390,13 @@ bool comms_wait_for_session(int frames) {
     // exactly what the caller passed, so every existing measurement in this
     // tree still describes the run it was taken from.
     if (want > 2) frames *= 6;
-    for (int i = 0; i < frames; ++i) {
+    const DWORD wait_start = GetTickCount();
+    if (wait_ms)
+        std::fprintf(stderr, "[comms:conductor] required multiplayer startup: "
+                     "waiting up to %u ms for %d players\n", wait_ms, want);
+    for (int i = 0; wait_ms ? (DWORD)(GetTickCount() - wait_start) < wait_ms
+                           : i < frames; ++i) {
+        if (wait_ms && comms_wait_hook) comms_wait_hook(0);
         t->poll();                         // service the carrier
         // AND GIVE THE HOST ARM7 A TURN (run link100, lane WM3, rung W4). This
         // is where the ROM's own WM bring-up actually happens: func_02040820
@@ -1448,9 +1486,19 @@ bool comms_wait_for_session(int frames) {
                          "the world can boot now\n",
                          i, st, t->slot(), t->player_count(),
                          (int)data_020a0f10[0]);
+            if (wait_ms && comms_wait_hook) comms_wait_hook(1);
             return true;
         }
         ::Sleep(4);
+    }
+    if (wait_ms) {
+        std::fprintf(stderr, "[comms:conductor] multiplayer startup timed out "
+                     "after %u ms (%d/%d players); no solo world was seated\n",
+                     wait_ms, t->player_count(), want);
+        if (comms_wait_hook) comms_wait_hook(2);
+        // The legacy level-seat caller ignores a false return. Exit here so a
+        // failed explicit HOST/JOIN cannot become a broken one-player world.
+        std::exit(2);
     }
     // AND SAY WHICH KIND OF EXPIRY IT WAS. "Nobody came" and "three of the four
     // came" are different failures with the same old sentence, and the second
@@ -1653,6 +1701,11 @@ bool conductor_pump(unsigned spin) {
     // still climbing. Cheap and idempotent: with an empty queue it is one test.
     comms_arm7_turn();
     if (g_prev_pump) return g_prev_pump(spin);
+
+    // The frame pacer owns display waits. Poll once here without spending
+    // another VBlank before that pacer: two independent clocks otherwise add
+    // a silent radio wait to every online game tick.
+    if (data_0209d4f0[0] != 0) return false;
 
     const int st = t ? t->state() : kCommsIdle;
     if (st == kCommsParentConnected || st == kCommsChildConnected) {
