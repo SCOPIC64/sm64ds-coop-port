@@ -133,7 +133,11 @@ int main(int argc, char** argv) {
     m.row=4;m.key(RIGHT);assert(m.mod_page==1 && m.shown_mods()==2 && m.row==2);
     m.row=3;assert(m.key(ACCEPT)==RELOAD_MODS);
     m.row=4;m.key(ACCEPT);assert(m.page==TEXTURES);
-    assert(m.key(ACCEPT)==TEXTURE_CAPTURE);m.row=1;assert(m.key(ACCEPT)==TEXTURE_PACK);
+    assert(m.key(ACCEPT)==REFRESH_PACKS && m.page==RESOURCE_PACKS);
+    m.pack_count=6;m.row=0;assert(m.key(ACCEPT)==TOGGLE_PACK);
+    m.row=4;m.key(RIGHT);assert(m.pack_page==1 && m.shown_packs()==2);
+    m.key(BACK);assert(m.page==TEXTURES);
+    m.row=1;assert(m.key(ACCEPT)==TEXTURE_CAPTURE);m.row=2;assert(m.key(ACCEPT)==TEXTURE_PACK);
     m.in_game=true;m.open(PAUSE);assert(m.key(BACK)==RESUME);
     m.row=1;m.key(ACCEPT);assert(m.page==OPTIONS);
     assert(m.key(BACK)==SAVE_OPTIONS && m.after_save==PAUSE);

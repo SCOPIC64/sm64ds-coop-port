@@ -157,6 +157,30 @@ static void coop_refresh_mods() {
 static bool coop_tools_action(coop_frontend::Action action) {
     if(coop_preferences_action(action))return true;
     std::string error;
+    if(action==coop_frontend::REFRESH_PACKS || action==coop_frontend::TOGGLE_PACK) {
+        const char* mod_root=getenv("SM64DS_MODS");
+        const char* pack_root=getenv("SM64DS_RESOURCE_PACKS");
+        const std::string root=pack_root?pack_root:std::string(mod_root?mod_root:"mods")+"/resource-packs";
+        auto entries=sm64ds::packs::selections(root,error);
+        if(action==coop_frontend::TOGGLE_PACK) {
+            const int i=g_coop_menu.pack_page*4+g_coop_menu.row;
+            if(g_coop_menu.in_game)error="Change resource packs on the title screen, then restart.";
+            else if(i<0||i>=static_cast<int>(entries.size()))error="Pack list changed. Refresh and try again.";
+            else {
+                if(sm64ds::packs::set_enabled(root,entries[i].directory,!entries[i].enabled,error))
+                    entries=sm64ds::packs::selections(root,error);
+            }
+        }
+        g_coop_menu.pack_count=static_cast<int>((std::min)(entries.size(),size_t(48)));
+        if(g_coop_menu.pack_page*4>=g_coop_menu.pack_count)g_coop_menu.pack_page=0;
+        for(int i=0;i<g_coop_menu.pack_count;++i) {
+            snprintf(g_coop_menu.pack_names[i],64,"%.63s",entries[i].name.c_str());
+            g_coop_menu.pack_enabled[i]=entries[i].enabled;
+        }
+        snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.110s",error.empty()?
+            (action==coop_frontend::TOGGLE_PACK?"Saved. Restart the game to apply pack changes.":entries.empty()?"No resource packs installed.":"Choose a pack to switch ON or OFF."):error.c_str());
+        return true;
+    }
     if(action==coop_frontend::TOGGLE_MOD || action==coop_frontend::RELOAD_MODS) {
         if(port::comms_loopback_stats().installed) {
             snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"Change gameplay mods before a network session.");return true;
@@ -326,6 +350,33 @@ static int coop_frontend_run()
         fprintf(stderr,"[coop-menu] original DS staff roll full loop %s visits=%u\n",ok?"PASS":"FAIL",backdrop.credits_visits());
         return ok?0:-1;
     }
+    if(getenv("SM64DS_BIND_CAPTURE_SELFTEST")) {
+        bool ok=true;auto check=[&](const char* name,bool pass){ok=ok&&pass;fprintf(stderr,"[bind-test] %s %s\n",pass?"PASS":"FAIL",name);};
+        g_coop_menu.in_game=true;g_coop_menu.open(coop_frontend::CONTROLS);
+        g_coop_menu.row=g_coop_menu.binding_action=coop_prefs::ATTACK;
+        for(int slot=0;slot<2;++slot){g_coop_menu.binding_slot=slot;coop_preferences_action(coop_frontend::BIND_KEY);coop_social_message(WM_KEYDOWN,slot?'U':'Y',0);}
+        g_coop_menu.binding_slot=2;coop_preferences_action(coop_frontend::BIND_PAD);
+        XPad pad={};int live=1;pad_focus_gate(&live,&pad,true);coop_preferences_tick(&pad);
+        pad.buttons=0x1000;pad_focus_gate(&live,&pad,true);
+        check("focused capture preserves raw A and blocks gameplay",live&&pad.buttons==0x1000&&!pad_act(&pad,HOST_PAD_ATTACK));
+        coop_preferences_tick(&pad);
+        check("three keyboard/controller slots saved",coop_prefs::get().bindings[coop_prefs::ATTACK]==std::array<int,3>{'Y','U',-0x1000});
+        coop_preferences_action(coop_frontend::BIND_PAD);pad.buttons=0x2000;live=1;pad_focus_gate(&live,&pad,false);coop_preferences_tick(&pad);
+        check("background capture ignores controller",!live&&!pad.buttons&&g_coop_binding_capture==3);
+        coop_social_message(WM_KEYDOWN,VK_ESCAPE,0);check("capture cancellation",!g_coop_binding_capture);
+        coop_draw(menu_fb,0);ok=ntr::ppu_write_bmp("bindings-fixed.bmp",menu_fb)&&ok;
+        fprintf(stderr,"[bind-test] RESULT %s\n",ok?"PASS":"FAIL");g_coop_active=false;return ok?0:-1;
+    }
+    if(getenv("SM64DS_PACK_TOGGLE_SELFTEST")) {
+        if(!getenv("SM64DS_RESOURCE_PACKS"))return -1; // Never touch installed packs.
+        g_coop_menu.open(coop_frontend::TEXTURES);
+        bool ok=g_coop_menu.key(coop_frontend::ACCEPT)==coop_frontend::REFRESH_PACKS;
+        coop_tools_action(coop_frontend::REFRESH_PACKS);ok=ok&&g_coop_menu.pack_count==1&&g_coop_menu.pack_enabled[0];
+        coop_tools_action(g_coop_menu.key(coop_frontend::ACCEPT));ok=ok&&!g_coop_menu.pack_enabled[0];
+        coop_draw(menu_fb,0);ok=ntr::ppu_write_bmp("pack-disabled.bmp",menu_fb)&&ok;
+        coop_tools_action(g_coop_menu.key(coop_frontend::ACCEPT));ok=ok&&g_coop_menu.pack_enabled[0];
+        fprintf(stderr,"[pack-test] RESULT %s\n",ok?"PASS":"FAIL");g_coop_active=false;return ok?0:-1;
+    }
     if(getenv("SM64DS_SOCIAL_SELFTEST")) {
         bool ok=coop_social_selftest(menu_fb);g_coop_active=false;return ok?0:-1;
     }
@@ -385,7 +436,7 @@ static int coop_frontend_run()
             if (pad.ly < -16000) buttons |= 2;
             if (pad.lx < -16000) buttons |= 4;
             if (pad.lx > 16000) buttons |= 8;
-        }
+        } else pad={}; // Background windows must not capture controller binds.
         if(coop_preferences_tick(&pad)){coop_draw(menu_fb,frame++);present();Sleep(10);continue;}
         unsigned pressed = buttons & ~previous;
         previous = buttons;

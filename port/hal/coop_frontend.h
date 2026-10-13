@@ -9,13 +9,13 @@
 
 namespace coop_frontend {
 enum Page { HOME, PLAY, HOST, JOIN, OPTIONS, PLAYER, CAMERA, CONTROLS,
-            DISPLAY, SOUND, MISC, EXIT_CONFIRM, MODS, TEXTURES, PAUSE, LOBBY, COLORS, PALETTES };
+            DISPLAY, SOUND, MISC, EXIT_CONFIRM, MODS, TEXTURES, PAUSE, LOBBY, COLORS, PALETTES, RESOURCE_PACKS };
 enum Action { NONE, START_SOLO, START_HOST, START_JOIN, SAVE_OPTIONS, NEXT_SONG,
               IMPORT_MUSIC, IMPORT_BACKGROUND, RELOAD_MEDIA, QUIT, TOGGLE_MOD, RELOAD_MODS,
               TEXTURE_CAPTURE, TEXTURE_PACK, OPEN_TEXTURE_FOLDER, RESUME,
               CREATE_ROOM, JOIN_ROOM, START_ROOM, LEAVE_ROOM, BIND_KEY, BIND_PAD,
               CLEAR_BIND, RESET_BINDS, DEFAULT_COLOR, RESET_COLORS,
-              IMPORT_PALETTE, SAVE_PALETTE, APPLY_PALETTE, EXPORT_PALETTE };
+              IMPORT_PALETTE, SAVE_PALETTE, APPLY_PALETTE, EXPORT_PALETTE, TOGGLE_PACK, REFRESH_PACKS };
 enum { BACKGROUND_BUILTIN_COUNT = 8 };
 enum Key { UP, DOWN, LEFT, RIGHT, ACCEPT, BACK };
 
@@ -59,6 +59,9 @@ struct Menu {
     bool mod_enabled[48] = {}, mod_failed[48] = {};
     int shown_mods() const { int n=mod_count-mod_page*4; return n<0?0:n>4?4:n; }
     int selected_mod() const { return mod_page*4+row; }
+    int pack_count=0,pack_page=0;
+    char pack_names[48][64]={}; bool pack_enabled[48]={};
+    int shown_packs() const {int n=pack_count-pack_page*4;return n<0?0:n>4?4:n;}
     int music = MUSIC_RANDOM, background = 0;
     bool menu_sounds = true;
     int custom_music_count = 0, custom_background_count = 0;
@@ -97,7 +100,8 @@ struct Menu {
         case PALETTES: return 6;
         case EXIT_CONFIRM: return 2;
         case MODS: return shown_mods()+4;
-        case TEXTURES: return 4;
+        case TEXTURES: return 5;
+        case RESOURCE_PACKS: return shown_packs()+3;
         case PAUSE: return 4;
         }
         return 0;
@@ -121,6 +125,7 @@ struct Menu {
         case EXIT_CONFIRM: return "QUIT THE GAME?";
         case MODS: return "MODS";
         case TEXTURES: return "TEXTURE PACKS";
+        case RESOURCE_PACKS: return "ENABLE / DISABLE PACKS";
         case PAUSE: return "PAUSED";
         }
         return "";
@@ -183,8 +188,12 @@ struct Menu {
             } else if(index==shown_mods()) std::snprintf(out,size,"PAGE < %d / %d >",mod_page+1,(mod_count+3)/4>0?(mod_count+3)/4:1);
             else std::snprintf(out,size,"%s",index==shown_mods()+1?"REFRESH MODS":index==shown_mods()+2?"TEXTURE PACK TOOLS":"BACK");
         } else if(page==TEXTURES) {
-            const char* labels[]={capture_textures?"STOP TEXTURE CAPTURE":"START TEXTURE CAPTURE","CREATE PACK FROM CAPTURE","OPEN TEXTURE FOLDERS","BACK"};
+            const char* labels[]={"ENABLE / DISABLE PACKS",capture_textures?"STOP TEXTURE CAPTURE":"START TEXTURE CAPTURE","CREATE PACK FROM CAPTURE","OPEN TEXTURE FOLDERS","BACK"};
             std::snprintf(out,size,"%s",labels[index]);
+        } else if(page==RESOURCE_PACKS) {
+            if(index<shown_packs()){int i=pack_page*4+index;std::snprintf(out,size,"%.40s < %s >",pack_names[i],pack_enabled[i]?"ON":"OFF");}
+            else if(index==shown_packs())std::snprintf(out,size,"PAGE < %d / %d >",pack_page+1,(pack_count+3)/4>0?(pack_count+3)/4:1);
+            else std::snprintf(out,size,"%s",index==shown_packs()+1?"REFRESH PACKS":"BACK");
         } else if(page==PAUSE) {
             const char* labels[]={"RESUME","OPTIONS","MODS","QUIT"};
             std::snprintf(out,size,"%s",labels[index]);
@@ -259,6 +268,7 @@ struct Menu {
             if(page==PAUSE)return RESUME;
             if(page==MODS){open(in_game?PAUSE:HOME);return NONE;}
             if(page==TEXTURES){open(MODS);return NONE;}
+            if(page==RESOURCE_PACKS){open(TEXTURES);return NONE;}
             if (page == OPTIONS || page == PLAYER || page == CAMERA ||
                 page == DISPLAY || page == SOUND || page == MISC || page == CONTROLS || page == COLORS) {
                 after_save = page == OPTIONS ? (in_game?PAUSE:HOME) : page==COLORS?PLAYER:OPTIONS;
@@ -289,10 +299,15 @@ struct Menu {
                 if(row==shown_mods()+2)open(TEXTURES);else open(in_game?PAUSE:HOME);
             }
         } else if(page==TEXTURES && key==ACCEPT) {
-            if(row==0)return TEXTURE_CAPTURE;
-            if(row==1)return TEXTURE_PACK;
-            if(row==2)return OPEN_TEXTURE_FOLDER;
+            if(row==0){open(RESOURCE_PACKS);return REFRESH_PACKS;}
+            if(row==1)return TEXTURE_CAPTURE;
+            if(row==2)return TEXTURE_PACK;
+            if(row==3)return OPEN_TEXTURE_FOLDER;
             open(MODS);
+        } else if(page==RESOURCE_PACKS) {
+            if(row<shown_packs())return TOGGLE_PACK;
+            if(row==shown_packs()){int pages=(pack_count+3)/4;if(pages<1)pages=1;pack_page=(pack_page+pages+delta)%pages;row=shown_packs();}
+            else if(key==ACCEPT){if(row==shown_packs()+1)return REFRESH_PACKS;open(TEXTURES);}
         } else if(page==PAUSE && key==ACCEPT) {
             if(row==0)return RESUME;
             open(row==1?OPTIONS:row==2?MODS:EXIT_CONFIRM);

@@ -225,7 +225,11 @@ static bool coop_social_selftest(ntr::Framebuffer& fb) {
     g_coop_menu.binding_slot=0;coop_preferences_action(coop_frontend::BIND_KEY);coop_social_message(WM_KEYDOWN,'Y',0);
     g_coop_menu.binding_slot=1;coop_preferences_action(coop_frontend::BIND_KEY);coop_social_message(WM_KEYDOWN,'U',0);
     g_coop_menu.binding_slot=2;coop_preferences_action(coop_frontend::BIND_PAD);
-    XPad pad={};coop_preferences_tick(&pad);pad.buttons=0x1000;coop_preferences_tick(&pad);
+    XPad pad={};int live=1;
+    pad_focus_gate(&live,&pad,true);coop_preferences_tick(&pad);
+    pad.buttons=0x1000;pad_focus_gate(&live,&pad,true);
+    check("pause binding retains raw controller and blocks gameplay",live&&pad.buttons==0x1000&&!pad_act(&pad,HOST_PAD_ATTACK));
+    coop_preferences_tick(&pad);
     check("three mixed bindings captured",prefs.bindings[coop_prefs::ATTACK]==std::array<int,3>{'Y','U',-0x1000});
     g_host_key_frame=0;check("Y drives attack",key_act(HOST_KEY_ATTACK)!=0);
     g_host_key_frame=1;check("U drives attack",key_act(HOST_KEY_ATTACK)!=0);

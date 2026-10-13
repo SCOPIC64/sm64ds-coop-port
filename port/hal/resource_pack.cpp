@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <fstream>
 
 extern "C" {
 #include <lauxlib.h>
@@ -317,6 +318,48 @@ bool load_pack(const fs::path &directory, std::string &error)
 
 void clear() { g_characters.clear(); g_textures.clear(); g_menu.reset(); }
 
+std::vector<Selection> selections(const std::string& root,std::string& error) try {
+    error.clear();std::vector<Selection> result;
+    if(!fs::exists(root))return result;
+    for(const auto& entry:fs::directory_iterator(root)) {
+        if(!fs::is_directory(entry.symlink_status()))continue;
+        const std::string folder=entry.path().filename().string();
+        if(folder.empty()||folder[0]=='.'||!fs::is_regular_file(entry.path()/"pack.lua"))continue;
+        const bool legacy_off=folder.rfind("off_",0)==0;
+        const bool enabled=!legacy_off&&!fs::exists(entry.path()/".disabled");
+        result.push_back({folder,legacy_off?folder.substr(4):folder,enabled});
+    }
+    std::sort(result.begin(),result.end(),[](const Selection& a,const Selection& b){return a.directory<b.directory;});
+    return result;
+} catch(const std::exception& ex) {error=ex.what();return {};}
+
+bool set_enabled(const std::string& root,const std::string& directory,bool enabled,std::string& error) try {
+    error.clear();
+    if(directory.empty()||directory[0]=='.'||directory.find_first_of("/\\:")!=std::string::npos) {
+        error="Invalid resource pack directory";return false;
+    }
+    auto choices=selections(root,error);if(!error.empty())return false;
+    auto entry=std::find_if(choices.begin(),choices.end(),[&](const Selection& item){return item.directory==directory;});
+    if(entry==choices.end()){error="Resource pack no longer exists";return false;}
+    if(entry->enabled==enabled)return true;
+    if(entry->name.empty()||entry->name[0]=='.'){error="Invalid resource pack name";return false;}
+    const fs::path marker=fs::path(root)/entry->directory/".disabled";
+    if(!enabled) {
+        if(fs::is_symlink(fs::symlink_status(marker))){error="Pack selection marker must not be a link";return false;}
+        std::ofstream out(marker,std::ios::binary|std::ios::trunc);out<<"Disabled by the pack menu\n";out.close();
+        if(!out){error="Could not save resource pack selection";return false;}
+        return true;
+    }
+    // Keep every active asset path intact when disabling. Legacy off_ folders
+    // may be restored when enabling, since they were never active this run.
+    if(directory.rfind("off_",0)!=0){fs::remove(marker);return true;}
+    fs::path destination=fs::path(root)/(enabled?entry->name:"off_"+entry->name);
+    if(fs::exists(destination)){error="A resource pack already uses that name";return false;}
+    fs::remove(marker);
+    fs::rename(fs::path(root)/entry->directory,destination);
+    return true;
+} catch(const std::exception& ex) {error=ex.what();return false;}
+
 bool load_all(const std::string &root, std::string &error) try
 {
     clear();
@@ -333,7 +376,7 @@ bool load_all(const std::string &root, std::string &error) try
     std::sort(directories.begin(), directories.end());
     for (const fs::path &directory : directories) {
         const std::string name = directory.filename().string();
-        if (name.empty() || name[0] == '.' || name.rfind("off_", 0) == 0) continue;
+        if (name.empty() || name[0] == '.' || name.rfind("off_", 0) == 0 || fs::exists(directory/".disabled")) continue;
         std::string one;
         try {
             if (!load_pack(directory, one)) { ok = false; errors << one << '\n'; }

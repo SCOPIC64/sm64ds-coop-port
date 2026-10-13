@@ -4345,11 +4345,14 @@ static int coop_pad_action(const XPad* pad,int action) {
    Called BEFORE pad_test_apply at both read sites, so SM64DS_PAD_TEST's
    scripted mask re-arms the pad after the gate and an automated run is
    unaffected by any of this. */
-static void pad_focus_gate(int *pad_live, XPad *pad)
+static void pad_focus_gate(int *pad_live, XPad *pad, bool focused=hal_window_focused())
 {
     static unsigned stale = 0;
     static int said_gated = 0;      /* one line per transition, not per frame */
-    if (!hal_window_focused() || g_coop_chat_open || g_coop_binding_capture) {
+    // Binding capture needs the focused raw pad. pad_act/coop_custom_pad
+    // already suppress gameplay while it is armed; clearing here hid every
+    // controller button from the pause-menu binding editor.
+    if (!focused || g_coop_chat_open) {
         stale = ~0u;
         if (*pad_live) {
             memset(pad, 0, sizeof *pad);

@@ -45,6 +45,12 @@ struct MenuTheme {
 bool load_all(const std::string &root, std::string &error);
 void clear();
 
+struct Selection { std::string directory, name; bool enabled=false; };
+std::vector<Selection> selections(const std::string& root, std::string& error);
+// Persist for the next launch. Running character/texture assets stay valid.
+bool set_enabled(const std::string& root,const std::string& directory,
+                 bool enabled,std::string& error);
+
 const Character *character(int id);
 const std::vector<Character> &characters();
 const std::vector<TextureReplacement> &textures();
