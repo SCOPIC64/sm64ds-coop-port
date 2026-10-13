@@ -587,6 +587,12 @@ void comms_seat_session_request(int role);
 // believing it is player 0.
 bool comms_wait_for_session(int frames);
 
+// Optional startup UI: event 0 polls/draws, 1 releases its buffer after joining,
+// 2 reports a required-startup timeout. SM64DS_COMMS_WAIT_MS requests an
+// elapsed-time wait for at least two players; expiry exits instead of seating
+// a solo world. Unset preserves the bounded legacy wait above.
+extern void (*comms_wait_hook)(int event);
+
 // The DS touch-panel ring's write index, at data_020a80cc[6] as a halfword.
 // hal/sub_screen.cpp's poll_touch writes one entry per frame and advances it;
 // src/func_0203b9bc.c reads the four entries behind it. Nine entries.

@@ -3,6 +3,11 @@ on:
   pull_request:
     paths:
       - 'port/hal/coop_*'
+      - 'port/hal/comms_native_socket.h'
+      - 'port/hal/ctor_runner.cpp'
+      - 'port/ntr/io.cpp'
+      - 'port/ntr/include/ntr/owned_memory.h'
+      - 'port/hal/comms_loopback.cpp'
       - 'port/tests/coop_*'
       - 'port/tests/overlay_font.h'
       - 'port/frontend/**'
@@ -52,9 +57,11 @@ jobs:
           mkdir build\frontend-host
           cl /nologo /c /std:c++17 /EHsc /vmg /vmm /Oy- /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /DNTR_WIDE_RT /DPORT_ROM_CLEAN /Iport /Iport\ntr\include /Iinclude port\tests\walk_window.cpp /Fobuild\frontend-host\walk_window.obj || exit /b 1
           cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\host_settings.cpp /Fobuild\frontend-host\host_settings.obj || exit /b 1
-          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\player_bridges.cpp /Fobuild\frontend-host\player_bridges.obj || exit /b 1
-          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iinclude port\hal\actor_classes.cpp /Fobuild\frontend-host\actor_classes.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iport\ntr\include /Iinclude port\hal\player_bridges.cpp /Fobuild\frontend-host\player_bridges.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /vmg /vmm /D_CRT_SECURE_NO_WARNINGS /DSM64DS_PLATFORM_PC /Iport /Iport\ntr\include /Iinclude port\hal\actor_classes.cpp /Fobuild\frontend-host\actor_classes.obj || exit /b 1
           cl /nologo /c /D_CRT_SECURE_NO_WARNINGS /Iinclude port\unmatched\func_ov002_020d3b9c.c /Fobuild\frontend-host\walking.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /D_CRT_SECURE_NO_WARNINGS /Iport /Iport\ntr\include /Iinclude port\ntr\io.cpp /Fobuild\frontend-host\io.obj || exit /b 1
+          cl /nologo /c /std:c++17 /EHsc /D_CRT_SECURE_NO_WARNINGS /Iport /Iport\ntr\include /Iinclude port\hal\ctor_runner.cpp /Fobuild\frontend-host\ctor_runner.obj || exit /b 1
   android-components:
     runs-on: ubuntu-22.04
     steps:

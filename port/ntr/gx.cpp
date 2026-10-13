@@ -5,6 +5,8 @@
 // and is not a fidelity question for geometry this size.
 
 #include "ntr/gx.h"
+#include "ntr/player_colors.h"
+#include "../hal/coop_color_transform.h"
 
 #include "ntr/hdtex.h"
 #include "ntr/mmio.h"
@@ -32,6 +34,34 @@
 #endif
 
 namespace ntr {
+namespace {
+struct PlayerColorContext {
+    coop_colors::Palette palette;
+    int character=0,slot=-1;
+    unsigned long long style=0;
+    std::vector<PlayerColorTexture> textures;
+} g_player_colors;
+coop_colors::Palette player_palette(int slot,int character) {
+    const char* key=std::getenv("SM64DS_PLAYER_PALETTES");
+    int index=slot;
+    if(!key||!*key){key=std::getenv("SM64DS_LOCAL_PALETTES");index=character;}
+    coop_colors::Palette result;if(!key||index<0||index>=16)return result;
+    std::string input(key);if(input.size()>1024)return result;
+    size_t start=0;
+    for(int n=0;n<index;++n){start=input.find(',',start);if(start==std::string::npos)return result;++start;}
+    size_t end=input.find(',',start);
+    coop_colors::parse(input.substr(start,end==std::string::npos?end:end-start),result);
+    return result;
+}
+}
+void gx_player_colors_begin(int slot,int character,const PlayerColorTexture* textures,size_t count) {
+    g_player_colors.palette=player_palette(slot,character);
+    g_player_colors.character=character;g_player_colors.slot=slot;
+    g_player_colors.style=coop_colors::hash(g_player_colors.palette,character);
+    g_player_colors.textures.clear();
+    if(g_player_colors.style&&textures&&count<=64)g_player_colors.textures.assign(textures,textures+count);
+}
+void gx_player_colors_end(){g_player_colors.style=0;g_player_colors.slot=-1;g_player_colors.textures.clear();}
 namespace {
 
 constexpr float FX12 = 1.0f / 4096.0f;
@@ -1886,7 +1916,9 @@ uint32_t g_teximage, g_plttbase;
 struct TexKey {
     uint64_t name;          // plttbase:teximage
     uint32_t c0, c1, cp;    // content probe
+    unsigned long long style; // per-player render palette
     bool operator<(const TexKey &o) const {
+        if (style != o.style) return style < o.style;
         if (name != o.name) return name < o.name;
         if (c0 != o.c0) return c0 < o.c0;
         if (c1 != o.c1) return c1 < o.c1;
@@ -2045,7 +2077,10 @@ void bind_from_vram() {
     d.pal = reinterpret_cast<const uint8_t *>(PLTT_SLOT_BASE + pal_off);
     d.pal_len = 0x18000 - static_cast<int32_t>(pal_off);
 
-    TexKey key;
+    const char* player_texture=nullptr;
+    if(g_player_colors.style)for(const auto& texture:g_player_colors.textures)
+        if(texture.offset==off){player_texture=texture.name;break;}
+    TexKey key;key.style=player_texture?g_player_colors.style:0;
     key.name = (static_cast<uint64_t>(g_plttbase) << 32) | g_teximage;
     /* w*h/4 bytes is the smallest any DS format uses for a block of that
        size, so it is in range whatever the format turns out to be. */
@@ -2119,6 +2154,11 @@ void bind_from_vram() {
             }
         }
         if (entry.px.empty()) entry.px = std::move(rgba);
+        if(player_texture) {
+            coop_colors::recolor(entry.px,entry.w,entry.h,g_player_colors.character,player_texture,g_player_colors.palette);
+            if(getenv("SM64DS_COLOR_PROBE"))std::fprintf(stderr,"[player-color] slot=%d character=%d texture=%s style=%llx\n",
+                g_player_colors.slot,g_player_colors.character,player_texture,key.style);
+        }
         it = g_vram_tex_cache.emplace(key, std::move(entry)).first;
         /* THE CHAIN AND THE WAY BACK TO IT, ON THE MISS AND NOWHERE ELSE
            (run hd2). Both hang off the cache miss for hdtex's reason one

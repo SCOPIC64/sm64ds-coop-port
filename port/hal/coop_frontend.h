@@ -9,9 +9,13 @@
 
 namespace coop_frontend {
 enum Page { HOME, PLAY, HOST, JOIN, OPTIONS, PLAYER, CAMERA, CONTROLS,
-            DISPLAY, SOUND, MISC, EXIT_CONFIRM };
+            DISPLAY, SOUND, MISC, EXIT_CONFIRM, MODS, TEXTURES, PAUSE, LOBBY, COLORS, PALETTES };
 enum Action { NONE, START_SOLO, START_HOST, START_JOIN, SAVE_OPTIONS, NEXT_SONG,
-              IMPORT_MUSIC, IMPORT_BACKGROUND, RELOAD_MEDIA, QUIT };
+              IMPORT_MUSIC, IMPORT_BACKGROUND, RELOAD_MEDIA, QUIT, TOGGLE_MOD, RELOAD_MODS,
+              TEXTURE_CAPTURE, TEXTURE_PACK, OPEN_TEXTURE_FOLDER, RESUME,
+              CREATE_ROOM, JOIN_ROOM, START_ROOM, LEAVE_ROOM, BIND_KEY, BIND_PAD,
+              CLEAR_BIND, RESET_BINDS, DEFAULT_COLOR, RESET_COLORS,
+              IMPORT_PALETTE, SAVE_PALETTE, APPLY_PALETTE, EXPORT_PALETTE };
 enum { BACKGROUND_BUILTIN_COUNT = 8 };
 enum Key { UP, DOWN, LEFT, RIGHT, ACCEPT, BACK };
 
@@ -48,7 +52,13 @@ struct Menu {
     Page after_save = HOME;
     int row = 0, slot = 0, character = 0;
     int camera = 0, movement = 1, fps = 0, volume = 80;
-    int movement_mod = 0, object_distance = 0;
+    int movement_mod = 0, object_distance = 0; // Old setting retained for one-time migration.
+    bool in_game = false, capture_textures = false;
+    int mod_count = 0, mod_page = 0;
+    char mod_names[48][64] = {}, mod_descriptions[48][96] = {};
+    bool mod_enabled[48] = {}, mod_failed[48] = {};
+    int shown_mods() const { int n=mod_count-mod_page*4; return n<0?0:n>4?4:n; }
+    int selected_mod() const { return mod_page*4+row; }
     int music = MUSIC_RANDOM, background = 0;
     bool menu_sounds = true;
     int custom_music_count = 0, custom_background_count = 0;
@@ -57,23 +67,38 @@ struct Menu {
     SavePreview saves[3];
     char now_playing[48] = "";
     bool smooth = true, names = true, mouse_capture = false, editing = false;
-    char address[16] = "192.168.1.2", port[6] = "51765";
-    char edit_backup[16] = "";
+    char room_code[7] = "";
+    char room_members[7][48] = {};
+    int room_count = 0;
+    bool room_host = false, online_busy = false;
+    char username[17] = "Player", color_hex[7] = "";
+    int binding_action=0,binding_slot=0,color_character=0,color_part=0;
+    char binding_name[32]="MOVE UP", binding_labels[3][32]={};
+    char control_labels[14][3][32]={};
+    int palette_index=0, palette_count=0;
+    char palette_name[33]="My palette", palette_selected[64]="Original";
+    char edit_backup[64] = "";
     char message[128] = "";
 
     int rows() const {
         switch (page) {
-        case HOME: return 4;
+        case HOME: return 5;
         case PLAY: return 3;
-        case HOST: return 8;
-        case JOIN: return 5;
+        case HOST: return 7;
+        case JOIN: return 4;
+        case LOBBY: return 10;
         case OPTIONS: return 7;
-        case PLAYER: return 4;
+        case PLAYER: return 6;
         case DISPLAY: return 7;
         case SOUND: return 7;
         case CAMERA: case MISC: return 2;
-        case CONTROLS: return 1;
+        case CONTROLS: return 16;
+        case COLORS: return 10;
+        case PALETTES: return 6;
         case EXIT_CONFIRM: return 2;
+        case MODS: return shown_mods()+4;
+        case TEXTURES: return 4;
+        case PAUSE: return 4;
         }
         return 0;
     }
@@ -83,6 +108,7 @@ struct Menu {
         case PLAY: return "SINGLE PLAYER";
         case HOST: return "HOST A GAME";
         case JOIN: return "JOIN A GAME";
+        case LOBBY: return "ONLINE LOBBY";
         case OPTIONS: return "OPTIONS";
         case PLAYER: return "PLAYER";
         case CAMERA: return "CAMERA";
@@ -90,29 +116,39 @@ struct Menu {
         case SOUND: return "SOUND";
         case MISC: return "MISC";
         case CONTROLS: return "CONTROLS";
+        case COLORS: return "CHARACTER COLORS";
+        case PALETTES: return "COLOR PRESETS";
         case EXIT_CONFIRM: return "QUIT THE GAME?";
+        case MODS: return "MODS";
+        case TEXTURES: return "TEXTURE PACKS";
+        case PAUSE: return "PAUSED";
         }
         return "";
     }
     void open(Page target) { page = target; row = 0; editing = false; message[0] = 0; }
     char* field() {
-        if (page == JOIN && row == 0) return address;
-        if ((page == HOST && row == 3) || (page == JOIN && row == 1)) return port;
+        if (page == JOIN && row == 0) return room_code;
+        if (page == PLAYER && row == 3) return username;
+        if (page == COLORS && row == 2) return color_hex;
+        if (page == PALETTES && row == 2) return palette_name;
         return nullptr;
     }
     void type(char ch) {
         char* p = editing ? field() : nullptr;
         if (!p) return;
-        size_t size = p == address ? sizeof address : sizeof port;
+        size_t size = page==PALETTES?sizeof palette_name:page==PLAYER?sizeof username:sizeof room_code;
         size_t n = std::strlen(p);
         if (ch == '\b') { if (n) p[n - 1] = 0; }
-        else if (n + 1 < size && ((ch >= '0' && ch <= '9') ||
-                                  (p == address && ch == '.'))) {
+        else if (n + 1 < size && (page==PALETTES?(ch>=32&&ch<=126):page==PLAYER?(ch>=32&&ch<=126&&ch!=','&&ch!='|'):
+            page==COLORS?((ch>='0'&&ch<='9')||(ch>='a'&&ch<='f')||(ch>='A'&&ch<='F')):
+            ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')))) {
+            if(page==JOIN&&ch >= 'a' && ch <= 'z') ch -= 'a'-'A';
+            if(page==COLORS&&ch>='A'&&ch<='F')ch+='a'-'A';
             p[n] = ch; p[n + 1] = 0;
         }
     }
     void label(int index, char* out, size_t size) const {
-        static const char* home[] = { "HOST", "JOIN", "OPTIONS", "QUIT" };
+        static const char* home[] = { "HOST", "JOIN", "MODS", "OPTIONS", "QUIT" };
         static const char* chars[] = { "MARIO", "LUIGI", "WARIO", "YOSHI" };
         static const char* cameras[] = { "ANALOG", "FREE", "DS", "SM64 CAM" };
         static const char* movement_names[] = { "BUTTON", "ANALOG", "AUTO" };
@@ -129,21 +165,54 @@ struct Menu {
             else std::snprintf(out, size, "FILE %c   NEW", 'A' + index);
         } else if (page == HOST || page == JOIN) {
             int offset = page == JOIN ? 1 : 3;
-            if (page == JOIN && index == 0) std::snprintf(out, size, "ADDRESS    %s%s", address, editing && row == index ? "_" : "");
-            else if (index == offset) std::snprintf(out, size, "PORT       %s%s", port, editing && row == index ? "_" : "");
-            else if (index == offset + 1) std::snprintf(out, size, "CHARACTER  < %s >", chars[character]);
-            else std::snprintf(out, size, "%s", index == offset + 2 ? (page == HOST ? "START HOSTING" : "CONNECT") :
-                page == HOST && index == 6 ? "SINGLE PLAYER" : "BACK");
+            if (page == JOIN && index == 0) std::snprintf(out, size, "ROOM CODE  %s%s", room_code, editing && row == index ? "_" : "");
+            else if (index == offset) std::snprintf(out, size, "CHARACTER  < %s >", chars[character]);
+            else std::snprintf(out, size, "%s", index == offset + 1 ? (online_busy?"CONNECTING...":page == HOST ? "CREATE LOBBY" : "JOIN LOBBY") :
+                page == HOST && index == 5 ? "SINGLE PLAYER" : "BACK");
+        } else if (page == LOBBY) {
+            if(index==0) std::snprintf(out,size,"ROOM %s    %d / 7 PLAYERS",room_code,room_count);
+            else if(index<=7) std::snprintf(out,size,"%d. %s",index,index<=room_count?room_members[index-1]:"OPEN SEAT");
+            else std::snprintf(out,size,"%s",index==9?"LEAVE LOBBY":online_busy?"PLEASE WAIT...":room_host?"START GAME":"WAITING FOR HOST");
         } else if (page == OPTIONS) {
             static const char* categories[] = { "PLAYER", "CAMERA", "CONTROLS", "DISPLAY", "SOUND", "MISC", "SAVE AND BACK" };
             std::snprintf(out, size, "%s", categories[index]);
+        } else if (page == MODS) {
+            if(index<shown_mods()) {
+                int i=mod_page*4+index;
+                std::snprintf(out,size,"%s < %s >",mod_names[i],mod_failed[i]?"ERROR":mod_enabled[i]?"ON":"OFF");
+            } else if(index==shown_mods()) std::snprintf(out,size,"PAGE < %d / %d >",mod_page+1,(mod_count+3)/4>0?(mod_count+3)/4:1);
+            else std::snprintf(out,size,"%s",index==shown_mods()+1?"REFRESH MODS":index==shown_mods()+2?"TEXTURE PACK TOOLS":"BACK");
+        } else if(page==TEXTURES) {
+            const char* labels[]={capture_textures?"STOP TEXTURE CAPTURE":"START TEXTURE CAPTURE","CREATE PACK FROM CAPTURE","OPEN TEXTURE FOLDERS","BACK"};
+            std::snprintf(out,size,"%s",labels[index]);
+        } else if(page==PAUSE) {
+            const char* labels[]={"RESUME","OPTIONS","MODS","QUIT"};
+            std::snprintf(out,size,"%s",labels[index]);
         } else if (page == EXIT_CONFIRM) std::snprintf(out, size, "%s", index == 0 ? "KEEP PLAYING" : "QUIT");
         else if (index == rows() - 1) std::snprintf(out, size, "BACK");
         else if (page == CAMERA) std::snprintf(out, size, "CAMERA         < %s >", cameras[camera]);
         else if (page == PLAYER) {
             if (index == 0) std::snprintf(out, size, "RUN MODE       < %s >", movement_names[movement]);
-            else if(index==1)std::snprintf(out,size,"MOVEMENT MOD < %s >",movement_mod?"SM64":"OFF");
-            else std::snprintf(out, size, "PLAYER NAMES   < %s >", names ? "ON" : "OFF");
+            else if(index==1)std::snprintf(out,size,"OPEN MODS");
+            else if(index==2)std::snprintf(out, size, "PLAYER NAMES   < %s >", names ? "ON" : "OFF");
+            else if(index==3)std::snprintf(out,size,"USERNAME  %s%s",username,editing?"_":"");
+            else std::snprintf(out,size,"CHARACTER COLORS");
+        } else if(page==CONTROLS) {
+            static const char* actions[]={"Up","Down","Left","Right","Jump (DS B)","Attack (DS A)","Crouch","Run (DS Y)","Start / Pause","Select","Look (DS X)","Camera Left","Camera Right","Chat"};
+            std::snprintf(out,size,"%s",index<14?actions[index]:index==14?"Reset Binds":"Back");
+        } else if(page==COLORS) {
+            const char* parts[]={"CAP","SHIRT","OVERALLS / PANTS","GLOVES","SHOES","SKIN","HAIR","EMBLEM"};
+            const char* yoshi_parts[]={"SPIKES","BODY","SADDLE","","SHOES","BELLY / SNOUT","",""};
+            if(index==0)std::snprintf(out,size,"CHARACTER  < %s >",chars[color_character]);
+            else if(index==1)std::snprintf(out,size,"PART  < %s >",color_character==3?yoshi_parts[color_part]:parts[color_part]);
+            else if(index==2)std::snprintf(out,size,"RGB HEX  %s%s",color_hex[0]?color_hex:"DEFAULT",editing?"_":"");
+            else if(index<=5) {const char* channel[]={"RED","GREEN","BLUE"};unsigned rgb=color_hex[0]?static_cast<unsigned>(std::strtoul(color_hex,nullptr,16)):0xffffff;
+                std::snprintf(out,size,"%s < %3u >",channel[index-3],(rgb>>(8*(5-index)))&255);}
+            else std::snprintf(out,size,"%s",index==6?"USE ORIGINAL COLOR":index==7?"RESET CHARACTER PALETTE":index==8?"COLOR PRESETS":"BACK");
+        } else if(page==PALETTES) {
+            if(index==0)std::snprintf(out,size,"PRESET  < %.45s >",palette_selected);
+            else if(index==2)std::snprintf(out,size,"NAME: %s%s",palette_name,editing?"_":"");
+            else {const char* labels[]={"","APPLY PRESET","","SAVE CURRENT COLORS","IMPORT COOPDX .INI","EXPORT CURRENT COLORS"};std::snprintf(out,size,"%s",labels[index]);}
         } else if (page == DISPLAY) {
             if (index == 0) {
                 if (fps == 0) std::snprintf(out, size, "FRAME RATE     < NATIVE >");
@@ -179,28 +248,54 @@ struct Menu {
                 char* p = field();
                 if (p) std::strcpy(p, edit_backup);
             }
+            if(key==ACCEPT&&page==PLAYER&&(!username[0]||username[0]==' '||username[std::strlen(username)-1]==' ')){std::snprintf(message,sizeof message,"Use 1-16 characters, without leading/trailing spaces.");return NONE;}
+            if(key==ACCEPT&&page==COLORS&&color_hex[0]&&std::strlen(color_hex)!=6){std::snprintf(message,sizeof message,"Enter 6 hex digits, e.g. ff6600.");return NONE;}
             if (key == BACK || key == ACCEPT) editing = false;
             return NONE;
         }
         if (key == BACK) {
+            if(page==PALETTES){open(COLORS);return NONE;}
+            if(page==LOBBY) return LEAVE_ROOM;
+            if(page==PAUSE)return RESUME;
+            if(page==MODS){open(in_game?PAUSE:HOME);return NONE;}
+            if(page==TEXTURES){open(MODS);return NONE;}
             if (page == OPTIONS || page == PLAYER || page == CAMERA ||
-                page == DISPLAY || page == SOUND || page == MISC) {
-                after_save = page == OPTIONS ? HOME : OPTIONS;
+                page == DISPLAY || page == SOUND || page == MISC || page == CONTROLS || page == COLORS) {
+                after_save = page == OPTIONS ? (in_game?PAUSE:HOME) : page==COLORS?PLAYER:OPTIONS;
                 return SAVE_OPTIONS;
             }
             open(page == HOME ? EXIT_CONFIRM : page == PLAY ? HOST :
-                 page == CONTROLS ? OPTIONS : HOME);
+                 page == CONTROLS ? OPTIONS : in_game?PAUSE:HOME);
             return NONE;
         }
         if (key == UP || key == DOWN) {
-            row = (row + rows() + (key == UP ? -1 : 1)) % rows(); return NONE;
+            row = (row + rows() + (key == UP ? -1 : 1)) % rows();
+            if(page==CONTROLS&&row<14)binding_action=row;
+            return NONE;
         }
         const int delta = key == LEFT ? -1 : 1;
         const bool change = key == LEFT || key == RIGHT || key == ACCEPT;
         if (!change) return NONE;
         if (page == HOME && key == ACCEPT) {
-            static const Page pages[] = { HOST, JOIN, OPTIONS, EXIT_CONFIRM };
+            static const Page pages[] = { HOST, JOIN, MODS, OPTIONS, EXIT_CONFIRM };
             open(pages[row]);
+        } else if(page==MODS) {
+            if(row<shown_mods())return TOGGLE_MOD;
+            if(row==shown_mods()) {
+                int pages=(mod_count+3)/4; if(pages<1)pages=1;
+                mod_page=(mod_page+pages+delta)%pages; row=shown_mods();
+            } else if(key==ACCEPT) {
+                if(row==shown_mods()+1)return RELOAD_MODS;
+                if(row==shown_mods()+2)open(TEXTURES);else open(in_game?PAUSE:HOME);
+            }
+        } else if(page==TEXTURES && key==ACCEPT) {
+            if(row==0)return TEXTURE_CAPTURE;
+            if(row==1)return TEXTURE_PACK;
+            if(row==2)return OPEN_TEXTURE_FOLDER;
+            open(MODS);
+        } else if(page==PAUSE && key==ACCEPT) {
+            if(row==0)return RESUME;
+            open(row==1?OPTIONS:row==2?MODS:EXIT_CONFIRM);
         } else if (page == PLAY) {
             if (row == 0) slot = (slot + 3 + delta) % 3;
             else if (key == ACCEPT && row == 1) {
@@ -218,28 +313,54 @@ struct Menu {
             if (field() && key == ACCEPT) {
                 std::strcpy(edit_backup, field()); editing = true; field()[0] = 0;
             }
-            else if (row == offset + 1) character = (character + 4 + delta) % 4;
-            else if (key == ACCEPT && row == offset + 2) {
+            else if (row == offset) character = (character + 4 + delta) % 4;
+            else if (key == ACCEPT && row == offset + 1) {
                 if (page == HOST && saves[slot].damaged) std::snprintf(message, sizeof message, "Save damaged. Choose another slot.");
-                else if (!valid_port(port)) std::snprintf(message, sizeof message, "Use a port from 1024 to 65534.");
-                else if (page == JOIN && !valid_address(address)) std::snprintf(message, sizeof message, "Enter the host's IPv4 address.");
-                else return page == HOST ? START_HOST : START_JOIN;
-            } else if (key == ACCEPT && page == HOST && row == 6) open(PLAY);
+                else if (online_busy) return NONE;
+                else if (page == JOIN && std::strlen(room_code)!=6) std::snprintf(message, sizeof message, "Enter the host's six-character room code.");
+                else return page == HOST ? CREATE_ROOM : JOIN_ROOM;
+            } else if (key == ACCEPT && page == HOST && row == 5) open(PLAY);
             else if (key == ACCEPT && row == rows() - 1) open(HOME);
+        } else if(page==LOBBY && key==ACCEPT) {
+            if(row==9) return LEAVE_ROOM;
+            if(row==8 && room_host && !online_busy) return START_ROOM;
         } else if (page == OPTIONS) {
             if (key == ACCEPT) {
                 static const Page categories[] = { PLAYER, CAMERA, CONTROLS, DISPLAY, SOUND, MISC };
-                if (row == 6) { after_save = HOME; return SAVE_OPTIONS; }
+                if (row == 6) { after_save = in_game?PAUSE:HOME; return SAVE_OPTIONS; }
                 open(categories[row]);
             }
+        } else if(page==CONTROLS) {
+            if(row<14) {
+                binding_action=row;
+                if(key==LEFT||key==RIGHT)binding_slot=(binding_slot+3+delta)%3;
+                else return BIND_KEY; // Native host captures keyboard or controller.
+            } else if(key==ACCEPT) {
+                if(row==14)return RESET_BINDS;
+                after_save=OPTIONS;return SAVE_OPTIONS;
+            }
+        } else if(page==COLORS) {
+            if(row==0){color_character=(color_character+4+delta)%4;if(color_character==3&&(color_part==3||color_part>5))color_part=1;}
+            else if(row==1){do {color_part=(color_part+8+delta)%8;}while(color_character==3&&(color_part==3||color_part>5));}
+            else if(row==2&&key==ACCEPT){std::strcpy(edit_backup,color_hex);editing=true;color_hex[0]=0;}
+            else if(row>=3&&row<=5){unsigned rgb=color_hex[0]?static_cast<unsigned>(std::strtoul(color_hex,nullptr,16)):0xffffff;unsigned shift=8*(5-row);
+                int channel=static_cast<int>((rgb>>shift)&255)+delta*4;if(channel<0)channel=0;if(channel>255)channel=255;
+                rgb=(rgb&~(255u<<shift))|(static_cast<unsigned>(channel)<<shift);std::snprintf(color_hex,sizeof color_hex,"%06x",rgb);}
+            else if(key==ACCEPT){if(row==9){after_save=PLAYER;return SAVE_OPTIONS;}if(row==8){open(PALETTES);return NONE;}return row==6?DEFAULT_COLOR:RESET_COLORS;}
+        } else if(page==PALETTES) {
+            if(row==0){if(palette_count)palette_index=(palette_index+palette_count+delta)%palette_count;}
+            else if(row==2&&key==ACCEPT){std::strcpy(edit_backup,palette_name);editing=true;}
+            else if(key==ACCEPT)return row==1?APPLY_PALETTE:row==3?SAVE_PALETTE:row==4?IMPORT_PALETTE:EXPORT_PALETTE;
         } else if (page == PLAYER || page == CAMERA || page == DISPLAY || page == SOUND || page == MISC) {
             if (row == rows() - 1) {
                 if (key == ACCEPT) { after_save = OPTIONS; return SAVE_OPTIONS; }
             } else if (page == CAMERA) camera = (camera + 4 + delta) % 4;
             else if (page == PLAYER) {
                 if (row == 0) movement = (movement + 3 + delta) % 3;
-                else if(row==1)movement_mod=!movement_mod;
-                else names = !names;
+                else if(row==1)open(MODS);
+                else if(row==2) names = !names;
+                else if(row==3&&key==ACCEPT){std::strcpy(edit_backup,username);editing=true;username[0]=0;}
+                else if(row==4&&key==ACCEPT)open(COLORS);
             } else if (page == DISPLAY && row == 0) {
                 const int rates[] = { 0, 60, 90, 120, 144, 240 };
                 int index = 0;
@@ -260,8 +381,8 @@ struct Menu {
             else if (page == MISC) mouse_capture = !mouse_capture;
         } else if (page == EXIT_CONFIRM && key == ACCEPT) {
             if (row == 1) return QUIT;
-            open(HOME);
-        } else if (page == CONTROLS && key == ACCEPT) open(OPTIONS);
+            open(in_game?PAUSE:HOME);
+        }
         return NONE;
     }
 };

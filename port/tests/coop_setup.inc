@@ -62,7 +62,7 @@ static bool coop_setup_assets(ntr::Framebuffer& fb)
         if (count && count + 48 < sizeof powershell) {
             strcat(powershell, "\\WindowsPowerShell\\v1.0\\powershell.exe");
             snprintf(command, sizeof command,
-                "\"%s\" -NoProfile -NonInteractive -File \"%s\" -Destination \"%s\"",
+                "\"%s\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%s\" -Destination \"%s\"",
                 powershell, script, root);
             SECURITY_ATTRIBUTES security = { sizeof security, 0, TRUE };
             HANDLE output = CreateFileA(log, GENERIC_WRITE, FILE_SHARE_READ,

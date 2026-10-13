@@ -1,0 +1,30 @@
+{
+  "source_sha256": "ec30d882a9c1f9c9174bb3e1c45a70872fd9a8f4ce4e2ee2607107f5eebf9d82",
+  "sheet_size": [
+    980,
+    240
+  ],
+  "copied_frames": {
+    "panel": [
+      271,
+      2,
+      383,
+      99
+    ],
+    "selected": [
+      0,
+      0,
+      241,
+      34
+    ],
+    "button": [
+      122,
+      172,
+      248,
+      208
+    ]
+  },
+  "extracted_glyphs": "!ACDEFGHINOPRSTUW",
+  "missing_glyphs": "Completed in matching outlined pixel style; lowercase uses uppercase shapes",
+  "labels": "Removed using clean material columns from the original frames"
+}

@@ -47,9 +47,12 @@ int port_probe_message_id(void)
    the player itself satisfies. Returns ShowMessage2's own result. */
 int port_probe_message_fire(void *player, int id)
 {
+    // Doors use camera mode 2; test their dialogue without changing retail code.
+    const char *mode = std::getenv("SM64DS_PROBE_MESSAGE_CAMERA");
+    const unsigned char camera = mode && std::atoi(mode) == 2 ? 2 : 0;
     int r = _ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(
-        player, player, (unsigned)id, 0, 0, 0);
-    std::fprintf(stderr, "[probe] ShowMessage(id=%d) returned %d\n", id, r);
+        player, player, (unsigned)id, 0, 0, camera);
+    std::fprintf(stderr, "[probe] ShowMessage(id=%d, camera=%u) returned %d\n", id, camera, r);
     return r;
 }
 

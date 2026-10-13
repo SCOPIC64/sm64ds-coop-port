@@ -33,6 +33,17 @@ int main() {
     camera.input(coop_sm64::Lakitu::UP,0);
     for(int tick=0;tick<20;++tick)camera.step(origin,0,false);
     assert(camera.distance==800);
+    camera.input(0,0);camera.input(coop_sm64::Lakitu::UP,0);assert(camera.inspecting);
+    camera.look(1,1);for(int i=0;i<100;++i)camera.step(origin,0,false);
+    assert(camera.inspect_pitch==0x38e3 && camera.inspect_yaw==-0x5555);
+    camera.look(-1,-1);for(int i=0;i<100;++i)camera.step(origin,0,false);
+    assert(camera.inspect_pitch==-0x2000 && camera.inspect_yaw==0x5555);
+    camera.input(coop_sm64::Lakitu::CANCEL,0);assert(!camera.inspecting);
+    camera.input(0,0);camera.input(coop_sm64::Lakitu::TOGGLE,0);assert(camera.mario);
+    for(int i=0;i<40;++i){camera.step(origin,0,false);}assert(camera.distance==350);
+    camera.input(coop_sm64::Lakitu::DOWN,0);
+    for(int i=0;i<40;++i){camera.step(origin,0,false);}assert(camera.distance==1400);
+    camera.input(0,0);camera.input(coop_sm64::Lakitu::UP,0,false);assert(!camera.inspecting);
     for(int shot=0;shot<20;++shot)assert(coop_staff_roll::levels[shot]>0 && coop_staff_roll::levels[shot]<52);
     assert(coop_staff_roll::levels[0]==6 && coop_staff_roll::levels[19]==10);
     std::puts("PASS: movement reference checkpoints, discrete Lakitu input, object limits and original credits order");

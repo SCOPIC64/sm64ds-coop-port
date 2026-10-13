@@ -411,9 +411,10 @@ static void nt_draw(const OvlSurface &fb)
        remote body. Adventure is not VS (data_0209f2d8 stays 0), so the gate is
        the two modes, not the one flag. */
     const bool adventure = port::adventure_ghost_mode();
-    if (data_0209f2d8 != 1 && !adventure) return;
+    const bool party = getenv("SM64DS_PARTY") && port::comms_loopback_stats().installed;
+    if (data_0209f2d8 != 1 && !adventure && !party) return;
     if (!host_setting_name_tags()) return;
-    if (!nt_font_build()) return;
+    if (!party && !nt_font_build()) return;
 
     const int me = (int)data_0209f250;
     for (int i = 0; i < kPortMaxPlayers; ++i) {
@@ -432,6 +433,19 @@ static void nt_draw(const OvlSurface &fb)
                            *(const int *)(p + 0x64)};
         float sx = 0, sy = 0, d = 0;
         if (!nt_project(wp, &sx, &sy, &d)) continue;
+        if(party) {
+            if(!(sx>=0&&sx<ntr::active_w&&sy>=0&&sy<ntr::active_h))continue;
+            const char* name=port_vs_slot_name(i);
+            if(!name||!*name)continue;
+            coop_frontend::Canvas canvas={fb.px,ntr::active_w,ntr::active_h,fb.stride,OVL_FONT};
+            coop_canvas_prepare(canvas);
+            const int scale=canvas.scale(),width=canvas.measure(name,scale);
+            int x=static_cast<int>(sx)-width/2,y=static_cast<int>(sy)-12*scale;
+            canvas.shade(x-3,y-2,width+6,12*scale,135);
+            canvas.shadow(x,y,name,0xffffffffu,scale);
+            if(nt_probe())fprintf(stderr,"[nametag] slot=%d name=%s screen=%d,%d\n",i,name,x,y);
+            continue;
+        }
 
         /* SIZE. The VS tag steps up one size when the player is close (a
            continuous scale shimmers as it rounds to whole pixels; the w<200

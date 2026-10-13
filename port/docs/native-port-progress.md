@@ -68,6 +68,17 @@ Linux game, SteamOS game or Android APK.
 
 ## Remaining work for playable ports
 
+The native branch is now reconciled with Windows preview.5. The current
+seven-player carrier, chat/combat/input behavior, optional menu texture packs,
+texture capture declaration, and constructor-memory ownership repair are
+preserved. Older native overlay files must not replace those current files.
+Native frame switching, state/IRQ layout and recovered allocator work remain.
+
+Next is a shared SDL desktop host for real Linux/SteamOS/macOS window output,
+focus-safe input/controller events and bounded PCM playback. Its standalone
+adapter/runtime checks will not constitute a playable full-game release; game
+ABI bridging and complete adventure/multiplayer boot remain required.
+
 The full game's native window, controller, audio, networking, child-background
 renderer, asset import and storage adapters are still missing. The existing
 32-bit MSVC method/thunk and linker-alias bridges also need native calling-

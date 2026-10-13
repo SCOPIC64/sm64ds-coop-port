@@ -1,3 +1,4 @@
+extern "C" int port_sm64_can_inspect(const void* player);
 static bool coop_sm64_camera_draw(void* cam,char* player) {
     if(cam_mode!=CAM_SM64 || !cam || !player || data_0209fc48)return false;
     const int* position=(const int*)(player+0x5c);
@@ -7,8 +8,8 @@ static bool coop_sm64_camera_draw(void* cam,char* player) {
     const bool stepped=tick!=last_tick;
     if(stepped){sm64_camera.step(position,*(short*)(player+0x8e),*(int*)(player+0x98)!=0);last_tick=tick;}
     if(stepped && getenv("SM64DS_GAMEPLAY_PROBE") && tick%30==0)
-        fprintf(stderr,"[sm64-cam] tick=%d yaw=%d side=%d distance=%.1f\n",tick,
-            (int)sm64_camera.yaw,sm64_camera.side,sm64_camera.distance);
+        fprintf(stderr,"[sm64-cam] tick=%d yaw=%d side=%d distance=%.1f mario=%d c_up=%d pitch=%d look=%d\n",tick,
+            (int)sm64_camera.yaw,sm64_camera.side,sm64_camera.distance,sm64_camera.mario,sm64_camera.inspecting,sm64_camera.inspect_pitch,sm64_camera.inspect_yaw);
     int eye[3],focus[3],hit[3];
     for(int axis=0;axis<3;++axis){eye[axis]=(int)(sm64_camera.eye[axis]*4096);focus[axis]=(int)(sm64_camera.focus[axis]*4096);}
     // Adapt wall/floor avoidance to DS collision geometry. The original N64
@@ -22,7 +23,7 @@ static bool coop_sm64_camera_draw(void* cam,char* player) {
     }
     int floor=0;
     if(g_mc && hal_ground_ray(g_mc,eye[0],eye[1]+200*4096,eye[2],1024*4096,&floor))
-        eye[1]=(std::max)(eye[1],floor+125*4096);
+        eye[1]=(std::max)(eye[1],floor+(sm64_camera.inspecting?40:125)*4096);
     memcpy((char*)cam+0x8c,eye,sizeof eye);memcpy((char*)cam+0x80,focus,sizeof focus);
     fc_yaw=sm64_camera.yaw;
     fc_push_view(cam,eye,focus);

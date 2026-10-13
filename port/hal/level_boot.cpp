@@ -71,6 +71,7 @@
 #include "port_d16.h"
 
 #include <cstdio>
+#include "host_settings.h"
 #include "vs_width.h"   /* run vs16: the port's player width */
 #include <cstdlib>
 #include <cstring>
@@ -2251,8 +2252,9 @@ static void port_load1(void *t, int a, unsigned b)
        Slot 0 always has a body -- it is the one start every level does have --
        so the camera initialises against a real actor exactly as it does in
        single player, and the true slot is restored before any frame runs. The
-       camera reads the index per frame, so it follows the right player from
-       the first tick; nothing downstream sees the temporary value. */
+       camera stores its target pointer at +0x110 during InitResources. Once
+       all actors exist, reseat that pointer as well as the local index so a
+       joining player's camera follows their own actor from the first tick. */
     const unsigned char saved_local = data_0209f250;
     const unsigned char saved_count = data_0209f21c;
     data_0209f250 = 0;
@@ -2322,6 +2324,9 @@ static void port_load1(void *t, int a, unsigned b)
            cartridge's protocol and the port's mod, and it is enforced here in
            one line so no other code has to remember where it runs. */
         if (fit > kPortNarrowPlayers) fit = kPortNarrowPlayers;
+        // Adventure records after p3 are other doors/star-return scripts.
+        // Seat only the requested entrance, then clone it for the other slots.
+        if (port::owner_sync_mode()) fit = 1;
         if (want_players > fit)
             data_0209f21c = (unsigned char)fit;
     }
@@ -2329,11 +2334,17 @@ static void port_load1(void *t, int a, unsigned b)
     data_0209f21c = saved_count;
     port_vs_spawn_extra_players(t, b);
     data_0209f250 = saved_local;
-    if (saved_local != 0 && std::getenv("SM64DS_VS_PROBE"))
+    extern void *data_0209f318;
+    void *local_actor = saved_local < kPortMaxPlayers
+        ? data_0209f394[saved_local] : nullptr;
+    if (data_0209f318 && local_actor)
+        *(void **)((char *)data_0209f318 + 0x110) = local_actor;
+    if (std::getenv("SM64DS_VS_PROBE"))
         std::fprintf(stderr,
-                     "[vs] local slot restored to %d after the entrance load "
-                     "(held at 0 so Camera::InitResources had a body to "
-                     "follow)\n", (int)saved_local);
+                     "[vs] entrance camera: me=%d follows_local=%d\n",
+                     (int)saved_local,
+                     data_0209f318 && local_actor &&
+                     *(void **)((char *)data_0209f318 + 0x110) == local_actor);
 }
 static void port_load2(void *t, int a, unsigned b)
 { port_loader_enter(2, t); _Z19LoadPathNodeObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }

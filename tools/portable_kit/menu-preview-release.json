@@ -1,130 +1,40 @@
 {
-  "exe_sha256": "8568f4a7cdc295e1fc1b7277852f07c8435efca51c8076b5967260888e7dd76f",
-  "artifact_sha256": "574314ea402122e5fb958b6b4b60908e4692f7210198c9e4ba8a35a5ec361e36",
-  "artifact_bytes": 3448610,
-  "exe_bytes": 9948672,
+  "tag": "v0.5.7-menu-preview.5",
+  "source_commit": "469d60762d3d9cebddbf92f6280247e4694ee0de",
+  "exe_sha256": "ad84f8cf217b9f4906adb2fb1bd0ab0507fe25e0877c4ef77aa1202a3e058f73",
+  "exe_bytes": 12412416,
+  "artifact_sha256": "03df5cdc400093cc4a5a149429b24ccdbe6f61ba70830dda99f67913d3625f87",
+  "artifact_bytes": 5806603,
   "archive_files": [
     "sm64ds coop.exe",
     "README.txt",
     "LICENSE",
-    "THIRD-PARTY-NOTICES.txt"
+    "THIRD-PARTY-NOTICES.txt",
+    "JOIN-STEPS.txt",
+    "server-profile.json"
   ],
-  "local_validation": {
-    "passed": true,
-    "tests": [
-      {
-        "test": "audio",
-        "exit": 0,
-        "seconds": 2.88
-      },
-      {
-        "test": "custom-media",
-        "exit": 0,
-        "seconds": 5.19
-      },
-      {
-        "test": "backdrop-1",
-        "exit": 0,
-        "seconds": 20.14
-      },
-      {
-        "test": "backdrop-2",
-        "exit": 0,
-        "seconds": 22.2
-      },
-      {
-        "test": "backdrop-3",
-        "exit": 0,
-        "seconds": 24.33
-      },
-      {
-        "test": "backdrop-4",
-        "exit": 0,
-        "seconds": 17.11
-      },
-      {
-        "test": "backdrop-5",
-        "exit": 0,
-        "seconds": 15.14
-      },
-      {
-        "test": "backdrop-6",
-        "exit": 0,
-        "seconds": 26.55
-      },
-      {
-        "test": "backdrop-7",
-        "exit": 0,
-        "seconds": 24.64
-      },
-      {
-        "test": "backdrop-8",
-        "exit": 0,
-        "seconds": 28.25
-      },
-      {
-        "test": "scenery-tour",
-        "exit": 0,
-        "seconds": 20.5
-      },
-      {
-        "test": "staff-roll",
-        "exit": 0,
-        "seconds": 72.97
-      },
-      {
-        "test": "game",
-        "exit": 0,
-        "seconds": 7.78
-      },
-      {
-        "test": "stock-walk",
-        "exit": 0,
-        "seconds": 11.62
-      },
-      {
-        "test": "sm64-walk",
-        "exit": 0,
-        "seconds": 5.2
-      },
-      {
-        "test": "sm64-jumps",
-        "exit": 0,
-        "seconds": 13.78
-      },
-      {
-        "test": "sm64-longjump",
-        "exit": 0,
-        "seconds": 11.33
-      },
-      {
-        "test": "sm64-camera",
-        "exit": 0,
-        "seconds": 9.31
-      },
-      {
-        "test": "objects-near",
-        "exit": 0,
-        "seconds": 10.05
-      },
-      {
-        "test": "objects-unlimited",
-        "exit": 0,
-        "seconds": 16.31
-      },
-      {
-        "test": "luigi-stock",
-        "exit": 0,
-        "seconds": 9.58
-      }
-    ]
+  "artifact_blob": "5a3be187a735e2117f85c7490e98f25448a51476",
+  "optional_texture_pack": {
+    "name": "DS-Classic-Menu-Texture-Pack.zip",
+    "sha256": "fcf3ee9ea83f3744658999cfac9eecd5688f091fbae6ce53f947468c1d78b882",
+    "bytes": 18056,
+    "blob": "da3c9b065f1780beb2ef5b5027c7e084306e1012"
   },
-  "tag": "v0.5.5-menu-preview.3",
-  "title": "SM64DS Co-op menu preview.3 — Original DS Staff Roll and gameplay options",
-  "source_commit": "24827fd0d0a71b7b66fc9fc91fc6a4812c6ae26f",
   "platforms": [
     "windows-x86"
   ],
-  "artifact_blob": "81155e87af43dada7a2888a23db46e6f9bb9df76",
-  "notes": "Staff Roll now runs the original 20 DS course-panorama scripts, with their camera paths, scene timing and fades. It loops before the ending cast scene and hides Mario, other players, shadows and HUD only in this background. Selected menu music continues independently.\n\nThe other seven built-in backgrounds show Mario facing a fixed camera. They use CoopDX's reference course locations adapted to DS collision and camera placement; Dire Dire Docks uses its DS entrance point because CoopDX has no menu preset for that course.\n\nNew gameplay options:\n- **Options > Player > Movement Mod > SM64:** optional Mario-only N64 walking and jump constants. This is a beta profile; DS air steering, slopes, collision and action transitions remain.\n- **Options > Camera > SM64 Cam:** Lakitu-style 45-degree turns, two zoom distances, pan and DS collision handling. Q/E or gamepad bumpers turn; R/F zoom; C recenters. N64 level-specific camera volumes and alternate modes are not reproduced.\n- **Options > Display > Object Distance:** DS Default, Near, Medium, Far or Unlimited drawing distance. Object simulation and native area visibility remain.\n\nThe integrated menu retains three adventure-save previews, 33 full-length DS themes, menu effects, custom MP3/FLAC/WAV music, shuffle choices and custom PNG/JPEG/BMP backgrounds.\n\n**Windows x86 preview:** open `sm64ds coop.exe` directly. Replace the EXE in an existing installation and retain assets, settings, saves and custom media. No BAT launcher or decoder DLL is needed. The 3,448,610-byte ZIP contains only the 9,948,672-byte EXE, README and license notices; supply your own supported game data. No ROM, Nintendo assets, songs or saves are included.\n\nValidation on source `24827fd0d0a71b7b66fc9fc91fc6a4812c6ae26f`: full native build and all three DS-state/face-cycle/ARM9-global guards passed. All 21 isolated runtime checks passed: menu pages across all eight backgrounds, all 20 native Staff Roll cameras and the loop wrap, Mario's rendered facing direction, scenery transitions, audio/custom media, gameplay movement/jumps/long jump, camera turns/zoom, near/unlimited object drawing and unchanged Luigi movement. Captures of all backgrounds and credits scenes were inspected. All nine portable component and Windows-host CI jobs passed: https://github.com/SCOPIC64/sm64ds-coop-port/actions/runs/38054341820\n\nNative Linux/SteamOS, macOS, Android and iOS game builds are still unfinished. Android/iOS SDK component checks are not APK/IPA releases or on-device touchscreen validation. This remains a prerelease: fresh-folder import, adventure save-loading, two-client co-op and return-to-menu need further runtime testing. Existing repository dead-reference and missing-private-assets CI failures remain documented in PR #5.\n\nEXE SHA-256: `8568f4a7cdc295e1fc1b7277852f07c8435efca51c8076b5967260888e7dd76f`\nZIP SHA-256: `574314ea402122e5fb958b6b4b60908e4692f7210198c9e4ba8a35a5ec361e36`\nSource contribution: https://github.com/SCOPIC64/sm64ds-coop-port/pull/5\n"
+  "title": "SM64DS Co-op preview.5: optional DS menu texture pack",
+  "local_validation": {
+    "passed": true,
+    "tests": [
+      "12 portable Windows component tests including stock/textured render bounds",
+      "15 sandboxed resource-pack loader checks including conflicts, disabled packs and path confinement",
+      "Actual Windows executable: enabled, disabled and corrupt-font fallback; 17 menu captures for each mode",
+      "Final exact executable ad84f8cf: 17 menu captures with original frames, completed glyphs and readable three-column binding labels",
+      "Constructor-memory foreign-marker regression remains protected; safe host-table fallback and gameplay exit 0",
+      "Final source portable CI: all nine jobs succeeded, including Linux/macOS desktop profiles and actual Windows memory backend compilation"
+    ],
+    "github_run": "https://github.com/SCOPIC64/sm64ds-coop-port/actions/runs/38357323094"
+  },
+  "notes": "Adds optional native-menu texture packs. The separate **DS-Classic-Menu-Texture-Pack.zip** uses the supplied DS UI sheet's exact frames and available letter shapes, removes baked labels with original frame material, and completes missing letters/digits/punctuation in matching outlined style. S and 5 have different shapes. Menu labels remain live; existing controls and click targets remain functional. Absent, disabled or invalid assets select the stock menu.\n\n**Update the game:** quit, replace the EXE in your existing extracted game folder, and keep assets, saves, settings and mods. Friends should update before starting a fresh room. The existing WGS server and Playit tunnel do not need a server update.\n\n**Install the optional pack:** extract its ds-classic-menu folder into mods/resource-packs. The final path must be mods/resource-packs/ds-classic-menu/pack.lua. Restart the game. To disable, quit, rename that folder off_ds-classic-menu, and restart; restore its name to re-enable. Only enable one menu theme at once. The pack changes native menus/pause/controls; gameplay textures, chat fonts and saved progress remain unchanged.\n\nIncludes preview.4's verified constructor-memory ownership crash repair and previous seven-player features. Real menu enabled/disabled/corrupt-image checks, 12 component tests, 15 pack-loader checks and all nine portable CI jobs passed. Intermittent peer-departure pacing pauses remain under investigation; no guarantee that every internet-lag cause is fixed. Native Linux/SteamOS/macOS playable ports are still in progress; these compiler checks are not native game releases.\n\nNo ROM, cartridge assets, saves, private tunnel credentials or home IP address are included."
 }

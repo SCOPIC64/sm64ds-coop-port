@@ -2375,6 +2375,11 @@ bool adventure_ghost_mode()
 {
     return host_setting_adventure_ghosts() != 0;
 }
+bool owner_sync_mode()
+{
+    static const bool enabled = [] { const char *v = getenv("SM64DS_OWNER_SYNC"); return v && atoi(v) != 0; }();
+    return enabled;
+}
 }  // namespace port
 
 /* ---- THE VOICE ACCESSORS, lane VOICE ---------------------------------- */

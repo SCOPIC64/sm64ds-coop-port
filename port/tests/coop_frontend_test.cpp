@@ -4,10 +4,14 @@
 #include "overlay_font.h"
 #include <cassert>
 #include <vector>
+#include <string>
 #include <cstdio>
 
 using namespace coop_frontend;
 int main(int argc, char** argv) {
+    assert(composite_logo(0x00ffffffu,0xff123456u)==0xff123456u);
+    assert(composite_logo(0x80ffffffu,0xff000000u)==0xff808080u);
+    assert(composite_logo(0xff123456u,0xff000000u)==0xff123456u);
     assert(valid_address("192.168.1.2"));
     assert(valid_address("127.0.0.1"));
     const char* bad[] = { "", "1.2.3", "1.2.3.", "256.0.0.1", "1.2.3.4.5",
@@ -17,21 +21,26 @@ int main(int argc, char** argv) {
     assert(!valid_port("65535") && !valid_port("0") && !valid_port("1023"));
     assert(!valid_port("999999999999") && !valid_port("-1") && !valid_port("51x"));
     Menu m;
-    m.key(UP); assert(m.row == 3); m.key(DOWN); assert(m.row == 0);
+    m.key(UP); assert(m.row == 4); m.key(DOWN); assert(m.row == 0);
     m.key(ACCEPT); assert(m.page == HOST);
-    m.row = 6; m.key(ACCEPT); assert(m.page == PLAY);
+    m.row = 5; m.key(ACCEPT); assert(m.page == PLAY);
     m.key(LEFT); assert(m.slot == 2);
     m.key(DOWN); assert(m.key(ACCEPT) == START_SOLO);
     m.key(BACK); assert(m.page == HOST);
-    m.row = 5; assert(m.key(ACCEPT) == START_HOST);
-    m.open(JOIN); m.row = 3; assert(m.key(ACCEPT) == START_JOIN);
+    m.row = 4; assert(m.key(ACCEPT) == CREATE_ROOM);
+    m.open(JOIN); m.row = 2; assert(m.key(ACCEPT) == NONE);
     m.row = 0; m.key(ACCEPT); m.type('5'); m.key(BACK);
-    assert(std::strcmp(m.address, "192.168.1.2") == 0);
+    assert(std::strcmp(m.room_code, "") == 0);
     m.row = 0; m.key(ACCEPT); m.type('2'); m.type('5'); m.type('6');
-    m.key(ACCEPT); m.row = 3; assert(m.key(ACCEPT) == NONE); assert(m.message[0]);
+    m.key(ACCEPT); m.row = 2; assert(m.key(ACCEPT) == NONE); assert(m.message[0]);
     m.row = 0; m.key(ACCEPT);
-    for (char ch : "127.0.0.1") m.type(ch);
-    m.type('x'); m.key(ACCEPT); m.row = 3; assert(m.key(ACCEPT) == START_JOIN);
+    for (char ch : "abc123") m.type(ch);
+    m.type('x'); m.key(ACCEPT); m.row = 2; assert(m.key(ACCEPT) == JOIN_ROOM);
+    assert(std::strcmp(m.room_code,"ABC123")==0);
+    m.online_busy=true;assert(m.key(ACCEPT)==NONE);m.online_busy=false;
+    m.open(LOBBY);m.room_host=false;m.row=8;assert(m.key(ACCEPT)==NONE);
+    m.room_host=true;assert(m.key(ACCEPT)==START_ROOM);
+    assert(m.key(BACK)==LEAVE_ROOM);
     m.open(OPTIONS); m.row = 3; m.key(ACCEPT); assert(m.page == DISPLAY);
     assert(m.fps == 0);
     char rate_label[80]; m.label(0, rate_label, sizeof rate_label);
@@ -90,7 +99,7 @@ int main(int argc, char** argv) {
     assert(preview_save(chip,sizeof chip-1,1).damaged);
     assert(!preview_save(chip,sizeof chip,3).exists);
     m.open(HOST); m.row = 2; m.key(ACCEPT); assert(m.slot == 2 && m.page == HOST);
-    m.saves[2].damaged = true; m.row = 5; assert(m.key(ACCEPT) == NONE && m.message[0]);
+    m.saves[2].damaged = true; m.row = 4; assert(m.key(ACCEPT) == NONE && m.message[0]);
     m.saves[2].damaged = false;
     m.open(DISPLAY); m.row = 2; m.key(LEFT); assert(m.background == BACKGROUND_BUILTIN_COUNT-1);
     m.key(RIGHT); assert(m.background == 0);
@@ -105,12 +114,31 @@ int main(int argc, char** argv) {
     const Page categories[] = { PLAYER, CAMERA, CONTROLS, DISPLAY, SOUND, MISC };
     for (int i = 0; i < 6; ++i) {
         m.open(OPTIONS); m.row = i; m.key(ACCEPT); assert(m.page == categories[i]);
-        if (m.page == CONTROLS) { m.key(BACK); assert(m.page == OPTIONS); }
-        else assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
+        assert(m.key(BACK) == SAVE_OPTIONS && m.after_save == OPTIONS);
     }
     m.open(OPTIONS); m.row = 6; assert(m.key(ACCEPT) == SAVE_OPTIONS && m.after_save == HOME);
-    m.open(PLAYER);m.row=1;m.key(ACCEPT);assert(m.movement_mod==1);
-    m.key(LEFT);assert(m.movement_mod==0);
+    m.open(PLAYER);m.row=1;m.key(ACCEPT);assert(m.page==MODS);
+    m.open(PLAYER);m.row=3;m.key(ACCEPT);for(char ch:std::string("Scopic_64"))m.type(ch);m.key(ACCEPT);assert(!m.editing&&!strcmp(m.username,"Scopic_64"));
+    m.row=4;m.key(ACCEPT);assert(m.page==COLORS);m.row=2;m.key(ACCEPT);m.type('f');assert(m.key(ACCEPT)==NONE&&m.editing);
+    for(char ch:std::string("f6600"))m.type(ch);
+    m.key(ACCEPT);assert(!m.editing&&!strcmp(m.color_hex,"ff6600"));
+    m.open(PALETTES);m.row=2;
+    std::strcpy(m.palette_name,"12345678901234567890123456789012");
+    m.key(ACCEPT);m.type('x');m.key(BACK);
+    assert(!m.editing&&!strcmp(m.palette_name,"12345678901234567890123456789012"));
+    m.open(CONTROLS);m.key(LEFT);assert(m.binding_slot==2);m.key(DOWN);assert(m.binding_action==1);
+    m.row=13;assert(m.key(ACCEPT)==BIND_KEY);assert(m.binding_action==13);
+    m.row=14;assert(m.key(ACCEPT)==RESET_BINDS);m.row=15;assert(m.key(ACCEPT)==SAVE_OPTIONS);
+    m.mod_count=6;m.open(MODS);m.row=0;assert(m.key(ACCEPT)==TOGGLE_MOD);
+    m.row=4;m.key(RIGHT);assert(m.mod_page==1 && m.shown_mods()==2 && m.row==2);
+    m.row=3;assert(m.key(ACCEPT)==RELOAD_MODS);
+    m.row=4;m.key(ACCEPT);assert(m.page==TEXTURES);
+    assert(m.key(ACCEPT)==TEXTURE_CAPTURE);m.row=1;assert(m.key(ACCEPT)==TEXTURE_PACK);
+    m.in_game=true;m.open(PAUSE);assert(m.key(BACK)==RESUME);
+    m.row=1;m.key(ACCEPT);assert(m.page==OPTIONS);
+    assert(m.key(BACK)==SAVE_OPTIONS && m.after_save==PAUSE);
+    m.open(MODS);m.key(BACK);assert(m.page==PAUSE);m.in_game=false;
+    m.mod_page=0;m.mod_count=48;
     m.open(CAMERA);m.camera=2;m.key(RIGHT);assert(m.camera==3);
     m.label(0,rate_label,sizeof rate_label);assert(std::strstr(rate_label,"SM64 CAM"));
     m.key(RIGHT);assert(m.camera==0);m.key(LEFT);assert(m.camera==3);
@@ -149,7 +177,7 @@ int main(int argc, char** argv) {
         int w = dims.first, h = dims.second, stride = w + 16;
         std::vector<uint32_t> pixels(stride * h + 64, 0xdeadbeef);
         Canvas c = { pixels.data() + 32, w, h, stride, OVL_FONT };
-        for (int page = HOME; page <= EXIT_CONFIRM; ++page) {
+        for (int page = HOME; page <= PALETTES; ++page) {
             m.open(static_cast<Page>(page)); draw(c, m, 100);
             for (int row = 0; row < m.rows(); ++row) {
                 ButtonRect r = button_rect(c,m,row);
@@ -162,6 +190,29 @@ int main(int argc, char** argv) {
         for (int y = 0; y < h; ++y)
             for (int x = w; x < stride; ++x) assert(pixels[32 + y * stride + x] == 0xdeadbeef);
         for (size_t i = 32 + stride * h; i < pixels.size(); ++i) assert(pixels[i] == 0xdeadbeef);
+    }
+    // External nine-slice textures and outlined font obey the same bounds and
+    // click geometry as the stock menu, including clipped/portrait layouts.
+    MenuTextures theme;
+    theme.border=3;
+    for(auto* im:{&theme.panel,&theme.button,&theme.selected}) {
+        im->width=im->height=12;im->pixels.assign(144,0xffd9c989u);
+        im->pixels[0]=0; // transparent corner must preserve the framebuffer
+    }
+    theme.font.width=288;theme.font.height=108;
+    theme.font.pixels.assign(288*108,0);
+    for(int cell=0;cell<95;++cell)
+        theme.font.pixels[(cell/16*18+3)*288+cell%16*18+3]=0xffff00ffu;
+    theme.prepare_font();
+    assert(theme.advance('a',2)==theme.advance('A',2));
+    for(auto dims:{std::pair<int,int>{64,48},{1280,800},{800,1280}}) {
+        int w=dims.first,h=dims.second,stride=w+9;
+        std::vector<uint32_t> pixels(stride*h+2,0xdeadbeef);
+        Canvas c={pixels.data()+1,w,h,stride,OVL_FONT};c.theme=&theme;
+        for(int page=HOME;page<=PALETTES;++page){m.open(static_cast<Page>(page));draw(c,m,0);}
+        c.texture(theme.panel,-8,-7,40,35);c.text(-5,-3,"S5 lower",0xff123456u,2);
+        assert(pixels.front()==0xdeadbeef&&pixels.back()==0xdeadbeef);
+        for(int y=0;y<h;++y)for(int x=w;x<stride;++x)assert(pixels[1+y*stride+x]==0xdeadbeef);
     }
     if (argc == 2) {
         const int w = 1024, h = 576;

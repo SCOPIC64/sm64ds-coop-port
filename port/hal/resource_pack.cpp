@@ -21,12 +21,14 @@ namespace fs = std::filesystem;
 namespace {
 std::vector<Character> g_characters;
 std::vector<TextureReplacement> g_textures;
+std::unique_ptr<MenuTheme> g_menu;
 
 struct LoadContext {
     fs::path directory;
     std::string id;
     std::vector<Character> characters;
     std::vector<TextureReplacement> textures;
+    std::unique_ptr<MenuTheme> menu;
 };
 
 struct LuaMemory {
@@ -203,6 +205,29 @@ int api_log(lua_State *L)
     return 0;
 }
 
+int api_menu_theme(lua_State *L)
+{
+    luaL_checktype(L, 1, LUA_TTABLE);
+    LoadContext *ctx = context(L);
+    if (ctx->menu) return fail(L, "only one menu theme per pack is allowed");
+    auto item = std::make_unique<MenuTheme>();
+    item->pack_id = ctx->id;
+    item->border = optional_int(L, 1, "border", 3);
+    if (item->border < 1 || item->border > 16)
+        return fail(L, "menu border must be 1..16");
+    for (auto field : {"panel", "button", "selected", "font"}) {
+        std::string path = asset_path(L, ctx, required_string(L, 1, field), field, ".png");
+        if (fs::file_size(path) > 8 * 1024 * 1024)
+            return fail(L, "menu asset exceeds 8 MiB");
+        if (std::string(field) == "panel") item->panel = path;
+        else if (std::string(field) == "button") item->button = path;
+        else if (std::string(field) == "selected") item->selected = path;
+        else item->font = path;
+    }
+    ctx->menu = std::move(item);
+    return 0;
+}
+
 void instruction_limit(lua_State *L, lua_Debug *)
 {
     luaL_error(L, "pack.lua exceeded its instruction budget");
@@ -227,6 +252,8 @@ void register_api(lua_State *L, LoadContext *ctx)
     lua_setfield(L, -2, "character");
     lua_pushlightuserdata(L, ctx); lua_pushcclosure(L, api_texture, 1);
     lua_setfield(L, -2, "texture");
+    lua_pushlightuserdata(L, ctx); lua_pushcclosure(L, api_menu_theme, 1);
+    lua_setfield(L, -2, "menu_theme");
     lua_pushlightuserdata(L, ctx); lua_pushcclosure(L, api_log, 1);
     lua_setfield(L, -2, "log");
     lua_pushinteger(L, 1); lua_setfield(L, -2, "api_version");
@@ -257,6 +284,10 @@ bool load_pack(const fs::path &directory, std::string &error)
         return false;
     }
     state.reset();
+    if (ctx.menu && g_menu) {
+        error = ctx.id + ": another enabled pack already owns the menu theme";
+        return false;
+    }
     for (const Character &candidate : ctx.characters) {
         if (character(candidate.id)) {
             error = ctx.id + ": character id " + std::to_string(candidate.id) +
@@ -277,13 +308,14 @@ bool load_pack(const fs::path &directory, std::string &error)
     }
     g_characters.insert(g_characters.end(), ctx.characters.begin(), ctx.characters.end());
     g_textures.insert(g_textures.end(), ctx.textures.begin(), ctx.textures.end());
+    if (ctx.menu) g_menu = std::move(ctx.menu);
     std::fprintf(stderr, "[resource-pack] loaded %s (%zu characters, %zu textures)\n",
                  ctx.id.c_str(), ctx.characters.size(), ctx.textures.size());
     return true;
 }
 }  // namespace
 
-void clear() { g_characters.clear(); g_textures.clear(); }
+void clear() { g_characters.clear(); g_textures.clear(); g_menu.reset(); }
 
 bool load_all(const std::string &root, std::string &error) try
 {
@@ -328,5 +360,6 @@ const Character *character(int id)
 }
 const std::vector<Character> &characters() { return g_characters; }
 const std::vector<TextureReplacement> &textures() { return g_textures; }
+const MenuTheme *menu_theme() { return g_menu.get(); }
 
 }  // namespace sm64ds::packs

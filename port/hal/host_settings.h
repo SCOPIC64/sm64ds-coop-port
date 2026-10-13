@@ -954,6 +954,7 @@ namespace port {
    override included. Nothing in src/ ever sees this; it gates host-layer
    drawing and per-body interaction state only. */
 bool adventure_ghost_mode();
+bool owner_sync_mode();
 }
 #endif
 

@@ -357,6 +357,7 @@
  * ---------------------------------------------------------------------------
  */
 
+#include "ntr/owned_memory.h"
 #include <cstdio>
 #include <cstring>
 
@@ -785,9 +786,10 @@ int cam_states_changed(const unsigned int *before)
     return n;
 }
 
-/* Is the ROM's table address a committed, writable page in this process? */
+/* A writable Windows allocation is not DS memory. Require our own reservation first. */
 bool ctor_page_ok(void)
 {
+    if (!ntr::io_owns_range(kCtorBase, (size_t)(kCtorWords + 1) * 4u)) return false;
 #if defined(_WIN32)
     MEMORY_BASIC_INFORMATION mbi;
     std::memset(&mbi, 0, sizeof mbi);
@@ -833,8 +835,8 @@ extern "C" void port_rom_entry_ctors(void)
         w[kCtorWords] = 0;                 /* the ROM's own terminator */
         func_02072f94();                   /* Entry's own call, 0x020048a8 */
     } else {
-        std::fprintf(stderr, "  [ctor] DS main RAM at %08x is not committed "
-                             "and writable, so the ROM's runner cannot walk "
+        std::fprintf(stderr, "  [ctor] DS constructor table at %08x is not owned "
+                             "by the DS backend or is not writable, so the ROM's runner cannot walk "
                              "its own table; running the 23 words directly. "
                              "See ntr/io.cpp: main RAM is the one reserved "
                              "range a process may lose.\n", kCtorBase);

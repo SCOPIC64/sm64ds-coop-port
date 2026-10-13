@@ -387,6 +387,13 @@ void hdtex_configure(int enabled, const char *pack_dir)
     }
 }
 
+void hdtex_capture(const char* directory, bool enabled) {
+    if(!enabled){g_dump_on=0;return;}
+    if(!directory || !*directory)return;
+    if(!g_dump_dir)g_dump_dir=new std::string();
+    if(!g_dumped)g_dumped=new std::unordered_set<uint64_t>();
+    *g_dump_dir=directory;g_dumped->clear();make_dir(directory);g_dump_on=1;
+}
 int hdtex_enabled(void) { return g_enabled; }
 
 const char *hdtex_pack_dir(void) { return g_pack_dir; }

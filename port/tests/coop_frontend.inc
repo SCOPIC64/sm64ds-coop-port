@@ -1,20 +1,27 @@
 // Included after the window/presentation helpers in walk_window.cpp.
 // Runs in the game process and reuses its HWND for the adventure.
 #include "coop_menu_media.inc"
+#include "coop_menu_font.inc"
 #include "coop_menu_audio.inc"
 #include "coop_menu_backdrop.inc"
+#include "hal/coop_session.h"
+static coop_online::Plan g_coop_online_plan;
+static coop_online::Client& coop_lobby() { static coop_online::Client client; return client; }
 static const uint32_t* g_coop_backdrop = 0;
 static void coop_draw(ntr::Framebuffer& fb, unsigned frame, const char* loading = 0)
 {
     coop_frontend::Canvas canvas = { &fb.px[0][0], ntr::active_w,
         ntr::active_h, ntr::SCREEN_W, OVL_FONT };
+    coop_canvas_prepare(canvas);
     coop_frontend::draw(canvas, g_coop_menu, frame, loading, g_coop_backdrop);
+    if(g_coop_menu.page==coop_frontend::LOBBY)coop_chat_draw(ovl_surface(fb));
 }
 
 #include "coop_setup.inc"
 
 static bool coop_frontend_wanted()
 {
+    if (getenv("SM64DS_MENU_TRANSITION_SELFTEST") && !getenv("SM64DS_MENU_BACKDROP_CHILD")) return true;
     const char* bypass[] = { "SM64DS_CLASSIC_MENU", "SM64DS_SCENE",
         "SM64DS_MENU_BACKDROP_CHILD",
         "SM64DS_LEVEL", "SM64DS_VS_MAP", "SM64DS_WINDOW_SELFTEST",
@@ -23,48 +30,104 @@ static bool coop_frontend_wanted()
     return true;
 }
 
+// The ROM's session wait runs after the menu buffer has been released. Keep
+// that wait responsive using its own temporary buffer in the same window.
+static void coop_wait_for_player(int event)
+{
+    static ntr::Framebuffer* screen = 0;
+    static const ntr::Framebuffer* previous_screen = 0;
+    static DWORD last_draw = 0;
+    static unsigned frame = 0;
+    if (event != 0) {
+        if (screen) {
+            g_present_fb = previous_screen;
+            VirtualFree(screen, 0, MEM_RELEASE);
+            screen = 0;
+        }
+        if (event == 2) {
+            const char* error = "No other player connected within five minutes. "
+                "Reopen the game and create or join a new lobby.";
+            port_startup_error_write(error);
+            port_startup_error_show(error);
+        }
+        return;
+    }
+    MSG message;
+    while (W.PeekMessageA_(&message, 0, 0, 0, PM_REMOVE)) {
+        if (message.message == WM_QUIT ||
+            (message.message == WM_KEYDOWN && message.wParam == VK_ESCAPE)) {
+            fprintf(stderr, "[coop-menu] multiplayer startup cancelled\n");
+            fflush(0);
+            ExitProcess(0);
+        }
+        W.TranslateMessage_(&message);
+        W.DispatchMessageA_(&message);
+    }
+    if (!screen) {
+        screen = static_cast<ntr::Framebuffer*>(VirtualAlloc(0,
+            sizeof(ntr::Framebuffer), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+        if (!screen) return;
+        previous_screen = g_present_fb;
+        last_draw = GetTickCount() - 33;
+    }
+    const DWORD now = GetTickCount();
+    if ((DWORD)(now - last_draw) < 33) return;
+    last_draw = now;
+    g_present_fb = screen;
+    coop_draw(*screen, frame++, "WAITING FOR PLAYER - ESC TO QUIT");
+    present();
+}
+
 static void coop_session_environment(coop_frontend::Action action)
 {
     // The CRT's cached getenv environment needs _putenv_s, not just Win32.
     const char* clear[] = { "SM64DS_COMMS_ROLE", "SM64DS_COMMS_HOST",
         "SM64DS_COMMS_PORT", "SM64DS_COMMS_SLOT", "SM64DS_COMMS_BIND_ANY",
         "SM64DS_COMMS_FANOUT", "SM64DS_COMMS_INJECT", "SM64DS_COMMS_REPORT",
-        "SM64DS_PARTY", "SM64DS_LEVEL", "SM64DS_SCENE", "SM64DS_VS_MAP",
-        "SM64DS_BOOT_CLASSIC", "SM64DS_CHARACTER" };
+        "SM64DS_PARTY", "SM64DS_OWNER_SYNC", "SM64DS_LEVEL", "SM64DS_SCENE", "SM64DS_VS_MAP",
+        "SM64DS_BOOT_CLASSIC", "SM64DS_CHARACTER", "SM64DS_SYNC",
+        "SM64DS_COMMS_WAIT_MS", "SM64DS_COMMS_RELAY", "SM64DS_COMMS_CODE",
+        "SM64DS_VS_PLAYERS", "SM64DS_VS_NAMES", "SM64DS_COMMS_TIMEOUT_MS",
+        "SM64DS_SHARED_SAVE", "SM64DS_SHARED_SAVE_SLOT", "SM64DS_COMMS_DELAY_FLOOR", "SM64DS_COMMS_DELAY_MARGIN",
+        "SM64DS_PLAYER_PALETTES", "SM64DS_PLAYER_CHARACTERS" };
     for (const char* name : clear) _putenv_s(name, "");
+    std::string local_palettes;for(int c=0;c<4;++c){if(c)local_palettes+=',';local_palettes+=coop_prefs::get().palette(c);}
+    _putenv_s("SM64DS_LOCAL_PALETTES",local_palettes.c_str());
     if (action == coop_frontend::START_SOLO) {
         char slot[] = { static_cast<char>('0' + g_coop_menu.slot), 0 };
         _putenv_s("SM64DS_BOOT_FILE", slot);
         _putenv_s("SM64DS_SKIP_MENU", "1");
         g_coop_loading = true;
     } else {
-        const bool host = action == coop_frontend::START_HOST;
-        char slot[] = { static_cast<char>('0' + g_coop_menu.slot), 0 };
-        _putenv_s("SM64DS_BOOT_FILE", host ? slot : "");
-        _putenv_s("SM64DS_SKIP_MENU", "1");
-        g_coop_loading = host;
-        _putenv_s("SM64DS_COMMS_ROLE", host ? "parent" : "child");
-        _putenv_s("SM64DS_COMMS_PORT", g_coop_menu.port);
-        _putenv_s("SM64DS_COMMS_FANOUT", "1");
-        _putenv_s("SM64DS_NETMODE", "rollback");
-        _putenv_s("SM64DS_PARTY", "1");
-        _putenv_s("SM64DS_LEVEL", host ? "" : "1");
-        if (!host) _putenv_s("SM64DS_SAVE_PATH", "save/coop-join.sav");
-        char character[] = { static_cast<char>('0' + g_coop_menu.character), 0 };
-        _putenv_s("SM64DS_CHARACTER", character);
-        if (host) _putenv_s("SM64DS_COMMS_BIND_ANY", "1");
-        else {
-            char address[32];
-            snprintf(address, sizeof address, "%s:%s", g_coop_menu.address, g_coop_menu.port);
-            _putenv_s("SM64DS_COMMS_HOST", address);
-            _putenv_s("SM64DS_COMMS_SLOT", "1");
-        }
+        // Both peers enter the same world, from the same host save. A title
+        // animation on only the parent races the child's rollback ring.
+        for(const auto& entry:coop_online::room_environment(g_coop_online_plan,
+                g_coop_menu.slot,g_coop_menu.character,GetCurrentProcessId()))
+            _putenv_s(entry.first.c_str(),entry.second.c_str());
+        g_coop_loading = false;
+        port::comms_wait_hook = coop_wait_for_player;
     }
 }
 
-static int coop_frontend_run()
+static bool coop_apply_shared_save()
 {
-    if (!coop_frontend_wanted()) return 1;
+    const char* hex=getenv("SM64DS_SHARED_SAVE");
+    if(!hex) return true;
+    try {
+        const auto data=coop_online::decode_save(hex);
+        std::memcpy(data_0209caa0,data.data(),data.size());
+        const char* slot=getenv("SM64DS_SHARED_SAVE_SLOT");
+        ((unsigned char*)data_0209caa0)[0x328]=slot?static_cast<unsigned char>(atoi(slot)):0;
+        fprintf(stderr,"[coop-start] shared host save restored before world boot; direct castle entry, owner sync\n");
+        return true;
+    } catch(const std::exception& error) {
+        port_startup_error_write(error.what()); port_startup_error_show(error.what()); return false;
+    }
+}
+
+static void coop_read_options()
+{
+    std::snprintf(g_coop_menu.username,sizeof g_coop_menu.username,"%s",coop_prefs::get().name.c_str());
     g_coop_menu.camera = host_setting_camera_mode();
     g_coop_menu.movement = host_setting_run_mode();
     g_coop_menu.movement_mod=host_setting_movement_mod();
@@ -80,6 +143,83 @@ static int coop_frontend_run()
     g_coop_menu.menu_sounds = host_setting_menu_sounds() != 0;
     snprintf(g_coop_menu.music_file,sizeof g_coop_menu.music_file,"%s",host_setting_menu_music_file());
     snprintf(g_coop_menu.background_file,sizeof g_coop_menu.background_file,"%s",host_setting_menu_background_file());
+}
+static void coop_refresh_mods() {
+    g_coop_menu.mod_count=(int)sm64ds::mods::count();
+    if(g_coop_menu.mod_page*4>=g_coop_menu.mod_count)g_coop_menu.mod_page=0;
+    for(int i=0;i<g_coop_menu.mod_count;++i) {
+        auto mod=sm64ds::mods::info(i);
+        snprintf(g_coop_menu.mod_names[i],64,"%.63s",mod.name.c_str());
+        snprintf(g_coop_menu.mod_descriptions[i],96,"%.95s",mod.failed?mod.error.c_str():mod.description.c_str());
+        g_coop_menu.mod_enabled[i]=mod.enabled;g_coop_menu.mod_failed[i]=mod.failed;
+    }
+}
+static bool coop_tools_action(coop_frontend::Action action) {
+    if(coop_preferences_action(action))return true;
+    std::string error;
+    if(action==coop_frontend::TOGGLE_MOD || action==coop_frontend::RELOAD_MODS) {
+        if(port::comms_loopback_stats().installed) {
+            snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"Change gameplay mods before a network session.");return true;
+        }
+        if(action==coop_frontend::TOGGLE_MOD) {
+            const int i=g_coop_menu.selected_mod();
+            sm64ds::mods::set_enabled(i,!g_coop_menu.mod_enabled[i],error);
+        } else {
+            const char* root=getenv("SM64DS_MODS");sm64ds::mods::load(root?root:"mods",false,error);
+        }
+        coop_refresh_mods();
+        snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.110s",error.empty()?"Mod selection saved.":error.c_str());
+        return true;
+    }
+    if(action==coop_frontend::TEXTURE_CAPTURE) {
+        g_coop_menu.capture_textures=!g_coop_menu.capture_textures;
+        if(g_coop_menu.capture_textures) {
+            std::error_code ec;std::filesystem::create_directories("texture-work/capture",ec);
+            if(ec){g_coop_menu.capture_textures=false;error=ec.message();}
+        }
+        ntr::hdtex_capture("texture-work/capture",g_coop_menu.capture_textures);
+        ntr::gx_invalidate_textures();
+        snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.110s",error.empty()?
+            (g_coop_menu.capture_textures?"Capture started. Play levels to collect textures.":"Texture capture stopped."):error.c_str());return true;
+    }
+    if(action==coop_frontend::TEXTURE_PACK) {
+        std::string created;
+        bool ok=sm64ds::textures::create_pack("texture-work/capture","mods/resource-packs",created,error);
+        snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.110s",ok?"Pack created. Edit its PNGs; restart to load it.":error.c_str());return true;
+    }
+    if(action==coop_frontend::OPEN_TEXTURE_FOLDER) {
+        std::error_code ec;std::filesystem::create_directories("texture-work",ec);
+        std::filesystem::create_directories("mods/resource-packs",ec);
+        // Load the shell after the DS address ranges are reserved. Importing
+        // shell32 at process startup can claim those ranges before our TLS hook.
+        HMODULE shell=LoadLibraryW(L"shell32.dll");
+        using Open=HINSTANCE(WINAPI*)(HWND,LPCWSTR,LPCWSTR,LPCWSTR,LPCWSTR,INT);
+        Open open=shell?reinterpret_cast<Open>(GetProcAddress(shell,"ShellExecuteW")):nullptr;
+        if(open) {
+            open(g_entry_hwnd,L"open",L"texture-work",0,0,SW_SHOWNORMAL);
+            open(g_entry_hwnd,L"open",L"mods/resource-packs",0,0,SW_SHOWNORMAL);
+        } else snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"Could not open the texture folders.");
+        if(shell)FreeLibrary(shell);return true;
+    }
+    return false;
+}
+static int coop_frontend_run()
+{
+    if(!getenv("SM64DS_MENU_BACKDROP_CHILD")) {
+        const char* root=getenv("SM64DS_MODS");std::string error;
+        if(!sm64ds::mods::load(root?root:"mods",host_setting_movement_mod()!=0,error))
+            fprintf(stderr,"[mods] %s\n",error.c_str());
+    }
+    if (!coop_frontend_wanted()) return 1;
+    // The menu uses the existing maximum framebuffer tier for crisp type.
+    // Restore gameplay's selected resolution when the menu hands off, keeping
+    // this quality change out of the software 3D renderer's frame budget.
+    struct MenuResolution {
+        int previous=ntr::render_scale();
+        MenuResolution(){ntr::configure_aspect(double(ntr::active_w)/ntr::active_h,4);}
+        ~MenuResolution(){ntr::configure_aspect(double(ntr::active_w)/ntr::active_h,previous);}
+    } menu_resolution;
+    coop_read_options();coop_refresh_mods();
     CoopMediaLibrary media;
     media.refresh(g_coop_menu);
     const char* save_path = getenv("SM64DS_SAVE_PATH");
@@ -114,6 +254,22 @@ static int coop_frontend_run()
     CoopMenuAudio music(media);
     CoopBackdrop backdrop(media);
     struct ClearBackdrop { ~ClearBackdrop() { g_coop_backdrop = 0; } } clear_backdrop;
+    // Exercise the real menu teardown before the already supplied isolated
+    // game startup plan. Background children must never inherit this override.
+    if (getenv("SM64DS_MENU_TRANSITION_SELFTEST")) {
+        g_coop_menu.volume=0; // Keep diagnostic menu audio initialization silent.
+        for (unsigned frame=0;frame<90;++frame) {
+            MSG message;
+            while (W.PeekMessageA_(&message,0,0,0,PM_REMOVE)) {
+                W.TranslateMessage_(&message);W.DispatchMessageA_(&message);
+            }
+            backdrop.tick(g_coop_menu.background);g_coop_backdrop=backdrop.image();
+            music.tick(g_coop_menu,-1);coop_draw(menu_fb,frame);present();Sleep(16);
+        }
+        g_coop_active=false;
+        fprintf(stderr,"[coop-menu] isolated menu-to-online-game transition\n");
+        return 1;
+    }
     if (getenv("SM64DS_MENU_AUDIO_SELFTEST")) {
         bool ok = music.test();
         g_coop_active = false;
@@ -170,6 +326,9 @@ static int coop_frontend_run()
         fprintf(stderr,"[coop-menu] original DS staff roll full loop %s visits=%u\n",ok?"PASS":"FAIL",backdrop.credits_visits());
         return ok?0:-1;
     }
+    if(getenv("SM64DS_SOCIAL_SELFTEST")) {
+        bool ok=coop_social_selftest(menu_fb);g_coop_active=false;return ok?0:-1;
+    }
     // ROM-free startup check of the actual host and framebuffer. Run only in
     // an isolated folder: screenshots are written beside the executable.
     if (getenv("SM64DS_MENU_SELFTEST")) {
@@ -198,8 +357,9 @@ static int coop_frontend_run()
             g_coop_backdrop = backdrop.image();
             fprintf(stderr,"[coop-menu] live backdrop selftest %s serial=%u\n",ok?"PASS":"FAIL",backdrop.serial());
         }
-        for (int page = coop_frontend::HOME; page <= coop_frontend::EXIT_CONFIRM; ++page) {
+        for (int page = coop_frontend::HOME; page <= coop_frontend::COLORS; ++page) {
             g_coop_menu.open(static_cast<coop_frontend::Page>(page));
+            if(page==coop_frontend::CONTROLS){XPad pad={};coop_preferences_tick(&pad);}
             coop_draw(menu_fb, 0); present();
             char name[48]; snprintf(name, sizeof name, "coop-menu-%02d.bmp", page);
             if (!ntr::ppu_write_bmp(name, menu_fb)) ok = false;
@@ -226,6 +386,7 @@ static int coop_frontend_run()
             if (pad.lx < -16000) buttons |= 4;
             if (pad.lx > 16000) buttons |= 8;
         }
+        if(coop_preferences_tick(&pad)){coop_draw(menu_fb,frame++);present();Sleep(10);continue;}
         unsigned pressed = buttons & ~previous;
         previous = buttons;
         const unsigned masks[] = { 1, 2, 4, 8, 0x1000, 0x2000 };
@@ -247,6 +408,44 @@ static int coop_frontend_run()
         }
         coop_frontend::Action action = g_coop_action;
         g_coop_action = coop_frontend::NONE;
+        if(action==coop_frontend::CREATE_ROOM || action==coop_frontend::JOIN_ROOM) {
+            g_coop_active=false;
+            bool assets_ok=coop_setup_assets(menu_fb);
+            g_coop_active=true;
+            if(assets_ok) {
+                try {
+                    auto& prefs=coop_prefs::get();prefs.name=g_coop_menu.username;
+                    if(!prefs.save())throw std::runtime_error("Could not save your player profile");
+                    const char* path=getenv("SM64DS_SAVE_PATH");
+                    std::string save=action==coop_frontend::CREATE_ROOM?
+                        coop_online::room_save(path?path:"save/sm64ds.sav",g_coop_menu.slot):"";
+                    coop_lobby().request(action==coop_frontend::CREATE_ROOM?1:2,
+                        std::string(g_coop_menu.room_code)+"|"+prefs.name,save,
+                        ",\"player_id\":"+coop_online::quote(prefs.id)+",\"palette\":"+coop_online::quote(prefs.palette(g_coop_menu.character))+
+                        ",\"character\":"+std::to_string(g_coop_menu.character));
+                } catch(const std::exception& error) {
+                    snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.100s",error.what());
+                }
+            }
+        }
+        if(action==coop_frontend::START_ROOM) coop_lobby().request(3);
+        if(action==coop_frontend::LEAVE_ROOM) coop_lobby().request(4);
+        // Short HTTP polls run on a worker; drawing and input remain responsive.
+        const coop_online::Snapshot online=coop_lobby().snapshot();
+        g_coop_menu.online_busy=online.busy;
+        if(!online.room.empty()) {
+            if(g_coop_menu.page!=coop_frontend::LOBBY) g_coop_menu.open(coop_frontend::LOBBY);
+            snprintf(g_coop_menu.room_code,sizeof g_coop_menu.room_code,"%s",online.room.c_str());
+            g_coop_menu.room_host=online.host; g_coop_menu.room_count=static_cast<int>(online.names.size());
+            for(int i=0;i<g_coop_menu.room_count;++i) snprintf(g_coop_menu.room_members[i],sizeof g_coop_menu.room_members[i],"%s",online.names[i].c_str());
+        } else if(g_coop_menu.page==coop_frontend::LOBBY && !online.busy) g_coop_menu.open(coop_frontend::HOME);
+        if(!online.status.empty()&&(g_coop_menu.page==coop_frontend::HOST||g_coop_menu.page==coop_frontend::JOIN||g_coop_menu.page==coop_frontend::LOBBY)) snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%.100s",online.status.c_str());
+        else if(g_coop_menu.page==coop_frontend::LOBBY) snprintf(g_coop_menu.message,sizeof g_coop_menu.message,"%s",online.host?"Share this room code. Start when everyone has joined.":"Choose your character before joining. Wait for the host.");
+        if(online.plan.valid) {
+            g_coop_online_plan=online.plan;
+            action=online.host?coop_frontend::START_HOST:coop_frontend::START_JOIN;
+        }
+        coop_tools_action(action);
         if (action == coop_frontend::QUIT) { g_coop_active = false; return 0; }
         if (action == coop_frontend::NEXT_SONG) {
             if(g_coop_menu.music==coop_frontend::MUSIC_OFF)g_coop_menu.music=coop_frontend::MUSIC_RANDOM;
@@ -261,11 +460,12 @@ static int coop_frontend_run()
             music.invalidate();backdrop.invalidate();
         }
         if (action == coop_frontend::SAVE_OPTIONS) {
+            if(!coop_preferences_save())continue;
             media.selection(g_coop_menu);
             if (host_setting_save_frontend_gameplay(g_coop_menu.camera, g_coop_menu.movement,
                     g_coop_menu.fps, g_coop_menu.smooth, g_coop_menu.names, g_coop_menu.volume,
                     g_coop_menu.mouse_capture, g_coop_menu.music, g_coop_menu.background, g_coop_menu.menu_sounds,
-                    g_coop_menu.music_file,g_coop_menu.background_file,g_coop_menu.movement_mod,g_coop_menu.object_distance))
+                    g_coop_menu.music_file,g_coop_menu.background_file,0,g_coop_menu.object_distance))
                 g_coop_menu.open(g_coop_menu.after_save);
             else snprintf(g_coop_menu.message, sizeof g_coop_menu.message,
                           "Could not save settings. Check folder access.");

@@ -4082,6 +4082,7 @@ extern unsigned char data_0209f2b4;   /* how many buttons the menu has */
 extern unsigned char data_0209f22c;   /* LC_Update's own wait */
 extern unsigned char data_0209f244;   /* the chosen plate's blink */
 extern unsigned char data_020a0e40;   /* the local player's slot */
+extern unsigned char data_0209f250;   /* owner slot in adventure co-op */
 extern int data_020a0e58[];           /* PadData[i]: {u16 held, u16 pressed} */
 extern int data_020a0e5a[];           /* the split spelling of .pressed */
 void _ZN5Stage17UpdateMenuButtonsEb(int b);
@@ -4096,7 +4097,7 @@ extern "C" void hal_lc_menu_pad(void)
         return;
     }
     if (data_0209f22c != 0 || data_0209f244 != 0) return;
-    const int slot = data_020a0e40;
+    const int slot = port::owner_sync_mode() ? data_0209f250 : data_020a0e40;
     unsigned short *pressed =
         (unsigned short *)((char *)data_020a0e58 + slot * 4 + 2);
     unsigned short *split =
