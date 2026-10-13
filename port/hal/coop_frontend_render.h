@@ -214,6 +214,9 @@ inline void draw(const Canvas& c, const Menu& menu, unsigned frame, const char* 
                     c.menu_button(cell.x,cell.y,cell.w,cell.h,cell_focus,2);
                     if(cell_focus)c.box(cell.x,cell.y,cell.w,1,0xff5ae1c1u);
                     const char* name=menu.control_labels[i][slot];
+                    // Pack labels stay legible without shrinking every D-pad or
+                    // Backspace entry just to repeat its device prefix.
+                    if(c.theme && (!std::strncmp(name,"KEY ",4)||!std::strncmp(name,"PAD ",4)))name+=4;
                     int text_size=size;while(text_size>1&&c.measure(name,text_size)>cell.w-6)--text_size;
                     c.text(cell.x+(cell.w-c.measure(name,text_size))/2,cell.y,name,cell_focus?0xffffffffu:0xffced9eau,text_size);
                 }
