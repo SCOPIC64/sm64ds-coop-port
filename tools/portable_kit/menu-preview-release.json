@@ -1,10 +1,10 @@
 {
-  "tag": "v0.5.7-menu-preview.4",
-  "source_commit": "9c62036915be778497d8c466824e20bd0ad2d30f",
-  "exe_sha256": "3e3689825ad3b005a7f1f518ef623756672f9a3351fc6f2e02e67e48a55e6573",
-  "artifact_sha256": "d8021a178268a40fd615e3d5c29e16c51d58534853190dbcc80ffbaf93674c92",
-  "artifact_bytes": 5802271,
-  "exe_bytes": 12402688,
+  "tag": "v0.5.7-menu-preview.5",
+  "source_commit": "469d60762d3d9cebddbf92f6280247e4694ee0de",
+  "exe_sha256": "ad84f8cf217b9f4906adb2fb1bd0ab0507fe25e0877c4ef77aa1202a3e058f73",
+  "exe_bytes": 12412416,
+  "artifact_sha256": "03df5cdc400093cc4a5a149429b24ccdbe6f61ba70830dda99f67913d3625f87",
+  "artifact_bytes": 5806603,
   "archive_files": [
     "sm64ds coop.exe",
     "README.txt",
@@ -13,19 +13,28 @@
     "JOIN-STEPS.txt",
     "server-profile.json"
   ],
-  "artifact_blob": "9203c5a77cfdd6cd86a4993eefb054da7de194f1",
+  "artifact_blob": "5a3be187a735e2117f85c7490e98f25448a51476",
+  "optional_texture_pack": {
+    "name": "DS-Classic-Menu-Texture-Pack.zip",
+    "sha256": "fcf3ee9ea83f3744658999cfac9eecd5688f091fbae6ce53f947468c1d78b882",
+    "bytes": 18056,
+    "blob": "da3c9b065f1780beb2ef5b5027c7e084306e1012"
+  },
   "platforms": [
     "windows-x86"
   ],
-  "title": "SM64DS Co-op preview.4: online-start crash repair",
+  "title": "SM64DS Co-op preview.5: optional DS menu texture pack",
   "local_validation": {
     "passed": true,
     "tests": [
-      "Controlled foreign-memory reservation: preview.3 overwrites constructor marker; preview.4 preserves it and takes safe fallback, 120 frames, exit 0",
-      "Seven Windows clients through animated menu and online game handoff: 240 frames each, zero buffered input, no faults",
-      "Portable front-end CI: all nine jobs passed, including actual Windows DS memory backend and constructor compilation"
+      "12 portable Windows component tests including stock/textured render bounds",
+      "15 sandboxed resource-pack loader checks including conflicts, disabled packs and path confinement",
+      "Actual Windows executable: enabled, disabled and corrupt-font fallback; 17 menu captures for each mode",
+      "Final exact executable ad84f8cf: 17 menu captures with original frames, completed glyphs and readable three-column binding labels",
+      "Constructor-memory foreign-marker regression remains protected; safe host-table fallback and gameplay exit 0",
+      "Final source portable CI: all nine jobs succeeded, including Linux/macOS desktop profiles and actual Windows memory backend compilation"
     ],
-    "github_run": "https://github.com/SCOPIC64/sm64ds-coop-port/actions/runs/38352535991"
+    "github_run": "https://github.com/SCOPIC64/sm64ds-coop-port/actions/runs/38357323094"
   },
-  "notes": "Fixes a verified startup memory-corruption bug: when Windows already owns part of the DS address range, constructor callbacks now use the safe host table instead of writing into another allocation. The controlled regression reproduces the unsafe write in preview.3 and proves the exact preview.4 executable preserves foreign memory. Seven local Windows clients passed the complete animated-menu-to-online transition; this is not seven-PC internet certification.\n\nAll players should update to preview.4, quit the old game, replace only the executable in their existing extracted game folder, and start a fresh room. Keep ROM assets, saves, settings and mods. The host should keep the existing WGS server and Playit tunnel running; no server update is required for this hotfix.\n\nRetains readable fonts, three bindings per action, chat/moderation, character palettes, fullscreen and optional Speed & Coordinates HUD. The separate optional menu texture pack and native Linux/SteamOS/macOS games are still under development. Intermittent peer-departure pacing pauses remain under investigation; this release does not claim to fix every cause of lag or crashes."
+  "notes": "Adds optional native-menu texture packs. The separate **DS-Classic-Menu-Texture-Pack.zip** uses the supplied DS UI sheet's exact frames and available letter shapes, removes baked labels with original frame material, and completes missing letters/digits/punctuation in matching outlined style. S and 5 have different shapes. Menu labels remain live; existing controls and click targets remain functional. Absent, disabled or invalid assets select the stock menu.\n\n**Update the game:** quit, replace the EXE in your existing extracted game folder, and keep assets, saves, settings and mods. Friends should update before starting a fresh room. The existing WGS server and Playit tunnel do not need a server update.\n\n**Install the optional pack:** extract its ds-classic-menu folder into mods/resource-packs. The final path must be mods/resource-packs/ds-classic-menu/pack.lua. Restart the game. To disable, quit, rename that folder off_ds-classic-menu, and restart; restore its name to re-enable. Only enable one menu theme at once. The pack changes native menus/pause/controls; gameplay textures, chat fonts and saved progress remain unchanged.\n\nIncludes preview.4's verified constructor-memory ownership crash repair and previous seven-player features. Real menu enabled/disabled/corrupt-image checks, 12 component tests, 15 pack-loader checks and all nine portable CI jobs passed. Intermittent peer-departure pacing pauses remain under investigation; no guarantee that every internet-lag cause is fixed. Native Linux/SteamOS/macOS playable ports are still in progress; these compiler checks are not native game releases.\n\nNo ROM, cartridge assets, saves, private tunnel credentials or home IP address are included."
 }
