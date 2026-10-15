@@ -1,4 +1,6 @@
-# Super Mario 64 DS Decompilation
+# Super Mario 64 DS COOP
+
+Message me on discord, if you need to report any bugs, or join my discord server(where i post updates almost daily):SCOPIC64
 
 [![Discord Server][discord-badge]][discord]
 
