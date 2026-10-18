@@ -70,6 +70,26 @@ target_compile_definitions(native_player_compile PRIVATE SM64DS_PLATFORM_PC)
 target_include_directories(native_player_compile PRIVATE ${PORT_ROOT}/../include ${PORT_ROOT} ${PORT_ROOT}/ntr/include)
 target_compile_options(native_player_compile PRIVATE -fms-extensions -include "${NATIVE_TYPES}")
 
+# Compile the recovered named Player methods, not only a layout probe and one
+# idle method. Keep the matched sources untouched and use the host type header.
+# This detects native ABI/compiler blockers before a full-game link; it does
+# not establish gameplay or replace the required runtime/calling-convention tests.
+file(STRINGS "${PORT_ROOT}/slice_gate10.txt" NATIVE_PLAYER_ROWS REGEX "^src/_ZN6Player.*[.]cpp$")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PORT_ROOT}/slice_gate10.txt")
+set(NATIVE_PLAYER_SOURCES "")
+foreach(row IN LISTS NATIVE_PLAYER_ROWS)
+    list(APPEND NATIVE_PLAYER_SOURCES "${PORT_ROOT}/../${row}")
+endforeach()
+if(NOT NATIVE_PLAYER_SOURCES)
+    message(FATAL_ERROR "The recovered Player method list is empty; refusing an empty native check")
+endif()
+add_library(native_player_methods_compile OBJECT ${NATIVE_PLAYER_SOURCES})
+add_dependencies(native_player_methods_compile native_types)
+target_compile_features(native_player_methods_compile PRIVATE cxx_std_17)
+target_compile_definitions(native_player_methods_compile PRIVATE SM64DS_PLATFORM_PC)
+target_include_directories(native_player_methods_compile PRIVATE ${PORT_ROOT}/../include ${PORT_ROOT} ${PORT_ROOT}/ntr/include)
+target_compile_options(native_player_methods_compile PRIVATE -fms-extensions -include "${NATIVE_TYPES}")
+
 # Execute recovered game allocator methods, including their native class calls.
 # A constructor-return bridge is necessary: SysV constructors do not return this.
 set(NATIVE_CREATE_HEAP "${CMAKE_CURRENT_BINARY_DIR}/native-create-heap.cpp")
@@ -122,3 +142,4 @@ if(NATIVE_DESKTOP_HOST_CHECKS)
     add_test(NAME actual_ds_runtime_to_native_desktop COMMAND native_desktop_runtime_test)
     set_tests_properties(actual_ds_runtime_to_native_desktop PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 30)
 endif()
+
