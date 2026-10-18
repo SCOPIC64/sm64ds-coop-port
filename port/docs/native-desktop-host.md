@@ -73,3 +73,13 @@ before distributing it; the default native packages will use the pinned SDK.
 Primary API references: [SDL window](https://wiki.libsdl.org/SDL2/SDL_CreateWindow),
 [streaming textures](https://wiki.libsdl.org/SDL2/SDL_CreateTexture), and
 [audio devices and queuing](https://wiki.libsdl.org/SDL2/SDL_OpenAudioDevice).
+
+The desktop storage adapter accepts an existing save/profile directory and
+uses directory-relative POSIX file operations. It rejects path traversal,
+symlinks on reads, non-regular files and oversized entries. Writes use private
+temporary files, flush the data and atomically replace the destination; readers
+observe a complete old or new save. The test exercises concurrent replacement,
+file permissions, bounded reads and symlink/FIFO rejection on Linux and macOS.
+Choosing the user data location and integrating existing game saves/preferences
+remain separate work. No ROM or private server configuration is needed for this
+fixture, and its success is not a playable native release.
