@@ -77,4 +77,3 @@ template<class Table> void fill(Table& api) {
     api.closesocket=close;api.WSAGetLastError=error;api.inet_addr=address;api.gethostbyname=resolve;
 }
 } }
-

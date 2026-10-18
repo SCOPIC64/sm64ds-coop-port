@@ -1,0 +1,154 @@
+cmake_minimum_required(VERSION 3.20)
+project(sm64ds_native_core LANGUAGES CXX)
+
+# This builds the real DS hardware/runtime library, not a playable game host.
+# The game still needs its native window/audio/network layer and ABI bridges.
+if((NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+        OR NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message(FATAL_ERROR "The native DS core requires 32-bit Linux or Android; 64-bit game layouts are not ported")
+endif()
+if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "Clang is required for the existing DS state-section declarations")
+endif()
+
+find_package(Threads REQUIRED)
+set(PORT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/..")
+add_library(sm64ds_native_core STATIC
+    ${PORT_ROOT}/ntr/io.cpp
+    ${PORT_ROOT}/ntr/gx.cpp
+    ${PORT_ROOT}/ntr/texture.cpp
+    ${PORT_ROOT}/ntr/ppu.cpp
+    ${PORT_ROOT}/ntr/ppu_sub.cpp
+    ${PORT_ROOT}/ntr/ppu_audit.cpp
+    ${PORT_ROOT}/ntr/lz77.cpp
+    ${PORT_ROOT}/ntr/rt.cpp
+    ${PORT_ROOT}/ntr/runtime.cpp
+    ${PORT_ROOT}/ntr/fs.cpp
+    ${PORT_ROOT}/ntr/bmd.cpp
+    ${PORT_ROOT}/ntr/ipc.cpp
+    ${PORT_ROOT}/ntr/hdtex.cpp
+    ${PORT_ROOT}/ntr/smooth.cpp
+    ${PORT_ROOT}/ntr/frame_context.cpp
+    ${PORT_ROOT}/hal/dsstate_seg.cpp)
+target_compile_features(sm64ds_native_core PUBLIC cxx_std_17)
+target_include_directories(sm64ds_native_core PUBLIC ${PORT_ROOT}/ntr/include)
+target_include_directories(sm64ds_native_core PRIVATE ${PORT_ROOT})
+target_compile_options(sm64ds_native_core PRIVATE -fms-extensions $<$<PLATFORM_ID:Linux>:-fno-pie>)
+target_link_libraries(sm64ds_native_core PUBLIC Threads::Threads)
+
+add_executable(native_runtime_test ${PORT_ROOT}/tests/coop_native_runtime_test.cpp)
+target_compile_options(native_runtime_test PRIVATE -UNDEBUG $<$<PLATFORM_ID:Linux>:-fno-pie>)
+target_link_libraries(native_runtime_test PRIVATE sm64ds_native_core)
+# Preserve the existing grouped DS globals and the adjacent IRQ callback bank.
+target_link_options(native_runtime_test PRIVATE $<$<PLATFORM_ID:Linux>:-no-pie>
+    "LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/dsstate.ld")
+enable_testing()
+add_test(NAME actual_native_frame_loop_and_irq COMMAND native_runtime_test)
+
+# Exercise the actual 2D renderer without cartridge data or a window host.
+add_executable(native_graphics_test ${PORT_ROOT}/tests/smoke_objwin.cpp)
+target_compile_options(native_graphics_test PRIVATE -UNDEBUG $<$<PLATFORM_ID:Linux>:-fno-pie>)
+target_link_libraries(native_graphics_test PRIVATE sm64ds_native_core)
+target_link_options(native_graphics_test PRIVATE $<$<PLATFORM_ID:Linux>:-no-pie>
+    "LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/dsstate.ld")
+add_test(NAME native_sprite_window_and_pixels COMMAND native_graphics_test)
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(NATIVE_TYPES "${CMAKE_CURRENT_BINARY_DIR}/native-types.h")
+add_custom_command(OUTPUT "${NATIVE_TYPES}"
+    COMMAND ${Python3_EXECUTABLE} ${PORT_ROOT}/tools/native_headers.py
+        --root ${PORT_ROOT}/.. --out "${NATIVE_TYPES}"
+    DEPENDS ${PORT_ROOT}/tools/native_headers.py ${PORT_ROOT}/../include/types.h)
+add_custom_target(native_types DEPENDS "${NATIVE_TYPES}")
+add_library(native_player_compile OBJECT
+    ${PORT_ROOT}/hal/player_bridges.cpp
+    ${PORT_ROOT}/../src/_ZN6Player12St_Wait_MainEv.cpp
+    ${PORT_ROOT}/tests/coop_engine_abi_probe.cpp)
+add_dependencies(native_player_compile native_types)
+target_compile_features(native_player_compile PRIVATE cxx_std_17)
+target_compile_definitions(native_player_compile PRIVATE SM64DS_PLATFORM_PC)
+target_include_directories(native_player_compile PRIVATE ${PORT_ROOT}/../include ${PORT_ROOT} ${PORT_ROOT}/ntr/include)
+target_compile_options(native_player_compile PRIVATE -fms-extensions -include "${NATIVE_TYPES}")
+
+# Compile the recovered named Player methods, not only a layout probe and one
+# idle method. Keep the matched sources untouched and use the host type header.
+# This detects native ABI/compiler blockers before a full-game link; it does
+# not establish gameplay or replace the required runtime/calling-convention tests.
+file(STRINGS "${PORT_ROOT}/slice_gate10.txt" NATIVE_PLAYER_ROWS REGEX "^src/_ZN6Player.*[.]cpp$")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PORT_ROOT}/slice_gate10.txt")
+set(NATIVE_PLAYER_SOURCES "")
+foreach(row IN LISTS NATIVE_PLAYER_ROWS)
+    if(row STREQUAL "src/_ZN6Player17St_HoldLight_MainEv.cpp")
+        set(native_hold_light "${CMAKE_CURRENT_BINARY_DIR}/native-hold-light.cpp")
+        add_custom_command(OUTPUT "${native_hold_light}"
+            COMMAND ${Python3_EXECUTABLE} ${PORT_ROOT}/tools/native_player_sources.py
+                --root ${PORT_ROOT}/.. --out "${native_hold_light}"
+            DEPENDS ${PORT_ROOT}/tools/native_player_sources.py ${PORT_ROOT}/../${row})
+        list(APPEND NATIVE_PLAYER_SOURCES "${native_hold_light}")
+    else()
+        list(APPEND NATIVE_PLAYER_SOURCES "${PORT_ROOT}/../${row}")
+    endif()
+endforeach()
+if(NOT NATIVE_PLAYER_SOURCES)
+    message(FATAL_ERROR "The recovered Player method list is empty; refusing an empty native check")
+endif()
+add_library(native_player_methods_compile OBJECT ${NATIVE_PLAYER_SOURCES})
+add_dependencies(native_player_methods_compile native_types)
+target_compile_features(native_player_methods_compile PRIVATE cxx_std_17)
+target_compile_definitions(native_player_methods_compile PRIVATE SM64DS_PLATFORM_PC)
+target_include_directories(native_player_methods_compile PRIVATE ${PORT_ROOT}/../include ${PORT_ROOT} ${PORT_ROOT}/ntr/include)
+target_compile_options(native_player_methods_compile PRIVATE -fms-extensions -include "${NATIVE_TYPES}")
+
+# Execute recovered game allocator methods, including their native class calls.
+# A constructor-return bridge is necessary: SysV constructors do not return this.
+set(NATIVE_CREATE_HEAP "${CMAKE_CURRENT_BINARY_DIR}/native-create-heap.cpp")
+add_custom_command(OUTPUT "${NATIVE_CREATE_HEAP}"
+    COMMAND ${Python3_EXECUTABLE} ${PORT_ROOT}/tools/native_heap_source.py
+        --root ${PORT_ROOT}/.. --out "${NATIVE_CREATE_HEAP}"
+    DEPENDS ${PORT_ROOT}/tools/native_heap_source.py
+        ${PORT_ROOT}/../src/_ZN4Heap28CreateExpandingHeapAllocatorEPvjj.cpp)
+file(STRINGS "${PORT_ROOT}/slice_gate2.txt" NATIVE_HEAP_ROWS REGEX "^src/")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PORT_ROOT}/slice_gate2.txt")
+set(NATIVE_HEAP_SOURCES "")
+foreach(row IN LISTS NATIVE_HEAP_ROWS)
+    if(NOT row STREQUAL "src/_ZN4Heap28CreateExpandingHeapAllocatorEPvjj.cpp")
+        list(APPEND NATIVE_HEAP_SOURCES "${PORT_ROOT}/../${row}")
+    endif()
+endforeach()
+add_executable(native_heap_test ${PORT_ROOT}/tests/smoke_heap.cpp
+    heap_bridge.cpp ${PORT_ROOT}/hal/heap_globals.cpp ${NATIVE_HEAP_SOURCES} "${NATIVE_CREATE_HEAP}")
+add_dependencies(native_heap_test native_types)
+target_compile_features(native_heap_test PRIVATE cxx_std_17)
+target_compile_definitions(native_heap_test PRIVATE SM64DS_PLATFORM_PC)
+target_include_directories(native_heap_test PRIVATE ${PORT_ROOT}/../include ${PORT_ROOT} ${PORT_ROOT}/hal)
+target_compile_options(native_heap_test PRIVATE -UNDEBUG $<$<PLATFORM_ID:Linux>:-fno-pie>
+    -fms-extensions -include "${NATIVE_TYPES}")
+target_link_options(native_heap_test PRIVATE $<$<PLATFORM_ID:Linux>:-no-pie>)
+add_test(NAME native_game_allocator_5000_operations COMMAND native_heap_test)
+
+# Compile the actual game carrier in the same 32-bit native toolchain as the DS core.
+add_library(native_game_carrier_compile OBJECT ${PORT_ROOT}/hal/comms_loopback.cpp)
+target_compile_features(native_game_carrier_compile PRIVATE cxx_std_17)
+target_include_directories(native_game_carrier_compile PRIVATE ${PORT_ROOT} ${PORT_ROOT}/hal)
+add_executable(native_game_socket_test ${PORT_ROOT}/tests/coop_native_socket_test.cpp)
+target_compile_features(native_game_socket_test PRIVATE cxx_std_11)
+target_include_directories(native_game_socket_test PRIVATE ${PORT_ROOT})
+target_compile_options(native_game_socket_test PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(native_game_socket_test PRIVATE Threads::Threads)
+add_test(NAME native_game_udp_seven_endpoints COMMAND native_game_socket_test)
+
+option(NATIVE_DESKTOP_HOST_CHECKS "Exercise SDL desktop IO with the actual Linux32 DS runtime" OFF)
+if(NATIVE_DESKTOP_HOST_CHECKS)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "The integrated DS/desktop fixture currently supports Linux32 only")
+    endif()
+    add_subdirectory(${PORT_ROOT}/desktop ${CMAKE_CURRENT_BINARY_DIR}/desktop)
+    add_executable(native_desktop_runtime_test ${PORT_ROOT}/tests/coop_native_desktop_runtime_test.cpp)
+    target_compile_features(native_desktop_runtime_test PRIVATE cxx_std_17)
+    target_compile_options(native_desktop_runtime_test PRIVATE -UNDEBUG -fno-pie)
+    target_link_libraries(native_desktop_runtime_test PRIVATE sm64ds_native_core sm64ds_desktop_host)
+    target_link_options(native_desktop_runtime_test PRIVATE -no-pie "LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/dsstate.ld")
+    add_test(NAME actual_ds_runtime_to_native_desktop COMMAND native_desktop_runtime_test)
+    set_tests_properties(actual_ds_runtime_to_native_desktop PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 30)
+endif()
+
