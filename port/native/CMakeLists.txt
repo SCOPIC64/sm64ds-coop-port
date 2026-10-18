@@ -78,7 +78,16 @@ file(STRINGS "${PORT_ROOT}/slice_gate10.txt" NATIVE_PLAYER_ROWS REGEX "^src/_ZN6
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PORT_ROOT}/slice_gate10.txt")
 set(NATIVE_PLAYER_SOURCES "")
 foreach(row IN LISTS NATIVE_PLAYER_ROWS)
-    list(APPEND NATIVE_PLAYER_SOURCES "${PORT_ROOT}/../${row}")
+    if(row STREQUAL "src/_ZN6Player17St_HoldLight_MainEv.cpp")
+        set(native_hold_light "${CMAKE_CURRENT_BINARY_DIR}/native-hold-light.cpp")
+        add_custom_command(OUTPUT "${native_hold_light}"
+            COMMAND ${Python3_EXECUTABLE} ${PORT_ROOT}/tools/native_player_sources.py
+                --root ${PORT_ROOT}/.. --out "${native_hold_light}"
+            DEPENDS ${PORT_ROOT}/tools/native_player_sources.py ${PORT_ROOT}/../${row})
+        list(APPEND NATIVE_PLAYER_SOURCES "${native_hold_light}")
+    else()
+        list(APPEND NATIVE_PLAYER_SOURCES "${PORT_ROOT}/../${row}")
+    endif()
 endforeach()
 if(NOT NATIVE_PLAYER_SOURCES)
     message(FATAL_ERROR "The recovered Player method list is empty; refusing an empty native check")
