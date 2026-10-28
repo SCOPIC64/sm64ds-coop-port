@@ -1,19 +1,25 @@
-# Super Mario 64 DS COOP
+# Super Mario 64 DS Co-op
 
-Message me on discord, if you need to report any bugs, or join my discord server(where i post updates almost daily):SCOPIC64
+A work-in-progress Windows co-op PC port of Super Mario 64 DS, with online rooms for up to seven players, a lobby, Lua mods, controller support and player customization.
+
+**[Download published previews](https://github.com/SCOPIC64/sm64ds-coop-port/releases)** · **[Prepared Character Select release notes](port/docs/releases/character-select-preview49.md)** · **[Upstream decompilation](https://github.com/tangosdev/sm64ds-decomp)**
+
+This is preview software. Individual native gameplay and lifecycle tests do not mean every gamemode or cutscene is complete. Custom-character multiplayer replication and playable native Linux/SteamOS/macOS packages remain in development.
+
+The newer Character Select/Waluigi preview has been tested locally but is **not yet published as a GitHub Release**. Its prepared notes distinguish the tested build from unfinished Casino Luigi, Warpspeed, chat/settings and moveset work. Existing release downloads remain available; do not assume an older release contains the unpublished changes.
+
+The source repository contains no ROM or extracted Nintendo game assets. Use your own supported cartridge dump and follow the setup instructions for the selected build.
+
+For bug reports and development updates, contact SCOPIC64 on Discord or join the server:
 
 [![Discord Server][discord-badge]][discord]
 
 [discord]: https://discord.gg/YpReERF4e3
 [discord-badge]: https://img.shields.io/discord/1520811338568569112?color=7289DA&logo=discord&logoColor=ffffff
 
-> **Looking for the PC port?** [Download it here.](https://tangos.dev/downloads)
+## Upstream decompilation reference
 
-A work-in-progress decompilation of Super Mario 64 DS
-
-This repo holds source code and tooling. It contains no ROM and no Nintendo assets.
-Everything here runs against a cartridge dump you supply yourself, which stays on your
-machine and is git-ignored.
+The documentation and progress measurements below describe the decompilation snapshot carried by this branch. They are not a current-upstream measurement or a co-op feature-completion percentage. Upstream progress and releases are maintained by [tangosdev/sm64ds-decomp](https://github.com/tangosdev/sm64ds-decomp).
 
 New here? Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**, and if you review or
 merge PRs read **[MERGE.md](MERGE.md)**.
