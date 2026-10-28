@@ -57,8 +57,8 @@ struct dEnemyBase_c : dActor_c {
        handlers zero it the instant they change mState, and some count it up
        while others count it down through DecIfAbove0_Short. Derived
        independently by two passes over disjoint subclass sets (Unagi,
-       MrBlizzard, Shark, PiranhaPlant, FirePiranhaPlantBig, daKrb_c) and
-       (Whomp) -- see notes/enemy-provenance.md and
+       MrBlizzard, daShark_c, PiranhaPlant, FirePiranhaPlantBig, daKrb_c) and
+       (daBtn_c) -- see notes/enemy-provenance.md and
        notes/enemy-leaf-provenance.md. Named mStateTimer, not mTimer, because
        daJango_c already owns an unrelated mTimer and the shorter name silently
        rebinds it. */
@@ -93,18 +93,7 @@ struct dEnemyBase_c : dActor_c {
        reasoning as the note on Model(); see include/Model.h. */
     dEnemyBase_c();
 
-    /* The destructor pair spelled as two plain virtuals on the host, plus
-       the non-virtual destructor declaration the src/ definitions need; the
-       whole ruling is in include/ModelBase.h. An override takes its base's
-       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
-       name would append a slot instead of claiming one. */
-#ifdef _MSC_VER
-    virtual void Destructor1();   /* D1 */
-    virtual void Destructor0();   /* D0 */
-    ~dEnemyBase_c();   /* no slot */
-#else
-    virtual ~dEnemyBase_c();   /* D1 and D0 */
-#endif
+    virtual ~dEnemyBase_c();                   /* slots 0 (D1), 1 (D0) */
 
     /* dEnemyBase_c's own copy of dActor_c's inline operator delete, and it MUST STAY even
        though dEnemyBase_c now derives from dActor_c. mwcc inlines the operator only when it
