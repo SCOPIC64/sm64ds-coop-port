@@ -17,6 +17,10 @@ For bug reports and development updates, contact SCOPIC64 on Discord or join the
 [discord]: https://discord.gg/YpReERF4e3
 [discord-badge]: https://img.shields.io/discord/1520811338568569112?color=7289DA&logo=discord&logoColor=ffffff
 
+## AI usage
+
+AI has been used on this project to help fix bugs, prepare releases, refactor code, and run tests while I’m busy. This project-specific use is not an endorsement of AI in general: I do not condone AI for regular, everyday use.
+
 ## Upstream decompilation reference
 
 The documentation and progress measurements below describe the decompilation snapshot carried by this branch. They are not a current-upstream measurement or a co-op feature-completion percentage. Upstream progress and releases are maintained by [tangosdev/sm64ds-decomp](https://github.com/tangosdev/sm64ds-decomp).
