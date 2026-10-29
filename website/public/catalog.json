@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "mods": [
+    {
+      "id": "sm64-movement",
+      "name": "SM64 Movement",
+      "kind": "gameplay",
+      "author": "SCOPIC64",
+      "version": "0.5.6-preview.1",
+      "api": "ds-lua-1",
+      "description": "N64-style Mario walking, turning and jump launches, adapted to DS levels. An editable Lua mod: switch it on to try it, or off for native DS movement.",
+      "tags": ["Solo adventure", "Mario", "DS Lua API 1"],
+      "install": "mods/sm64-movement",
+      "source": "https://github.com/SCOPIC64/sm64ds-coop-port/blob/ac0a066195292a95e827f80dc305a0dc8648d280/port/mods/sm64-movement/main.lua",
+      "download": "https://github.com/SCOPIC64/sm64ds-coop-port/releases/tag/v0.5.6-menu-preview.1",
+      "bundled": true
+    }
+  ]
+}
