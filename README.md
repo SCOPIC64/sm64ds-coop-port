@@ -19,7 +19,7 @@ For bug reports and development updates, contact SCOPIC64 on Discord or join the
 
 ## AI usage
 
-AI has been used on this project to help fix bugs, prepare releases, refactor code, and run tests while I’m busy. This project-specific use is not an endorsement of AI in general: I do not condone AI for regular, everyday use.
+AI has been used on this project to help fix bugs, prepare releases, refactor code, make the lua api, and run tests while I’m busy. This project-specific use is not an endorsement of AI in general: I do not condone AI for regular, everyday use.
 
 ## Upstream decompilation reference
 
