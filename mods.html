@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SM64DS Coop | Mods Hub</title>
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
             --bg-color: #1a1a1a;
@@ -18,214 +20,99 @@
         }
 
         * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: var(--font-family);
-            font-size: 13px;
-        }
-
+        body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); font-family: var(--font-family); font-size: 13px; }
         a { color: #0088cc; text-decoration: none; }
         a:hover { text-decoration: underline; }
 
-        .container {
-            width: var(--container-width);
-            margin: 0 auto;
-            border-right: 1px solid #333;
-            border-left: 1px solid #333;
-            background: var(--bg-color);
-        }
+        .container { width: var(--container-width); margin: 0 auto; border-right: 1px solid #333; border-left: 1px solid #333; background: var(--bg-color); }
+        .header { padding: 12px 20px; border-bottom: 1px solid var(--border-color); background: #222; display: flex; justify-content: space-between; align-items: center; }
+        .header-logo-img { max-height: 55px; width: auto; display: block; }
+        .user-status { font-size: 12px; background: #111; padding: 6px 12px; border: 1px solid #333; }
 
-        .header {
-            padding: 12px 20px;
-            border-bottom: 1px solid var(--border-color);
-            background: #222;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header-logo-img {
-            max-height: 55px;
-            width: auto;
-            display: block;
-        }
-
-        .user-status {
-            font-size: 12px;
-            background: #111;
-            padding: 6px 12px;
-            border: 1px solid #333;
-        }
-
-        .nav-bar {
-            background: #222;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .nav-bar ul {
-            margin: 0;
-            padding: 0;
-            display: flex;
-            list-style: none;
-        }
+        .nav-bar { background: #222; border-bottom: 1px solid var(--border-color); }
+        .nav-bar ul { margin: 0; padding: 0; display: flex; list-style: none; }
         .nav-bar li { border-right: 1px solid var(--border-color); }
-        .nav-bar a {
-            display: block;
-            padding: 10px 15px;
-            color: #e0e0e0;
-            font-weight: bold;
-        }
+        .nav-bar a { display: block; padding: 10px 15px; color: #e0e0e0; font-weight: bold; }
         .nav-bar a:hover, .nav-bar a.active { background: #333; color: #fff; }
 
-        .main-layout {
-            display: flex;
-        }
-        .content-area {
-            flex: 3;
-            padding: 15px;
-            border-right: 1px solid var(--border-color);
-        }
-        .sidebar {
-            flex: 1;
-            padding: 15px;
-            background: var(--sidebar-bg);
-            font-size: 12px;
-        }
+        .main-layout { display: flex; }
+        .content-area { flex: 3; padding: 15px; border-right: 1px solid var(--border-color); }
+        .sidebar { flex: 1; padding: 15px; background: var(--sidebar-bg); font-size: 12px; }
 
-        h2, h3 {
-            margin: 0 0 10px 0;
-            font-size: 16px;
-            border-bottom: 2px solid #444;
-            padding-bottom: 5px;
-        }
-
-        .block {
-            background: #222;
-            border: 1px solid #333;
-            margin-bottom: 15px;
-        }
-        .block-header {
-            background: #333;
-            padding: 5px 10px;
-            font-size: 14px;
-            font-weight: bold;
-            border-bottom: 1px solid #444;
-        }
+        h2, h3 { margin: 0 0 10px 0; font-size: 16px; border-bottom: 2px solid #444; padding-bottom: 5px; }
+        .block { background: #222; border: 1px solid #333; margin-bottom: 15px; }
+        .block-header { background: #333; padding: 5px 10px; font-size: 14px; font-weight: bold; border-bottom: 1px solid #444; }
         .block-body { padding: 15px; }
 
-        .mods-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-        .mods-table th {
-            background: #333;
-            color: #fff;
-            text-align: left;
-            padding: 8px;
-            border-bottom: 1px solid #555;
-        }
-        .mods-table td {
-            padding: 8px;
-            border-bottom: 1px solid #333;
-            vertical-align: top;
-        }
+        .mods-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .mods-table th { background: #333; color: #fff; text-align: left; padding: 8px; border-bottom: 1px solid #555; }
+        .mods-table td { padding: 8px; border-bottom: 1px solid #333; vertical-align: top; }
         .mods-table tr:hover td { background: #2a2a2a; }
+
+        .mod-thumb { width: 70px; height: 50px; object-fit: cover; border: 1px solid #555; background: #111; cursor: pointer; }
 
         .form-group { margin-bottom: 10px; }
         .form-label { display: block; margin-bottom: 4px; font-weight: bold; color: #ccc; }
-        .form-input, .form-textarea {
-            width: 100%;
-            background: #111;
-            border: 1px solid #444;
-            color: #fff;
-            padding: 8px;
-            font-family: inherit;
-        }
+        .form-input, .form-textarea { width: 100%; background: #111; border: 1px solid #444; color: #fff; padding: 8px; font-family: inherit; }
         .form-textarea { height: 80px; resize: vertical; }
-        .btn {
-            background: #333;
-            border: 1px solid #555;
-            color: #fff;
-            padding: 8px 15px;
-            cursor: pointer;
-            font-size: 13px;
-        }
+
+        .btn { background: #333; border: 1px solid #555; color: #fff; padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: bold; }
         .btn:hover { background: var(--accent-hover); border-color: #777; }
-        .btn-submit { background: #000; border: 2px outset #333; }
+        .btn-submit { background: #000; border: 2px outset #333; padding: 8px 15px; }
         .btn-disabled { background: #222; color: #666; border-color: #333; cursor: not-allowed; }
 
-        .role-badge {
-            display: inline-block;
-            padding: 2px 6px;
-            font-size: 10px;
-            color: black;
-            font-weight: bold;
-            border: 1px solid #888;
-            margin-right: 5px;
-        }
+        .role-badge { display: inline-block; padding: 2px 6px; font-size: 10px; color: black; font-weight: bold; border: 1px solid #888; margin-right: 5px; }
         .role-Owner { background: #ffcc00; }
         .role-Modder { background: #0088cc; }
         .role-Moderator { background: #88cc00; }
         .role-Member { background: #aaaaaa; }
 
-        .footer {
-            text-align: center;
-            padding: 20px;
-            border-top: 1px solid var(--border-color);
-            color: var(--text-muted);
-            font-size: 12px;
-        }
+        /* Modal Styles */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }
+        .modal-body { background: #222; border: 2px solid #555; padding: 20px; width: 340px; }
+
+        .footer { text-align: center; padding: 20px; border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 12px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- HEADER -->
     <div class="header">
-        <div>
-            <img src="logo.png" alt="Super Mario 64 DS Coop Port Logo" class="header-logo-img">
-        </div>
+        <div><img src="logo.png" alt="Logo" class="header-logo-img"></div>
         <div class="user-status">
-            User: <strong id="user-name">SCOPIC64</strong> | 
-            Role: <span class="role-badge role-Owner" id="user-role-badge">Owner</span>
+            User: <strong id="user-name">Guest</strong> | 
+            Role: <span class="role-badge role-Member" id="user-role-badge">Member</span>
+            <button class="btn" onclick="toggleAuthModal()" id="auth-btn" style="margin-left:8px;">Sign In / Sign Up</button>
         </div>
     </div>
 
-    <!-- NAV -->
     <nav class="nav-bar">
         <ul>
             <li><a href="index.html">Main Site</a></li>
             <li><a href="mods.html" class="active">Mods Repository</a></li>
-            <li><a href="https://github.com/SCOPIC64/sm64ds-coop-port" target="_blank">GitHub Repository</a></li>
+            <li><a href="forum.html">Forums</a></li>
+            <li><a href="https://github.com/SCOPIC64/sm64ds-coop-port" target="_blank">GitHub</a></li>
         </ul>
     </nav>
 
     <div class="main-layout">
         <main class="content-area">
-            <div style="margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 5px;">
-                <span style="color: #fff; font-weight: bold;">Latest Mods</span>
-            </div>
-
             <div class="block">
                 <div class="block-header">Latest Available Mods</div>
                 <div class="block-body">
                     <table class="mods-table">
                         <thead>
                             <tr>
-                                <th width="35%">Mod Name</th>
-                                <th width="20%">Author</th>
-                                <th width="15%">Role</th>
-                                <th width="15%">Date</th>
-                                <th width="15%">Download</th>
+                                <th width="15%">Preview</th>
+                                <th width="30%">Mod Name</th>
+                                <th width="15%">Author</th>
+                                <th width="12%">Role</th>
+                                <th width="14%">Date</th>
+                                <th width="14%">Download</th>
                             </tr>
                         </thead>
                         <tbody id="mods-list-body">
-                            <tr>
-                                <td colspan="5" style="text-align: center; color: #888;">Loading mods from cloud server...</td>
-                            </tr>
+                            <tr><td colspan="6" style="text-align: center; color: #888;">Loading mods...</td></tr>
                         </tbody>
                     </table>
                     
@@ -234,35 +121,27 @@
                         <form id="upload-form" onsubmit="submitMod(event)">
                             <div class="form-group">
                                 <label class="form-label">Mod Title</label>
-                                <input type="text" id="mod-title" class="form-input" placeholder="Enter mod title..." required>
+                                <input type="text" id="mod-title" class="form-input" placeholder="Enter title..." required>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Description</label>
-                                <textarea id="mod-desc" class="form-textarea" placeholder="Enter mod description..." required></textarea>
+                                <textarea id="mod-desc" class="form-textarea" placeholder="Enter description..." required></textarea>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Upload File (.zip / .lua / .pks)</label>
+                                <label class="form-label">Upload Mod File (.zip / .lua / .pks)</label>
                                 <input type="file" id="mod-file" class="form-input" required>
                             </div>
+                            <div class="form-group">
+                                <label class="form-label">Upload Screenshot (Optional Image)</label>
+                                <input type="file" id="mod-screenshot" class="form-input" accept="image/*">
+                            </div>
                             
-                            <div style="background: #2a2a2a; padding: 10px; margin-bottom: 10px; border: 1px solid #444;">
-                                <strong>Role Verification:</strong><br>
-                                Permission status: <span id="permission-status" style="color: #00ff00;">Authorized (Owner)</span>
+                            <div style="background: #2a2a2a; padding: 8px; margin-bottom: 10px; border: 1px solid #444;">
+                                Verification: <span id="permission-status" style="color: #ff4444;">Sign in as Owner/Modder to upload</span>
                             </div>
 
-                            <button type="submit" class="btn btn-submit" id="submit-btn">Submit Mod</button>
+                            <button type="submit" class="btn btn-submit" id="submit-btn" disabled>Submit Mod</button>
                         </form>
-                    </div>
-                </div>
-            </div>
-
-            <div class="block">
-                <div class="block-header">News</div>
-                <div class="block-body">
-                    <div>
-                        <span style="font-size: 11px; color: #888;" id="news-date"></span><br>
-                        <strong>SM64DS Coop Repository Online</strong><br>
-                        The cloud repository is active. Owners and Modders can upload mod files directly to the server.
                     </div>
                 </div>
             </div>
@@ -280,55 +159,160 @@
                     </ul>
                 </div>
             </div>
-
-            <div class="block">
-                <div class="block-header">Project Info</div>
-                <div class="block-body">
-                    Engine Port: <strong>SM64DS Coop</strong><br>
-                    Developer: <strong>SCOPIC64</strong>
-                </div>
-            </div>
         </aside>
     </div>
 
-    <footer class="footer">
-        SM64DS Coop Hub
-    </footer>
+    <footer class="footer">SM64DS Coop Hub</footer>
+</div>
+
+<!-- AUTHENTICATION MODAL -->
+<div class="modal" id="auth-modal">
+    <div class="modal-body">
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+            <strong id="auth-title">Sign In</strong>
+            <span style="cursor:pointer;" onclick="toggleAuthModal()">[X]</span>
+        </div>
+        
+        <form id="auth-form" onsubmit="handleEmailAuth(event)">
+            <div class="form-group" id="username-group" style="display:none;">
+                <label class="form-label">Username</label>
+                <input type="text" id="auth-username" class="form-input">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="auth-email" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" id="auth-password" class="form-input" required>
+            </div>
+            <button type="submit" class="btn btn-submit" style="width:100%; margin-bottom:10px;" id="auth-submit-btn">Login</button>
+        </form>
+
+        <div style="text-align:center; margin: 10px 0;">-- OR --</div>
+
+        <!-- Google OAuth Button -->
+        <div id="g_id_onload" data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com" data-callback="handleGoogleResponse"></div>
+        <div class="g_id_signin" data-type="standard" data-width="300"></div>
+
+        <div style="margin-top:15px; font-size:11px; text-align:center;">
+            <a href="#" onclick="switchAuthMode()" id="auth-switch-link">Need an account? Register</a>
+        </div>
+    </div>
 </div>
 
 <script>
-    const currentUser = {
-        username: "SCOPIC64",
-        role: "Owner"
-    };
+    // Replace with your backend URL
+    const API_URL = "https://scopic64.pythonanywhere.com/api"; 
 
-    // CLOUD BACKEND URL
-    // When you create your service on Render.com, change 'sm64ds-backend' to your exact service name if different.
-    const API_URL = "https://sm64ds-backend.onrender.com/api";
+    let isRegisterMode = false;
+    let currentUser = JSON.parse(localStorage.getItem("sm64_user")) || null;
 
     document.addEventListener("DOMContentLoaded", () => {
-        document.getElementById("news-date").innerText = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        checkPermissions();
+        updateUserUI();
         fetchMods();
     });
 
-    function checkPermissions() {
-        document.getElementById("user-name").innerText = currentUser.username;
-        const badge = document.getElementById("user-role-badge");
-        badge.innerText = currentUser.role;
-        badge.className = `role-badge role-${currentUser.role}`;
-
+    function updateUserUI() {
+        const nameElem = document.getElementById("user-name");
+        const badgeElem = document.getElementById("user-role-badge");
         const permStatus = document.getElementById("permission-status");
         const submitBtn = document.getElementById("submit-btn");
+        const authBtn = document.getElementById("auth-btn");
 
-        if (currentUser.role === "Owner" || currentUser.role === "Modder") {
-            permStatus.innerHTML = `<span style="color: #00ff00;">Authorized (${currentUser.role})</span>`;
+        if (currentUser) {
+            nameElem.innerText = currentUser.username;
+            badgeElem.innerText = currentUser.role;
+            badgeElem.className = `role-badge role-${currentUser.role}`;
+            authBtn.innerText = "Sign Out";
+            authBtn.onclick = logout;
+
+            if (currentUser.role === "Owner" || currentUser.role === "Modder") {
+                permStatus.innerHTML = `<span style="color: #00ff00;">Authorized (${currentUser.role})</span>`;
+                submitBtn.disabled = false;
+                submitBtn.className = "btn btn-submit";
+            } else {
+                permStatus.innerHTML = `<span style="color: #ff4444;">Member role cannot upload mods</span>`;
+                submitBtn.disabled = true;
+                submitBtn.className = "btn btn-disabled";
+            }
         } else {
-            permStatus.innerHTML = `<span style="color: #ff4444;">Access Denied (${currentUser.role} role cannot upload mods)</span>`;
+            nameElem.innerText = "Guest";
+            badgeElem.innerText = "Member";
+            badgeElem.className = "role-badge role-Member";
+            authBtn.innerText = "Sign In / Sign Up";
+            authBtn.onclick = toggleAuthModal;
             submitBtn.disabled = true;
             submitBtn.className = "btn btn-disabled";
-            submitBtn.innerText = "Upload Disabled";
         }
+    }
+
+    function toggleAuthModal() {
+        const modal = document.getElementById("auth-modal");
+        modal.style.display = modal.style.display === "flex" ? "none" : "flex";
+    }
+
+    function switchAuthMode() {
+        isRegisterMode = !isRegisterMode;
+        document.getElementById("auth-title").innerText = isRegisterMode ? "Register" : "Sign In";
+        document.getElementById("username-group").style.display = isRegisterMode ? "block" : "none";
+        document.getElementById("auth-submit-btn").innerText = isRegisterMode ? "Register" : "Login";
+        document.getElementById("auth-switch-link").innerText = isRegisterMode ? "Have an account? Login" : "Need an account? Register";
+    }
+
+    async function handleEmailAuth(e) {
+        e.preventDefault();
+        const endpoint = isRegisterMode ? "/auth/register" : "/auth/login";
+        const payload = {
+            email: document.getElementById("auth-email").value,
+            password: document.getElementById("auth-password").value
+        };
+        if (isRegisterMode) payload.username = document.getElementById("auth-username").value;
+
+        try {
+            const res = await fetch(`${API_URL}${endpoint}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.message);
+                if (data.user) {
+                    currentUser = data.user;
+                    localStorage.setItem("sm64_user", JSON.stringify(currentUser));
+                    updateUserUI();
+                    toggleAuthModal();
+                }
+            } else {
+                alert(data.error);
+            }
+        } catch (err) { alert("Auth Server Connection Error"); }
+    }
+
+    function handleGoogleResponse(response) {
+        // Decode payload from JWT token
+        const payload = JSON.parse(atob(response.credential.split('.')[1]));
+        fetch(`${API_URL}/auth/google`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: payload.email, name: payload.name, google_id: payload.sub })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.user) {
+                currentUser = data.user;
+                localStorage.setItem("sm64_user", JSON.stringify(currentUser));
+                updateUserUI();
+                toggleAuthModal();
+            }
+        });
+    }
+
+    function logout() {
+        localStorage.removeItem("sm64_user");
+        currentUser = null;
+        updateUserUI();
     }
 
     async function fetchMods() {
@@ -336,23 +320,22 @@
         try {
             const res = await fetch(`${API_URL}/mods`);
             const mods = await res.json();
-
             if (mods.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #888;">No mods uploaded yet. Be the first to upload!</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #888;">No mods uploaded yet.</td></tr>`;
                 return;
             }
-
             tbody.innerHTML = mods.map(mod => `
                 <tr>
+                    <td>${mod.screenshot ? `<img src="${API_URL}/download/${mod.screenshot}" class="mod-thumb" onclick="window.open(this.src)">` : '<span style="color:#666">No Img</span>'}</td>
                     <td><strong>${escapeHtml(mod.title)}</strong><br><span style="color:#888; font-size:11px;">${escapeHtml(mod.description)}</span></td>
                     <td>${escapeHtml(mod.author)}</td>
                     <td><span class="role-badge role-${mod.author_role}">${mod.author_role}</span></td>
                     <td>${mod.date}</td>
-                    <td><a href="${API_URL}/download/${mod.filename}" class="btn" style="padding: 2px 6px; font-size: 11px;">Get Mod</a></td>
+                    <td><a href="${API_URL}/download/${mod.filename}" class="btn">Get Mod</a></td>
                 </tr>
             `).join('');
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #ff4444;">Connecting to cloud backend... (If server is spinning up, wait 30 seconds and refresh)</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: red;">Error connecting to server.</td></tr>`;
         }
     }
 
@@ -364,24 +347,22 @@
         formData.append("author", currentUser.username);
         formData.append("role", currentUser.role);
         formData.append("file", document.getElementById("mod-file").files[0]);
+        if (document.getElementById("mod-screenshot").files[0]) {
+            formData.append("screenshot", document.getElementById("mod-screenshot").files[0]);
+        }
 
         try {
             const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
             const result = await res.json();
             if (res.ok) {
-                alert("Mod uploaded successfully!");
+                alert("Mod uploaded!");
                 document.getElementById("upload-form").reset();
                 fetchMods();
-            } else {
-                alert("Upload failed: " + result.error);
-            }
-        } catch (err) {
-            alert("Connection error to cloud server.");
-        }
+            } else { alert("Upload error: " + result.error); }
+        } catch (err) { alert("Upload error."); }
     }
 
     function escapeHtml(str) { return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
 </script>
-
 </body>
 </html>
