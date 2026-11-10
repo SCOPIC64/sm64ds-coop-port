@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SM64DS Coop | Mods Hub</title>
-    <!-- Google Identity Services -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
             --bg-color: #1a1a1a;
@@ -49,7 +47,6 @@
         .mods-table td { padding: 8px; border-bottom: 1px solid #333; vertical-align: top; }
         .mods-table tr:hover td { background: #2a2a2a; }
 
-        /* Screenshot Thumbnails in Table */
         .mod-thumb { width: 80px; height: 50px; object-fit: cover; border: 1px solid #666; background: #111; cursor: pointer; border-radius: 2px; }
         .mod-thumb:hover { border-color: #0088cc; opacity: 0.9; }
 
@@ -69,7 +66,6 @@
         .role-Moderator { background: #88cc00; }
         .role-Member { background: #aaaaaa; }
 
-        /* Modals */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; }
         .modal-body { background: #222; border: 2px solid #555; padding: 20px; width: 340px; }
 
@@ -134,13 +130,10 @@
                                 <input type="file" id="mod-file" class="form-input" required>
                             </div>
                             
-                            <!-- Screenshot Upload Input with Instant Live Preview -->
                             <div class="form-group" style="background: #181818; padding: 10px; border: 1px solid #333;">
-                                <label class="form-label">Mod Screenshot / Image (Optional)</label>
+                                <label class="form-label">Mod Screenshot (Optional)</label>
                                 <input type="file" id="mod-screenshot" class="form-input" accept="image/*" onchange="previewScreenshot(this)">
-                                
                                 <div id="screenshot-preview-container" style="margin-top: 10px; display: none;">
-                                    <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Selected Image Preview:</div>
                                     <img id="screenshot-preview" src="" style="max-width: 100%; max-height: 180px; border: 1px solid #555;">
                                 </div>
                             </div>
@@ -205,12 +198,6 @@
             <button type="submit" class="btn btn-submit" style="width:100%; margin-bottom:10px;" id="auth-submit-btn">Login</button>
         </form>
 
-        <div style="text-align:center; margin: 10px 0;">-- OR --</div>
-
-        <!-- Google OAuth Button -->
-        <div id="g_id_onload" data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com" data-callback="handleGoogleResponse"></div>
-        <div class="g_id_signin" data-type="standard" data-width="300"></div>
-
         <div style="margin-top:15px; font-size:11px; text-align:center;">
             <a href="#" onclick="switchAuthMode()" id="auth-switch-link">Need an account? Register</a>
         </div>
@@ -218,9 +205,7 @@
 </div>
 
 <script>
-    // Replace with your backend URL
     const API_URL = "https://scopic64.pythonanywhere.com/api"; 
-
     let isRegisterMode = false;
     let currentUser = JSON.parse(localStorage.getItem("sm64_user")) || null;
 
@@ -229,7 +214,6 @@
         fetchMods();
     });
 
-    // Instant Screenshot Preview Function
     function previewScreenshot(input) {
         const container = document.getElementById("screenshot-preview-container");
         const preview = document.getElementById("screenshot-preview");
@@ -250,9 +234,7 @@
         document.getElementById("image-modal").style.display = "flex";
     }
 
-    function closeImageModal() {
-        document.getElementById("image-modal").style.display = "none";
-    }
+    function closeImageModal() { document.getElementById("image-modal").style.display = "none"; }
 
     function updateUserUI() {
         const nameElem = document.getElementById("user-name");
@@ -328,25 +310,7 @@
             } else {
                 alert(data.error);
             }
-        } catch (err) { alert("Auth Server Connection Error"); }
-    }
-
-    function handleGoogleResponse(response) {
-        const payload = JSON.parse(atob(response.credential.split('.')[1]));
-        fetch(`${API_URL}/auth/google`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: payload.email, name: payload.name, google_id: payload.sub })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.user) {
-                currentUser = data.user;
-                localStorage.setItem("sm64_user", JSON.stringify(currentUser));
-                updateUserUI();
-                toggleAuthModal();
-            }
-        });
+        } catch (err) { alert("Server Connection Error"); }
     }
 
     function logout() {
@@ -366,7 +330,7 @@
             }
             tbody.innerHTML = mods.map(mod => `
                 <tr>
-                    <td>${mod.screenshot ? `<img src="${API_URL}/download/${mod.screenshot}" class="mod-thumb" onclick="openImageModal(this.src)" title="Click to view full image">` : '<span style="color:#666; font-size:11px;">No Preview</span>'}</td>
+                    <td>${mod.screenshot ? `<img src="${API_URL}/download/${mod.screenshot}" class="mod-thumb" onclick="openImageModal(this.src)">` : '<span style="color:#666; font-size:11px;">No Preview</span>'}</td>
                     <td><strong>${escapeHtml(mod.title)}</strong><br><span style="color:#888; font-size:11px;">${escapeHtml(mod.description)}</span></td>
                     <td>${escapeHtml(mod.author)}</td>
                     <td><span class="role-badge role-${mod.author_role}">${mod.author_role}</span></td>
