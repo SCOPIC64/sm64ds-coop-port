@@ -29,19 +29,16 @@
         .mod-sidebar { flex: 1; background: #0d1117; border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; height: fit-content; }
         .btn { background: var(--accent-green); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-family: var(--mario-font); font-size: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
         .btn-secondary { background: #21262d; border: 1px solid var(--border-color); color: var(--text-main); }
-        .btn-danger { background: var(--danger-red); font-size: 7px; padding: 5px 10px; }
         .mod-card { background: #21262d; border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 15px; display: flex; gap: 15px; }
         .mod-thumb-container { display: flex; gap: 5px; flex-wrap: wrap; max-width: 140px; }
         .mod-thumb { width: 65px; height: 50px; object-fit: cover; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; background: #000; }
-        .form-group { margin-bottom: 12px; }
-        .form-input, .form-textarea, .form-select { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #fff; padding: 10px; border-radius: 4px; font-family: inherit; }
-        .form-textarea { height: 80px; }
-        .role-badge { padding: 2px 6px; font-size: 9px; font-weight: bold; border-radius: 4px; color: white; background: #8b949e; }
-        .role-Owner { background: #d29922; }
-        .avatar-sm { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-color); vertical-align: middle; margin-right: 5px; }
+        .form-input, .form-textarea, .form-select { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 10px; }
+        .avatar-sm { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 5px; }
         .avatar-lg { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-color); cursor: pointer; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; }
         .modal-body { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 20px; width: 380px; border-radius: 6px; }
+        .role-badge { padding: 2px 6px; font-size: 9px; font-weight: bold; border-radius: 4px; color: white; background: #8b949e; }
+        .role-Owner { background: #d29922; }
     </style>
 </head>
 <body>
@@ -49,7 +46,7 @@
     <div class="header">
         <img src="logo.png" alt="Logo" class="header-logo-img">
         <div style="display:flex; align-items:center; gap:8px;">
-            <div id="user-display-box" style="cursor:pointer; display:flex; align-items:center;" onclick="openSettingsModal()">
+            <div style="cursor:pointer; display:flex; align-items:center;" onclick="openSettingsModal()">
                 <img id="header-avatar" src="" class="avatar-sm" style="display:none;">
                 <strong id="user-name" style="font-family: var(--mario-font); font-size: 10px;">Guest</strong>
             </div>
@@ -75,13 +72,13 @@
                 <div id="upload-section" style="background: #21262d; border: 1px solid var(--border-color); padding: 15px; border-radius: 6px;">
                     <h3 style="font-family: var(--mario-font); font-size:10px; margin-top:0;">New Mod</h3>
                     <form onsubmit="submitMod(event)">
-                        <input type="text" id="mod-title" class="form-input" placeholder="Enter Your Mod Title..." required style="margin-bottom:10px;">
-                        <textarea id="mod-desc" class="form-textarea" placeholder="Enter Your Mod Description..." required style="margin-bottom:10px;"></textarea>
-                        <label style="font-size:10px; color:var(--text-muted);">Mod File</label>
-                        <input type="file" id="mod-file" class="form-input" required style="margin-bottom:10px;">
-                        <label style="font-size:10px; color:var(--text-muted);">Screenshots</label>
+                        <input type="text" id="mod-title" class="form-input" placeholder="Enter Your Mod Title..." required>
+                        <textarea id="mod-desc" class="form-input" style="height:80px;" placeholder="Enter Your Mod Description..." required></textarea>
+                        <label style="font-size:10px;">Enter Your Mod File...</label>
+                        <input type="file" id="mod-file" class="form-input" required>
+                        <label style="font-size:10px;">Enter Your Screenshots...</label>
                         <input type="file" id="mod-screenshots" class="form-input" accept="image/*" multiple>
-                        <button type="submit" class="btn" id="submit-btn" disabled style="width:100%; margin-top:10px; justify-content:center;">Submit Mod</button>
+                        <button type="submit" class="btn" id="submit-btn" disabled style="width:100%; justify-content:center;">Submit Mod</button>
                     </form>
                 </div>
             </div>
@@ -89,7 +86,6 @@
     </div>
 </div>
 
-<!-- SETTINGS MODAL -->
 <div class="modal" id="settings-modal">
     <div class="modal-body">
         <strong style="font-family:var(--mario-font); font-size:10px; display:block; margin-bottom:15px;">User Settings</strong>
@@ -100,7 +96,7 @@
             </div>
             <label style="font-size:10px; color:var(--text-muted);">Enter Your Pronouns...</label>
             <input type="text" id="settings-pronouns" class="form-input" placeholder="e.g. He/Him">
-            <label style="font-size:10px; color:var(--text-muted);">Select Favorite Character</label>
+            <label style="font-size:10px; color:var(--text-muted);">Enter Your Favorite Character...</label>
             <select id="settings-char" class="form-select">
                 <option value="mario">Mario</option><option value="luigi">Luigi</option><option value="yoshi">Yoshi</option>
             </select>
@@ -110,17 +106,16 @@
     </div>
 </div>
 
-<!-- AUTH MODAL -->
 <div class="modal" id="auth-modal">
     <div class="modal-body">
         <strong id="auth-title" style="font-family:var(--mario-font); font-size:10px; display:block; margin-bottom:15px;">Sign In</strong>
         <form onsubmit="handleAuth(event)">
-            <div id="username-group" style="display:none;"><input type="text" id="auth-username" class="form-input" placeholder="Enter Your Username..." style="margin-bottom:10px;"></div>
-            <input type="email" id="auth-email" class="form-input" placeholder="Enter Your Email..." required style="margin-bottom:10px;">
-            <input type="password" id="auth-password" class="form-input" placeholder="Enter Your Password..." required style="margin-bottom:10px;">
-            <button type="submit" class="btn" style="width:100%; justify-content:center;" id="auth-submit-btn">Login</button>
+            <div id="username-group" style="display:none;"><input type="text" id="auth-username" class="form-input" placeholder="Enter Your Username..."></div>
+            <input type="email" id="auth-email" class="form-input" placeholder="Enter Your Email..." required>
+            <input type="password" id="auth-password" class="form-input" placeholder="Enter Your Password..." required>
+            <button type="submit" class="btn" style="width:100%; justify-content:center; margin-top:10px;" id="auth-submit-btn">Login</button>
         </form>
-        <div style="margin-top:15px; text-align:center;"><a href="#" onclick="switchAuthMode()" id="auth-switch-link" style="font-size:11px;">Need an account? Register</a></div>
+        <div style="margin-top:15px; text-align:center;"><a href="#" onclick="switchAuthMode()" id="auth-switch-link" style="font-size:11px;">Register</a></div>
     </div>
 </div>
 
@@ -128,8 +123,8 @@
 
 <script>
     const API_URL = "https://scopic64.pythonanywhere.com/api";
-    let isRegisterMode = false;
     let currentUser = JSON.parse(localStorage.getItem("sm64_user")) || null;
+    let isRegisterMode = false;
     let newAvatarBlob = null;
 
     document.addEventListener("DOMContentLoaded", () => { updateUserUI(); fetchMods(); });
@@ -143,7 +138,7 @@
             document.getElementById("auth-btn").onclick = logout;
             if (currentUser.avatar) {
                 let av = document.getElementById("header-avatar");
-                av.src = `${API_URL}/download/${currentUser.avatar}`; av.style.display = "inline-block";
+                av.src = `https://scopic64.pythonanywhere.com/api/download/${currentUser.avatar}`; av.style.display = "inline-block";
             }
             if (currentUser.role === "Owner" || currentUser.role === "Modder") document.getElementById("submit-btn").disabled = false;
         }
@@ -155,7 +150,6 @@
         document.getElementById("auth-title").innerText = isRegisterMode ? "Register" : "Sign In";
         document.getElementById("username-group").style.display = isRegisterMode ? "block" : "none";
         document.getElementById("auth-submit-btn").innerText = isRegisterMode ? "Register" : "Login";
-        document.getElementById("auth-switch-link").innerText = isRegisterMode ? "Already have an account? Login" : "Need an account? Register";
     }
 
     async function handleAuth(e) {
@@ -176,18 +170,16 @@
         const cont = document.getElementById("mods-list-container");
         cont.innerHTML = mods.map(m => {
             let imgs = m.screenshots ? m.screenshots.split(",") : [];
-            let thumbs = imgs.map(i => `<img src="${API_URL}/download/${i}" class="mod-thumb" onclick="event.stopPropagation(); document.getElementById('lightbox-img').src=this.src; document.getElementById('image-modal').style.display='flex'">`).join('');
-            let av = m.avatar ? `<img src="${API_URL}/download/${m.avatar}" class="avatar-sm">` : '';
+            let thumbs = imgs.map(i => `<img src="https://scopic64.pythonanywhere.com/api/download/${i}" class="mod-thumb" onclick="event.stopPropagation(); document.getElementById('lightbox-img').src=this.src; document.getElementById('image-modal').style.display='flex'">`).join('');
+            let av = m.avatar ? `<img src="https://scopic64.pythonanywhere.com/api/download/${m.avatar}" class="avatar-sm">` : '';
             return `<div class="mod-card">
                 <div class="mod-thumb-container">${thumbs || 'No Img'}</div>
                 <div style="flex:1">
                     <div style="display:flex;justify-content:space-between"><strong>${m.title}</strong><span style="font-size:10px;color:var(--text-muted)">${m.date}</span></div>
-                    <div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;margin:5px 0;">${av} By ${m.author} (${m.pronouns || ''}) <span class="role-badge role-${m.author_role}">${m.author_role}</span></div>
-                    <p style="margin:10px 0;">${m.description}</p>
-                    <div style="display:flex;gap:10px;">
-                        <a href="${API_URL}/download/${m.filename}" class="btn">Download</a>
-                        ${currentUser && (currentUser.role === 'Owner' || currentUser.username === m.author) ? `<button class="btn btn-danger" onclick="deleteMod(${m.id})">Delete</button>` : ''}
-                    </div>
+                    <div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;margin:5px 0;">${av} By ${m.author} (${m.pronouns || ''})</div>
+                    <p>${m.description}</p>
+                    <a href="https://scopic64.pythonanywhere.com/api/download/${m.filename}" class="btn">Download</a>
+                    ${currentUser && (currentUser.role === 'Owner' || currentUser.username === m.author) ? `<button class="btn btn-secondary" onclick="deleteMod(${m.id})">Delete</button>` : ''}
                 </div>
             </div>`;
         }).join('');
@@ -204,15 +196,12 @@
         f.append("file", document.getElementById("mod-file").files[0]);
         const shots = document.getElementById("mod-screenshots").files;
         for(let i=0; i<shots.length; i++) f.append("screenshots", shots[i]);
-        const res = await fetch(`${API_URL}/upload`, {method:"POST", body:f});
-        if(res.ok) location.reload();
+        await fetch(`${API_URL}/upload`, {method:"POST", body:f}); location.reload();
     }
 
     function openSettingsModal() { 
-        if(!currentUser) return;
         document.getElementById("settings-pronouns").value = currentUser.pronouns || "";
-        document.getElementById("settings-char").value = currentUser.favorite_char || "mario";
-        document.getElementById("settings-avatar-preview").src = currentUser.avatar ? `${API_URL}/download/${currentUser.avatar}` : 'https://via.placeholder.com/70';
+        document.getElementById("settings-avatar-preview").src = currentUser.avatar ? `https://scopic64.pythonanywhere.com/api/download/${currentUser.avatar}` : '';
         document.getElementById("settings-modal").style.display='flex'; 
     }
     function closeSettingsModal() { document.getElementById("settings-modal").style.display='none'; }
@@ -224,7 +213,7 @@
                     const c = document.createElement('canvas'); const s = Math.min(img.width, img.height);
                     c.width = c.height = s; c.getContext('2d').drawImage(img, (img.width-s)/2, (img.height-s)/2, s, s, 0,0,s,s);
                     document.getElementById("settings-avatar-preview").src = c.toDataURL();
-                    c.toBlob(blob => newAvatarBlob = blob);
+                    canvas.toBlob(blob => newAvatarBlob = blob);
                 }
             }; r.readAsDataURL(i.files[0]);
         }
