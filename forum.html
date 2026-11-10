@@ -22,18 +22,16 @@
         .nav-bar a { display: block; padding: 12px 20px; color: var(--text-main); font-weight: bold; font-family: var(--mario-font); font-size: 10px; letter-spacing: 1px; }
         .nav-bar a:hover, .nav-bar a.active { background: #21262d; color: #fff; }
         .content { padding: 20px; }
-        .btn { background: var(--accent-green); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-family: var(--mario-font); font-size: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
-        .btn-secondary { background: #21262d; border: 1px solid var(--border-color); color: var(--text-main); }
-        .btn-danger { background: var(--danger-red); font-size: 7px; padding: 5px 10px; }
+        .btn { background: var(--accent-green); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-family: var(--mario-font); font-size: 9px; cursor: pointer; }
         .forum-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         .forum-table th { background: #21262d; text-align: left; padding: 10px; border-bottom: 1px solid var(--border-color); font-family: var(--mario-font); font-size: 8px; }
         .forum-table td { padding: 12px 10px; border-bottom: 1px solid var(--border-color); }
         .forum-table tr:hover td { background: #21262d; cursor: pointer; }
         .post-card { background: #21262d; border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; margin-bottom: 15px; }
-        .form-input, .form-textarea, .form-select { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 10px; font-family: inherit; }
+        .form-input, .form-textarea { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 10px; font-family: inherit; }
         .avatar-sm { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-color); vertical-align: middle; margin-right: 10px; }
         .custom-emoji { height: 22px; vertical-align: middle; image-rendering: pixelated; }
-        .forum-img { max-width: 100%; max-height: 400px; border-radius: 4px; margin-top: 10px; display: block; border: 1px solid var(--border-color); }
+        .forum-img { max-width: 100%; border-radius: 4px; margin-top: 10px; border: 1px solid var(--border-color); }
         .toolbar { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; background: #0d1117; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); }
     </style>
 </head>
@@ -55,15 +53,13 @@
     <div class="content">
         <div id="threads-view">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2 style="font-family:var(--mario-font); font-size:16px;">Community Board</h2>
+                <h2 style="font-family:var(--mario-font); font-size:16px;">Board</h2>
                 <button class="btn" onclick="toggleNewThread()">+ New Thread</button>
             </div>
             <div id="new-thread-box" style="display:none; margin-top:15px;">
                 <input type="text" id="thread-title" class="form-input" placeholder="Enter Your Thread Title...">
                 <div class="toolbar">
-                    <button class="btn btn-secondary" onclick="insertEmoji(':egg:')">Sob Yoshi</button>
-                    <button class="btn btn-secondary" onclick="insertEmoji(':mario:')">Sob Mario</button>
-                    <button class="btn btn-secondary" onclick="insertEmoji(':luigi:')">Sob Luigi</button>
+                    <span style="font-size:10px; color:var(--text-muted);">Paste images (Ctrl+V)</span>
                 </div>
                 <textarea id="thread-content" class="form-textarea" style="height:120px;" placeholder="Enter Your Content... (Paste images with Ctrl+V)" onpaste="handlePaste(event, 'thread-content')"></textarea>
                 <button class="btn" onclick="createThread()">Post Thread</button>
@@ -74,16 +70,10 @@
             </table>
         </div>
         <div id="thread-detail-view" style="display:none;">
-            <button class="btn btn-secondary" style="margin-bottom:15px;" onclick="backToThreads()">Back</button>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h2 id="view-title" style="font-family:var(--mario-font); font-size:14px;"></h2>
-                <div id="thread-actions"></div>
-            </div>
+            <button class="btn" onclick="backToThreads()">Back</button>
+            <h2 id="view-title" style="font-family:var(--mario-font); font-size:14px; margin-top:20px;"></h2>
             <div id="posts-list"></div>
             <div style="margin-top:20px;">
-                <div class="toolbar">
-                    <button class="btn btn-secondary" onclick="insertEmoji(':sob:')">Insert Sob</button>
-                </div>
                 <textarea id="reply-content" class="form-textarea" placeholder="Enter Your Reply... (Paste images with Ctrl+V)" onpaste="handlePaste(event, 'reply-content')"></textarea>
                 <button class="btn" onclick="sendReply()">Submit Reply</button>
             </div>
@@ -94,8 +84,8 @@
 <script>
     const API_URL = "https://scopic64.pythonanywhere.com/api";
     let currentUser = JSON.parse(localStorage.getItem("sm64_user"));
-    let currentThreadId = null;
 
+    // Base64 Emotes
     const SOB_EMOTES = {
         yoshi: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAYklEQVQ4T2NkIAYwEnLBAmR5RhS+O5B9GIlXjG4Aujp8BtCcBvInmIF4XQByIbwBjDsh8mD2Y8mD+R+mAF0SpgBdBqYAXQLUv7A+LIDqB8YFmAA2L8DqYfWCBfAZQC6A9T9yAcwLAKN4C8v6p4aNAAAAAElFTkSuQmCC',
         mario: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAY0lEQVQ4T2NkIAYwEnLBAmR5RhS+O5B9GIlXjG4Aujp8BtCcBvInmIF4XQByIbwBjDsh8mD2Y8mD+R+mAF0SpgBdBqYAXQLUv7A+LIDqB8YFmAA2L8DqYfWCBfAZQC6A9T9yAcwLAKRQC8szG8vWAAAAAElFTkSuQmCC',
@@ -115,14 +105,7 @@
             const res = await fetch(`${API_URL}/upload-image`, { method: "POST", body: f });
             const data = await res.json();
             const ta = document.getElementById(id);
-            ta.value += `\n[img]https://scopic64.pythonanywhere.com${data.url}[/img]\n`;
-        }
-    }
-
-    function insertEmoji(tag) {
-        const active = document.activeElement;
-        if (active.tagName === 'TEXTAREA') {
-            active.value = active.value.substring(0, active.selectionStart) + " " + tag + " " + active.value.substring(active.selectionEnd);
+            ta.value += `\n[img]https://scopic64.pythonanywhere.com/api/download/${data.url.split('/').pop()}[/img]\n`;
         }
     }
 
@@ -131,10 +114,10 @@
         const threads = await res.json();
         const tbody = document.getElementById("threads-body");
         tbody.innerHTML = threads.map(t => {
-            let avatar = t.avatar ? `<img src="${API_URL}/download/${t.avatar}" class="avatar-sm">` : '';
+            let av = t.avatar ? `<img src="https://scopic64.pythonanywhere.com/api/download/${t.avatar}" class="avatar-sm">` : '';
             return `<tr onclick="openThread(${t.id})">
                 <td><strong>${format(t.title)}</strong></td>
-                <td><div style="display:flex;align-items:center;">${avatar}${t.author}</div></td>
+                <td><div style="display:flex;align-items:center;">${av}${t.author}</div></td>
                 <td>${t.reply_count - 1}</td>
                 <td>${t.created_at}</td>
             </tr>`;
@@ -148,12 +131,9 @@
         const res = await fetch(`${API_URL}/forum/threads/${id}`);
         const data = await res.json();
         document.getElementById("view-title").innerText = data.thread.title;
-        if (currentUser && (currentUser.role === 'Owner' || currentUser.username === data.thread.author)) {
-            document.getElementById("thread-actions").innerHTML = `<button class="btn btn-danger" onclick="deleteThread(${id})">Delete</button>`;
-        }
         document.getElementById("posts-list").innerHTML = data.posts.map(p => {
-            let av = p.avatar ? `<img src="${API_URL}/download/${p.avatar}" class="avatar-sm">` : '';
-            return `<div class="post-card"><div style="margin-bottom:10px; display:flex; align-items:center;">${av} <strong>${p.author}</strong> (${p.pronouns || ''})</div><div>${format(p.content, p.favorite_char)}</div></div>`;
+            let av = p.avatar ? `<img src="https://scopic64.pythonanywhere.com/api/download/${p.avatar}" class="avatar-sm">` : '';
+            return `<div class="post-card"><div style="margin-bottom:10px; display:flex; align-items:center;">${av} <strong>${p.author}</strong></div><div>${format(p.content, p.favorite_char)}</div></div>`;
         }).join('');
     }
 
@@ -161,9 +141,6 @@
         let s = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         s = s.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
         s = s.replace(/\[img\](.*?)\[\/img\]/g, '<img src="$1" class="forum-img">');
-        s = s.replace(/:egg:/g, `<img src="${SOB_EMOTES.yoshi}" class="custom-emoji">`);
-        s = s.replace(/:mario:/g, `<img src="${SOB_EMOTES.mario}" class="custom-emoji">`);
-        s = s.replace(/:luigi:/g, `<img src="${SOB_EMOTES.luigi}" class="custom-emoji">`);
         s = s.replace(/:sob:/g, `<img src="${SOB_EMOTES[char] || SOB_EMOTES.mario}" class="custom-emoji">`);
         return s;
     }
