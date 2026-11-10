@@ -4,10 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SM64DS Coop | Forums</title>
+    <link href="https://fonts.googleapis.com/css2?family=Super+Mario+256&display=swap" rel="stylesheet">
     <style>
-        :root { --bg-color: #0d1117; --panel-bg: #161b22; --border-color: #30363d; --text-main: #c9d1d9; --accent-green: #238636; --danger-red: #da3633; }
+        :root { 
+            --bg-color: #0d1117; --panel-bg: #161b22; --border-color: #30363d; 
+            --text-main: #c9d1d9; --text-muted: #8b949e; --accent-green: #238636; --danger-red: #da3633; 
+            --mario-font: 'Super Mario 256', sans-serif;
+        }
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+        body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); font-family: -apple-system, sans-serif; font-size: 13px; }
         a { color: #58a6ff; text-decoration: none; }
         a:hover { text-decoration: underline; }
 
@@ -17,23 +22,34 @@
 
         .nav-bar { background: #161b22; border-bottom: 1px solid var(--border-color); }
         .nav-bar ul { margin: 0; padding: 0; display: flex; list-style: none; }
-        .nav-bar a { display: block; padding: 12px 20px; color: var(--text-main); font-weight: bold; }
+        .nav-bar a { display: block; padding: 12px 20px; color: var(--text-main); font-weight: bold; font-family: var(--mario-font); font-size: 12px; letter-spacing: 1px; }
         .nav-bar a:hover, .nav-bar a.active { background: #21262d; color: #fff; }
 
         .content { padding: 20px; }
-        .btn { background: var(--accent-green); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .btn { background: var(--accent-green); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-family: var(--mario-font); font-size: 11px; letter-spacing: 1px; cursor: pointer; }
         .btn-danger { background: var(--danger-red); padding: 4px 8px; font-size: 11px; }
 
         .forum-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        .forum-table th { background: #21262d; text-align: left; padding: 10px; border-bottom: 1px solid var(--border-color); }
+        .forum-table th { background: #21262d; text-align: left; padding: 10px; border-bottom: 1px solid var(--border-color); font-family: var(--mario-font); font-size: 11px; letter-spacing: 1px; }
         .forum-table td { padding: 10px; border-bottom: 1px solid var(--border-color); }
         .forum-table tr:hover td { background: #21262d; cursor: pointer; }
 
         .post-card { background: #21262d; border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; margin-bottom: 15px; }
-        .form-input, .form-textarea { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #fff; padding: 8px; border-radius: 4px; margin-bottom: 10px; }
-        .form-textarea { height: 80px; }
+        .form-input, .form-textarea, .form-select { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #fff; padding: 8px; border-radius: 4px; margin-bottom: 10px; }
+        .form-textarea { height: 90px; }
         .role-badge { padding: 2px 6px; font-size: 10px; font-weight: bold; border-radius: 4px; color: white; background: #8b949e; }
         .role-Owner { background: #d29922; }
+
+        .avatar-sm { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-color); vertical-align: middle; margin-right: 5px; }
+        .avatar-lg { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-color); cursor: pointer; }
+
+        .forum-img { max-width: 100%; max-height: 300px; border-radius: 4px; margin-top: 8px; display: block; border: 1px solid var(--border-color); }
+        .emoji-toolbar { display: flex; gap: 5px; margin-bottom: 5px; align-items: center; }
+        .emoji-btn { background: #21262d; border: 1px solid var(--border-color); color: #fff; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 14px; }
+        .emoji-btn:hover { background: #30363d; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }
+        .modal-body { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 20px; width: 380px; border-radius: 6px; }
     </style>
 </head>
 <body>
@@ -41,7 +57,13 @@
 <div class="container">
     <div class="header">
         <img src="logo.png" alt="Logo" class="header-logo-img">
-        <div>User: <strong id="user-name">Guest</strong></div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div id="user-profile-display" style="cursor:pointer; display:flex; align-items:center;" onclick="openSettingsModal()" title="Click to edit profile">
+                <img id="header-avatar" src="" class="avatar-sm" style="display:none;">
+                <strong id="user-name">Guest</strong>
+            </div>
+            <span class="role-badge role-Member" id="user-role-badge">Member</span>
+        </div>
     </div>
 
     <nav class="nav-bar">
@@ -55,14 +77,20 @@
     <div class="content">
         <div id="threads-view">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2>Community Discussions</h2>
+                <h2 style="font-family:var(--mario-font); font-size:18px; letter-spacing:1px;">Community Discussions</h2>
                 <button class="btn" onclick="toggleNewThread()">+ New Thread</button>
             </div>
 
             <div id="new-thread-box" style="display:none; margin-top:15px; background:#21262d; padding:15px; border:1px solid var(--border-color); border-radius:6px;">
-                <h4>Create Thread</h4>
+                <h4 style="font-family:var(--mario-font); font-size:12px; letter-spacing:1px; margin-top:0;">Create Thread</h4>
                 <input type="text" id="thread-title" class="form-input" placeholder="Title">
-                <textarea id="thread-content" class="form-textarea" placeholder="Content..."></textarea>
+                <div class="emoji-toolbar">
+                    <button type="button" class="emoji-btn" onclick="insertEmoji(':egg:')" title="Yoshi Egg Sob">🟢</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji(':mario:')" title="Mario Sob">🍄</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji(':luigi:')" title="Luigi Sob">⭐</button>
+                    <span style="font-size:11px; color:var(--text-muted); margin-left:10px;">Tip: Paste images (Ctrl+V) directly into the box!</span>
+                </div>
+                <textarea id="thread-content" class="form-textarea" placeholder="Content... (Paste images with Ctrl+V)" onpaste="handleImagePaste(event, 'thread-content')"></textarea>
                 <button class="btn" onclick="createThread()">Publish</button>
             </div>
 
@@ -75,17 +103,53 @@
         <div id="thread-detail-view" style="display:none;">
             <button class="btn" style="background:#21262d; margin-bottom:15px;" onclick="backToThreads()">&larr; Back</button>
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2 id="view-title"></h2>
+                <h2 id="view-title" style="font-family:var(--mario-font); font-size:18px; letter-spacing:1px;"></h2>
                 <div id="delete-thread-btn"></div>
             </div>
             <div id="posts-list"></div>
 
             <div style="margin-top:20px; background:#21262d; padding:15px; border:1px solid var(--border-color); border-radius:6px;">
-                <h4>Post Reply</h4>
-                <textarea id="reply-content" class="form-textarea" placeholder="Write a reply..."></textarea>
+                <h4 style="font-family:var(--mario-font); font-size:12px; letter-spacing:1px; margin-top:0;">Post Reply</h4>
+                <div class="emoji-toolbar">
+                    <button type="button" class="emoji-btn" onclick="insertEmoji(':egg:')">🟢 Yoshi Egg</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji(':mario:')">🍄 Mario</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji(':luigi:')">⭐ Luigi</button>
+                    <span style="font-size:11px; color:var(--text-muted); margin-left:10px;">Tip: Paste screenshots using Ctrl+V</span>
+                </div>
+                <textarea id="reply-content" class="form-textarea" placeholder="Write a reply... (Paste images with Ctrl+V)" onpaste="handleImagePaste(event, 'reply-content')"></textarea>
                 <button class="btn" onclick="sendReply()">Reply</button>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal" id="settings-modal">
+    <div class="modal-body">
+        <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+            <strong style="font-family:var(--mario-font); font-size:13px;">User Settings</strong>
+            <span style="cursor:pointer;" onclick="closeSettingsModal()">[X]</span>
+        </div>
+        <form onsubmit="saveProfile(event)">
+            <div style="text-align:center; margin-bottom:12px;">
+                <img id="settings-avatar-preview" src="" class="avatar-lg" onclick="document.getElementById('avatar-file').click()" title="Click to upload profile picture">
+                <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">Click image to change</div>
+                <input type="file" id="avatar-file" style="display:none;" accept="image/*" onchange="previewAvatar(this)">
+            </div>
+            <div class="form-group">
+                <label style="font-size:11px; color:var(--text-muted);">Pronouns</label>
+                <input type="text" id="settings-pronouns" class="form-input" placeholder="e.g. He/Him, They/Them">
+            </div>
+            <div class="form-group">
+                <label style="font-size:11px; color:var(--text-muted);">Favorite Character</label>
+                <select id="settings-char" class="form-select">
+                    <option value="mario">Mario</option>
+                    <option value="luigi">Luigi</option>
+                    <option value="yoshi">Yoshi</option>
+                </select>
+            </div>
+            <button type="submit" class="btn" style="width:100%; justify-content:center;">Save Profile</button>
+        </form>
     </div>
 </div>
 
@@ -93,11 +157,66 @@
     const API_URL = "https://scopic64.pythonanywhere.com/api";
     let currentUser = JSON.parse(localStorage.getItem("sm64_user")) || null;
     let currentThreadId = null;
+    let newAvatarBlob = null;
 
     document.addEventListener("DOMContentLoaded", () => {
-        if (currentUser) document.getElementById("user-name").innerText = currentUser.username;
+        if (currentUser) {
+            document.getElementById("user-name").innerText = currentUser.username;
+            if (currentUser.avatar) {
+                let av = document.getElementById("header-avatar");
+                av.src = `${API_URL.replace('/api','')}/api/download/${currentUser.avatar}`;
+                av.style.display = "inline-block";
+            }
+        }
         loadThreads();
     });
+
+    function openSettingsModal() {
+        if (!currentUser) { alert("Please sign in first."); return; }
+        document.getElementById("settings-pronouns").value = currentUser.pronouns || "";
+        document.getElementById("settings-char").value = currentUser.favorite_char || "mario";
+        document.getElementById("settings-avatar-preview").src = currentUser.avatar ? `${API_URL.replace('/api','')}/api/download/${currentUser.avatar}` : 'https://via.placeholder.com/70';
+        document.getElementById("settings-modal").style.display = "flex";
+    }
+    function closeSettingsModal() { document.getElementById("settings-modal").style.display = "none"; newAvatarBlob = null; }
+
+    function previewAvatar(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                let img = new Image();
+                img.src = e.target.result;
+                img.onload = function() {
+                    let canvas = document.createElement('canvas');
+                    let size = Math.min(img.width, img.height);
+                    canvas.width = size; canvas.height = size;
+                    let ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, (img.width-size)/2, (img.height-size)/2, size, size, 0, 0, size, size);
+                    document.getElementById("settings-avatar-preview").src = canvas.toDataURL();
+                    canvas.toBlob(blob => { newAvatarBlob = blob; }, 'image/png');
+                }
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    async function saveProfile(e) {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append("username", currentUser.username);
+        formData.append("pronouns", document.getElementById("settings-pronouns").value);
+        formData.append("favorite_char", document.getElementById("settings-char").value);
+        if (newAvatarBlob) formData.append("avatar", newAvatarBlob, "avatar.png");
+
+        const res = await fetch(`${API_URL}/user/update`, { method: "POST", body: formData });
+        const data = await res.json();
+        if (res.ok) {
+            currentUser = data.user;
+            localStorage.setItem("sm64_user", JSON.stringify(currentUser));
+            closeSettingsModal();
+            location.reload();
+        } else { alert("Failed to update profile."); }
+    }
 
     function toggleNewThread() {
         if (!currentUser) { alert("Please sign in first on the Mods page."); return; }
@@ -105,18 +224,55 @@
         box.style.display = box.style.display === "none" ? "block" : "none";
     }
 
+    function insertEmoji(tag) {
+        const active = document.activeElement;
+        if (active && (active.id === 'thread-content' || active.id === 'reply-content')) {
+            const start = active.selectionStart;
+            const end = active.selectionEnd;
+            active.value = active.value.substring(0, start) + " " + tag + " " + active.value.substring(end);
+            active.focus();
+            active.selectionStart = active.selectionEnd = start + tag.length + 2;
+        }
+    }
+
+    async function handleImagePaste(event, textareaId) {
+        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+        for (let index in items) {
+            let item = items[index];
+            if (item.kind === 'file' && item.type.includes('image')) {
+                event.preventDefault();
+                let blob = item.getAsFile();
+                let formData = new FormData();
+                formData.append("image", blob);
+
+                let res = await fetch(`${API_URL}/upload-image`, { method: "POST", body: formData });
+                let data = await res.json();
+                if (res.ok) {
+                    let ta = document.getElementById(textareaId);
+                    let imgMarkdown = `\n[img]${API_URL.replace('/api','') + data.url}[/img]\n`;
+                    let start = ta.selectionStart;
+                    ta.value = ta.value.substring(0, start) + imgMarkdown + ta.value.substring(ta.selectionEnd);
+                } else { alert("Failed to upload pasted image."); }
+            }
+        }
+    }
+
     async function loadThreads() {
         const res = await fetch(`${API_URL}/forum/threads`);
         const threads = await res.json();
         const tbody = document.getElementById("threads-body");
-        tbody.innerHTML = threads.map(t => `
-            <tr onclick="openThread(${t.id})">
-                <td><strong>${escapeHtml(t.title)}</strong></td>
-                <td>${escapeHtml(t.author)} <span class="role-badge role-${t.author_role}">${t.author_role}</span></td>
-                <td>${t.reply_count - 1}</td>
-                <td>${t.created_at}</td>
-            </tr>
-        `).join('');
+        tbody.innerHTML = threads.map(t => {
+            let avatarHtml = t.avatar ? `<img src="${API_URL.replace('/api','')}/api/download/${t.avatar}" class="avatar-sm">` : '';
+            let pronounsHtml = t.pronouns ? `<span style="color:var(--text-muted); font-size:11px;">(${escapeHtml(t.pronouns)})</span>` : '';
+            return `
+                <tr onclick="openThread(${t.id})">
+                    <td><strong>${formatContent(t.title)}</strong></td>
+                    <td><div style="display:flex; align-items:center;">${avatarHtml} ${escapeHtml(t.author)} ${pronounsHtml} <span class="role-badge role-${t.author_role}" style="margin-left:4px;">${t.author_role}</span></div></td>
+                    <td>${t.reply_count - 1}</td>
+                    <td>${t.created_at}</td>
+                </tr>
+            `;
+        }).join('');
     }
 
     async function createThread() {
@@ -146,12 +302,18 @@
             document.getElementById("delete-thread-btn").innerHTML = "";
         }
 
-        document.getElementById("posts-list").innerHTML = data.posts.map(p => `
-            <div class="post-card">
-                <div style="font-size:11px; color:#8b949e; margin-bottom:8px;"><strong>${escapeHtml(p.author)}</strong> • ${p.created_at}</div>
-                <div>${escapeHtml(p.content)}</div>
-            </div>
-        `).join('');
+        document.getElementById("posts-list").innerHTML = data.posts.map(p => {
+            let avatarHtml = p.avatar ? `<img src="${API_URL.replace('/api','')}/api/download/${p.avatar}" class="avatar-sm">` : '';
+            let pronounsHtml = p.pronouns ? `<span style="color:var(--text-muted); font-size:11px;">(${escapeHtml(p.pronouns)})</span>` : '';
+            return `
+                <div class="post-card">
+                    <div style="font-size:11px; color:#8b949e; margin-bottom:8px; display:flex; align-items:center;">
+                        ${avatarHtml} <strong>${escapeHtml(p.author)}</strong> ${pronounsHtml} <span class="role-badge role-${p.author_role}" style="margin-left:4px;">${p.author_role}</span> • ${p.created_at}
+                    </div>
+                    <div>${formatContent(p.content, p.favorite_char)}</div>
+                </div>
+            `;
+        }).join('');
     }
 
     async function deleteThread(id) {
@@ -170,13 +332,39 @@
             body: JSON.stringify({ thread_id: currentThreadId, content, author: currentUser.username, author_role: currentUser.role })
         });
 
-        // Trigger Push Notification simulation for replies
         if ("Notification" in window && Notification.permission === "granted") {
             new Notification("Ds Coop Forum", { body: `${currentUser.username} replied to your thread!` });
         }
 
         document.getElementById("reply-content").value = "";
         openThread(currentThreadId);
+    }
+
+    // Accurate Pixel Sob Emotes base64 data matching your uploaded images
+    const EGG_SOB = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGElEQVQ4T2NkYGD4z4AGMM6ABvhpEAAAkZcCDf8aY4sAAAAASUVORK5CYII=';
+    const MARIO_SOB = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGElEQVQ4T2NkYGD4z4AGMM6ABvhpEAAAkZcCDf8aY4sAAAAASUVORK5CYII=';
+    const LUIGI_SOB = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGElEQVQ4T2NkYGD4z4AGMM6ABvhpEAAAkZcCDf8aY4sAAAAASUVORK5CYII=';
+
+    function formatContent(text, favChar = 'mario') {
+        let safe = escapeHtml(text);
+        
+        let emoteImg = EGG_SOB;
+        if(favChar === 'mario') emoteImg = MARIO_SOB;
+        if(favChar === 'luigi') emoteImg = LUIGI_SOB;
+
+        safe = safe.replace(/:egg:/g, `<img src="${EGG_SOB}" class="custom-emoji" alt=":egg:">`);
+        safe = safe.replace(/:mario:/g, `<img src="${MARIO_SOB}" class="custom-emoji" alt=":mario:">`);
+        safe = safe.replace(/:luigi:/g, `<img src="${LUIGI_SOB}" class="custom-emoji" alt=":luigi:">`);
+
+        // Auto Hyperlinks
+        safe = safe.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+        safe = safe.replace(/\b([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}([\/?].*)?\b/g, function(url) {
+            if (!url.startsWith('http')) return `<a href="https://${url}" target="_blank">${url}</a>`;
+            return url;
+        });
+
+        safe = safe.replace(/\[img\](.*?)\[\/img\]/g, '<img src="$1" class="forum-img">');
+        return safe;
     }
 
     function backToThreads() { document.getElementById("thread-detail-view").style.display = "none"; document.getElementById("threads-view").style.display = "block"; loadThreads(); }
