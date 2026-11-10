@@ -60,7 +60,7 @@
     <div class="content">
         <div class="block">
             <div class="block-header">Project Overview</div>
-            <div class="block-body">Welcome to the hub. Use the navigation to find mods or join the community discussion.</div>
+            <div class="block-body">Welcome to the hub. Check the navigation to find mods or join the community discussion.</div>
         </div>
     </div>
     <footer class="footer">SM64DS Coop Port Project by SCOPIC64</footer>
@@ -70,9 +70,8 @@
     if (currentUser) {
         document.getElementById("user-name").innerText = currentUser.username;
         if (currentUser.avatar) {
-            const av = document.getElementById("header-avatar");
-            av.src = `https://scopic64.pythonanywhere.com/api/download/${currentUser.avatar}`;
-            av.style.display = "inline-block";
+            document.getElementById("header-avatar").src = `https://scopic64.pythonanywhere.com/api/download/${currentUser.avatar}`;
+            document.getElementById("header-avatar").style.display = "inline-block";
         }
     }
 </script>
