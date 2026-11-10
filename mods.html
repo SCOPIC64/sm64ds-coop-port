@@ -224,7 +224,7 @@
                         </thead>
                         <tbody id="mods-list-body">
                             <tr>
-                                <td colspan="5" style="text-align: center; color: #888;">Loading mods from backend...</td>
+                                <td colspan="5" style="text-align: center; color: #888;">Loading mods from cloud server...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -262,7 +262,7 @@
                     <div>
                         <span style="font-size: 11px; color: #888;" id="news-date"></span><br>
                         <strong>SM64DS Coop Repository Online</strong><br>
-                        The repository system is active. Owners and Modders can upload mod files using the submission form.
+                        The cloud repository is active. Owners and Modders can upload mod files directly to the server.
                     </div>
                 </div>
             </div>
@@ -291,7 +291,6 @@
         </aside>
     </div>
 
-    <!-- CLEAN FOOTER (NO COPYRIGHT) -->
     <footer class="footer">
         SM64DS Coop Hub
     </footer>
@@ -303,7 +302,9 @@
         role: "Owner"
     };
 
-    const API_URL = "http://127.0.0.1:5000/api";
+    // CLOUD BACKEND URL
+    // When you create your service on Render.com, change 'sm64ds-backend' to your exact service name if different.
+    const API_URL = "https://sm64ds-backend.onrender.com/api";
 
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("news-date").innerText = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -351,7 +352,7 @@
                 </tr>
             `).join('');
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #ff4444;">Backend offline. Run <code>python app.py</code> to see real mods.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #ff4444;">Connecting to cloud backend... (If server is spinning up, wait 30 seconds and refresh)</td></tr>`;
         }
     }
 
@@ -375,7 +376,7 @@
                 alert("Upload failed: " + result.error);
             }
         } catch (err) {
-            alert("Connection error to backend (app.py)");
+            alert("Connection error to cloud server.");
         }
     }
 
