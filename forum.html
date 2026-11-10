@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SM64DS Coop | Forum Board</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --container-width: 940px;
+            --sidebar-bg: #252525;
+            --text-main: #e0e0e0;
+            --border-color: #444444;
+            --font-family: "Verdana", sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); font-family: var(--font-family); font-size: 13px; }
+        a { color: #0088cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .container { width: var(--container-width); margin: 0 auto; border-right: 1px solid #333; border-left: 1px solid #333; background: var(--bg-color); }
+        .header { padding: 12px 20px; border-bottom: 1px solid var(--border-color); background: #222; display: flex; justify-content: space-between; align-items: center; }
+        .header-logo-img { max-height: 55px; width: auto; display: block; }
+        .user-status { font-size: 12px; background: #111; padding: 6px 12px; border: 1px solid #333; }
+
+        .nav-bar { background: #222; border-bottom: 1px solid var(--border-color); }
+        .nav-bar ul { margin: 0; padding: 0; display: flex; list-style: none; }
+        .nav-bar li { border-right: 1px solid var(--border-color); }
+        .nav-bar a { display: block; padding: 10px 15px; color: #e0e0e0; font-weight: bold; }
+        .nav-bar a:hover, .nav-bar a.active { background: #333; color: #fff; }
+
+        .main-layout { display: flex; }
+        .content-area { flex: 3; padding: 15px; border-right: 1px solid var(--border-color); }
+        .sidebar { flex: 1; padding: 15px; background: var(--sidebar-bg); font-size: 12px; }
+
+        .block { background: #222; border: 1px solid #333; margin-bottom: 15px; }
+        .block-header { background: #333; padding: 5px 10px; font-size: 14px; font-weight: bold; border-bottom: 1px solid #444; display:flex; justify-content:space-between; }
+        .block-body { padding: 15px; }
+
+        .forum-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .forum-table th { background: #333; color: #fff; text-align: left; padding: 8px; border-bottom: 1px solid #555; }
+        .forum-table td { padding: 8px; border-bottom: 1px solid #333; }
+        .forum-table tr:hover td { background: #2a2a2a; cursor: pointer; }
+
+        .post-card { background: #181818; border: 1px solid #333; padding: 10px; margin-bottom: 10px; }
+        .post-meta { font-size: 11px; color: #888; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 3px; }
+
+        .form-group { margin-bottom: 10px; }
+        .form-label { display: block; margin-bottom: 4px; font-weight: bold; color: #ccc; }
+        .form-input, .form-textarea { width: 100%; background: #111; border: 1px solid #444; color: #fff; padding: 8px; font-family: inherit; }
+        .form-textarea { height: 70px; }
+        .btn { background: #333; border: 1px solid #555; color: #fff; padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .btn:hover { background: #555; }
+
+        .role-badge { display: inline-block; padding: 2px 5px; font-size: 9px; color: black; font-weight: bold; }
+        .role-Owner { background: #ffcc00; }
+        .role-Modder { background: #0088cc; }
+        .role-Moderator { background: #88cc00; }
+        .role-Member { background: #aaaaaa; }
+
+        .footer { text-align: center; padding: 20px; border-top: 1px solid var(--border-color); color: #888; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div><img src="logo.png" alt="Logo" class="header-logo-img"></div>
+        <div class="user-status">
+            User: <strong id="user-name">Guest</strong> | 
+            Role: <span class="role-badge role-Member" id="user-role-badge">Member</span>
+        </div>
+    </div>
+
+    <nav class="nav-bar">
+        <ul>
+            <li><a href="index.html">Main Site</a></li>
+            <li><a href="mods.html">Mods Repository</a></li>
+            <li><a href="forum.html" class="active">Forums</a></li>
+            <li><a href="https://github.com/SCOPIC64/sm64ds-coop-port" target="_blank">GitHub</a></li>
+        </ul>
+    </nav>
+
+    <div class="main-layout">
+        <main class="content-area">
+            
+            <!-- THREAD LIST VIEW -->
+            <div class="block" id="threads-view">
+                <div class="block-header">
+                    <span>Discussions</span>
+                    <button class="btn" onclick="toggleNewThreadForm()">+ New Thread</button>
+                </div>
+                <div class="block-body">
+                    
+                    <div id="new-thread-form" style="display:none; background:#181818; padding:10px; margin-bottom:15px; border:1px solid #444;">
+                        <h4 style="margin-top:0">Create New Thread</h4>
+                        <div class="form-group">
+                            <label class="form-label">Thread Title</label>
+                            <input type="text" id="thread-title" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Message Content</label>
+                            <textarea id="thread-content" class="form-textarea" required></textarea>
+                        </div>
+                        <button class="btn" onclick="submitThread()">Post Thread</button>
+                    </div>
+
+                    <table class="forum-table">
+                        <thead>
+                            <tr>
+                                <th width="50%">Topic</th>
+                                <th width="25%">Author</th>
+                                <th width="15%">Replies</th>
+                                <th width="10%">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="threads-list-body">
+                            <tr><td colspan="4" style="text-align:center;">Loading threads...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SINGLE THREAD VIEW -->
+            <div class="block" id="single-thread-view" style="display:none;">
+                <div class="block-header">
+                    <span id="thread-view-title">Thread Title</span>
+                    <button class="btn" onclick="showThreadsList()">&larr; Back to Threads</button>
+                </div>
+                <div class="block-body">
+                    <div id="posts-container"></div>
+
+                    <!-- REPLY FORM -->
+                    <div style="margin-top:20px; border-top:1px solid #444; padding-top:10px;">
+                        <h4>Post Reply</h4>
+                        <div class="form-group">
+                            <textarea id="reply-content" class="form-textarea" placeholder="Type your reply..."></textarea>
+                        </div>
+                        <button class="btn" onclick="submitReply()">Submit Reply</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <aside class="sidebar">
+            <div class="block">
+                <div class="block-header">Forum Stats</div>
+                <div class="block-body">
+                    Community Board for SM64DS Coop Modders and Players.
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <footer class="footer">SM64DS Coop Forum</footer>
+</div>
+
+<script>
+    const API_URL = "https://scopic64.pythonanywhere.com/api";
+    let currentUser = JSON.parse(localStorage.getItem("sm64_user")) || null;
+    let activeThreadId = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        if (currentUser) {
+            document.getElementById("user-name").innerText = currentUser.username;
+            const badge = document.getElementById("user-role-badge");
+            badge.innerText = currentUser.role;
+            badge.className = `role-badge role-${currentUser.role}`;
+        }
+        loadThreads();
+    });
+
+    async function loadThreads() {
+        const tbody = document.getElementById("threads-list-body");
+        try {
+            const res = await fetch(`${API_URL}/forum/threads`);
+            const threads = await res.json();
+            if (threads.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">No forum threads yet. Start one!</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = threads.map(t => `
+                <tr onclick="viewThread(${t.id})">
+                    <td><strong>${escapeHtml(t.title)}</strong></td>
+                    <td>${escapeHtml(t.author)} <span class="role-badge role-${t.author_role}">${t.author_role}</span></td>
+                    <td>${t.reply_count - 1}</td>
+                    <td style="font-size:11px; color:#888;">${t.created_at}</td>
+                </tr>
+            `).join('');
+        } catch(e) { tbody.innerHTML = `<tr><td colspan="4" style="color:red; text-align:center;">Server error</td></tr>`; }
+    }
+
+    function toggleNewThreadForm() {
+        if (!currentUser) { alert("Please sign in on the Mods page first."); return; }
+        const form = document.getElementById("new-thread-form");
+        form.style.display = form.style.display === "none" ? "block" : "none";
+    }
+
+    async function submitThread() {
+        const title = document.getElementById("thread-title").value;
+        const content = document.getElementById("thread-content").value;
+        if (!title || !content) return;
+
+        const res = await fetch(`${API_URL}/forum/threads`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ title, content, author: currentUser.username, author_role: currentUser.role })
+        });
+        if (res.ok) {
+            document.getElementById("thread-title").value = "";
+            document.getElementById("thread-content").value = "";
+            toggleNewThreadForm();
+            loadThreads();
+        }
+    }
+
+    async function viewThread(id) {
+        activeThreadId = id;
+        document.getElementById("threads-view").style.display = "none";
+        document.getElementById("single-thread-view").style.display = "block";
+
+        const res = await fetch(`${API_URL}/forum/threads/${id}`);
+        const data = await res.json();
+
+        document.getElementById("thread-view-title").innerText = data.thread.title;
+        const postsContainer = document.getElementById("posts-container");
+        postsContainer.innerHTML = data.posts.map(p => `
+            <div class="post-card">
+                <div class="post-meta">
+                    <strong>${escapeHtml(p.author)}</strong> <span class="role-badge role-${p.author_role}">${p.author_role}</span> • ${p.created_at}
+                </div>
+                <div>${escapeHtml(p.content)}</div>
+            </div>
+        `).join('');
+    }
+
+    function showThreadsList() {
+        document.getElementById("single-thread-view").style.display = "none";
+        document.getElementById("threads-view").style.display = "block";
+        loadThreads();
+    }
+
+    async function submitReply() {
+        if (!currentUser) { alert("Please sign in first."); return; }
+        const content = document.getElementById("reply-content").value;
+        if (!content) return;
+
+        const res = await fetch(`${API_URL}/forum/posts`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ thread_id: activeThreadId, content, author: currentUser.username, author_role: currentUser.role })
+        });
+        if (res.ok) {
+            document.getElementById("reply-content").value = "";
+            viewThread(activeThreadId);
+        }
+    }
+
+    function escapeHtml(str) { return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+</script>
+</body>
+</html>
