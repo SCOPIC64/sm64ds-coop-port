@@ -4,55 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SM64DS Coop | Official Site</title>
+    <link href="https://fonts.googleapis.com/css2?family=Super+Mario+256&display=swap" rel="stylesheet">
     <style>
-        @font-face { font-family: 'Mario'; src: url('mario.ttf'); }
         :root {
             --bg-color: #0d1117; --panel-bg: #161b22; --border-color: #30363d;
             --text-main: #c9d1d9; --text-muted: #8b949e; --accent-green: #238636;
-            --mario-font: 'Mario', Arial, sans-serif;
+            --mario-font: 'Super Mario 256', sans-serif;
         }
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); font-family: -apple-system, sans-serif; font-size: 13px; line-height: 1.5; }
-        a { color: #58a6ff; text-decoration: none; }
-
         .container { max-width: 1000px; margin: 20px auto; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; }
         .header { padding: 15px 20px; background: #21262d; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
         .header-logo-img { max-height: 45px; }
-
         .nav-bar { background: #161b22; border-bottom: 1px solid var(--border-color); }
         .nav-bar ul { margin: 0; padding: 0; display: flex; list-style: none; }
         .nav-bar a { display: block; padding: 12px 20px; color: var(--text-main); font-weight: bold; font-family: var(--mario-font); font-size: 10px; letter-spacing: 1px; }
-        .nav-bar a:hover, .nav-bar a.active { background: #21262d; color: #fff; }
-
+        .nav-bar a:hover, .nav-bar a.active { background: #21262d; color: #fff; text-decoration: none; }
         .hero { background: #21262d; border-bottom: 1px solid var(--border-color); padding: 40px 20px; text-align: center; }
-        .hero-logo { max-width: 320px; margin-bottom: 20px; }
-        .hero-title { font-family: var(--mario-font); font-size: 22px; color: #fff; margin-bottom: 10px; }
-
-        .btn { background: #21262d; border: 1px solid var(--border-color); color: var(--text-main); padding: 10px 20px; border-radius: 6px; font-family: var(--mario-font); font-size: 9px; cursor: pointer; display: inline-block; }
-        .btn-primary { background: var(--accent-green); border-color: var(--accent-green); color: white; }
-
+        .hero-title { font-family: var(--mario-font); font-size: 22px; color: #fff; margin: 15px 0; }
+        .btn { background: #21262d; border: 1px solid var(--border-color); color: var(--text-main); padding: 12px 24px; border-radius: 6px; font-family: var(--mario-font); font-size: 9px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .btn-primary { background: var(--accent-green); color: white; border: none; }
         .content { padding: 20px; }
         .block { background: #21262d; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 20px; overflow: hidden; }
         .block-header { background: #161b22; padding: 12px 15px; font-family: var(--mario-font); font-size: 11px; border-bottom: 1px solid var(--border-color); }
         .block-body { padding: 15px; }
-
-        .avatar-sm { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin-right: 8px; border: 1px solid var(--border-color); vertical-align: middle; }
-        .role-badge { padding: 2px 6px; font-size: 10px; font-weight: bold; border-radius: 4px; color: white; background: #8b949e; }
-        .role-Owner { background: #d29922; }
-
         .footer { text-align: center; padding: 20px; border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 11px; }
+        .avatar-sm { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin-right: 8px; border: 1px solid var(--border-color); vertical-align: middle; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
         <img src="logo.png" alt="Logo" class="header-logo-img">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <div id="user-header-info" style="display:flex; align-items:center;">
-                <img id="header-avatar" src="" class="avatar-sm" style="display:none;">
-                <strong id="user-name">Guest</strong>
-            </div>
-            <span class="role-badge" id="user-role-badge">Member</span>
+        <div style="display:flex; align-items:center;">
+            <img id="header-avatar" src="" class="avatar-sm" style="display:none;">
+            <strong id="user-name" style="font-family: var(--mario-font); font-size: 10px;">Guest</strong>
         </div>
     </div>
     <nav class="nav-bar">
@@ -63,38 +49,32 @@
         </ul>
     </nav>
     <section class="hero">
-        <img src="logo.png" alt="Logo" class="hero-logo">
+        <img src="logo.png" alt="Logo" style="max-width: 300px;">
         <div class="hero-title">SM64DS Co-op Port</div>
-        <div style="color:var(--text-muted); margin-bottom:25px;">The ultimate multiplayer port for Super Mario 64 DS.</div>
-        <div class="btn-group">
+        <p style="color: var(--text-muted);">The ultimate engine port for Super Mario 64 DS multiplayer.</p>
+        <div style="margin-top: 20px;">
             <a href="mods.html" class="btn btn-primary">Browse Mods</a>
-            <a href="forum.html" class="btn">Community Forums</a>
+            <a href="forum.html" class="btn" style="margin-left: 10px;">Forums</a>
         </div>
     </section>
     <div class="content">
         <div class="block">
             <div class="block-header">Project Overview</div>
-            <div class="block-body">SM64DS Coop Port is an engine port bringing online and local multiplayer gameplay to Super Mario 64 DS. Experience custom mods, character packs, and synchronized levels with friends.</div>
+            <div class="block-body">Welcome to the hub. Use the navigation to find mods or join the community discussion.</div>
         </div>
     </div>
     <footer class="footer">SM64DS Coop Port Project by SCOPIC64</footer>
 </div>
 <script>
-    const API_URL = "https://scopic64.pythonanywhere.com/api";
-    let currentUser = JSON.parse(localStorage.getItem("sm64_user")) || null;
-    document.addEventListener("DOMContentLoaded", () => {
-        if (currentUser) {
-            document.getElementById("user-name").innerText = currentUser.username;
-            const badge = document.getElementById("user-role-badge");
-            badge.innerText = currentUser.role;
-            badge.className = `role-badge role-${currentUser.role}`;
-            if (currentUser.avatar) {
-                const av = document.getElementById("header-avatar");
-                av.src = `${API_URL.replace('/api','')}/api/download/${currentUser.avatar}`;
-                av.style.display = "inline-block";
-            }
+    let currentUser = JSON.parse(localStorage.getItem("sm64_user"));
+    if (currentUser) {
+        document.getElementById("user-name").innerText = currentUser.username;
+        if (currentUser.avatar) {
+            const av = document.getElementById("header-avatar");
+            av.src = `https://scopic64.pythonanywhere.com/api/download/${currentUser.avatar}`;
+            av.style.display = "inline-block";
         }
-    });
+    }
 </script>
 </body>
 </html>
