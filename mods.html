@@ -49,9 +49,11 @@
         .mods-table td { padding: 8px; border-bottom: 1px solid #333; vertical-align: top; }
         .mods-table tr:hover td { background: #2a2a2a; }
 
-        .mod-thumb { width: 70px; height: 50px; object-fit: cover; border: 1px solid #555; background: #111; cursor: pointer; }
+        /* Screenshot Thumbnails in Table */
+        .mod-thumb { width: 80px; height: 50px; object-fit: cover; border: 1px solid #666; background: #111; cursor: pointer; border-radius: 2px; }
+        .mod-thumb:hover { border-color: #0088cc; opacity: 0.9; }
 
-        .form-group { margin-bottom: 10px; }
+        .form-group { margin-bottom: 12px; }
         .form-label { display: block; margin-bottom: 4px; font-weight: bold; color: #ccc; }
         .form-input, .form-textarea { width: 100%; background: #111; border: 1px solid #444; color: #fff; padding: 8px; font-family: inherit; }
         .form-textarea { height: 80px; resize: vertical; }
@@ -67,8 +69,8 @@
         .role-Moderator { background: #88cc00; }
         .role-Member { background: #aaaaaa; }
 
-        /* Modal Styles */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }
+        /* Modals */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; }
         .modal-body { background: #222; border: 2px solid #555; padding: 20px; width: 340px; }
 
         .footer { text-align: center; padding: 20px; border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 12px; }
@@ -103,12 +105,12 @@
                     <table class="mods-table">
                         <thead>
                             <tr>
-                                <th width="15%">Preview</th>
+                                <th width="18%">Screenshot</th>
                                 <th width="30%">Mod Name</th>
                                 <th width="15%">Author</th>
                                 <th width="12%">Role</th>
-                                <th width="14%">Date</th>
-                                <th width="14%">Download</th>
+                                <th width="13%">Date</th>
+                                <th width="12%">Download</th>
                             </tr>
                         </thead>
                         <tbody id="mods-list-body">
@@ -128,12 +130,19 @@
                                 <textarea id="mod-desc" class="form-textarea" placeholder="Enter description..." required></textarea>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Upload Mod File (.zip / .lua / .pks)</label>
+                                <label class="form-label">Mod File (.zip / .lua / .pks / .rar / .7z)</label>
                                 <input type="file" id="mod-file" class="form-input" required>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">Upload Screenshot (Optional Image)</label>
-                                <input type="file" id="mod-screenshot" class="form-input" accept="image/*">
+                            
+                            <!-- Screenshot Upload Input with Instant Live Preview -->
+                            <div class="form-group" style="background: #181818; padding: 10px; border: 1px solid #333;">
+                                <label class="form-label">Mod Screenshot / Image (Optional)</label>
+                                <input type="file" id="mod-screenshot" class="form-input" accept="image/*" onchange="previewScreenshot(this)">
+                                
+                                <div id="screenshot-preview-container" style="margin-top: 10px; display: none;">
+                                    <div style="font-size: 11px; color: #888; margin-bottom: 4px;">Selected Image Preview:</div>
+                                    <img id="screenshot-preview" src="" style="max-width: 100%; max-height: 180px; border: 1px solid #555;">
+                                </div>
                             </div>
                             
                             <div style="background: #2a2a2a; padding: 8px; margin-bottom: 10px; border: 1px solid #444;">
@@ -163,6 +172,13 @@
     </div>
 
     <footer class="footer">SM64DS Coop Hub</footer>
+</div>
+
+<!-- IMAGE LIGHTBOX MODAL -->
+<div class="modal" id="image-modal" onclick="closeImageModal()">
+    <div style="max-width: 80%; max-height: 80%;">
+        <img id="lightbox-img" src="" style="width: 100%; height: auto; border: 2px solid #fff;">
+    </div>
 </div>
 
 <!-- AUTHENTICATION MODAL -->
@@ -212,6 +228,31 @@
         updateUserUI();
         fetchMods();
     });
+
+    // Instant Screenshot Preview Function
+    function previewScreenshot(input) {
+        const container = document.getElementById("screenshot-preview-container");
+        const preview = document.getElementById("screenshot-preview");
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                container.style.display = "block";
+            }
+            reader.readAsDataURL(input.files[0]);
+        } else {
+            container.style.display = "none";
+        }
+    }
+
+    function openImageModal(url) {
+        document.getElementById("lightbox-img").src = url;
+        document.getElementById("image-modal").style.display = "flex";
+    }
+
+    function closeImageModal() {
+        document.getElementById("image-modal").style.display = "none";
+    }
 
     function updateUserUI() {
         const nameElem = document.getElementById("user-name");
@@ -291,7 +332,6 @@
     }
 
     function handleGoogleResponse(response) {
-        // Decode payload from JWT token
         const payload = JSON.parse(atob(response.credential.split('.')[1]));
         fetch(`${API_URL}/auth/google`, {
             method: "POST",
@@ -326,7 +366,7 @@
             }
             tbody.innerHTML = mods.map(mod => `
                 <tr>
-                    <td>${mod.screenshot ? `<img src="${API_URL}/download/${mod.screenshot}" class="mod-thumb" onclick="window.open(this.src)">` : '<span style="color:#666">No Img</span>'}</td>
+                    <td>${mod.screenshot ? `<img src="${API_URL}/download/${mod.screenshot}" class="mod-thumb" onclick="openImageModal(this.src)" title="Click to view full image">` : '<span style="color:#666; font-size:11px;">No Preview</span>'}</td>
                     <td><strong>${escapeHtml(mod.title)}</strong><br><span style="color:#888; font-size:11px;">${escapeHtml(mod.description)}</span></td>
                     <td>${escapeHtml(mod.author)}</td>
                     <td><span class="role-badge role-${mod.author_role}">${mod.author_role}</span></td>
@@ -355,8 +395,9 @@
             const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
             const result = await res.json();
             if (res.ok) {
-                alert("Mod uploaded!");
+                alert("Mod uploaded successfully!");
                 document.getElementById("upload-form").reset();
+                document.getElementById("screenshot-preview-container").style.display = "none";
                 fetchMods();
             } else { alert("Upload error: " + result.error); }
         } catch (err) { alert("Upload error."); }
