@@ -6,81 +6,66 @@
     <title>SM64DS Coop | Mods Hub</title>
     <style>
         :root {
-            --bg-color: #1a1a1a;
-            --container-width: 940px;
-            --sidebar-bg: #252525;
-            --text-main: #e0e0e0;
-            --text-muted: #888888;
-            --border-color: #444444;
-            --accent-color: #555555;
-            --accent-hover: #777777;
-            --font-family: "Verdana", sans-serif;
+            --bg-color: #0d1117;
+            --panel-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #c9d1d9;
+            --accent-green: #238636;
+            --accent-blue: #1f6feb;
+            --danger-red: #da3633;
         }
-
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); font-family: var(--font-family); font-size: 13px; }
-        a { color: #0088cc; text-decoration: none; }
+        body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+        a { color: #58a6ff; text-decoration: none; }
         a:hover { text-decoration: underline; }
 
-        .container { width: var(--container-width); margin: 0 auto; border-right: 1px solid #333; border-left: 1px solid #333; background: var(--bg-color); }
-        .header { padding: 12px 20px; border-bottom: 1px solid var(--border-color); background: #222; display: flex; justify-content: space-between; align-items: center; }
-        .header-logo-img { max-height: 55px; width: auto; display: block; }
-        .user-status { font-size: 12px; background: #111; padding: 6px 12px; border: 1px solid #333; }
+        .container { max-width: 1000px; margin: 20px auto; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; }
+        .header { padding: 15px 20px; background: #21262d; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .header-logo-img { max-height: 45px; }
 
-        .nav-bar { background: #222; border-bottom: 1px solid var(--border-color); }
+        .nav-bar { background: #161b22; border-bottom: 1px solid var(--border-color); }
         .nav-bar ul { margin: 0; padding: 0; display: flex; list-style: none; }
-        .nav-bar li { border-right: 1px solid var(--border-color); }
-        .nav-bar a { display: block; padding: 10px 15px; color: #e0e0e0; font-weight: bold; }
-        .nav-bar a:hover, .nav-bar a.active { background: #333; color: #fff; }
+        .nav-bar a { display: block; padding: 12px 20px; color: var(--text-main); font-weight: bold; }
+        .nav-bar a:hover, .nav-bar a.active { background: #21262d; color: #fff; }
 
-        .main-layout { display: flex; }
-        .content-area { flex: 3; padding: 15px; border-right: 1px solid var(--border-color); }
-        .sidebar { flex: 1; padding: 15px; background: var(--sidebar-bg); font-size: 12px; }
+        .content { padding: 20px; }
+        .mod-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px; }
+        .mod-title { font-size: 24px; font-weight: bold; color: #fff; }
 
-        h2, h3 { margin: 0 0 10px 0; font-size: 16px; border-bottom: 2px solid #444; padding-bottom: 5px; }
-        .block { background: #222; border: 1px solid #333; margin-bottom: 15px; }
-        .block-header { background: #333; padding: 5px 10px; font-size: 14px; font-weight: bold; border-bottom: 1px solid #444; }
-        .block-body { padding: 15px; }
+        .mod-layout { display: flex; gap: 20px; }
+        .mod-main { flex: 3; }
+        .mod-sidebar { flex: 1; background: #0d1117; border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; height: fit-content; }
 
-        .mods-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .mods-table th { background: #333; color: #fff; text-align: left; padding: 8px; border-bottom: 1px solid #555; }
-        .mods-table td { padding: 8px; border-bottom: 1px solid #333; vertical-align: top; }
-        .mods-table tr:hover td { background: #2a2a2a; }
+        .btn { background: var(--accent-green); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+        .btn:hover { opacity: 0.9; }
+        .btn-danger { background: var(--danger-red); }
+        .btn-secondary { background: #21262d; border: 1px solid var(--border-color); color: var(--text-main); }
 
-        .mod-thumb { width: 80px; height: 50px; object-fit: cover; border: 1px solid #666; background: #111; cursor: pointer; border-radius: 2px; }
-        .mod-thumb:hover { border-color: #0088cc; opacity: 0.9; }
+        .mod-card { background: #21262d; border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 15px; display: flex; gap: 15px; align-items: flex-start; }
+        .mod-thumb { width: 120px; height: 80px; object-fit: cover; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; background: #000; }
 
         .form-group { margin-bottom: 12px; }
-        .form-label { display: block; margin-bottom: 4px; font-weight: bold; color: #ccc; }
-        .form-input, .form-textarea { width: 100%; background: #111; border: 1px solid #444; color: #fff; padding: 8px; font-family: inherit; }
-        .form-textarea { height: 80px; resize: vertical; }
+        .form-input, .form-textarea { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #fff; padding: 8px; border-radius: 4px; }
+        .form-textarea { height: 80px; }
 
-        .btn { background: #333; border: 1px solid #555; color: #fff; padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: bold; }
-        .btn:hover { background: var(--accent-hover); border-color: #777; }
-        .btn-submit { background: #000; border: 2px outset #333; padding: 8px 15px; }
-        .btn-disabled { background: #222; color: #666; border-color: #333; cursor: not-allowed; }
+        .role-badge { padding: 2px 6px; font-size: 10px; font-weight: bold; border-radius: 4px; color: white; }
+        .role-Owner { background: #d29922; }
+        .role-Modder { background: var(--accent-blue); }
+        .role-Member { background: #8b949e; }
 
-        .role-badge { display: inline-block; padding: 2px 6px; font-size: 10px; color: black; font-weight: bold; border: 1px solid #888; margin-right: 5px; }
-        .role-Owner { background: #ffcc00; }
-        .role-Modder { background: #0088cc; }
-        .role-Moderator { background: #88cc00; }
-        .role-Member { background: #aaaaaa; }
-
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; }
-        .modal-body { background: #222; border: 2px solid #555; padding: 20px; width: 340px; }
-
-        .footer { text-align: center; padding: 20px; border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 12px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }
+        .modal-body { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 20px; width: 350px; border-radius: 6px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="header">
-        <div><img src="logo.png" alt="Logo" class="header-logo-img"></div>
-        <div class="user-status">
-            User: <strong id="user-name">Guest</strong> | 
-            Role: <span class="role-badge role-Member" id="user-role-badge">Member</span>
-            <button class="btn" onclick="toggleAuthModal()" id="auth-btn" style="margin-left:8px;">Sign In / Sign Up</button>
+        <img src="logo.png" alt="Logo" class="header-logo-img">
+        <div>
+            User: <strong id="user-name">Guest</strong> 
+            <span class="role-badge role-Member" id="user-role-badge">Member</span>
+            <button class="btn btn-secondary" onclick="toggleAuthModal()" id="auth-btn" style="margin-left:10px;">Sign In</button>
         </div>
     </div>
 
@@ -89,192 +74,101 @@
             <li><a href="index.html">Main Site</a></li>
             <li><a href="mods.html" class="active">Mods Repository</a></li>
             <li><a href="forum.html">Forums</a></li>
-            <li><a href="https://github.com/SCOPIC64/sm64ds-coop-port" target="_blank">GitHub</a></li>
         </ul>
     </nav>
 
-    <div class="main-layout">
-        <main class="content-area">
-            <div class="block">
-                <div class="block-header">Latest Available Mods</div>
-                <div class="block-body">
-                    <table class="mods-table">
-                        <thead>
-                            <tr>
-                                <th width="18%">Screenshot</th>
-                                <th width="30%">Mod Name</th>
-                                <th width="15%">Author</th>
-                                <th width="12%">Role</th>
-                                <th width="13%">Date</th>
-                                <th width="12%">Download</th>
-                            </tr>
-                        </thead>
-                        <tbody id="mods-list-body">
-                            <tr><td colspan="6" style="text-align: center; color: #888;">Loading mods...</td></tr>
-                        </tbody>
-                    </table>
-                    
-                    <div id="mod-dashboard" style="margin-top: 20px; border-top: 1px solid #333; padding-top: 10px;">
-                        <h3>Upload New Mod</h3>
-                        <form id="upload-form" onsubmit="submitMod(event)">
-                            <div class="form-group">
-                                <label class="form-label">Mod Title</label>
-                                <input type="text" id="mod-title" class="form-input" placeholder="Enter title..." required>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Description</label>
-                                <textarea id="mod-desc" class="form-textarea" placeholder="Enter description..." required></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Mod File (.zip / .lua / .pks / .rar / .7z)</label>
-                                <input type="file" id="mod-file" class="form-input" required>
-                            </div>
-                            
-                            <div class="form-group" style="background: #181818; padding: 10px; border: 1px solid #333;">
-                                <label class="form-label">Mod Screenshot (Optional)</label>
-                                <input type="file" id="mod-screenshot" class="form-input" accept="image/*" onchange="previewScreenshot(this)">
-                                <div id="screenshot-preview-container" style="margin-top: 10px; display: none;">
-                                    <img id="screenshot-preview" src="" style="max-width: 100%; max-height: 180px; border: 1px solid #555;">
-                                </div>
-                            </div>
-                            
-                            <div style="background: #2a2a2a; padding: 8px; margin-bottom: 10px; border: 1px solid #444;">
-                                Verification: <span id="permission-status" style="color: #ff4444;">Sign in as Owner/Modder to upload</span>
-                            </div>
+    <div class="content">
+        <div class="mod-header">
+            <div>
+                <div style="font-size: 12px; color: #8b949e; margin-bottom: 5px;">Home > Mods > Game Modifiers</div>
+                <div class="mod-title">SM64DS Coop Mod Repository</div>
+            </div>
+            <button class="btn" onclick="document.getElementById('upload-section').scrollIntoView({behavior: 'handled'})">+ Upload Mod</button>
+        </div>
 
-                            <button type="submit" class="btn btn-submit" id="submit-btn" disabled>Submit Mod</button>
-                        </form>
-                    </div>
+        <div class="mod-layout">
+            <div class="mod-main">
+                <div id="mods-list-container">
+                    <p style="color: #8b949e;">Loading mods...</p>
+                </div>
+
+                <div id="upload-section" style="margin-top: 30px; background: #21262d; border: 1px solid var(--border-color); padding: 20px; border-radius: 6px;">
+                    <h3>Upload New Mod</h3>
+                    <form id="upload-form" onsubmit="submitMod(event)">
+                        <div class="form-group"><input type="text" id="mod-title" class="form-input" placeholder="Mod Title" required></div>
+                        <div class="form-group"><textarea id="mod-desc" class="form-textarea" placeholder="Mod Description..." required></textarea></div>
+                        <div class="form-group"><label style="font-size:11px; color:#8b949e;">Mod File (.zip/.lua/.pks)</label><input type="file" id="mod-file" class="form-input" required></div>
+                        <div class="form-group"><label style="font-size:11px; color:#8b949e;">Screenshot Image</label><input type="file" id="mod-screenshot" class="form-input" accept="image/*"></div>
+                        <div style="margin-bottom: 10px; font-size: 12px;">Status: <span id="permission-status" style="color: var(--danger-red);">Sign in as Owner/Modder to upload</span></div>
+                        <button type="submit" class="btn" id="submit-btn" disabled>Submit Mod</button>
+                    </form>
                 </div>
             </div>
-        </main>
 
-        <aside class="sidebar">
-            <div class="block">
-                <div class="block-header">Forum Roles</div>
-                <div class="block-body">
-                    <ul style="list-style: square; padding-left: 20px; margin: 0; line-height: 1.6;">
-                        <li><span class="role-badge role-Owner">Owner</span> - Full Access</li>
-                        <li><span class="role-badge role-Modder">Modder</span> - Can Upload Mods</li>
-                        <li><span class="role-badge role-Moderator">Moderator</span> - Moderation</li>
-                        <li><span class="role-badge role-Member">Member</span> - View Only</li>
-                    </ul>
-                </div>
+            <div class="mod-sidebar">
+                <h4 style="margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:8px;">Hub Info</h4>
+                <p>Welcome to the official SM64DS Coop repository. Browse community mods or upload your own creations.</p>
+                <div style="font-size: 11px; color: #8b949e;">Roles: Owner, Modder, Member</div>
             </div>
-        </aside>
-    </div>
-
-    <footer class="footer">SM64DS Coop Hub</footer>
-</div>
-
-<!-- IMAGE LIGHTBOX MODAL -->
-<div class="modal" id="image-modal" onclick="closeImageModal()">
-    <div style="max-width: 80%; max-height: 80%;">
-        <img id="lightbox-img" src="" style="width: 100%; height: auto; border: 2px solid #fff;">
+        </div>
     </div>
 </div>
 
-<!-- AUTHENTICATION MODAL -->
+<!-- AUTH MODAL -->
 <div class="modal" id="auth-modal">
     <div class="modal-body">
         <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
             <strong id="auth-title">Sign In</strong>
             <span style="cursor:pointer;" onclick="toggleAuthModal()">[X]</span>
         </div>
-        
-        <form id="auth-form" onsubmit="handleEmailAuth(event)">
-            <div class="form-group" id="username-group" style="display:none;">
-                <label class="form-label">Username</label>
-                <input type="text" id="auth-username" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Email</label>
-                <input type="email" id="auth-email" class="form-input" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Password</label>
-                <input type="password" id="auth-password" class="form-input" required>
-            </div>
-            <button type="submit" class="btn btn-submit" style="width:100%; margin-bottom:10px;" id="auth-submit-btn">Login</button>
+        <form onsubmit="handleAuth(event)">
+            <div class="form-group" id="username-group" style="display:none;"><input type="text" id="auth-username" class="form-input" placeholder="Username"></div>
+            <div class="form-group"><input type="email" id="auth-email" class="form-input" placeholder="Email" required></div>
+            <div class="form-group"><input type="password" id="auth-password" class="form-input" placeholder="Password" required></div>
+            <button type="submit" class="btn" style="width:100%;" id="auth-submit-btn">Login</button>
         </form>
-
-        <div style="margin-top:15px; font-size:11px; text-align:center;">
-            <a href="#" onclick="switchAuthMode()" id="auth-switch-link">Need an account? Register</a>
-        </div>
+        <div style="margin-top:10px; text-align:center;"><a href="#" onclick="switchAuthMode()" id="auth-switch-link">Need an account? Register</a></div>
     </div>
 </div>
 
 <script>
-    const API_URL = "https://scopic64.pythonanywhere.com/api"; 
+    const API_URL = "https://scopic64.pythonanywhere.com/api";
     let isRegisterMode = false;
     let currentUser = JSON.parse(localStorage.getItem("sm64_user")) || null;
 
     document.addEventListener("DOMContentLoaded", () => {
+        requestNotificationPermission();
         updateUserUI();
         fetchMods();
     });
 
-    function previewScreenshot(input) {
-        const container = document.getElementById("screenshot-preview-container");
-        const preview = document.getElementById("screenshot-preview");
-        if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                preview.src = e.target.result;
-                container.style.display = "block";
-            }
-            reader.readAsDataURL(input.files[0]);
-        } else {
-            container.style.display = "none";
+    function requestNotificationPermission() {
+        if ("Notification" in window && Notification.permission !== "granted") {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    new Notification("Ds Coop", { body: "Push notifications enabled successfully!" });
+                }
+            });
         }
     }
-
-    function openImageModal(url) {
-        document.getElementById("lightbox-img").src = url;
-        document.getElementById("image-modal").style.display = "flex";
-    }
-
-    function closeImageModal() { document.getElementById("image-modal").style.display = "none"; }
 
     function updateUserUI() {
-        const nameElem = document.getElementById("user-name");
-        const badgeElem = document.getElementById("user-role-badge");
-        const permStatus = document.getElementById("permission-status");
-        const submitBtn = document.getElementById("submit-btn");
-        const authBtn = document.getElementById("auth-btn");
-
         if (currentUser) {
-            nameElem.innerText = currentUser.username;
-            badgeElem.innerText = currentUser.role;
-            badgeElem.className = `role-badge role-${currentUser.role}`;
-            authBtn.innerText = "Sign Out";
-            authBtn.onclick = logout;
+            document.getElementById("user-name").innerText = currentUser.username;
+            const badge = document.getElementById("user-role-badge");
+            badge.innerText = currentUser.role;
+            badge.className = `role-badge role-${currentUser.role}`;
+            document.getElementById("auth-btn").innerText = "Sign Out";
+            document.getElementById("auth-btn").onclick = logout;
 
             if (currentUser.role === "Owner" || currentUser.role === "Modder") {
-                permStatus.innerHTML = `<span style="color: #00ff00;">Authorized (${currentUser.role})</span>`;
-                submitBtn.disabled = false;
-                submitBtn.className = "btn btn-submit";
-            } else {
-                permStatus.innerHTML = `<span style="color: #ff4444;">Member role cannot upload mods</span>`;
-                submitBtn.disabled = true;
-                submitBtn.className = "btn btn-disabled";
+                document.getElementById("permission-status").innerHTML = `<span style="color:var(--accent-green);">Authorized (${currentUser.role})</span>`;
+                document.getElementById("submit-btn").disabled = false;
             }
-        } else {
-            nameElem.innerText = "Guest";
-            badgeElem.innerText = "Member";
-            badgeElem.className = "role-badge role-Member";
-            authBtn.innerText = "Sign In / Sign Up";
-            authBtn.onclick = toggleAuthModal;
-            submitBtn.disabled = true;
-            submitBtn.className = "btn btn-disabled";
         }
     }
 
-    function toggleAuthModal() {
-        const modal = document.getElementById("auth-modal");
-        modal.style.display = modal.style.display === "flex" ? "none" : "flex";
-    }
-
+    function toggleAuthModal() { document.getElementById("auth-modal").style.display = document.getElementById("auth-modal").style.display === "flex" ? "none" : "flex"; }
     function switchAuthMode() {
         isRegisterMode = !isRegisterMode;
         document.getElementById("auth-title").innerText = isRegisterMode ? "Register" : "Sign In";
@@ -283,64 +177,52 @@
         document.getElementById("auth-switch-link").innerText = isRegisterMode ? "Have an account? Login" : "Need an account? Register";
     }
 
-    async function handleEmailAuth(e) {
+    async function handleAuth(e) {
         e.preventDefault();
         const endpoint = isRegisterMode ? "/auth/register" : "/auth/login";
-        const payload = {
-            email: document.getElementById("auth-email").value,
-            password: document.getElementById("auth-password").value
-        };
+        const payload = { email: document.getElementById("auth-email").value, password: document.getElementById("auth-password").value };
         if (isRegisterMode) payload.username = document.getElementById("auth-username").value;
 
-        try {
-            const res = await fetch(`${API_URL}${endpoint}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            if (res.ok) {
-                alert(data.message);
-                if (data.user) {
-                    currentUser = data.user;
-                    localStorage.setItem("sm64_user", JSON.stringify(currentUser));
-                    updateUserUI();
-                    toggleAuthModal();
-                }
-            } else {
-                alert(data.error);
-            }
-        } catch (err) { alert("Server Connection Error"); }
+        const res = await fetch(`${API_URL}${endpoint}`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (res.ok) {
+            currentUser = data.user;
+            localStorage.setItem("sm64_user", JSON.stringify(currentUser));
+            location.reload();
+        } else { alert(data.error); }
     }
 
-    function logout() {
-        localStorage.removeItem("sm64_user");
-        currentUser = null;
-        updateUserUI();
-    }
+    function logout() { localStorage.removeItem("sm64_user"); location.reload(); }
 
     async function fetchMods() {
-        const tbody = document.getElementById("mods-list-body");
-        try {
-            const res = await fetch(`${API_URL}/mods`);
-            const mods = await res.json();
-            if (mods.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #888;">No mods uploaded yet.</td></tr>`;
-                return;
-            }
-            tbody.innerHTML = mods.map(mod => `
-                <tr>
-                    <td>${mod.screenshot ? `<img src="${API_URL}/download/${mod.screenshot}" class="mod-thumb" onclick="openImageModal(this.src)">` : '<span style="color:#666; font-size:11px;">No Preview</span>'}</td>
-                    <td><strong>${escapeHtml(mod.title)}</strong><br><span style="color:#888; font-size:11px;">${escapeHtml(mod.description)}</span></td>
-                    <td>${escapeHtml(mod.author)}</td>
-                    <td><span class="role-badge role-${mod.author_role}">${mod.author_role}</span></td>
-                    <td>${mod.date}</td>
-                    <td><a href="${API_URL}/download/${mod.filename}" class="btn">Get Mod</a></td>
-                </tr>
-            `).join('');
-        } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: red;">Error connecting to server.</td></tr>`;
-        }
+        const container = document.getElementById("mods-list-container");
+        const res = await fetch(`${API_URL}/mods`);
+        const mods = await res.json();
+        if (mods.length === 0) { container.innerHTML = `<p style="color:#8b949e;">No mods uploaded yet.</p>`; return; }
+
+        container.innerHTML = mods.map(m => `
+            <div class="mod-card">
+                ${m.screenshot ? `<img src="${API_URL}/download/${m.screenshot}" class="mod-thumb" onclick="window.open(this.src)">` : '<div class="mod-thumb" style="display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">No Image</div>'}
+                <div style="flex:1;">
+                    <div style="display:flex; justify-content:space-between;">
+                        <strong style="font-size:16px; color:#fff;">${escapeHtml(m.title)}</strong>
+                        <span style="font-size:11px; color:#8b949e;">${m.date}</span>
+                    </div>
+                    <div style="font-size:12px; color:#8b949e; margin: 4px 0;">By ${escapeHtml(m.author)} <span class="role-badge role-${m.author_role}">${m.author_role}</span></div>
+                    <p style="margin: 8px 0; color:var(--text-main); font-size:13px;">${escapeHtml(m.description)}</p>
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <a href="${API_URL}/download/${m.filename}" class="btn" style="padding:4px 10px; font-size:11px;">Download</a>
+                        ${currentUser && (currentUser.role === 'Owner' || currentUser.username === m.author) ? `<button class="btn btn-danger" style="padding:4px 10px; font-size:11px;" onclick="deleteMod(${m.id})">Delete</button>` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function deleteMod(id) {
+        if (!confirm("Are you sure you want to delete this mod?")) return;
+        await fetch(`${API_URL}/mods/${id}`, { method: "DELETE" });
+        fetchMods();
     }
 
     async function submitMod(e) {
@@ -351,20 +233,10 @@
         formData.append("author", currentUser.username);
         formData.append("role", currentUser.role);
         formData.append("file", document.getElementById("mod-file").files[0]);
-        if (document.getElementById("mod-screenshot").files[0]) {
-            formData.append("screenshot", document.getElementById("mod-screenshot").files[0]);
-        }
+        if (document.getElementById("mod-screenshot").files[0]) formData.append("screenshot", document.getElementById("mod-screenshot").files[0]);
 
-        try {
-            const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
-            const result = await res.json();
-            if (res.ok) {
-                alert("Mod uploaded successfully!");
-                document.getElementById("upload-form").reset();
-                document.getElementById("screenshot-preview-container").style.display = "none";
-                fetchMods();
-            } else { alert("Upload error: " + result.error); }
-        } catch (err) { alert("Upload error."); }
+        const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
+        if (res.ok) { alert("Uploaded!"); location.reload(); }
     }
 
     function escapeHtml(str) { return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
