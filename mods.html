@@ -14,67 +14,49 @@
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); font-family: -apple-system, sans-serif; font-size: 13px; }
         a { color: #58a6ff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-
         .container { max-width: 1000px; margin: 20px auto; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; }
         .header { padding: 15px 20px; background: #21262d; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
         .header-logo-img { max-height: 45px; }
-
         .nav-bar { background: #161b22; border-bottom: 1px solid var(--border-color); }
         .nav-bar ul { margin: 0; padding: 0; display: flex; list-style: none; }
-        .nav-bar a { display: block; padding: 12px 20px; color: var(--text-main); font-weight: bold; font-family: var(--mario-font); font-size: 12px; letter-spacing: 1px; }
+        .nav-bar a { display: block; padding: 12px 20px; color: var(--text-main); font-weight: bold; font-family: var(--mario-font); font-size: 10px; letter-spacing: 1px; }
         .nav-bar a:hover, .nav-bar a.active { background: #21262d; color: #fff; }
-
         .content { padding: 20px; }
         .mod-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px; }
-        .mod-title { font-family: var(--mario-font); font-size: 20px; color: #fff; letter-spacing: 1px; }
-
+        .mod-title { font-family: var(--mario-font); font-size: 16px; color: #fff; }
         .mod-layout { display: flex; gap: 20px; }
         .mod-main { flex: 3; }
         .mod-sidebar { flex: 1; background: #0d1117; border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; height: fit-content; }
-
-        .btn { background: var(--accent-green); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-family: var(--mario-font); font-size: 11px; letter-spacing: 1px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
-        .btn:hover { opacity: 0.9; }
-        .btn-danger { background: var(--danger-red); }
+        .btn { background: var(--accent-green); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-family: var(--mario-font); font-size: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
         .btn-secondary { background: #21262d; border: 1px solid var(--border-color); color: var(--text-main); }
-
-        .mod-card { background: #21262d; border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 15px; display: flex; gap: 15px; align-items: flex-start; }
+        .btn-danger { background: var(--danger-red); font-size: 7px; padding: 5px 10px; }
+        .mod-card { background: #21262d; border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 15px; display: flex; gap: 15px; }
         .mod-thumb-container { display: flex; gap: 5px; flex-wrap: wrap; max-width: 140px; }
         .mod-thumb { width: 65px; height: 50px; object-fit: cover; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; background: #000; }
-
         .form-group { margin-bottom: 12px; }
-        .form-input, .form-textarea, .form-select { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #fff; padding: 8px; border-radius: 4px; }
+        .form-input, .form-textarea, .form-select { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #fff; padding: 10px; border-radius: 4px; font-family: inherit; }
         .form-textarea { height: 80px; }
-
-        .role-badge { padding: 2px 6px; font-size: 10px; font-weight: bold; border-radius: 4px; color: white; }
+        .role-badge { padding: 2px 6px; font-size: 9px; font-weight: bold; border-radius: 4px; color: white; background: #8b949e; }
         .role-Owner { background: #d29922; }
-        .role-Modder { background: var(--accent-blue); }
-        .role-Member { background: #8b949e; }
-
         .avatar-sm { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-color); vertical-align: middle; margin-right: 5px; }
         .avatar-lg { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-color); cursor: pointer; }
-
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 100; }
         .modal-body { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 20px; width: 380px; border-radius: 6px; }
-        
-        .custom-emoji { height: 20px; vertical-align: middle; display: inline-block; margin: 0 2px; }
     </style>
 </head>
 <body>
-
 <div class="container">
     <div class="header">
         <img src="logo.png" alt="Logo" class="header-logo-img">
         <div style="display:flex; align-items:center; gap:8px;">
-            <div id="user-profile-display" style="cursor:pointer; display:flex; align-items:center;" onclick="openSettingsModal()" title="Click to edit profile">
+            <div id="user-display-box" style="cursor:pointer; display:flex; align-items:center;" onclick="openSettingsModal()">
                 <img id="header-avatar" src="" class="avatar-sm" style="display:none;">
-                <strong id="user-name">Guest</strong>
+                <strong id="user-name" style="font-family: var(--mario-font); font-size: 10px;">Guest</strong>
             </div>
-            <span class="role-badge role-Member" id="user-role-badge">Member</span>
-            <button class="btn btn-secondary" onclick="toggleAuthModal()" id="auth-btn" style="margin-left:5px;">Sign In</button>
+            <span class="role-badge" id="user-role-badge">Member</span>
+            <button class="btn btn-secondary" onclick="toggleAuthModal()" id="auth-btn">Sign In</button>
         </div>
     </div>
-
     <nav class="nav-bar">
         <ul>
             <li><a href="index.html">Main Site</a></li>
@@ -82,90 +64,67 @@
             <li><a href="forum.html">Forums</a></li>
         </ul>
     </nav>
-
     <div class="content">
         <div class="mod-header">
-            <div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 5px;">Home > Mods > Game Modifiers</div>
-                <div class="mod-title">SM64DS Coop Mod Repository</div>
-            </div>
-            <button class="btn" onclick="document.getElementById('upload-section').scrollIntoView({behavior: 'smooth'})">+ Upload Mod</button>
+            <div class="mod-title">SM64DS Mod Repository</div>
+            <button class="btn" onclick="document.getElementById('upload-section').scrollIntoView({behavior: 'smooth'})">+ Upload</button>
         </div>
-
         <div class="mod-layout">
-            <div class="mod-main">
-                <div id="mods-list-container"><p style="color: var(--text-muted);">Loading mods...</p></div>
-
-                <div id="upload-section" style="margin-top: 30px; background: #21262d; border: 1px solid var(--border-color); padding: 20px; border-radius: 6px;">
-                    <h3 style="font-family: var(--mario-font); font-size:14px; letter-spacing:1px;">Upload New Mod</h3>
-                    <form id="upload-form" onsubmit="submitMod(event)">
-                        <div class="form-group"><input type="text" id="mod-title" class="form-input" placeholder="Mod Title" required></div>
-                        <div class="form-group"><textarea id="mod-desc" class="form-textarea" placeholder="Mod Description..." required></textarea></div>
-                        <div class="form-group"><label style="font-size:11px; color:var(--text-muted);">Mod File (.zip/.lua/.pks)</label><input type="file" id="mod-file" class="form-input" required></div>
-                        <div class="form-group"><label style="font-size:11px; color:var(--text-muted);">Screenshots (Select multiple images)</label><input type="file" id="mod-screenshots" class="form-input" accept="image/*" multiple></div>
-                        <div style="margin-bottom: 10px; font-size: 12px;">Status: <span id="permission-status" style="color: var(--danger-red);">Sign in as Owner/Modder to upload</span></div>
-                        <button type="submit" class="btn" id="submit-btn" disabled>Submit Mod</button>
+            <div class="mod-main" id="mods-list-container"><p>Loading mods...</p></div>
+            <div class="mod-sidebar">
+                <div id="upload-section" style="background: #21262d; border: 1px solid var(--border-color); padding: 15px; border-radius: 6px;">
+                    <h3 style="font-family: var(--mario-font); font-size:10px; margin-top:0;">New Mod</h3>
+                    <form onsubmit="submitMod(event)">
+                        <input type="text" id="mod-title" class="form-input" placeholder="Enter Your Mod Title..." required style="margin-bottom:10px;">
+                        <textarea id="mod-desc" class="form-textarea" placeholder="Enter Your Mod Description..." required style="margin-bottom:10px;"></textarea>
+                        <label style="font-size:10px; color:var(--text-muted);">Mod File</label>
+                        <input type="file" id="mod-file" class="form-input" required style="margin-bottom:10px;">
+                        <label style="font-size:10px; color:var(--text-muted);">Screenshots</label>
+                        <input type="file" id="mod-screenshots" class="form-input" accept="image/*" multiple>
+                        <button type="submit" class="btn" id="submit-btn" disabled style="width:100%; margin-top:10px; justify-content:center;">Submit Mod</button>
                     </form>
                 </div>
             </div>
-
-            <div class="mod-sidebar">
-                <h4 style="font-family: var(--mario-font); font-size:12px; letter-spacing:1px; margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:8px;">Hub Info</h4>
-                <p>Browse community mods or upload your own creations.</p>
-            </div>
         </div>
     </div>
 </div>
 
-<!-- SETTINGS MODAL (Profile, Cropping, Pronouns, Character) -->
+<!-- SETTINGS MODAL -->
 <div class="modal" id="settings-modal">
     <div class="modal-body">
-        <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-            <strong style="font-family:var(--mario-font); font-size:13px;">User Settings</strong>
-            <span style="cursor:pointer;" onclick="closeSettingsModal()">[X]</span>
-        </div>
+        <strong style="font-family:var(--mario-font); font-size:10px; display:block; margin-bottom:15px;">User Settings</strong>
         <form onsubmit="saveProfile(event)">
-            <div style="text-align:center; margin-bottom:12px;">
-                <img id="settings-avatar-preview" src="" class="avatar-lg" onclick="document.getElementById('avatar-file').click()" title="Click to upload profile picture">
-                <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">Click image to change (auto-cropped to circle)</div>
+            <div style="text-align:center; margin-bottom:15px;">
+                <img id="settings-avatar-preview" src="" class="avatar-lg" onclick="document.getElementById('avatar-file').click()">
                 <input type="file" id="avatar-file" style="display:none;" accept="image/*" onchange="previewAvatar(this)">
             </div>
-            <div class="form-group">
-                <label style="font-size:11px; color:var(--text-muted);">Pronouns</label>
-                <input type="text" id="settings-pronouns" class="form-input" placeholder="e.g. He/Him, They/Them">
-            </div>
-            <div class="form-group">
-                <label style="font-size:11px; color:var(--text-muted);">Favorite Character (Changes your Sob Emote)</label>
-                <select id="settings-char" class="form-select">
-                    <option value="mario">Mario (Shocked Sob)</option>
-                    <option value="luigi">Luigi (Shocked Sob)</option>
-                    <option value="yoshi">Yoshi / Green Egg (Sob)</option>
-                </select>
-            </div>
-            <button type="submit" class="btn" style="width:100%; justify-content:center;">Save Profile</button>
+            <label style="font-size:10px; color:var(--text-muted);">Enter Your Pronouns...</label>
+            <input type="text" id="settings-pronouns" class="form-input" placeholder="e.g. He/Him">
+            <label style="font-size:10px; color:var(--text-muted);">Select Favorite Character</label>
+            <select id="settings-char" class="form-select">
+                <option value="mario">Mario</option><option value="luigi">Luigi</option><option value="yoshi">Yoshi</option>
+            </select>
+            <button type="submit" class="btn" style="width:100%; justify-content:center; margin-top:10px;">Save Profile</button>
+            <button type="button" class="btn btn-secondary" onclick="closeSettingsModal()" style="width:100%; margin-top:5px; justify-content:center;">Cancel</button>
         </form>
     </div>
 </div>
 
+<!-- AUTH MODAL -->
 <div class="modal" id="auth-modal">
     <div class="modal-body">
-        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-            <strong id="auth-title" style="font-family:var(--mario-font);">Sign In</strong>
-            <span style="cursor:pointer;" onclick="toggleAuthModal()">[X]</span>
-        </div>
+        <strong id="auth-title" style="font-family:var(--mario-font); font-size:10px; display:block; margin-bottom:15px;">Sign In</strong>
         <form onsubmit="handleAuth(event)">
-            <div class="form-group" id="username-group" style="display:none;"><input type="text" id="auth-username" class="form-input" placeholder="Username"></div>
-            <div class="form-group"><input type="email" id="auth-email" class="form-input" placeholder="Email" required></div>
-            <div class="form-group"><input type="password" id="auth-password" class="form-input" placeholder="Password" required></div>
+            <div id="username-group" style="display:none;"><input type="text" id="auth-username" class="form-input" placeholder="Enter Your Username..." style="margin-bottom:10px;"></div>
+            <input type="email" id="auth-email" class="form-input" placeholder="Enter Your Email..." required style="margin-bottom:10px;">
+            <input type="password" id="auth-password" class="form-input" placeholder="Enter Your Password..." required style="margin-bottom:10px;">
             <button type="submit" class="btn" style="width:100%; justify-content:center;" id="auth-submit-btn">Login</button>
         </form>
-        <div style="margin-top:10px; text-align:center;"><a href="#" onclick="switchAuthMode()" id="auth-switch-link">Need an account? Register</a></div>
+        <div style="margin-top:15px; text-align:center;"><a href="#" onclick="switchAuthMode()" id="auth-switch-link" style="font-size:11px;">Need an account? Register</a></div>
     </div>
 </div>
 
-<div class="modal" id="image-modal" onclick="closeImageModal()">
-    <div style="max-width: 80%; max-height: 80%;"><img id="lightbox-img" src="" style="width: 100%; height: auto; border: 2px solid #fff;"></div>
-</div>
+<div class="modal" id="image-modal" onclick="this.style.display='none'"><img id="lightbox-img" src="" style="max-width:90%; border:2px solid #fff;"></div>
 
 <script>
     const API_URL = "https://scopic64.pythonanywhere.com/api";
@@ -175,95 +134,28 @@
 
     document.addEventListener("DOMContentLoaded", () => { updateUserUI(); fetchMods(); });
 
-    // Precise Pixel Emotes
-    const EMOTES = {
-        ':egg:': 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGElEQVQ4T2NkYGD4z4AGMM6ABvhpEAAAkZcCDf8aY4sAAAAASUVORK5CYII=', // Yoshi Egg Sob placeholder
-        ':mario:': 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGElEQVQ4T2NkYGD4z4AGMM6ABvhpEAAAkZcCDf8aY4sAAAAASUVORK5CYII=', // Mario Shocked Sob placeholder
-        ':luigi:': 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGElEQVQ4T2NkYGD4z4AGMM6ABvhpEAAAkZcCDf8aY4sAAAAASUVORK5CYII='
-    };
-
-    function openImageModal(url) { document.getElementById("lightbox-img").src = url; document.getElementById("image-modal").style.display = "flex"; }
-    function closeImageModal() { document.getElementById("image-modal").style.display = "none"; }
-
-    function openSettingsModal() {
-        if (!currentUser) { toggleAuthModal(); return; }
-        document.getElementById("settings-pronouns").value = currentUser.pronouns || "";
-        document.getElementById("settings-char").value = currentUser.favorite_char || "mario";
-        const avatarPrev = document.getElementById("settings-avatar-preview");
-        avatarPrev.src = currentUser.avatar ? `${API_URL.replace('/api','')}/api/download/${currentUser.avatar}` : 'https://via.placeholder.com/70';
-        document.getElementById("settings-modal").style.display = "flex";
-    }
-    function closeSettingsModal() { document.getElementById("settings-modal").style.display = "none"; newAvatarBlob = null; }
-
-    function previewAvatar(input) {
-        if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                // Auto-crop to square/circle preview simulation
-                let img = new Image();
-                img.src = e.target.result;
-                img.onload = function() {
-                    let canvas = document.createElement('canvas');
-                    let size = Math.min(img.width, img.height);
-                    canvas.width = size; canvas.height = size;
-                    let ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, (img.width-size)/2, (img.height-size)/2, size, size, 0, 0, size, size);
-                    document.getElementById("settings-avatar-preview").src = canvas.toDataURL();
-                    canvas.toBlob(blob => { newAvatarBlob = blob; }, 'image/png');
-                }
-            }
-            reader.readAsDataURL(input.files[0]);
-        }
-    }
-
-    async function saveProfile(e) {
-        e.preventDefault();
-        const formData = new FormData();
-        formData.append("username", currentUser.username);
-        formData.append("pronouns", document.getElementById("settings-pronouns").value);
-        formData.append("favorite_char", document.getElementById("settings-char").value);
-        if (newAvatarBlob) formData.append("avatar", newAvatarBlob, "avatar.png");
-
-        const res = await fetch(`${API_URL}/user/update`, { method: "POST", body: formData });
-        const data = await res.json();
-        if (res.ok) {
-            currentUser = data.user;
-            localStorage.setItem("sm64_user", JSON.stringify(currentUser));
-            updateUserUI();
-            closeSettingsModal();
-            alert("Profile updated!");
-        } else { alert("Failed to update profile."); }
-    }
-
     function updateUserUI() {
         if (currentUser) {
             document.getElementById("user-name").innerText = currentUser.username;
             const badge = document.getElementById("user-role-badge");
-            badge.innerText = currentUser.role;
-            badge.className = `role-badge role-${currentUser.role}`;
+            badge.innerText = currentUser.role; badge.className = `role-badge role-${currentUser.role}`;
             document.getElementById("auth-btn").innerText = "Sign Out";
             document.getElementById("auth-btn").onclick = logout;
-
-            const headerAvatar = document.getElementById("header-avatar");
             if (currentUser.avatar) {
-                headerAvatar.src = `${API_URL.replace('/api','')}/api/download/${currentUser.avatar}`;
-                headerAvatar.style.display = "inline-block";
+                let av = document.getElementById("header-avatar");
+                av.src = `${API_URL}/download/${currentUser.avatar}`; av.style.display = "inline-block";
             }
-
-            if (currentUser.role === "Owner" || currentUser.role === "Modder") {
-                document.getElementById("permission-status").innerHTML = `<span style="color:var(--accent-green);">Authorized (${currentUser.role})</span>`;
-                document.getElementById("submit-btn").disabled = false;
-            }
+            if (currentUser.role === "Owner" || currentUser.role === "Modder") document.getElementById("submit-btn").disabled = false;
         }
     }
 
-    function toggleAuthModal() { document.getElementById("auth-modal").style.display = document.getElementById("auth-modal").style.display === "flex" ? "none" : "flex"; }
+    function toggleAuthModal() { document.getElementById("auth-modal").style.display = 'flex'; }
     function switchAuthMode() {
         isRegisterMode = !isRegisterMode;
         document.getElementById("auth-title").innerText = isRegisterMode ? "Register" : "Sign In";
         document.getElementById("username-group").style.display = isRegisterMode ? "block" : "none";
         document.getElementById("auth-submit-btn").innerText = isRegisterMode ? "Register" : "Login";
-        document.getElementById("auth-switch-link").innerText = isRegisterMode ? "Have an account? Login" : "Need an account? Register";
+        document.getElementById("auth-switch-link").innerText = isRegisterMode ? "Already have an account? Login" : "Need an account? Register";
     }
 
     async function handleAuth(e) {
@@ -271,73 +163,81 @@
         const endpoint = isRegisterMode ? "/auth/register" : "/auth/login";
         const payload = { email: document.getElementById("auth-email").value, password: document.getElementById("auth-password").value };
         if (isRegisterMode) payload.username = document.getElementById("auth-username").value;
-        const res = await fetch(`${API_URL}${endpoint}`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload) });
+        const res = await fetch(`${API_URL}${endpoint}`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
         const data = await res.json();
-        if (res.ok) { currentUser = data.user; localStorage.setItem("sm64_user", JSON.stringify(currentUser)); location.reload(); }
-        else { alert(data.error); }
+        if (res.ok) { localStorage.setItem("sm64_user", JSON.stringify(data.user)); location.reload(); } else { alert(data.error); }
     }
 
     function logout() { localStorage.removeItem("sm64_user"); location.reload(); }
 
     async function fetchMods() {
-        const container = document.getElementById("mods-list-container");
         const res = await fetch(`${API_URL}/mods`);
         const mods = await res.json();
-        if (mods.length === 0) { container.innerHTML = `<p style="color:var(--text-muted);">No mods uploaded yet.</p>`; return; }
-
-        container.innerHTML = mods.map(m => {
+        const cont = document.getElementById("mods-list-container");
+        cont.innerHTML = mods.map(m => {
             let imgs = m.screenshots ? m.screenshots.split(",") : [];
-            let thumbsHtml = imgs.map(img => `<img src="${API_URL}/download/${img}" class="mod-thumb" onclick="openImageModal(this.src)">`).join('');
-            if(imgs.length === 0) thumbsHtml = '<div class="mod-thumb" style="display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">No Img</div>';
-
-            let avatarHtml = m.avatar ? `<img src="${API_URL}/download/${m.avatar}" class="avatar-sm">` : '';
-            let pronounsHtml = m.pronouns ? `<span style="color:var(--text-muted); font-size:11px;">(${escapeHtml(m.pronouns)})</span>` : '';
-
-            return `
-                <div class="mod-card">
-                    <div class="mod-thumb-container">${thumbsHtml}</div>
-                    <div style="flex:1;">
-                        <div style="display:flex; justify-content:space-between;">
-                            <strong style="font-size:16px; color:#fff;">${escapeHtml(m.title)}</strong>
-                            <span style="font-size:11px; color:var(--text-muted);">${m.date}</span>
-                        </div>
-                        <div style="font-size:12px; color:var(--text-muted); margin: 4px 0; display:flex; align-items:center; gap:4px;">
-                            ${avatarHtml} By ${escapeHtml(m.author)} ${pronounsHtml} <span class="role-badge role-${m.author_role}">${m.author_role}</span>
-                        </div>
-                        <p style="margin: 8px 0; color:var(--text-main); font-size:13px;">${escapeHtml(m.description)}</p>
-                        <div style="display:flex; gap:10px; margin-top:10px;">
-                            <a href="${API_URL}/download/${m.filename}" class="btn" style="padding:4px 10px; font-size:11px;">Download</a>
-                            ${currentUser && (currentUser.role === 'Owner' || currentUser.username === m.author) ? `<button class="btn btn-danger" style="padding:4px 10px; font-size:11px;" onclick="deleteMod(${m.id})">Delete</button>` : ''}
-                        </div>
+            let thumbs = imgs.map(i => `<img src="${API_URL}/download/${i}" class="mod-thumb" onclick="event.stopPropagation(); document.getElementById('lightbox-img').src=this.src; document.getElementById('image-modal').style.display='flex'">`).join('');
+            let av = m.avatar ? `<img src="${API_URL}/download/${m.avatar}" class="avatar-sm">` : '';
+            return `<div class="mod-card">
+                <div class="mod-thumb-container">${thumbs || 'No Img'}</div>
+                <div style="flex:1">
+                    <div style="display:flex;justify-content:space-between"><strong>${m.title}</strong><span style="font-size:10px;color:var(--text-muted)">${m.date}</span></div>
+                    <div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;margin:5px 0;">${av} By ${m.author} (${m.pronouns || ''}) <span class="role-badge role-${m.author_role}">${m.author_role}</span></div>
+                    <p style="margin:10px 0;">${m.description}</p>
+                    <div style="display:flex;gap:10px;">
+                        <a href="${API_URL}/download/${m.filename}" class="btn">Download</a>
+                        ${currentUser && (currentUser.role === 'Owner' || currentUser.username === m.author) ? `<button class="btn btn-danger" onclick="deleteMod(${m.id})">Delete</button>` : ''}
                     </div>
                 </div>
-            `;
+            </div>`;
         }).join('');
     }
 
-    async function deleteMod(id) {
-        if (!confirm("Are you sure?")) return;
-        await fetch(`${API_URL}/mods/${id}`, { method: "DELETE" });
-        fetchMods();
-    }
+    async function deleteMod(id) { if(confirm("Are you sure?")) { await fetch(`${API_URL}/mods/${id}`, {method:"DELETE"}); fetchMods(); } }
 
     async function submitMod(e) {
         e.preventDefault();
-        const formData = new FormData();
-        formData.append("title", document.getElementById("mod-title").value);
-        formData.append("description", document.getElementById("mod-desc").value);
-        formData.append("author", currentUser.username);
-        formData.append("role", currentUser.role);
-        formData.append("file", document.getElementById("mod-file").files[0]);
-        
-        const files = document.getElementById("mod-screenshots").files;
-        for (let i = 0; i < files.length; i++) { formData.append("screenshots", files[i]); }
-
-        const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
-        if (res.ok) { alert("Uploaded!"); location.reload(); }
+        const f = new FormData();
+        f.append("title", document.getElementById("mod-title").value);
+        f.append("description", document.getElementById("mod-desc").value);
+        f.append("author", currentUser.username); f.append("role", currentUser.role);
+        f.append("file", document.getElementById("mod-file").files[0]);
+        const shots = document.getElementById("mod-screenshots").files;
+        for(let i=0; i<shots.length; i++) f.append("screenshots", shots[i]);
+        const res = await fetch(`${API_URL}/upload`, {method:"POST", body:f});
+        if(res.ok) location.reload();
     }
 
-    function escapeHtml(str) { return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+    function openSettingsModal() { 
+        if(!currentUser) return;
+        document.getElementById("settings-pronouns").value = currentUser.pronouns || "";
+        document.getElementById("settings-char").value = currentUser.favorite_char || "mario";
+        document.getElementById("settings-avatar-preview").src = currentUser.avatar ? `${API_URL}/download/${currentUser.avatar}` : 'https://via.placeholder.com/70';
+        document.getElementById("settings-modal").style.display='flex'; 
+    }
+    function closeSettingsModal() { document.getElementById("settings-modal").style.display='none'; }
+    function previewAvatar(i) {
+        if (i.files && i.files[0]) {
+            const r = new FileReader(); r.onload = function(e) {
+                const img = new Image(); img.src = e.target.result;
+                img.onload = function() {
+                    const c = document.createElement('canvas'); const s = Math.min(img.width, img.height);
+                    c.width = c.height = s; c.getContext('2d').drawImage(img, (img.width-s)/2, (img.height-s)/2, s, s, 0,0,s,s);
+                    document.getElementById("settings-avatar-preview").src = c.toDataURL();
+                    c.toBlob(blob => newAvatarBlob = blob);
+                }
+            }; r.readAsDataURL(i.files[0]);
+        }
+    }
+    async function saveProfile(e) {
+        e.preventDefault();
+        const f = new FormData(); f.append("username", currentUser.username);
+        f.append("pronouns", document.getElementById("settings-pronouns").value);
+        f.append("favorite_char", document.getElementById("settings-char").value);
+        if (newAvatarBlob) f.append("avatar", newAvatarBlob, "a.png");
+        const r = await fetch(`${API_URL}/user/update`, {method:"POST", body:f});
+        const d = await r.json(); if(r.ok) { localStorage.setItem("sm64_user", JSON.stringify(d.user)); location.reload(); }
+    }
 </script>
 </body>
 </html>
