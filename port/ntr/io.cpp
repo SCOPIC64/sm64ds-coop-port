@@ -17,6 +17,7 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include "ntr/image_memory.h"
 #else
 #include "ntr/host_memory.h"
 #endif
@@ -355,6 +356,9 @@ const RegionDef kRegions[] = {
 const unsigned kRegionCount = sizeof kRegions / sizeof kRegions[0];
 
 void *g_held[kRegionCount];        // what we actually hold, per region
+unsigned g_image_backed_mask;
+unsigned g_region_errors[kRegionCount];
+unsigned g_map_error;
 unsigned g_lost_mask;              // regions still missing after the last pass
 unsigned g_attempts;               // reservation passes run
 int g_stage_first;                 // 1 = TLS callback, 2 = io_init (late)
@@ -392,6 +396,8 @@ void *map_fixed(uintptr_t base, size_t size) {
                            MEM_RESERVE | MEM_COMMIT |
                                (watch_writes(base) ? MEM_WRITE_WATCH : 0),
                            PAGE_READWRITE);
+    g_map_error=p?0:GetLastError();
+    if(!p&&image_owns_ds_range(base,size))p=reinterpret_cast<void*>(base);
 #else
     void *p = host_memory::map_at(base,size);
 #endif
@@ -490,9 +496,16 @@ bool reserve_pass() {
         if (g_held[i]) continue;
         void *p = map_fixed(kRegions[i].base, kRegions[i].size);
         if (p) {
+#if defined(_WIN32)
+            if(g_map_error)g_image_backed_mask|=1u<<i;
+#endif
+            g_region_errors[i]=0;
             g_held[i] = p;
             if (kRegions[i].base == MAIN_BASE) g_main_held = MAIN_SIZE;
         } else {
+#if defined(_WIN32)
+            g_region_errors[i]=g_map_error;
+#endif
             all = false;
         }
     }
@@ -993,11 +1006,11 @@ const char *io_reserve_detail() {
     for (unsigned i = 0; i < kRegionCount && n < (int)sizeof g_detail; ++i) {
         if (g_held[i]) continue;
         n += std::snprintf(g_detail + n, sizeof g_detail - n,
-                           "[io]   LOST %08x..%08x  %s%s\n",
+                           "[io]   LOST %08x..%08x  %s%s (allocation error %u)\n",
                            (unsigned)kRegions[i].base,
                            (unsigned)(kRegions[i].base + kRegions[i].size),
                            kRegions[i].name,
-                           kRegions[i].fatal ? " (required)" : "");
+                           kRegions[i].fatal ? " (required)" : "",g_region_errors[i]);
     }
     for (unsigned k = 0; k < g_occ_n && n < (int)sizeof g_detail; ++k) {
         char namebuf[kNameMax];
@@ -1063,6 +1076,7 @@ const char *io_reserve_player_text() {
     return g_player;
 }
 
+unsigned io_image_backed_mask() {return g_image_backed_mask;}
 unsigned io_reserve_lost_mask() { return g_lost_mask; }
 unsigned io_reserve_attempts() { return g_attempts; }
 int io_reserve_stage() { return g_stage_first; }

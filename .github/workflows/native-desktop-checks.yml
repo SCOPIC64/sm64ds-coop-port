@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'port/desktop/**'
+      - 'port/ntr/**'
       - 'port/native/**'
       - 'port/tests/coop_native_desktop*.cpp'
       - '.github/workflows/native-desktop-checks.yml'

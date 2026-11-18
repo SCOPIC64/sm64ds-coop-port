@@ -219,6 +219,10 @@ void ppu_scanout_obj(Engine eng, Framebuffer &fb);
    Set per frame by hal/screen_gap.cpp; see the note over the definition. */
 void ppu_obj_oam_source_a(uint32_t addr);
 void ppu_obj_oam_source_b(uint32_t addr);
+// Host-owned replacement pixels for a specific submitted engine-B OBJ entry.
+// Native position, affine transform, priority, windows and blending stay native.
+using ObjImageOverride=const uint32_t* (*)(int,uint16_t,uint16_t,uint16_t,int*,int*);
+void ppu_sub_set_obj_images(ObjImageOverride,uint64_t (*content_key)());
 
 // Debug output, so a frame can be inspected without a window yet.
 bool ppu_write_bmp(const char *path, const Framebuffer &fb);

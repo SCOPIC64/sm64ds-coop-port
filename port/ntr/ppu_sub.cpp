@@ -92,9 +92,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 
 namespace ntr {
 namespace {
+ObjImageOverride g_obj_image_override=nullptr;
+uint64_t (*g_obj_image_key)()=nullptr;
 
 constexpr uint32_t kRegBase = 0x04001000u;   // engine B
 constexpr uint32_t kVramBase = 0x06200000u;  // engine B BG VRAM
@@ -617,6 +620,10 @@ void raster_obj(uint32_t dispcnt, const uint8_t *skip, ObjPixel (*obj)[256],
         const uint32_t tile = a2 & 0x3FF;
         const uint32_t pal = (a2 >> 12) & 0xF;
         const uint8_t prio = (a2 >> 10) & 3;
+        int image_w=0,image_h=0;
+        const uint32_t* image=g_obj_image_override&&!is_bmp&&!is_win?
+            g_obj_image_override(i,a0,a1,a2,&image_w,&image_h):nullptr;
+        if(image_w<1||image_h<1||image_w>128||image_h>128)image=nullptr;
 
         int pa = 256, pb = 0, pc = 0, pd = 256;
         if (affine) {
@@ -755,7 +762,16 @@ void raster_obj(uint32_t dispcnt, const uint8_t *skip, ObjPixel (*obj)[256],
                           : (uint32_t)(trow * 32 + (c256 ? tcol * 2 : tcol));
                 const uint32_t cell = kObjVram + tile * boundary + slot * 32u;
                 uint32_t color;
-                if (c256) {
+                if(image) {
+                    // Preserve the source aspect inside the native sprite box.
+                    int iw=w,ih=h;
+                    if(image_w*h>image_h*w)ih=(std::max)(1,w*image_h/image_w);
+                    else iw=(std::max)(1,h*image_w/image_h);
+                    int ix=tx-(w-iw)/2,iy=ty-(h-ih)/2;
+                    if(ix<0||iy<0||ix>=iw||iy>=ih)continue;
+                    color=image[(iy*image_h/ih)*image_w+ix*image_w/iw];
+                    if(!(color>>24))continue;
+                } else if (c256) {
                     const uint32_t idx = rd8(cell + fy * 8u + fx);
                     if (!idx) continue;
                     // Extended: attr2's palette field picks a 256-colour slot
@@ -1353,6 +1369,7 @@ struct Span {
 constexpr int kMaxSpans = 192;
 
 struct ScanKey {
+    uint64_t host_images;
     uint32_t dispcnt;
     uint32_t oam_src;
     uint32_t rows_on;
@@ -1517,6 +1534,7 @@ void scan_key(ScanKey &k, uint32_t dispcnt, const uint8_t *skip)
     std::memset(&k, 0, sizeof k);
     k.dispcnt = dispcnt;
     k.oam_src = g_oam_src_b;
+    k.host_images=g_obj_image_key?g_obj_image_key():0;
     for (int i = 0; i < 0x70; ++i) k.regs[i] = rd8(kRegBase + i);
     std::memcpy(k.skip, skip, sizeof k.skip);
     const uint32_t *rows = nullptr;
@@ -1745,6 +1763,9 @@ bool ppu_write_bmp_sub(const char *path, const SubFramebuffer &fb)
 void ppu_sub_set_obj_veto(int (*fn)(unsigned short a2))
 {
     g_obj_veto_b = fn;
+}
+void ppu_sub_set_obj_images(ObjImageOverride images,uint64_t (*key)()) {
+    g_obj_image_override=images;g_obj_image_key=key;
 }
 
 void ppu_sub_set_bg_suppress(uint32_t mask)

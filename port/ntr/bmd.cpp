@@ -13,6 +13,7 @@
 // record, which is the evidence that both are file-relative offsets.
 
 #include "ntr/bmd.h"
+#include "ntr/bca_sample.h"
 
 #include "ntr/fs.h"
 #include "ntr/gx.h"
@@ -74,14 +75,19 @@ bool bmd_load(int32_t file_id, BmdModel &out) {
 
     std::vector<uint8_t> packed(static_cast<size_t>(packed_size));
     if (fs_read(file_id, packed.data(), packed_size) != packed_size) return false;
+    return bmd_load_memory(packed.data(), packed_size, out);
+}
 
-    const int32_t unpacked = lz77_size(packed.data(), packed_size);
+bool bmd_load_memory(const uint8_t *bytes, int32_t size, BmdModel &out) {
+    if (!bytes || size <= 8 || size > 16 * 1024 * 1024) return false;
+    const int32_t unpacked = lz77_size(bytes, size);
     if (unpacked > 0) {
+        if (unpacked > 16 * 1024 * 1024) return false;
         out.data.assign(static_cast<size_t>(unpacked), 0);
-        if (lz77_unpack(packed.data(), packed_size, out.data.data(), unpacked) != unpacked)
+        if (lz77_unpack(bytes, size, out.data.data(), unpacked) != unpacked)
             return false;
     } else {
-        out.data = std::move(packed);       // some models ship uncompressed
+        out.data.assign(bytes, bytes + size); // some models ship uncompressed
     }
 
     const std::vector<uint8_t> &b = out.data;
@@ -221,12 +227,14 @@ T track0(const std::vector<uint8_t> &b, uint32_t pool, uint16_t index) {
 // array at 0x08/0x0c/0x10/0x14 -- the four offsets Animation::UpdateFileOffsets
 // rebases -- with one 0x24-byte track record per bone.
 void bmd_bone_matrices(const BmdModel &m, const std::vector<uint8_t> &bca,
-                       std::vector<std::array<float, 16>> &out) {
+                       std::vector<std::array<float, 16>> &out,unsigned frame,bool loop) {
     const std::vector<uint8_t> &b = m.data;
     const uint32_t p_bone = rd32(b, 0x08);
     out.assign(m.num_bones ? m.num_bones : 1, kIdentity);
 
     const bool posed = bca.size() >= 0x18;
+    const unsigned frames=posed?uint16_t(rd16s(bca,2)):0;
+    if(frames)frame=loop?frame%frames:(std::min)(frame,frames-1);
     uint32_t pool_scale = 0, pool_rot = 0, pool_trans = 0, tracks = 0;
     if (posed) {
         pool_scale = rd32(bca, 0x08);
@@ -249,25 +257,26 @@ void bmd_bone_matrices(const BmdModel &m, const std::vector<uint8_t> &bca,
             if (tr + 0x24 <= bca.size()) {
                 auto u16at = [&](size_t off) { return static_cast<uint16_t>(
                     bca[tr + off] | (bca[tr + off + 1] << 8)); };
+                auto sample=[&](size_t at,uint32_t pool,bool rotation){return rotation?bca_sample<int16_t>(bca,pool,u16at(at+2),bca[tr+at],bca[tr+at+1]!=0,frames,frame,true):bca_sample<int32_t>(bca,pool,u16at(at+2),bca[tr+at],bca[tr+at+1]!=0,frames,frame);};
                 // Scale is present only if any of the six selector fields is set,
                 // exactly as func_0204547c decides it.
                 const uint16_t any_scale = u16at(0x02) | u16at(0x06) | u16at(0x0a)
                                            | bca[tr + 0x01] | bca[tr + 0x05] | bca[tr + 0x09];
                 if (any_scale) {
-                    sx = track0<int32_t>(bca, pool_scale, u16at(0x02)) / 4096.0f;
-                    sy = track0<int32_t>(bca, pool_scale, u16at(0x06)) / 4096.0f;
-                    sz = track0<int32_t>(bca, pool_scale, u16at(0x0a)) / 4096.0f;
+                    sx = sample(0x00,pool_scale,false) / 4096.0f;
+                    sy = sample(0x04,pool_scale,false) / 4096.0f;
+                    sz = sample(0x08,pool_scale,false) / 4096.0f;
                 }
                 // Rotation is stored as a 12-bit table index; <<4 makes it a
                 // 16-bit angle, so a full turn is 4096 stored units.
                 const float k = 6.28318530718f / 4096.0f;
-                rx = track0<int16_t>(bca, pool_rot, u16at(0x0e)) * k;
-                ry = track0<int16_t>(bca, pool_rot, u16at(0x12)) * k;
-                rz = track0<int16_t>(bca, pool_rot, u16at(0x16)) * k;
+                rx = sample(0x0c,pool_rot,true) * k;
+                ry = sample(0x10,pool_rot,true) * k;
+                rz = sample(0x14,pool_rot,true) * k;
 
-                tx = track0<int32_t>(bca, pool_trans, u16at(0x1a)) / 4096.0f;
-                ty = track0<int32_t>(bca, pool_trans, u16at(0x1e)) / 4096.0f;
-                tz = track0<int32_t>(bca, pool_trans, u16at(0x22)) / 4096.0f;
+                tx = sample(0x18,pool_trans,false) / 4096.0f;
+                ty = sample(0x1c,pool_trans,false) / 4096.0f;
+                tz = sample(0x20,pool_trans,false) / 4096.0f;
             }
         }
 
