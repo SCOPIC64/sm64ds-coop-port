@@ -59,6 +59,7 @@ void io_reserve(int stage);
 const char *io_reserve_detail();
 const char *io_reserve_player_text();
 unsigned io_reserve_lost_mask();
+unsigned io_image_backed_mask();
 unsigned io_reserve_attempts();
 int io_reserve_stage();
 int io_reserve_stage_won();

@@ -12,6 +12,7 @@
 #include "ntr/mmio.h"
 #include "ntr/smooth.h"
 #include "ntr/texture.h"
+#include "ntr/host_texture_source.h"
 
 #include <algorithm>
 #include <atomic>
@@ -23,7 +24,10 @@
 #include <climits>
 #include <cstring>
 #include <map>
+#include <list>
+#include <set>
 #include <mutex>
+#include <new>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -34,6 +38,37 @@
 #endif
 
 namespace ntr {
+namespace {
+struct HostTextureBundle {std::vector<HostTextureSource> textures;std::vector<HostPaletteSource> palettes;std::uint64_t serial=0;std::size_t pixels=0,bytes=0;};
+// Cross-TU native asset owners can unregister during CRT teardown. Keep
+// the bounded registry header alive through that teardown; forget() releases
+// its entries normally, and the OS reclaims this single process-lifetime header.
+std::map<const void*,HostTextureBundle>& host_texture_sources=*new std::map<const void*,HostTextureBundle>;
+const void* host_texture_owner=nullptr;
+std::uint64_t host_texture_serial=0;
+std::size_t host_texture_pixels=0,host_texture_bytes=0;
+}
+bool gx_host_textures_register(const void* owner,const std::vector<HostTextureSource>& textures,const std::vector<HostPaletteSource>& palettes) {
+    if(!owner)return false;
+    if(host_texture_sources.find(owner)!=host_texture_sources.end())return true;
+    if(host_texture_sources.size()>=64||textures.size()>64||palettes.size()>64||host_texture_serial==UINT64_MAX)return false;
+    std::size_t pixels=0,bytes=0;
+    for(const auto& source:textures) {
+        const auto& d=source.texture;
+        if(!d.data||d.data_len<=0||d.width<8||d.width>1024||d.height<8||d.height>1024||d.format<1||d.format>7)return false;
+        if(d.format==5&&(!d.index||d.index_len!=d.data_len/2))return false;
+        pixels+=std::size_t(d.width)*d.height;bytes+=std::size_t(d.data_len)+std::size_t(d.index_len);
+    }
+    for(const auto& p:palettes){if(!p.data||p.size<=0||p.size>131072)return false;bytes+=std::size_t(p.size);}
+    // Bounded host resources, not an increase to the native 100-model table,
+    // texture banks or their reserve. Original mod payloads are not copied.
+    if(pixels>4u*1024*1024-host_texture_pixels||bytes>32u*1024*1024-host_texture_bytes)return false;
+    HostTextureBundle bundle;bundle.textures=textures;bundle.palettes=palettes;bundle.pixels=pixels;bundle.bytes=bytes;bundle.serial=++host_texture_serial;
+    host_texture_sources.emplace(owner,std::move(bundle));host_texture_pixels+=pixels;host_texture_bytes+=bytes;return true;
+}
+void gx_host_textures_forget(const void* owner){auto it=host_texture_sources.find(owner);if(it==host_texture_sources.end())return;host_texture_pixels-=it->second.pixels;host_texture_bytes-=it->second.bytes;host_texture_sources.erase(it);if(host_texture_owner==owner)host_texture_owner=nullptr;}
+const void* gx_host_textures_scope(const void* owner){const void* previous=host_texture_owner;host_texture_owner=owner;return previous;}
+
 namespace {
 struct PlayerColorContext {
     coop_colors::Palette palette;
@@ -221,6 +256,8 @@ struct State {
     uint32_t light_mask = 0;
 
     std::vector<GxTriangle> tris;
+    bool smoothing_throttled = false;
+    bool triangle_output_exhausted = false;
 };
 
 State g;
@@ -579,7 +616,8 @@ Vec4 view_to_clip(const Vec4 &view) {
     if (g.proj.m[3] != 0.0f || g.proj.m[7] != 0.0f || g.proj.m[11] != 0.0f) {
         const float widen =
             (4.0f / 3.0f) * ((float)present_h() / (float)present_w());
-        c.x *= widen;
+        if(widen<=1.0f)c.x*=widen; // Wider window: preserve vertical view, reveal sides.
+        else c.y/=widen;          // Taller window: preserve horizontal view, reveal above/below.
     }
     return c;
 }
@@ -730,6 +768,7 @@ GxVertex clip_lerp(const GxVertex &a, const GxVertex &b, float t) {
 }
 
 void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
+    if (g.triangle_output_exhausted) return;
     /* value-initialised: smoke_gx memcmps whole GxTriangles between the two
        submit paths, so the padding has to be deterministic */
     GxTriangle t{};
@@ -758,7 +797,19 @@ void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
         (t.tex && (fmt == 1 || fmt == 6)) ||
         t.mode == 3);
     t.dbg_tex = g_teximage;
-    g.tris.push_back(t);
+    try {
+        g.tris.push_back(t);
+    } catch (const std::bad_alloc&) {
+        // Even stock geometry can fail when the process is out of memory.
+        // Keep the triangles already submitted and retry on the next frame.
+        g.triangle_output_exhausted = true;
+        static bool warned = false;
+        if (!warned) {
+            warned = true;
+            std::fprintf(stderr, "[gx] Triangle memory exhausted; keeping submitted geometry for this frame\n");
+        }
+        return;
+    }
     /* MDL: what actually reached the polygon list. Paired with
        SMOOTH_COUNT_IN in emit_tri, this is the submitted-versus-emitted row
        of the measurement table, and the two move together on every triangle
@@ -1060,6 +1111,7 @@ int smooth_try_store(const SmoothVertex s[3], const GxRaw &ra, const GxRaw &rb,
 
 int smooth_try(const GxVertex &a, const GxVertex &b, const GxVertex &c,
                const GxRaw &ra, const GxRaw &rb, const GxRaw &rc) {
+    if (g.smoothing_throttled || g.triangle_output_exhausted) return 0;
     const SmoothPolicy &pol = smooth_policy();
 
     /* A mode-3 polygon is a shadow volume. Its stencil protocol compares the
@@ -1113,6 +1165,32 @@ int smooth_try(const GxVertex &a, const GxVertex &b, const GxVertex &c,
     if (tf <= 1) {
         smooth_counters_for(why);
         return 0;
+    }
+
+    // A near-plane clip can split each tessellated triangle in two. Reserve
+    // the whole patch before emitting any of it, with room for base geometry.
+    constexpr std::size_t base_headroom = 128;
+    const std::size_t extra = 2 * std::size_t(tf) * std::size_t(tf) + base_headroom;
+    if (g.tris.capacity() - g.tris.size() < extra) {
+        const auto limit = g.tris.max_size();
+        if (limit - g.tris.size() < extra) {
+            g.smoothing_throttled = true;
+            return 0;
+        }
+        const auto needed = g.tris.size() + extra;
+        const auto capacity = g.tris.capacity();
+        const auto growth = (std::min)(capacity / 2, limit - capacity);
+        try {
+            g.tris.reserve((std::max)(needed, capacity + growth));
+        } catch (const std::bad_alloc&) {
+            g.smoothing_throttled = true;
+            static bool warned = false;
+            if (!warned) {
+                warned = true;
+                std::fprintf(stderr, "[gx] Smoothing memory unavailable; drawing base geometry for the rest of this frame\n");
+            }
+            return 0;
+        }
     }
 
     smooth_count(SMOOTH_COUNT_SUBDIVIDED, 1);
@@ -1914,10 +1992,12 @@ uint32_t g_teximage, g_plttbase;
    of the palette ride along. That is three loads per bind, against a decode
    plus a heap allocation, and it means a stale entry cannot be served. */
 struct TexKey {
+    uint64_t source=0;     // host-owned source identity; zero for native VRAM
     uint64_t name;          // plttbase:teximage
     uint32_t c0, c1, cp;    // content probe
     unsigned long long style; // per-player render palette
     bool operator<(const TexKey &o) const {
+        if (source != o.source) return source < o.source;
         if (style != o.style) return style < o.style;
         if (name != o.name) return name < o.name;
         if (c0 != o.c0) return c0 < o.c0;
@@ -1945,6 +2025,9 @@ struct TexEntry {
     std::vector<std::vector<uint32_t>> mip;
 };
 std::map<TexKey, TexEntry> g_vram_tex_cache;
+// Invalidated lookups may still be borrowed by submitted triangles/replay.
+std::list<std::map<TexKey, TexEntry>> g_retired_tex_caches;
+void collect_retired_textures();
 
 /* THE BOUND BUFFER BACK TO ITS CACHE ENTRY. The raster is handed a plain
    `const uint32_t *` on GxTriangle::tex and the mip chain hangs off the entry,
@@ -2029,7 +2112,7 @@ size_t mip_bytes_held() {
 }
 
 uint32_t probe_word(const uint8_t *p, int32_t len, int32_t off) {
-    if (!p || off < 0 || off + 4 > len) return 0;
+    if (!p || len < 4 || off < 0 || off > len - 4) return 0;
     uint32_t v;
     std::memcpy(&v, p + off, 4);
     return v;
@@ -2073,15 +2156,39 @@ void bind_from_vram() {
         d.index = reinterpret_cast<const uint8_t *>(TEX_SLOT_BASE + 0x20000 + off / 2);
         d.index_len = 0x20000 - static_cast<int32_t>(off / 2);
     }
-    const uint32_t pal_off = g_plttbase * (fmt == 2 ? 8u : 16u);
-    d.pal = reinterpret_cast<const uint8_t *>(PLTT_SLOT_BASE + pal_off);
-    d.pal_len = 0x18000 - static_cast<int32_t>(pal_off);
+    // Direct RGB555 does not use PLTT_BASE. Native materials without a
+    // palette leave that register unspecified; probing it can read outside
+    // mapped VRAM. A palette write can also arrive before the matching new
+    // texture word, so reject an invalid transient pairing until both settle.
+    const uint32_t effective_plttbase = fmt == 7 ? 0 : g_plttbase;
+    const uint64_t pal_off_wide = static_cast<uint64_t>(effective_plttbase) * (fmt == 2 ? 8u : 16u);
+    if(fmt != 7 && pal_off_wide >= 0x18000) {
+        gx_bind_texture(nullptr,0,0);return;
+    }
+    const uint32_t pal_off = static_cast<uint32_t>(pal_off_wide);
+    d.pal = fmt == 7 ? nullptr : reinterpret_cast<const uint8_t *>(PLTT_SLOT_BASE + pal_off);
+    d.pal_len = fmt == 7 ? 0 : static_cast<int32_t>(0x18000 - pal_off);
+
+    std::uint64_t source_identity=0;
+    auto host=host_texture_sources.find(host_texture_owner);
+    if(host!=host_texture_sources.end()) {
+        const unsigned index=g_teximage&0xffffu;
+        if(!index||index>host->second.textures.size()){gx_bind_texture(nullptr,0,0);return;}
+        const auto& source=host->second.textures[index-1];
+        if(source.texture.format!=d.format||source.texture.width!=d.width||source.texture.height!=d.height){gx_bind_texture(nullptr,0,0);return;}
+        d.data=source.texture.data;d.data_len=source.texture.data_len;d.index=source.texture.index;d.index_len=source.texture.index_len;
+        if(fmt!=7) {
+            if(pal_off%16||pal_off/16==0||pal_off/16>host->second.palettes.size()){gx_bind_texture(nullptr,0,0);return;}
+            const auto& p=host->second.palettes[pal_off/16-1];d.pal=p.data;d.pal_len=p.size;
+        }
+        source_identity=host->second.serial;
+    }
 
     const char* player_texture=nullptr;
     if(g_player_colors.style)for(const auto& texture:g_player_colors.textures)
         if(texture.offset==off){player_texture=texture.name;break;}
-    TexKey key;key.style=player_texture?g_player_colors.style:0;
-    key.name = (static_cast<uint64_t>(g_plttbase) << 32) | g_teximage;
+    TexKey key;key.source=source_identity;key.style=player_texture?g_player_colors.style:0;
+    key.name = (static_cast<uint64_t>(effective_plttbase) << 32) | g_teximage;
     /* w*h/4 bytes is the smallest any DS format uses for a block of that
        size, so it is in range whatever the format turns out to be. */
     int32_t span = d.width * d.height / 4;
@@ -2142,7 +2249,7 @@ void bind_from_vram() {
            of binds a frame makes -- the key above already discriminates a
            stale slot, so a hit needs no re-examination. */
         if (hdtex_wants_work()) {
-            const uint64_t name = hdtex_name(g_teximage, g_plttbase);
+            const uint64_t name = source_identity?hdtex_host_name(d.width,d.height,rgba.data()):hdtex_name(g_teximage, effective_plttbase);
             hdtex_dump(name, d.width, d.height, rgba.data());
             std::vector<uint32_t> hd;
             const int s = hdtex_lookup(name, d.width, d.height, hd);
@@ -2299,19 +2406,15 @@ void gx_write_port(uint32_t addr, uint32_t value) {
    soaks do, once per model. SM64DS_TEX_NOCACHE=1 restores the old
    clear-every-reset behaviour for an A/B. */
 void gx_invalidate_textures() {
-    /* THE REGISTRY GOES WITH THE CACHE. It holds addresses of buffers the
-       clear below is about to free, so an entry left behind would hand the
-       raster a mip chain that no longer exists. Cleared first for the same
-       reason. */
-    g_tex_by_px.clear();
-    g_vram_tex_cache.clear();
-    /* AND SO DOES THE ID REGISTRY, for a stronger version of the same reason:
-       the buffers it names are about to be freed and the allocator will hand
-       those addresses out again. The generation bump is what tells a graphics
-       card backend that every texture it is holding is now a picture of
-       something else. The counter itself is NOT reset, so an id that named one
-       texture never names another. */
-    g_tex_ids.clear();
+    /* Keep the pixel/mip and identity registries for retired entries until
+       the reference collector proves no draw/replay still borrows them. */
+    // EndLoadTex may run between two actors' draws. Retire the map without
+    // moving entries, so earlier triangles and interpolation binds keep valid
+    // base/mip storage. New binds decode into a fresh lookup immediately.
+    if(!g_vram_tex_cache.empty()) {
+        g_retired_tex_caches.emplace_back();
+        g_retired_tex_caches.back().swap(g_vram_tex_cache);
+    }
     ++g_tex_generation;
 }
 
@@ -2393,7 +2496,7 @@ void gx_reset() {
     if (g_swap_pending) { g_swap_pending = 0; ++g_swaps_retired; }
     static int nocache = -1;
     if (nocache < 0) nocache = getenv("SM64DS_TEX_NOCACHE") ? 1 : 0;
-    if (nocache) g_vram_tex_cache.clear();
+    if (nocache) gx_invalidate_textures();
     /* KEEP THE TWO BUFFERS ACROSS THE RESET. `g = State{}` destroys the
        triangle list and the vertex strip and grows them back from nothing on
        the next frame -- a couple of thousand triangles at 116 bytes each, so a
@@ -2528,6 +2631,7 @@ void gx_reset() {
     g.strip = std::move(strip);
     g.tris = std::move(tris);
     g.strip_raw = std::move(strip_raw);
+    collect_retired_textures();
     for (int i = 0; i < 4; ++i) g.lights[i] = lights[i];
     g.light_mask = light_mask;
     g_teximage = g_plttbase = 0;
@@ -6013,6 +6117,30 @@ struct IpSaved {
 };
 IpSaved g_ip_saved;
 
+// Reclaim only buffers no current triangle or recorded replay can sample.
+// This uses actual references, not a guessed number of frames/resets.
+void collect_retired_textures() {
+    if(g_retired_tex_caches.empty())return;
+    std::set<const uint32_t*> borrowed;
+    auto triangles=[&](const std::vector<GxTriangle>& tris){for(const auto& t:tris)borrowed.insert(t.tex);};
+    auto state=[&](const State& v){borrowed.insert(v.tex_rgba);triangles(v.tris);};
+    state(g);state(g_ip_saved.g);triangles(g_ip_tris);
+    for(const auto& record:g_ipr) {
+        state(record.start);
+        for(const auto& bind:record.binds)borrowed.insert(bind.rgba);
+    }
+    for(auto cache=g_retired_tex_caches.begin();cache!=g_retired_tex_caches.end();) {
+        for(auto entry=cache->begin();entry!=cache->end();) {
+            const auto* pixels=entry->second.px.data();
+            if(borrowed.count(pixels)){++entry;continue;}
+            g_tex_by_px.erase(pixels);g_tex_ids.erase(pixels);
+            entry=cache->erase(entry);
+        }
+        if(cache->empty())cache=g_retired_tex_caches.erase(cache);else ++cache;
+    }
+}
+
+
 /* Per group, the triangles one replay produced: [begin, end) into g.tris. The
    probe reads it to measure how a group moved picture to picture. */
 std::vector<uint32_t> g_ip_group_tri0, g_ip_group_tri1;
@@ -6668,6 +6796,34 @@ void gx_interp_dump_groups(void *fp, int frame) {
                      G.px, G.py, G.pz, d, e0.cmd, e0.mode, G.has_rel, G.rx,
                      G.ry, G.rz);
     }
+}
+
+namespace {
+IpSaved g_preview_saved;
+bool g_preview_open=false;
+int g_preview_replaying=0;
+uint32_t g_preview_counts[256],g_preview_ports,g_preview_fifo,g_preview_swap,g_preview_resets;
+}
+bool gx_preview_begin() {
+    if(g_preview_open||g_ip_open||g_queued||g_have||g_port_have)return false;
+    std::memcpy(g_preview_counts,g_cmd_n,sizeof g_cmd_n);g_preview_ports=g_port_n;g_preview_fifo=g_fifo_n;g_preview_swap=g_swap_param;g_preview_resets=g_resets;
+    auto& s=g_preview_saved;s.g=std::move(g);s.teximage=g_teximage;s.plttbase=g_plttbase;
+    s.seen_pos=g_mtx_seen_pos;s.seen_vec=g_mtx_seen_vec;s.mtx_gen=g_mtx_gen;s.similar=g_mtx_similar;s.rec=g_ip_rec;
+    for(int i=0;i<MTX_RING;++i){s.ring[i]=g_mtx_ring[i];s.ring_gen[i]=g_mtx_ring_gen[i];s.ring_sim[i]=g_mtx_ring_sim[i];}
+    g_preview_replaying=g_ip_replaying;g_ip_replaying=1;g_ip_rec=0;g_preview_open=true;
+    g=State{};g.lights[0]=s.g.lights[0];g.lights[1]=s.g.lights[1];g.lights[2]=s.g.lights[2];g.lights[3]=s.g.lights[3];g.light_mask=s.g.light_mask;
+    for(int i=0;i<32;++i){g.pos_stack[i]=Mat::identity();g.vec_stack[i]=Mat::identity();}
+    g.proj_stack[0]=g.proj_stack[1]=Mat::identity();g.tex_stack=Mat::identity();g_teximage=g_plttbase=0;
+    return true;
+}
+void gx_preview_end() {
+    if(!g_preview_open)return;
+    auto& s=g_preview_saved;g=std::move(s.g);g_teximage=s.teximage;g_plttbase=s.plttbase;
+    g_mtx_seen_pos=s.seen_pos;g_mtx_seen_vec=s.seen_vec;g_mtx_gen=s.mtx_gen;g_mtx_similar=s.similar;
+    for(int i=0;i<MTX_RING;++i){g_mtx_ring[i]=s.ring[i];g_mtx_ring_gen[i]=s.ring_gen[i];g_mtx_ring_sim[i]=s.ring_sim[i];}
+    g_queued=g_qpos=g_have=g_port_have=0;g_port_cmd=0;
+    std::memcpy(g_cmd_n,g_preview_counts,sizeof g_cmd_n);g_port_n=g_preview_ports;g_fifo_n=g_preview_fifo;g_swap_param=g_preview_swap;g_resets=g_preview_resets;
+    g_ip_rec=s.rec;g_ip_replaying=g_preview_replaying;g_preview_open=false;gxstat_publish();
 }
 
 }  // namespace ntr

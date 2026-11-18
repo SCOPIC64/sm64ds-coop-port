@@ -93,8 +93,8 @@ void default_extent(double aspect, int &out_w, int &out_h)
     // Clamp again at the point of use. host_setting_aspect already clamps,
     // but this is the divide that sizes a framebuffer and it does not get to
     // trust its caller.
-    if (aspect < 1.0) aspect = 1.0;
-    if (aspect > 4.0) aspect = 4.0;
+    if (aspect < 1.0/16.0) aspect = 1.0/16.0;
+    if (aspect > 16.0) aspect = 16.0;
     // The largest w:h rectangle that fits the default box. Start full width
     // and derive the height; if that is taller than the box, the ratio is
     // narrower than the box's own and the height binds instead. At 1.7777778
@@ -141,8 +141,8 @@ void scaled_extent(double aspect, int scale, int &out_w, int &out_h)
         // same picture and not merely the same size.
         w = scale * 256;
     } else {
-        if (aspect < 1.0) aspect = 1.0;
-        if (aspect > 4.0) aspect = 4.0;
+        if (aspect < 1.0/16.0) aspect = 1.0/16.0;
+        if (aspect > 16.0) aspect = 16.0;
         w = (int)(h * aspect + 0.5);
         w &= ~1;                    // height pinned: round the width down
         if (w > SCREEN_W) {

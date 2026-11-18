@@ -279,7 +279,9 @@ bool parse_name(const char *fn, uint64_t *out) {
 // keeps the pack off the per-bind path for the large majority of this game's
 // textures that a pack will never replace.
 void index_pack() {
-    g_names = new std::unordered_set<uint64_t>();
+    if(!g_names)g_names = new std::unordered_set<uint64_t>();
+    else g_names->clear();
+    g_stats.pack_entries=0;g_pack_indexed=0;
 #if defined(_WIN32)
     std::string pat = std::string(g_pack_dir) + "\\*.png";
     WIN32_FIND_DATAA fd;
@@ -386,6 +388,16 @@ void hdtex_configure(int enabled, const char *pack_dir)
         atexit(hdtex_report);
     }
 }
+
+void hdtex_reload(int enabled,const char* directory) {
+    // directory may alias our own buffer, so copy it before replacing state.
+    const std::string path=directory?directory:"";
+    std::snprintf(g_pack_dir,sizeof g_pack_dir,"%s",path.c_str());
+    g_enabled=enabled&&g_pack_dir[0];g_pack_indexed=0;
+    if(g_names)g_names->clear();
+    if(g_enabled)index_pack();
+}
+void hdtex_clear_registered(){if(g_registered)g_registered->clear();}
 
 void hdtex_capture(const char* directory, bool enabled) {
     if(!enabled){g_dump_on=0;return;}
@@ -560,6 +572,17 @@ uint64_t hdtex_name(uint32_t teximage, uint32_t plttbase)
     }
     ++g_stats.hashed;
     return hash;
+}
+
+uint64_t hdtex_host_name(int width,int height,const uint32_t* argb) {
+    if(!argb||width<=0||height<=0||width>1024||height>1024)return 0;
+    // Separate domain from native format1..7 names. Equal visible host images
+    // have one stable name, independent of a virtual slot or another model.
+    const uint32_t header[3]={0x31545348u,uint32_t(width),uint32_t(height)};
+    auto hash=xxh64(reinterpret_cast<const uint8_t*>(header),sizeof header,0);
+    hash=xxh64(reinterpret_cast<const uint8_t*>(argb),std::size_t(width)*height*4,hash);
+    if(g_index_path){std::memset(&g_last,0,sizeof g_last);g_last.fmt=8;g_last.tex_size=uint32_t(width*height*4);}
+    ++g_stats.hashed;return hash;
 }
 
 void hdtex_dump(uint64_t name, int width, int height, const uint32_t *argb)

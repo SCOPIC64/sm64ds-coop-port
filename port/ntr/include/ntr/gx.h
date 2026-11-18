@@ -431,6 +431,11 @@ void gx_interp_end();
 int gx_interp_group_box(int group, float box[4]);
 int gx_interp_group_count();
 void gx_interp_dump_groups(void *file, int frame);
+// Independent native-model submission for an immediate UI preview. No raster,
+// interpolation record or gameplay geometry is replaced. End restores state.
+bool gx_preview_begin();
+void gx_preview_end();
+
 
 
 }  // namespace ntr

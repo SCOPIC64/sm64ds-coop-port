@@ -54,6 +54,8 @@ struct BmdModel {
 
 // Load and decompress by filesystem id or path. Returns false if absent.
 bool bmd_load(int32_t file_id, BmdModel &out);
+// Read an unmodified file image (including an optional LZ77 wrapper).
+bool bmd_load_memory(const uint8_t *bytes, int32_t size, BmdModel &out);
 bool bmd_load_path(const char *path, BmdModel &out);
 bool bmd_load_asset(uint32_t asset_id, BmdModel &out);   // the game's own handle
 
@@ -67,7 +69,8 @@ void bmd_submit(const BmdModel &m);
 // to pose the model; pass none and every bone is identity, which stacks the
 // parts on top of each other.
 void bmd_bone_matrices(const BmdModel &m, const std::vector<uint8_t> &bca,
-                       std::vector<std::array<float, 16>> &out);
+                       std::vector<std::array<float, 16>> &out,
+                       unsigned frame=0,bool loop=true);
 
 // Load and decompress a BCA animation.
 bool bca_load_path(const char *path, std::vector<uint8_t> &out);

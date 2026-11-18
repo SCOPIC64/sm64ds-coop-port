@@ -62,6 +62,9 @@ void hdtex_configure(int enabled, const char *pack_dir);
 // texture directory; the resource-pack loader has already confined it to the
 // pack that declared it. Last-writer replacement is refused by that registry.
 void hdtex_register(uint64_t name, const char *png_path);
+// Replace only texture-pack state at a frame boundary; capture stays intact.
+void hdtex_reload(int enabled,const char* directory);
+void hdtex_clear_registered();
 
 // What hdtex_configure was told. Unchanged from the seam's contract.
 int hdtex_enabled(void);
@@ -77,6 +80,8 @@ bool hdtex_wants_work(void);
 // PNGs: one row per texture with its format, shape, geometry words and the
 // parked edition's name for the same texture.
 uint64_t hdtex_name(uint32_t teximage, uint32_t plttbase);
+// Content identity for host-owned decoded pixels; never probes unrelated DS VRAM.
+uint64_t hdtex_host_name(int width,int height,const uint32_t* argb);
 
 // Write one decoded texture to the dump directory as <name>.png (RGBA8, one
 // file per unique name, never overwritten, nothing at all when no dump
